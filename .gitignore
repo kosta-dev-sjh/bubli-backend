@@ -8,6 +8,15 @@ out/
 application-secret.yml
 application-local.yml
 
+# QueryDSL Q-class (자동 생성 코드, 커밋 금지)
+**/generated/
+**/Q*.java
+
+# API 수동 검증 (.http) 민감정보 파일
+docs/api-test/*.local.http
+docs/api-test/http-client.env.json
+docs/api-test/http-client.private.env.json
+
 # SQLite
 *.db
 *.sqlite
