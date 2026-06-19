@@ -27,7 +27,7 @@
 
 | 구분 | 스택 |
 |------|------|
-| Language | Java 17 |
+| Language | Java 21 |
 | Framework | Spring Boot 3.x, Spring AI |
 | Database | pgvector (PostgreSQL) |
 | AI | OpenAI Embedding, AWS Bedrock |
