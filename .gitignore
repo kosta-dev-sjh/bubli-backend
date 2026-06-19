@@ -1,0 +1,31 @@
+# Build
+build/
+.gradle/
+target/
+out/
+
+# Bubli 설정/시크릿
+application-secret.yml
+application-local.yml
+
+# SQLite
+*.db
+*.sqlite
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+
+# 기타
+*.class
+HELP.md
