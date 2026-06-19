@@ -1,0 +1,41 @@
+# Build
+build/
+.gradle/
+target/
+out/
+
+# Bubli 설정/시크릿
+application-secret.yml
+application-local.yml.local
+
+# QueryDSL Q-class (자동 생성 코드, 커밋 금지)
+**/generated/
+**/Q*.java
+
+# API 수동 검증 (.http) 민감정보 파일
+docs/api-test/*.local.http
+docs/api-test/http-client.env.json
+docs/api-test/http-client.private.env.json
+
+# SQLite
+*.db
+*.sqlite
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+
+# 기타
+*.class
+HELP.md
+local-storage/
