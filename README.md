@@ -2,7 +2,7 @@
 
 > 받은 자료를, 오늘의 할 일로. — Backend API Server
 
-[![Java](https://img.shields.io/badge/Java-17-007396?style=flat&logo=openjdk&logoColor=white)](https://www.java.com/)
+[![Java](https://img.shields.io/badge/Java-21-007396?style=flat&logo=openjdk&logoColor=white)](https://www.java.com/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=flat&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.x-6DB33F?style=flat&logo=spring&logoColor=white)](https://spring.io/projects/spring-ai)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
@@ -32,7 +32,7 @@
 
 | 영역 | 기술 | 비고 |
 |------|------|------|
-| Language | Java 17 | |
+| Language | Java 21 | |
 | Framework | Spring Boot | EC2 t3.small 단일 서버 |
 | Security | Spring Security, JWT | 이메일 로그인, API 보호 |
 | AI | Spring AI (ChatClient, Structured Output, Advisor, Tool Calling) | |
