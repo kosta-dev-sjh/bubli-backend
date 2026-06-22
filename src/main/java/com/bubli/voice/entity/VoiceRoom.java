@@ -17,4 +17,8 @@ import lombok.*;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class VoiceRoom {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
 }

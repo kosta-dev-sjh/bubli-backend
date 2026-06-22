@@ -16,4 +16,8 @@ import lombok.*;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatGuestAccess {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
 }

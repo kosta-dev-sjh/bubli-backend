@@ -19,4 +19,8 @@ import lombok.*;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoomMemorySummary {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
 }

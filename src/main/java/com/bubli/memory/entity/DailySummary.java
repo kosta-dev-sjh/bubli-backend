@@ -19,4 +19,8 @@ import lombok.*;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailySummary {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
 }
