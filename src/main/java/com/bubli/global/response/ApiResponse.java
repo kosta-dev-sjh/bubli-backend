@@ -1,5 +1,6 @@
 package com.bubli.global.response;
 
+import com.bubli.global.error.ErrorResponse;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -12,21 +13,13 @@ public class ApiResponse<T> {
 
     private final boolean success;
     private final T data;
-    private final ErrorDetail error;
+    private final ErrorResponse error;
 
     public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(true, data, null);
     }
 
-    public static <T> ApiResponse<T> fail(ErrorDetail error) {
+    public static <T> ApiResponse<T> fail(ErrorResponse error) {
         return new ApiResponse<>(false, null, error);
-    }
-
-    @Getter
-    @AllArgsConstructor
-    public static class ErrorDetail {
-        private final String code;
-        private final String message;
-        private final String traceId;
     }
 }
