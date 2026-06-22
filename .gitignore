@@ -7,8 +7,6 @@ out/
 # Bubli 설정/시크릿
 application-secret.yml
 application-local.yml.local
-.env
-.env.*
 
 # QueryDSL Q-class (자동 생성 코드, 커밋 금지)
 **/generated/
@@ -18,9 +16,6 @@ application-local.yml.local
 docs/api-test/*.local.http
 docs/api-test/http-client.env.json
 docs/api-test/http-client.private.env.json
-
-# Docker (팀원 개인 오버라이드)
-docker-compose.override.yml
 
 # SQLite
 *.db
@@ -37,16 +32,10 @@ docker-compose.override.yml
 .DS_Store
 Thumbs.db
 
-# JVM 크래시/힙 덤프
-*.hprof
-hs_err_pid*
-
 # 로그
 *.log
-
-# 로컬 파일 저장소
-local-storage/
 
 # 기타
 *.class
 HELP.md
+local-storage/

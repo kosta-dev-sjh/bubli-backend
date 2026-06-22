@@ -34,4 +34,4 @@ management:
 logging:
   level:
     root: INFO
-    com.bubli: DEBUG
+    bubli.backend: DEBUG
