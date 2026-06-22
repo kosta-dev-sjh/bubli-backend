@@ -21,11 +21,17 @@ gradle wrapper --gradle-version 8.11
 
 ## DB / Redis 로컬 준비
 
-`application-local.yml` 기준으로 PostgreSQL이 `localhost:5432/bubli`, Redis가 `localhost:6379`에 떠 있어야 합니다. Docker로 간단히 띄우려면:
+`application-local.yml` 기준으로 PostgreSQL이 `localhost:5432/bubli`, Redis가 `localhost:6379`에 떠 있어야 합니다.
 
 ```bash
-docker run --name bubli-postgres -e POSTGRES_DB=bubli -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d pgvector/pgvector:pg16
-docker run --name bubli-redis -p 6379:6379 -d redis:7
+docker compose up -d
+```
+
+이 한 줄이면 PostgreSQL(pgvector 포함) + Redis가 함께 뜹니다.
+
+```bash
+docker compose down      # 종료
+docker compose down -v   # 종료 + 데이터 삭제 (DB 초기화)
 ```
 
 ## 민감정보 설정
