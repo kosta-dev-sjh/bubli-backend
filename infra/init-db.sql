@@ -1,0 +1,9 @@
+-- pgvector 확장 활성화
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 테스트용 DB (CI에서 사용)
+SELECT 'CREATE DATABASE bubli_test'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'bubli_test')\gexec
+
+\c bubli_test
+CREATE EXTENSION IF NOT EXISTS vector;
