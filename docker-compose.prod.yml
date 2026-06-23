@@ -49,6 +49,21 @@ services:
         reservations:
           memory: 64m
 
+  frontend:
+    image: ${DOCKER_USERNAME}/bubli-frontend:latest
+    container_name: bubli-frontend
+    restart: always
+    expose:
+      - "3000"
+    networks:
+      - bubli-network
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+
   nginx:
     image: nginx:alpine
     container_name: bubli-nginx
@@ -63,6 +78,7 @@ services:
       - webroot:/var/www/certbot:ro
     depends_on:
       - backend
+      - frontend
     networks:
       - bubli-network
     deploy:
