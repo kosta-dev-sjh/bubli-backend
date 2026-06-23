@@ -47,6 +47,13 @@ hs_err_pid*
 # 로컬 파일 저장소
 local-storage/
 
+# Terraform
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+
 # 기타
 *.class
 HELP.md
