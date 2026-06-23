@@ -11,11 +11,16 @@ public enum ErrorCode {
     // COMMON
     COMMON_400_001(HttpStatus.BAD_REQUEST, "COMMON_400_001", "잘못된 요청입니다."),
     COMMON_400_002(HttpStatus.BAD_REQUEST, "COMMON_400_002", "요청 값이 올바르지 않습니다."),
+    COMMON_404_001(HttpStatus.NOT_FOUND, "COMMON_404_001", "요청한 API를 찾을 수 없습니다."),
+    COMMON_405_001(HttpStatus.METHOD_NOT_ALLOWED, "COMMON_405_001", "지원하지 않는 HTTP 메서드입니다."),
+    COMMON_415_001(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_415_001", "지원하지 않는 Content-Type입니다."),
     COMMON_500_001(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_500_001", "서버 오류가 발생했습니다."),
 
     // AUTH
     AUTH_401_001(HttpStatus.UNAUTHORIZED, "AUTH_401_001", "인증이 필요합니다."),
     AUTH_401_002(HttpStatus.UNAUTHORIZED, "AUTH_401_002", "토큰이 유효하지 않습니다."),
+    AUTH_401_003(HttpStatus.UNAUTHORIZED, "AUTH_401_003", "토큰이 만료되었습니다."),
+    AUTH_403_001(HttpStatus.FORBIDDEN, "AUTH_403_001", "접근 권한이 없습니다."),
 
     // PROJECT
     PROJECT_403_001(HttpStatus.FORBIDDEN, "PROJECT_403_001", "프로젝트룸 접근 권한이 없습니다."),
