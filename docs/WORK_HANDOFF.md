@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 01:23 KST
+Last checked: 2026-06-25 01:38 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -40,11 +40,38 @@ Last checked: 2026-06-25 01:23 KST
 - GitHub Actions CI 통과 (#19, 2026-06-25 00:55 KST)
 - GitHub Actions CI 통과 (#20, 2026-06-25 01:01 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
-- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 01:23 KST)
+- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 01:38 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 11-2. #26~#28 base 충돌 정리와 CI 재확인
+
+처리 시각: 2026-06-25 01:38 KST
+
+변경 내용:
+
+- #26 `feature/agent-storage-foundation`에 #25 `feature/resource-basic-foundation` 최신 변경을 병합했다.
+- #27 `feature/entity-flyway-alignment`에 #26 `feature/agent-storage-foundation` 최신 변경을 병합했다.
+- #28 `feature/testcontainers-ci-foundation`에 #27 `feature/entity-flyway-alignment` 최신 변경을 병합했다.
+- 각 병합에서 발생한 `docs/WORK_HANDOFF.md` 충돌은 해당 PR 기록을 모두 보존하도록 정리했다.
+- #26, #27, #28 PR 본문을 최신 head, mergeState, 검증 결과 기준으로 갱신했다.
+
+검증 결과:
+
+- #26: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
+- #26: head `1382c41`, base `feature/resource-basic-foundation`, mergeState `CLEAN`, GitHub checks 없음
+- #27: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
+- #27: head `9a8827a`, base `feature/agent-storage-foundation`, mergeState `CLEAN`, GitHub checks 없음
+- #28: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
+- #28: head `810ec58`, base `feature/entity-flyway-alignment`, mergeState `CLEAN`, GitHub Actions `build` 통과
+
+메모:
+
+- #26, #27은 workflow 보강 전 생성된 draft stacked PR이라 GitHub checks가 없다.
+- #28은 CI workflow를 포함하는 PR이라 새 head에서 GitHub Actions가 다시 실행됐고 통과했다.
+- #29는 #28 최신 base 병합 후 문서 PR CI를 다시 확인해야 한다.
 
 ### 작업 카드 11-1. #25 base 충돌 정리와 stack 상태 재확인
 
@@ -179,6 +206,31 @@ Last checked: 2026-06-25 01:23 KST
 - 이 테스트는 타입, FK, 인덱스, enum 값까지 검증하지 않는다.
 - Docker가 켜진 환경의 Testcontainers/Flyway validate 보강은 다음 카드에서 다룬다.
 
+### 작업 카드 7-1. 6/25 기준 agent enum 보정
+
+처리 시각: 2026-06-25 00:43 KST
+
+변경 내용:
+
+- 6/25 백엔드 개발 가이드와 `10_API-Design.md` 기준으로 `AgentSuggestionType`을 확장했다.
+- `TODO`, `CONTRACT_FIELD`, `CONTRACT_REVIEW`, `DOCUMENT_DRAFT`, `DAILY_SUMMARY`, `MEMO` 후보 타입을 추가했다.
+- 기존 데이터 모델 표에 남아 있는 `TASK`, `REVIEW_ITEM` 값은 바로 제거하지 않고 호환값으로 유지했다.
+- `AgentJobType`에 요구사항 생성, 계약 문서 검토, 질문 생성, 하루정리, 자료 검색, 문서 초안 작업 타입을 추가했다.
+- `AgentStorageServiceTest`의 후보 저장 검증을 6/25 기준 `TODO` 후보로 바꿨다.
+
+검증 결과:
+
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+- GitHub Actions checks 없음. #26은 workflow 보강 전 생성된 stacked PR이라 #22, #23, #24, #25 merge 후 `develop` 기준 CI 재확인 필요.
+
+메모:
+
+- 이번 변경은 agent 저장 enum 보정만 다룬다.
+- agent Controller/API 연결은 별도 PR로 분리한다.
+- 후보 승인 후 확정 데이터 생성은 여전히 target 도메인 Service가 맡는다.
+
 ### 작업 카드 7. agent 저장 기반
 
 처리 시각: 2026-06-24 21:39:10 KST
@@ -233,6 +285,32 @@ Last checked: 2026-06-25 01:23 KST
 - 실제 파일 업로드, S3 저장, 다운로드 URL, 버전, 댓글, 요약/AI 문서 API는 별도 PR로 분리한다.
 - API 예시의 자료 상태값 `UPLOADED`, `ARCHIVED`와 당시 DB/코드 enum `UPLOADING`, `READY`, `ANALYZING`, `ANALYZED`, `FAILED`, `DELETED` 사이 차이는 6/25 기준으로 다시 확인한다.
 
+### 작업 카드 3-1. 6/25 기준 Google auth endpoint 보정
+
+처리 시각: 2026-06-25 00:47 KST
+
+변경 내용:
+
+- 6/25 `10_API-Design.md` 기준에 맞춰 `POST /api/auth/login` 뼈대를 제거했다.
+- `GET /api/auth/google/authorize` endpoint 뼈대를 추가했다.
+- `POST /api/auth/google/callback` endpoint 뼈대를 추가했다.
+- 보안 허용 경로를 Google authorize/callback, refresh 기준으로 바꿨다.
+- `.http` 예시를 Google OAuth code callback 기준으로 수정했다.
+- 실제 Google OAuth 검증, authorize URL 생성, refresh token rotation은 기존처럼 501 TODO로 남겼다.
+
+검증 결과:
+
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+- GitHub Actions checks 없음. #24는 workflow 보강 전 생성된 stacked PR이라 #22, #23 merge 후 `develop` 기준 CI 재확인 필요.
+
+메모:
+
+- signup, email/password 로그인은 되살리지 않았다.
+- 이번 변경은 auth endpoint surface와 예시만 6/25 기준으로 맞춘다.
+- 기초 설정, Gradle, GitHub Actions, PR 템플릿, README는 건드리지 않았다.
+
 ### 작업 카드 2. 프로젝트룸 권한 검사 서비스 분리
 
 처리 시각: 2026-06-24 21:01:54 KST
@@ -271,9 +349,9 @@ Last checked: 2026-06-25 01:23 KST
 | #23 | `feat: 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
 | #24 | `chore: Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `feat: 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `14c522d` | checks 없음, merge clean | 6/25 기준 자료 메타데이터 수정/삭제 보정 완료. #24 base 병합 충돌 정리 완료 |
-| #26 | `feat: 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `cf3389b` | checks 없음, merge dirty | 6/25 기준 `AgentSuggestionType`, `AgentJobType` enum 확장 보정 완료. #25 base 갱신 후 충돌 정리 필요 |
-| #27 | `test: Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `af54d17` | checks 없음, merge dirty | 테이블/컬럼 검사는 있음. #26 충돌 정리 뒤 재확인 필요 |
-| #28 | `ci: stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d6aa68e` | `build` pass, merge clean | stacked PR CI 보강 완료 |
+| #26 | `feat: 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
+| #27 | `test: Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
+| #28 | `ci: stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
 | #29 | `docs: 2026-06-25 backend baseline 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `local latest` | `build` pass, merge clean | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 
 ## 6/25 기준 재검토 후보
@@ -325,12 +403,12 @@ Last checked: 2026-06-25 01:23 KST
 1. #23은 #22 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 2. #24는 #22, #23 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
-4. #26은 #25 최신 base를 병합할 때 생기는 충돌을 먼저 정리해야 한다.
-5. #27은 #26 충돌 정리 뒤 mergeState와 Entity/Flyway 테스트 상태를 다시 확인한다.
-6. #28은 GitHub Actions CI `build`가 통과했다.
-7. `docs/CURRENT_API_BASELINE_WORK.md` 기준 우선 작업은 한 차례 완료했다.
-8. 다음 추천 작업은 열린 PR stack 정리와 6/25 기준 차이 보정이다.
-9. #19~#28은 6/25 기준으로 재검토하고 차이만 보정한다.
+4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
+5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
+6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
+7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
+8. 다음 추천 작업은 `WBS board/reorder`, `time_logs`, resource download/version/comment/summary/ai-document API 중 하나를 별도 PR로 나누는 것이다.
+9. #19~#29는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 

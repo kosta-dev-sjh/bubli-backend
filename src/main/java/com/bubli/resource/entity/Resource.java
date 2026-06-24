@@ -79,6 +79,17 @@ public class Resource {
 		return new Resource(ownerId, roomId, title, kind, visibility, status);
 	}
 
+	public void updateTitle(String title) {
+		if (title != null) {
+			this.title = title;
+		}
+	}
+
+	public void markDeleted(Instant deletedAt) {
+		this.deletedAt = deletedAt;
+		this.status = ResourceStatus.DELETED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
