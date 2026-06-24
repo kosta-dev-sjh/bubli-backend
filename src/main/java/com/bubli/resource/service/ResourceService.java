@@ -12,6 +12,7 @@ import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
+import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
@@ -28,6 +29,8 @@ import com.bubli.resource.storage.StorageDownloadUrl;
 import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.storage.dto.FileUploadResult;
+import com.bubli.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +38,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -52,6 +56,7 @@ public class ResourceService {
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
+	private final StorageService storageService;
 	private final RoomAccessService roomAccessService;
 
 	@Transactional(readOnly = true)
@@ -161,6 +166,42 @@ public class ResourceService {
 	}
 
 	@Transactional
+	public ResourceResult upload(UUID userId, UploadResourceCommand command) {
+		validateUploadCommand(userId, command);
+		UUID roomId = command.visibility() == ResourceVisibility.ROOM_SHARED ? command.roomId() : null;
+		Resource resource = resourceRepository.save(Resource.create(
+				userId,
+				roomId,
+				command.title(),
+				command.kind(),
+				command.visibility(),
+				ResourceStatus.READY
+		));
+		FileUploadResult uploaded = storageService.save(
+				storageKey(resource.getId(), command.originalName()),
+				command.originalName(),
+				command.mimeType(),
+				command.content()
+		);
+		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+				resource.getId(),
+				uploaded.storageKey(),
+				uploaded.originalName(),
+				uploaded.mimeType(),
+				uploaded.sizeBytes(),
+				uploaded.checksum()
+		));
+		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
+		resourceVersionRepository.save(ResourceVersion.create(
+				resource.getId(),
+				nextVersionNo,
+				file.getId(),
+				userId
+		));
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
 	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
 		Resource resource = getReadableResource(userId, resourceId);
 		if (title != null && title.isBlank()) {
@@ -225,6 +266,10 @@ public class ResourceService {
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
+		if (command == null || !StringUtils.hasText(command.title())
+				|| command.kind() == null || command.visibility() == null) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
 		if (command.visibility() == ResourceVisibility.PERSONAL) {
 			if (command.roomId() != null) {
 				throw new BusinessException(ErrorCode.RESOURCE_400_001);
@@ -239,6 +284,20 @@ public class ResourceService {
 			return;
 		}
 		throw new BusinessException(ErrorCode.RESOURCE_400_001);
+	}
+
+	private void validateUploadCommand(UUID userId, UploadResourceCommand command) {
+		if (command == null || command.content() == null || command.content().length == 0
+				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		validateCreateCommand(userId, command.toCreateResourceCommand());
+	}
+
+	private String storageKey(UUID resourceId, String originalName) {
+		String extension = StringUtils.getFilenameExtension(originalName);
+		String suffix = StringUtils.hasText(extension) ? "." + extension : "";
+		return "resources/%s/%s%s".formatted(resourceId, UUID.randomUUID(), suffix);
 	}
 
 	private void validateReadable(UUID userId, Resource resource) {
