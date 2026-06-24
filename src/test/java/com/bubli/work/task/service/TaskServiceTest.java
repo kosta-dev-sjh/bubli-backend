@@ -19,8 +19,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -98,6 +101,22 @@ class TaskServiceTest {
 		assertThat(result.assigneeUserId()).isEqualTo(assigneeUserId);
 		assertThat(result.wbsItemId()).isEqualTo(wbsItemId);
 		assertThat(result.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+	}
+
+	@Test
+	void getDashboardTasksUsesUserScopedDashboardQuery() {
+		UUID userId = UUID.randomUUID();
+		Task personalTask = Task.createPersonal(userId, "개인 할 일", null, TaskStatus.TODO, null);
+		Task assignedTask = Task.createRoomTask(UUID.randomUUID(), userId, null, "프로젝트 할 일", null, TaskStatus.REVIEW, null);
+		given(taskRepository.findDashboardTasks(userId, Pageable.unpaged()))
+				.willReturn(new PageImpl<>(List.of(personalTask, assignedTask)));
+
+		var result = taskService.getDashboardTasks(userId, Pageable.unpaged());
+
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems())
+				.extracting(TaskResult::title)
+				.containsExactly("개인 할 일", "프로젝트 할 일");
 	}
 
 	@Test

@@ -13,6 +13,10 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/tasks?scope=assigned&page=0&size=20
 Authorization: Bearer {{accessToken}}
 
+### 대시보드 TODO 목록
+GET {{baseUrl}}/api/dashboard/tasks?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
 ### 개인 TODO 생성
 POST {{baseUrl}}/api/tasks
 Authorization: Bearer {{accessToken}}

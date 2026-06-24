@@ -43,6 +43,14 @@ public class TaskController {
 		return ApiResponse.success(mapPage(taskService.getPersonalTasks(authUser.userId(), pageable)));
 	}
 
+	@GetMapping("/api/dashboard/tasks")
+	public ApiResponse<PageResponse<TaskResponse>> getDashboardTasks(
+			@CurrentUser AuthUser authUser,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapPage(taskService.getDashboardTasks(authUser.userId(), pageable)));
+	}
+
 	@PostMapping("/api/tasks")
 	public ApiResponse<TaskResponse> createPersonalTask(
 			@CurrentUser AuthUser authUser,

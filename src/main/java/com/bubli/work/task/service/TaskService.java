@@ -39,6 +39,11 @@ public class TaskService {
 		return toPage(taskRepository.findByAssigneeUserId(userId, pageable));
 	}
 
+	@Transactional(readOnly = true)
+	public PageResponse<TaskResult> getDashboardTasks(UUID userId, Pageable pageable) {
+		return toPage(taskRepository.findDashboardTasks(userId, pageable));
+	}
+
 	@Transactional
 	public TaskResult createPersonalTask(UUID userId, CreatePersonalTaskRequest request) {
 		Task task = Task.createPersonal(

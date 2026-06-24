@@ -90,6 +90,13 @@ class WorkControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].title").value("오늘 정리"));
+
+		mockMvc.perform(get("/api/dashboard/tasks")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].title").value("오늘 정리"));
 	}
 
 	@Test
