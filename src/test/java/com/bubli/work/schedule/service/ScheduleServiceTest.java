@@ -1,9 +1,9 @@
 package com.bubli.work.schedule.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.project.service.RoomAccessService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
@@ -27,7 +27,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -38,7 +37,7 @@ class ScheduleServiceTest {
 	ScheduleRepository scheduleRepository;
 
 	@Mock
-	RoomMemberRepository roomMemberRepository;
+	RoomAccessService roomAccessService;
 
 	@InjectMocks
 	ScheduleService scheduleService;
@@ -78,8 +77,7 @@ class ScheduleServiceTest {
 	void createRoomScheduleRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(false);
+		givenRoomAccessDenied(userId, roomId);
 
 		assertThatThrownBy(() -> scheduleService.create(userId, new CreateScheduleCommand(
 				roomId,
@@ -176,5 +174,11 @@ class ScheduleServiceTest {
 
 	private Pageable anyPageable() {
 		return org.mockito.ArgumentMatchers.<Pageable>any();
+	}
+
+	private void givenRoomAccessDenied(UUID userId, UUID roomId) {
+		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(roomAccessService)
+				.validateActiveMember(userId, roomId);
 	}
 }

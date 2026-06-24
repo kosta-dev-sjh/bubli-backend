@@ -4,7 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.entity.RoomMember;
-import com.bubli.project.repository.RoomMemberRepository;
+import com.bubli.project.service.RoomAccessService;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
@@ -30,13 +30,13 @@ import java.util.UUID;
 public class ScheduleService {
 
 	private final ScheduleRepository scheduleRepository;
-	private final RoomMemberRepository roomMemberRepository;
+	private final RoomAccessService roomAccessService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<Schedule> getSchedules(UUID userId, UUID roomId, Instant from, Instant to, Pageable pageable) {
 		validateRange(from, to);
 		if (roomId != null) {
-			checkActiveMember(userId, roomId);
+			roomAccessService.validateActiveMember(userId, roomId);
 		}
 		Page<Schedule> page = scheduleRepository.findAll(
 				visibleScheduleSpec(userId, roomId, from, to),
@@ -56,7 +56,7 @@ public class ScheduleService {
 	public Schedule create(UUID userId, CreateScheduleCommand command) {
 		validateRange(command.startsAt(), command.endsAt());
 		if (command.roomId() != null) {
-			checkActiveMember(userId, command.roomId());
+			roomAccessService.validateActiveMember(userId, command.roomId());
 		}
 		Schedule schedule = Schedule.create(
 				userId,
@@ -110,18 +110,7 @@ public class ScheduleService {
 			}
 			return;
 		}
-		checkActiveMember(userId, schedule.getRoomId());
-	}
-
-	private void checkActiveMember(UUID userId, UUID roomId) {
-		boolean activeMember = roomMemberRepository.existsByRoomIdAndUserIdAndStatus(
-				roomId,
-				userId,
-				RoomMemberStatus.ACTIVE
-		);
-		if (!activeMember) {
-			throw new BusinessException(ErrorCode.PROJECT_403_001);
-		}
+		roomAccessService.validateActiveMember(userId, schedule.getRoomId());
 	}
 
 	private void validateRange(Instant startsAt, Instant endsAt) {
