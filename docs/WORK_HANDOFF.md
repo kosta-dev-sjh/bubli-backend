@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 08:22 KST
+Last checked: 2026-06-25 08:28 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -78,15 +78,42 @@ Last checked: 2026-06-25 08:22 KST
 - #61 project room event recording 로컬 검증 통과. GitHub checks 없음 (base #59에 stacked PR CI workflow 없음)
 - #60 agent dispatch retry foundation 로컬 검증 통과. GitHub checks 없음 (base #53에 stacked PR CI workflow 없음)
 - #63 agent dispatch retry worker 로컬 검증 통과. GitHub checks 없음 (base #60에 stacked PR CI workflow 없음)
+- #65 agent dispatch retry scheduler 로컬 검증 통과. GitHub checks 없음 (base #63에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#64 상태 재확인 완료 (2026-06-25 08:22 KST)
+- 열린 PR #19~#65 상태 재확인 완료 (2026-06-25 08:28 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 65. #65 에이전트 dispatch 재시도 scheduler
+
+처리 시각: 2026-06-25 08:28 KST
+
+변경 내용:
+
+- #65 `feature/agent-dispatch-retry-scheduler`를 #63 `feature/agent-dispatch-retry-worker` 위의 draft stacked PR로 생성했다.
+- #63의 `AgentJobRetryDispatcher`를 주기적으로 호출하는 `AgentJobRetryScheduler`를 추가했다.
+- scheduler는 `agent.dispatch.retry.scheduler.enabled=true`일 때만 켜지도록 기본 비활성화했다.
+- 재시도 주기, batch size, max retry count를 설정값으로 조정할 수 있게 했다.
+- scheduler 실행 중 예외가 나도 다음 주기를 막지 않도록 로그만 남기고 삼키게 했다.
+- Redis queue, DB outbox, 실제 모델 실행, 확정 업무 데이터 저장은 추가하지 않았다.
+
+검증 결과:
+
+- #65: `./gradlew compileTestJava` 통과
+- #65: `./gradlew cleanTest test` 통과
+- #65: `git diff --check` 통과
+- #65: head `037c397`, base `feature/agent-dispatch-retry-worker`, mergeState `CLEAN`
+- #65: GitHub checks 없음. base #63에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 retry worker를 운영 주기로 호출할 수 있는 scheduler 뼈대만 다룬다.
+- scheduler 기본 활성화 여부, retry 주기와 batch size, outbox/Redis adapter 연결은 최종 API/운영 기준에서 보정 가능하다.
 
 ### 작업 카드 64. #64 자료 업로드 저장공간 사용량 연결
 
@@ -1875,6 +1902,7 @@ Last checked: 2026-06-25 08:22 KST
 | #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `b0dec9a` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
 | #60 | `[feat] 에이전트 dispatch 재시도 기반 추가` | `feature/agent-dispatch-retry-foundation` | `feature/agent-job-dispatch-boundary` | `0222389` | checks 없음, merge clean, draft | #53 위에 enqueue 실패 retry count 반영과 retry 후보 조회 경계 추가. 실제 outbox/worker 실행은 후속 |
 | #63 | `[feat] 에이전트 dispatch 재시도 worker 추가` | `feature/agent-dispatch-retry-worker` | `feature/agent-dispatch-retry-foundation` | `065f9f0` | checks 없음, merge clean, draft | #60 위에 retry 가능한 FAILED job 재dispatch worker service 추가. scheduler/Redis/outbox는 후속 |
+| #65 | `[feat] 에이전트 dispatch 재시도 scheduler 추가` | `feature/agent-dispatch-retry-scheduler` | `feature/agent-dispatch-retry-worker` | `037c397` | checks 없음, merge clean, draft | #63 위에 조건부 scheduler를 추가해 retry worker를 주기 호출. Redis/outbox/실제 모델 실행은 후속 |
 | #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `5e70334` | checks 없음, merge clean, draft | 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
 | #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `0de5a0a` | checks 없음, merge clean, draft | #46 provider 경계에 S3 presigned download URL 구현 추가 |
 | #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `ae6eed7` | checks 없음, merge clean, draft | #52 S3 설정 위에 StorageService 저장/삭제 경계 추가. 업로드 API endpoint는 후속 PR |
@@ -1890,12 +1918,12 @@ Last checked: 2026-06-25 08:22 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 08:22 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57, #58, #59, #60, #61, #62, #63, #64이다.
+2026-06-25 08:28 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57, #58, #59, #60, #61, #62, #63, #64, #65이다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#64는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#65는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -1909,7 +1937,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가. #60에서 dispatch 실패 retry count 반영과 retry 후보 조회 경계 추가. #63에서 retry 가능한 FAILED job 재dispatch worker service 추가 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가. #60에서 dispatch 실패 retry count 반영과 retry 후보 조회 경계 추가. #63에서 retry 가능한 FAILED job 재dispatch worker service 추가. #65에서 retry worker 조건부 scheduler 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
@@ -1945,7 +1973,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 작업 생성 | `POST /api/ai/generate-wbs`는 WBS 후보 생성 작업 생성 | #43 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/generate-questions`는 확인 질문 후보 생성 작업 생성 | #44 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/review-contract-documents`는 계약서와 요구사항 문서 검토 작업 생성 | #45 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
-| 에이전트 dispatch | `agent_jobs` 상태 저장 후 비동기 처리, 실패 시 재시도 기준 필요 | #53에서 dispatch 경계와 in-memory queue adapter 초안을 추가했다. #60에서 enqueue 실패 시 `retry_count` 증가와 retry 후보 조회 경계를 추가했다. #63에서 retry 가능한 FAILED job을 다시 dispatch하는 worker service를 추가했다. scheduler/Redis/DB outbox 실행은 후속 |
+| 에이전트 dispatch | `agent_jobs` 상태 저장 후 비동기 처리, 실패 시 재시도 기준 필요 | #53에서 dispatch 경계와 in-memory queue adapter 초안을 추가했다. #60에서 enqueue 실패 시 `retry_count` 증가와 retry 후보 조회 경계를 추가했다. #63에서 retry 가능한 FAILED job을 다시 dispatch하는 worker service를 추가했다. #65에서 retry worker 조건부 scheduler를 추가했다. Redis/DB outbox 실행은 후속 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의, 권한/목록/동기화 조회 인덱스 | #27 보강 완료. `agent_model_call_logs` Flyway 정의는 6/25 데이터 모델/Entity와 맞으며 agent 핵심 테이블 컬럼 집합, 주요 타입, agent enum baseline, FK, core lookup index를 테스트로 고정했다. #62에서 agent 외 핵심 도메인 FK도 Flyway와 테스트로 보강했다 |
 | 채팅 | `POST /api/chat/direct-rooms`, `PATCH /api/chat/rooms/{id}/read`, `chatRoomId + clientMessageId` 중복 방지 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만들며, 읽음 위치는 `lastReadSequence`로 저장한다 |
@@ -1972,9 +2000,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
 6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#64는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 #64 위에서 파일 삭제와 S3 객체 정리 정책 보강, agent dispatch scheduler/Redis/DB outbox adapter 초안, 또는 남은 FK/인덱스 세부 정책 검증 보강이다.
-10. #19~#64는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#65는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 #64 위에서 파일 삭제와 S3 객체 정리 정책 보강, agent dispatch Redis/DB outbox adapter 초안, 또는 남은 FK/인덱스 세부 정책 검증 보강이다.
+10. #19~#65는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
