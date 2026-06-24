@@ -54,6 +54,69 @@ class EntityFlywayAlignmentTest {
 		assertThat(missing).isEmpty();
 	}
 
+	@Test
+	void agentTablesMatchCurrentDataDictionaryColumns() throws IOException {
+		Map<String, Set<String>> schema = parseSchema(Files.readString(MIGRATION));
+
+		assertTableColumns(schema, "ai_documents", Set.of(
+				"id",
+				"resource_id",
+				"room_id",
+				"document_type",
+				"detected_confidence",
+				"status",
+				"created_at",
+				"updated_at"
+		));
+		assertTableColumns(schema, "agent_jobs", Set.of(
+				"id",
+				"requested_by_user_id",
+				"room_id",
+				"resource_id",
+				"job_type",
+				"status",
+				"retry_count",
+				"error_code",
+				"error_message",
+				"started_at",
+				"finished_at",
+				"created_at",
+				"updated_at"
+		));
+		assertTableColumns(schema, "agent_job_events", Set.of(
+				"id",
+				"job_id",
+				"event_type",
+				"message",
+				"created_at"
+		));
+		assertTableColumns(schema, "agent_model_call_logs", Set.of(
+				"id",
+				"job_id",
+				"prompt_version",
+				"schema_version",
+				"model_name",
+				"latency_ms",
+				"input_tokens",
+				"output_tokens",
+				"error_code",
+				"created_at"
+		));
+		assertTableColumns(schema, "agent_suggestions", Set.of(
+				"id",
+				"user_id",
+				"room_id",
+				"job_id",
+				"resource_id",
+				"suggestion_type",
+				"payload_json",
+				"evidence_json",
+				"status",
+				"created_at",
+				"updated_at"
+		));
+	}
+
 	private Map<String, Set<String>> parseSchema(String sql) {
 		Map<String, Set<String>> schema = new HashMap<>();
 		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
@@ -70,6 +133,15 @@ class EntityFlywayAlignmentTest {
 			schema.put(tableName, columns);
 		}
 		return schema;
+	}
+
+	private void assertTableColumns(Map<String, Set<String>> schema, String tableName, Set<String> expectedColumns) {
+		assertThat(schema)
+				.as("schema contains table %s", tableName)
+				.containsKey(tableName);
+		assertThat(schema.get(tableName))
+				.as("%s columns", tableName)
+				.isEqualTo(expectedColumns);
 	}
 
 	private List<Path> entityFiles() throws IOException {
