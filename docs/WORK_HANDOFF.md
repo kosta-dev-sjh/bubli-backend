@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 07:16 KST
+Last checked: 2026-06-25 07:28 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -72,13 +72,41 @@ Last checked: 2026-06-25 07:16 KST
 - #55 resource multipart upload API 로컬 검증 통과. GitHub checks 없음 (base #54에 stacked PR CI workflow 없음)
 - #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
+- #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
 - #28에 #27 최신 FK 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 07:16 KST)
+- 열린 PR #19~#58 상태 재확인 완료 (2026-06-25 07:28 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 57. #58 프로젝트룸 수정/결제/종료 API
+
+처리 시각: 2026-06-25 07:28 KST
+
+변경 내용:
+
+- #58 `feature/project-room-management-api`를 #19 `feature/project-room-members-invitations` 위의 draft stacked PR로 생성했다.
+- `PATCH /api/project-rooms/{roomId}`로 프로젝트룸 이름, 클라이언트명, 상태를 수정한다.
+- `PATCH /api/project-rooms/{roomId}/payment`로 계약 금액, 입금 상태, 입금 예정일, 실제 입금일을 수정한다.
+- `DELETE /api/project-rooms/{roomId}`로 프로젝트룸을 종료 처리하고 `status=CLOSED`, `closedAt`을 기록한다.
+- 수정/입금/종료는 ACTIVE `PROJECT_LEADER`만 처리할 수 있게 검증했다.
+- Entity를 API 응답으로 직접 반환하지 않고 기존 `ProjectRoomResult -> ProjectRoomResponse` 흐름을 유지했다.
+
+검증 결과:
+
+- #58: `./gradlew compileTestJava` 통과
+- #58: `./gradlew cleanTest test` 통과
+- #58: `git diff --check` 통과
+- #58: head `e471787`, base `feature/project-room-members-invitations`, mergeState `CLEAN`
+- #58: GitHub checks 없음. base #19에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 현재 API 표에는 프로젝트룸 `description` 수정이 있지만, `09_Data-Model.md`의 `project_rooms`에는 `description` 컬럼이 없어 이번 PR에서는 저장 필드로 추가하지 않았다.
+- PATCH 요청에서 null을 미변경으로 볼지 값 삭제로 볼지는 최종 API 수정본에서 보정 가능하다.
+- 프로젝트룸 변경 이벤트 `ROOM_UPDATED` 저장/전송은 후속 이벤트 PR로 분리한다.
 
 ### 작업 카드 56. #20 채팅 clientMessageId 중복 범위 보정
 
@@ -1620,6 +1648,7 @@ Last checked: 2026-06-25 07:16 KST
 | PR | 제목 | 브랜치 | base | 확인한 head | CI/상태 | 현재 메모 |
 |---|---|---|---|---|---|---|
 | #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | `build` pass, merge blocked | 6/25 기준 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 완료 |
+| #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, draft | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `5f0729a` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
@@ -1661,19 +1690,19 @@ Last checked: 2026-06-25 07:16 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 07:07 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
+2026-06-25 07:28 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57, #58이다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#57은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#58은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
 | 영역 | 새 기준 | 현재 할 일 |
 |---|---|---|
 | 문서 기준 | `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md` | 6/24 참조를 활성 문서에서 제거하고 archive로만 보존 |
-| 프로젝트룸/초대 | `POST/GET /api/project-rooms/{roomId}/invitations`, `PATCH /api/invitations/{id}/accept`, `PATCH /api/invitations/{id}/cancel`, 멤버 역할 변경/삭제 | #19에서 보정 완료. 6/25 기준에는 invite-links API가 없다 |
+| 프로젝트룸/초대 | `PATCH /api/project-rooms/{roomId}`, `PATCH /api/project-rooms/{roomId}/payment`, `DELETE /api/project-rooms/{roomId}`, 초대/멤버 API | #19에서 초대/멤버 API 보정 완료. #58에서 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
 | 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에서 `POST /api/chat/direct-rooms`, `lastReadSequence` 기반 읽음 처리, 방 단위 `clientMessageId` 중복 기준 보정 완료 |
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
@@ -1741,9 +1770,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 FK 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#57은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+8. draft PR #24~#29, #31~#58은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 9. 다음 추천 작업은 resource upload/storage usage stack 정렬 뒤 파일 삭제와 용량 해제 연결, agent dispatch retry/outbox 초안, 또는 나머지 테이블 FK/인덱스 검증 보강이다.
-10. #19~#57은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+10. #19~#58은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
