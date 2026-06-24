@@ -5,12 +5,18 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
+import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
+import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
+import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
+import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -44,6 +50,12 @@ class ResourceServiceTest {
 
 	@Mock
 	ResourceCommentRepository resourceCommentRepository;
+
+	@Mock
+	ResourceFileRepository resourceFileRepository;
+
+	@Mock
+	ResourceVersionRepository resourceVersionRepository;
 
 	@Mock
 	RoomAccessService roomAccessService;
@@ -276,6 +288,84 @@ class ResourceServiceTest {
 		resourceService.deleteComment(userId, commentId);
 
 		assertThat(comment.getDeletedAt()).isNotNull();
+	}
+
+	@Test
+	void createVersionCreatesFileAndNextVersionNo() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		UUID versionId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(2);
+		given(resourceVersionRepository.save(any(ResourceVersion.class))).willAnswer(invocation -> {
+			ResourceVersion version = invocation.getArgument(0);
+			ReflectionTestUtils.setField(version, "id", versionId);
+			return version;
+		});
+
+		ResourceVersionResult result = resourceService.createVersion(userId, resourceId, new CreateResourceVersionRequest(
+				"resources/%s/v3.pdf".formatted(resourceId),
+				"계약서-v3.pdf",
+				"application/pdf",
+				1024L,
+				"checksum"
+		));
+
+		assertThat(result.id()).isEqualTo(versionId);
+		assertThat(result.fileId()).isEqualTo(fileId);
+		assertThat(result.versionNo()).isEqualTo(3);
+		assertThat(result.createdBy()).isEqualTo(userId);
+		assertThat(result.originalName()).isEqualTo("계약서-v3.pdf");
+	}
+
+	@Test
+	void getResourceVersionsReturnsFileMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 목록 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/v1.pdf".formatted(resourceId),
+				"계약서.pdf",
+				"application/pdf",
+				2048L,
+				null
+		);
+		ReflectionTestUtils.setField(file, "id", fileId);
+		ResourceVersion version = ResourceVersion.create(resourceId, 1, fileId, userId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceVersionRepository.findByResourceId(eq(resourceId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(version), pageable, 1));
+		given(resourceFileRepository.findById(fileId)).willReturn(Optional.of(file));
+
+		PageResponse<ResourceVersionResult> result = resourceService.getResourceVersions(userId, resourceId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().versionNo()).isEqualTo(1);
+		assertThat(result.getItems().getFirst().originalName()).isEqualTo("계약서.pdf");
 	}
 
 	@Test

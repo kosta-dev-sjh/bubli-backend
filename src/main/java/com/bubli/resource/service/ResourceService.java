@@ -5,12 +5,18 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
+import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
+import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
+import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
+import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +38,8 @@ public class ResourceService {
 
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
+	private final ResourceFileRepository resourceFileRepository;
+	private final ResourceVersionRepository resourceVersionRepository;
 	private final RoomAccessService roomAccessService;
 
 	@Transactional(readOnly = true)
@@ -76,6 +84,15 @@ public class ResourceService {
 		return toCommentPageResponse(page);
 	}
 
+	@Transactional(readOnly = true)
+	public PageResponse<ResourceVersionResult> getResourceVersions(UUID userId, UUID resourceId, Pageable pageable) {
+		getReadableResource(userId, resourceId);
+		Page<ResourceVersionResult> page = resourceVersionRepository
+				.findByResourceId(resourceId, withVersionDefaultSort(pageable))
+				.map(this::toVersionResult);
+		return toVersionPageResponse(page);
+	}
+
 	@Transactional
 	public ResourceResult create(UUID userId, CreateResourceCommand command) {
 		validateCreateCommand(userId, command);
@@ -114,6 +131,27 @@ public class ResourceService {
 		validateParentComment(resourceId, parentId);
 		ResourceComment comment = ResourceComment.create(resourceId, userId, parentId, body);
 		return ResourceCommentResult.from(resourceCommentRepository.save(comment));
+	}
+
+	@Transactional
+	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionRequest request) {
+		getReadableResource(userId, resourceId);
+		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+				resourceId,
+				request.storageKey(),
+				request.originalName(),
+				request.mimeType(),
+				request.sizeBytes(),
+				request.checksum()
+		));
+		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
+		ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
+				resourceId,
+				nextVersionNo,
+				file.getId(),
+				userId
+		));
+		return ResourceVersionResult.from(version, file);
 	}
 
 	@Transactional
@@ -177,6 +215,12 @@ public class ResourceService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_002));
 	}
 
+	private ResourceVersionResult toVersionResult(ResourceVersion version) {
+		ResourceFile file = resourceFileRepository.findById(version.getFileId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		return ResourceVersionResult.from(version, file);
+	}
+
 	private void validateParentComment(UUID resourceId, UUID parentId) {
 		if (parentId == null) {
 			return;
@@ -227,6 +271,17 @@ public class ResourceService {
 		);
 	}
 
+	private PageResponse<ResourceVersionResult> toVersionPageResponse(Page<ResourceVersionResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
 	private Pageable withDefaultSort(Pageable pageable) {
 		if (pageable.getSort().isSorted()) {
 			return pageable;
@@ -246,6 +301,17 @@ public class ResourceService {
 				pageable.getPageNumber(),
 				pageable.getPageSize(),
 				Sort.by("createdAt").ascending().and(Sort.by("id").ascending())
+		);
+	}
+
+	private Pageable withVersionDefaultSort(Pageable pageable) {
+		if (pageable.getSort().isSorted()) {
+			return pageable;
+		}
+		return PageRequest.of(
+				pageable.getPageNumber(),
+				pageable.getPageSize(),
+				Sort.by("versionNo").descending().and(Sort.by("id").descending())
 		);
 	}
 }

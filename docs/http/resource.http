@@ -56,6 +56,23 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/resources/{{resourceId}}/comments?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
+### 자료 버전 목록
+GET {{baseUrl}}/api/resources/{{resourceId}}/versions?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 버전 등록
+POST {{baseUrl}}/api/resources/{{resourceId}}/versions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "storageKey": "resources/{{resourceId}}/v1.pdf",
+  "originalName": "계약서.pdf",
+  "mimeType": "application/pdf",
+  "sizeBytes": 1024,
+  "checksum": null
+}
+
 ### 자료 댓글 작성
 POST {{baseUrl}}/api/resources/{{resourceId}}/comments
 Authorization: Bearer {{accessToken}}

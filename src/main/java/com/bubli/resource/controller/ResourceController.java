@@ -6,10 +6,13 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.resource.dto.CreateResourceCommentRequest;
 import com.bubli.resource.dto.CreateResourceRequest;
+import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResponse;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceVersionResponse;
+import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.dto.UpdateResourceCommentRequest;
 import com.bubli.resource.dto.UpdateResourceRequest;
 import com.bubli.resource.service.ResourceService;
@@ -93,6 +96,28 @@ public class ResourceController {
 		)));
 	}
 
+	@GetMapping("/api/resources/{resourceId}/versions")
+	public ApiResponse<PageResponse<ResourceVersionResponse>> getResourceVersions(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapVersionPage(
+				resourceService.getResourceVersions(authUser.userId(), resourceId, pageable)
+		));
+	}
+
+	@PostMapping("/api/resources/{resourceId}/versions")
+	public ApiResponse<ResourceVersionResponse> createResourceVersion(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@Valid @RequestBody CreateResourceVersionRequest request
+	) {
+		return ApiResponse.success(ResourceVersionResponse.from(
+				resourceService.createVersion(authUser.userId(), resourceId, request)
+		));
+	}
+
 	@PatchMapping("/api/resources/{resourceId}")
 	public ApiResponse<ResourceResponse> updateResource(
 			@CurrentUser AuthUser authUser,
@@ -150,6 +175,19 @@ public class ResourceController {
 		return new PageResponse<>(
 				page.getItems().stream()
 						.map(ResourceCommentResponse::from)
+						.toList(),
+				page.getPage(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.isHasNext()
+		);
+	}
+
+	private PageResponse<ResourceVersionResponse> mapVersionPage(PageResponse<ResourceVersionResult> page) {
+		return new PageResponse<>(
+				page.getItems().stream()
+						.map(ResourceVersionResponse::from)
 						.toList(),
 				page.getPage(),
 				page.getSize(),
