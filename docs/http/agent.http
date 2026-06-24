@@ -17,6 +17,10 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/resources/{{resourceId}}/ai-document
 Authorization: Bearer {{accessToken}}
 
+### 프로젝트룸 AI 문서 분석 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/ai-documents?status=READY&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
 ### 개인 에이전트 제안함
 GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&page=0&size=20
 Authorization: Bearer {{accessToken}}
