@@ -1,0 +1,139 @@
+package com.bubli.agent.dispatch;
+
+import com.bubli.agent.entity.AgentJob;
+import com.bubli.agent.entity.AgentJobEvent;
+import com.bubli.agent.repository.AgentJobEventRepository;
+import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.agent.type.AgentJobType;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+class AgentJobDispatchWorkerTest {
+
+	@Test
+	void processNextQueuedJobReturnsFalseWhenQueueIsEmpty() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository
+		);
+		when(queueConsumer.poll()).thenReturn(Optional.empty());
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isFalse();
+		verifyNoInteractions(agentJobRepository, agentJobEventRepository);
+	}
+
+	@Test
+	void processNextQueuedJobMarksPendingJobRunningAndStoresStartedEvent() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		assertThat(agentJob.getStatus()).isEqualTo(AgentJobStatus.RUNNING);
+		assertThat(agentJob.getStartedAt()).isNotNull();
+		ArgumentCaptor<AgentJobEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobEvent.class);
+		verify(agentJobEventRepository).save(eventCaptor.capture());
+		assertThat(eventCaptor.getValue().getJobId()).isEqualTo(jobId);
+		assertThat(eventCaptor.getValue().getEventType())
+				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_TYPE);
+		assertThat(eventCaptor.getValue().getMessage())
+				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_MESSAGE);
+	}
+
+	@Test
+	void processNextQueuedJobIgnoresMissingJob() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository
+		);
+		UUID jobId = UUID.randomUUID();
+		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.empty());
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isFalse();
+		verify(agentJobRepository).findById(jobId);
+		verify(agentJobEventRepository, never()).save(any());
+	}
+
+	@Test
+	void processNextQueuedJobIgnoresAlreadyRunningJob() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		agentJob.markRunning();
+		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isFalse();
+		verify(agentJobEventRepository, never()).save(any());
+	}
+
+	private AgentJobQueueMessage message(UUID jobId) {
+		return new AgentJobQueueMessage(
+				jobId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE,
+				Instant.now()
+		);
+	}
+}
