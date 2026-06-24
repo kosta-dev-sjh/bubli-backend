@@ -6,6 +6,7 @@ import com.bubli.agent.dto.AiDocumentResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.dto.CreateAgentSuggestionCommand;
 import com.bubli.agent.dto.CreateAiDocumentCommand;
+import com.bubli.agent.dto.UpdateAgentSuggestionCommand;
 import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.entity.AgentSuggestion;
@@ -264,6 +265,99 @@ class AgentStorageServiceTest {
 		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
 		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
 		verify(roomAccessService).validateActiveMember(userId, roomId);
+	}
+
+	@Test
+	void updatePersonalSuggestionChangesCandidateOnly() {
+		UUID userId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				"{\"source\":\"resource\"}"
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		AgentSuggestionResult result = agentSuggestionService.updateSuggestion(
+				userId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(
+						AgentSuggestionStatus.HELD,
+						"{\"title\":\"시안 정리\",\"memo\":\"우선순위 재검토\"}",
+						null
+				)
+		);
+
+		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.HELD);
+		assertThat(result.payloadJson()).contains("우선순위 재검토");
+		assertThat(result.evidenceJson()).contains("resource");
+	}
+
+	@Test
+	void updateRoomSuggestionRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				UUID.randomUUID(),
+				roomId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.QUESTION,
+				"{\"question\":\"확인할까요?\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		AgentSuggestionResult result = agentSuggestionService.updateSuggestion(
+				userId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(AgentSuggestionStatus.REJECTED, null, null)
+		);
+
+		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.REJECTED);
+		verify(roomAccessService).validateActiveMember(userId, roomId);
+	}
+
+	@Test
+	void updatePersonalSuggestionThrowsNotFoundForOtherUser() {
+		UUID ownerId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				ownerId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		assertThatThrownBy(() -> agentSuggestionService.updateSuggestion(
+				otherUserId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(AgentSuggestionStatus.APPROVED, null, null)
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_002));
+	}
+
+	@Test
+	void updateSuggestionRejectsEmptyPatch() {
+		assertThatThrownBy(() -> agentSuggestionService.updateSuggestion(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				new UpdateAgentSuggestionCommand(null, null, null)
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
 	}
 
 	@Test

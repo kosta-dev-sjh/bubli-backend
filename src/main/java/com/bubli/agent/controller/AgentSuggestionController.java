@@ -2,17 +2,21 @@ package com.bubli.agent.controller;
 
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.dto.AgentSuggestionResult;
+import com.bubli.agent.dto.UpdateAgentSuggestionRequest;
 import com.bubli.agent.service.AgentSuggestionService;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,6 +48,17 @@ public class AgentSuggestionController {
 	) {
 		return ApiResponse.success(mapPage(
 				agentSuggestionService.getRoomSuggestions(authUser.userId(), roomId, status, pageable)
+		));
+	}
+
+	@PatchMapping("/api/agent/suggestions/{suggestionId}")
+	public ApiResponse<AgentSuggestionResponse> updateSuggestion(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID suggestionId,
+			@Valid @RequestBody UpdateAgentSuggestionRequest request
+	) {
+		return ApiResponse.success(AgentSuggestionResponse.from(
+				agentSuggestionService.updateSuggestion(authUser.userId(), suggestionId, request.toCommand())
 		));
 	}
 
