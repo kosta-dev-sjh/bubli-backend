@@ -402,14 +402,13 @@ CREATE TABLE chat_messages (
     id UUID PRIMARY KEY,
     chat_room_id UUID NOT NULL,
     sender_user_id UUID NOT NULL,
-    client_message_id VARCHAR(120) NOT NULL,
+    client_message_id VARCHAR(120) NOT NULL UNIQUE,
     room_sequence BIGINT NOT NULL,
     message_type VARCHAR(30) NOT NULL,
     body JSONB NOT NULL,
     resource_id UUID,
     created_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT uk_chat_messages_room_sequence UNIQUE (chat_room_id, room_sequence),
-    CONSTRAINT uk_chat_messages_room_client_message UNIQUE (chat_room_id, client_message_id)
+    CONSTRAINT uk_chat_messages_room_sequence UNIQUE (chat_room_id, room_sequence)
 );
 
 CREATE TABLE notifications (
