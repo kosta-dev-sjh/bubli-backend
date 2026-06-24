@@ -6,9 +6,11 @@ import com.bubli.global.security.CurrentUser;
 import com.bubli.user.dto.MeResponse;
 import com.bubli.user.dto.UpdateMeRequest;
 import com.bubli.user.dto.UpdateNotificationPreferencesRequest;
+import com.bubli.user.dto.UpdatePrivacyConsentsRequest;
 import com.bubli.user.dto.UpdateUserPreferenceRequest;
 import com.bubli.user.dto.UserNotificationPreferenceResponse;
 import com.bubli.user.dto.UserPreferenceResponse;
+import com.bubli.user.dto.UserPrivacyConsentResponse;
 import com.bubli.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -70,6 +72,23 @@ public class MeController {
 	) {
 		return ApiResponse.success(UserNotificationPreferenceResponse.from(
 				userService.updateNotificationPreferences(authUser.userId(), request.toCommand())
+		));
+	}
+
+	@GetMapping("/api/me/privacy-consents")
+	public ApiResponse<UserPrivacyConsentResponse> getPrivacyConsents(@CurrentUser AuthUser authUser) {
+		return ApiResponse.success(UserPrivacyConsentResponse.from(
+				userService.getPrivacyConsents(authUser.userId())
+		));
+	}
+
+	@PatchMapping("/api/me/privacy-consents")
+	public ApiResponse<UserPrivacyConsentResponse> updatePrivacyConsents(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody UpdatePrivacyConsentsRequest request
+	) {
+		return ApiResponse.success(UserPrivacyConsentResponse.from(
+				userService.updatePrivacyConsents(authUser.userId(), request.toCommand())
 		));
 	}
 }

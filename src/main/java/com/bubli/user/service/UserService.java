@@ -4,18 +4,24 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectRoomService;
 import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
+import com.bubli.user.dto.UpdatePrivacyConsentsCommand;
 import com.bubli.user.dto.UpdateUserProfileCommand;
 import com.bubli.user.dto.UpdateUserPreferenceCommand;
 import com.bubli.user.dto.UserNotificationPreferenceResult;
 import com.bubli.user.dto.UserNotificationPreferencesResult;
 import com.bubli.user.dto.UserPreferenceResult;
+import com.bubli.user.dto.UserPrivacyConsentResult;
+import com.bubli.user.dto.UserPrivacyConsentsResult;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.entity.UserNotificationPreference;
 import com.bubli.user.entity.UserPreference;
+import com.bubli.user.entity.UserPrivacyConsent;
 import com.bubli.user.repository.UserNotificationPreferenceRepository;
 import com.bubli.user.repository.UserPreferenceRepository;
+import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.type.ConsentType;
 import com.bubli.user.type.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,6 +42,7 @@ public class UserService {
 	private final UserRepository userRepository;
 	private final UserPreferenceRepository userPreferenceRepository;
 	private final UserNotificationPreferenceRepository userNotificationPreferenceRepository;
+	private final UserPrivacyConsentRepository userPrivacyConsentRepository;
 	private final ProjectRoomService projectRoomService;
 
 	@Transactional(readOnly = true)
@@ -134,5 +141,56 @@ public class UserService {
 				.map(entry -> new UserNotificationPreferenceResult(entry.getKey(), entry.getValue()))
 				.toList();
 		return new UserNotificationPreferencesResult(userId, items);
+	}
+
+	@Transactional(readOnly = true)
+	public UserPrivacyConsentsResult getPrivacyConsents(UUID userId) {
+		return toPrivacyConsentsResult(
+				userId,
+				userPrivacyConsentRepository.findByIdUserId(userId)
+		);
+	}
+
+	@Transactional
+	public UserPrivacyConsentsResult updatePrivacyConsents(UUID userId, UpdatePrivacyConsentsCommand command) {
+		Map<ConsentType, UserPrivacyConsent> consents =
+				userPrivacyConsentRepository.findByIdUserId(userId).stream()
+						.collect(Collectors.toMap(
+								UserPrivacyConsent::getConsentType,
+								Function.identity()
+						));
+
+		List<UserPrivacyConsent> changedConsents = command.items().stream()
+				.map(item -> {
+					UserPrivacyConsent consent = consents.computeIfAbsent(
+							item.consentType(),
+							consentType -> UserPrivacyConsent.create(userId, consentType, false)
+					);
+					consent.updateEnabled(item.enabled());
+					return consent;
+				})
+				.toList();
+
+		userPrivacyConsentRepository.saveAll(changedConsents);
+		return toPrivacyConsentsResult(userId, consents.values().stream().toList());
+	}
+
+	private UserPrivacyConsentsResult toPrivacyConsentsResult(UUID userId, List<UserPrivacyConsent> consents) {
+		Map<ConsentType, UserPrivacyConsent> consentByType = consents.stream()
+				.collect(Collectors.toMap(
+						UserPrivacyConsent::getConsentType,
+						Function.identity()
+				));
+		List<UserPrivacyConsentResult> items = Arrays.stream(ConsentType.values())
+				.map(consentType -> {
+					UserPrivacyConsent consent = consentByType.get(consentType);
+					return new UserPrivacyConsentResult(
+							consentType,
+							consent != null && consent.isEnabled(),
+							consent == null ? null : consent.getUpdatedAt()
+					);
+				})
+				.toList();
+		return new UserPrivacyConsentsResult(userId, items);
 	}
 }

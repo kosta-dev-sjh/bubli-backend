@@ -3,17 +3,22 @@ package com.bubli.user.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.project.service.ProjectRoomService;
 import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
+import com.bubli.user.dto.UpdatePrivacyConsentsCommand;
 import com.bubli.user.dto.UpdateUserProfileCommand;
 import com.bubli.user.dto.UpdateUserPreferenceCommand;
 import com.bubli.user.dto.UserNotificationPreferencesResult;
 import com.bubli.user.dto.UserPreferenceResult;
+import com.bubli.user.dto.UserPrivacyConsentsResult;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.entity.UserNotificationPreference;
 import com.bubli.user.entity.UserPreference;
+import com.bubli.user.entity.UserPrivacyConsent;
 import com.bubli.user.repository.UserNotificationPreferenceRepository;
 import com.bubli.user.repository.UserPreferenceRepository;
+import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.type.ConsentType;
 import com.bubli.user.type.NotificationType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +48,9 @@ class UserServiceTest {
 
 	@Mock
 	UserNotificationPreferenceRepository userNotificationPreferenceRepository;
+
+	@Mock
+	UserPrivacyConsentRepository userPrivacyConsentRepository;
 
 	@Mock
 	ProjectRoomService projectRoomService;
@@ -188,6 +196,72 @@ class UserServiceTest {
 							&& savedPreferences.stream()
 							.anyMatch(preference -> preference.getNotificationType() == NotificationType.AGENT
 									&& preference.isEnabled());
+				}));
+	}
+
+	@Test
+	void getPrivacyConsentsReturnsAllTypesDisabledByDefault() {
+		UUID userId = UUID.randomUUID();
+		given(userPrivacyConsentRepository.findByIdUserId(userId)).willReturn(List.of());
+
+		UserPrivacyConsentsResult result = userService.getPrivacyConsents(userId);
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.items())
+				.extracting(item -> item.consentType())
+				.containsExactly(ConsentType.values());
+		assertThat(result.items())
+				.allSatisfy(item -> {
+					assertThat(item.enabled()).isFalse();
+					assertThat(item.updatedAt()).isNull();
+				});
+	}
+
+	@Test
+	void updatePrivacyConsentsUpsertsRequestedTypes() {
+		UUID userId = UUID.randomUUID();
+		UserPrivacyConsent existingConsent = UserPrivacyConsent.create(
+				userId,
+				ConsentType.ACTIVITY_CONTEXT,
+				false
+		);
+		given(userPrivacyConsentRepository.findByIdUserId(userId)).willReturn(List.of(existingConsent));
+
+		UserPrivacyConsentsResult result = userService.updatePrivacyConsents(
+				userId,
+				new UpdatePrivacyConsentsCommand(List.of(
+						new UpdatePrivacyConsentsCommand.Item(ConsentType.ACTIVITY_CONTEXT, true),
+						new UpdatePrivacyConsentsCommand.Item(ConsentType.MANAGED_FOLDER, false)
+				))
+		);
+
+		assertThat(result.items())
+				.filteredOn(item -> item.consentType() == ConsentType.ACTIVITY_CONTEXT)
+				.singleElement()
+				.satisfies(item -> {
+					assertThat(item.enabled()).isTrue();
+					assertThat(item.updatedAt()).isNotNull();
+				});
+		assertThat(result.items())
+				.filteredOn(item -> item.consentType() == ConsentType.MANAGED_FOLDER)
+				.singleElement()
+				.satisfies(item -> {
+					assertThat(item.enabled()).isFalse();
+					assertThat(item.updatedAt()).isNotNull();
+				});
+		org.mockito.Mockito.verify(userPrivacyConsentRepository)
+				.saveAll(ArgumentMatchers.argThat(consents -> {
+					List<UserPrivacyConsent> savedConsents = StreamSupport.stream(
+							consents.spliterator(),
+							false
+					).toList();
+					return savedConsents.size() == 2
+							&& savedConsents.stream()
+							.anyMatch(consent -> consent.getConsentType() == ConsentType.ACTIVITY_CONTEXT
+									&& consent.isEnabled())
+							&& savedConsents.stream()
+							.anyMatch(consent -> consent.getConsentType() == ConsentType.MANAGED_FOLDER
+									&& !consent.isEnabled());
 				}));
 	}
 }

@@ -65,3 +65,25 @@ Content-Type: application/json
     }
   ]
 }
+
+### 내 개인정보 동의 상태 조회
+GET {{baseUrl}}/api/me/privacy-consents
+Authorization: Bearer {{accessToken}}
+
+### 내 개인정보 동의 상태 수정
+PATCH {{baseUrl}}/api/me/privacy-consents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "consentType": "ACTIVITY_CONTEXT",
+      "enabled": true
+    },
+    {
+      "consentType": "MANAGED_FOLDER",
+      "enabled": false
+    }
+  ]
+}
