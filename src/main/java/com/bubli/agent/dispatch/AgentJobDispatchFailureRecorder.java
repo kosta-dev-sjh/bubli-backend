@@ -1,5 +1,7 @@
 package com.bubli.agent.dispatch;
 
+import com.bubli.agent.entity.AgentJobEvent;
+import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,13 +13,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class AgentJobDispatchFailureRecorder {
 
 	static final String ENQUEUE_FAILURE_ERROR_CODE = "AGENT_DISPATCH_ENQUEUE_FAILED";
+	static final String FAILED_EVENT_TYPE = "FAILED";
 
 	private final AgentJobRepository agentJobRepository;
+	private final AgentJobEventRepository agentJobEventRepository;
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void recordEnqueueFailure(AgentJobDispatchCommand command, RuntimeException exception) {
 		agentJobRepository.findById(command.jobId())
-				.ifPresent(agentJob -> agentJob.markFailed(ENQUEUE_FAILURE_ERROR_CODE, errorMessage(exception)));
+				.ifPresent(agentJob -> {
+					String message = errorMessage(exception);
+					agentJob.markFailed(ENQUEUE_FAILURE_ERROR_CODE, message);
+					agentJobEventRepository.save(AgentJobEvent.create(command.jobId(), FAILED_EVENT_TYPE, message));
+				});
 	}
 
 	private String errorMessage(RuntimeException exception) {
