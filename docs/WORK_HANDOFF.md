@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 03:15 KST
+Last checked: 2026-06-25 03:24 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -50,11 +50,40 @@ Last checked: 2026-06-25 03:15 KST
 - #33 agent suggestion list API 로컬 검증 통과. GitHub checks 없음 (base #32에 stacked PR CI workflow 없음)
 - #34 agent job events API 로컬 검증 통과. GitHub checks 없음 (base #33에 stacked PR CI workflow 없음)
 - #35 agent suggestion update API 로컬 검증 통과. GitHub checks 없음 (base #34에 stacked PR CI workflow 없음)
-- 열린 PR #19~#35 상태 재확인 완료 (2026-06-25 03:12 KST)
+- #36 resource ai-document API 로컬 검증 통과. GitHub checks 없음 (base #35에 stacked PR CI workflow 없음)
+- 열린 PR #19~#36 상태 재확인 완료 (2026-06-25 03:24 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 21. #36 resource ai-document 조회 API
+
+처리 시각: 2026-06-25 03:24 KST
+
+변경 내용:
+
+- #36 `feature/resource-ai-document-api`를 #35 `feature/agent-suggestion-update-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/resources/{resourceId}/ai-document`를 추가했다.
+- `ResourceService.getResource`로 자료 읽기 권한을 먼저 확인한 뒤 `ai_documents` 단건 분석 상태를 조회한다.
+- `AiDocumentController`를 별도 파일로 추가해 기존 `ResourceController` 변경 충돌 가능성을 줄였다.
+- 응답은 Entity를 직접 반환하지 않고 `AiDocumentResponse` DTO로 감싼다.
+- AI 문서가 없으면 `AGENT_404_003`으로 응답한다.
+- `docs/http/agent.http`에 자료 AI 문서 조회 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #36: `./gradlew compileTestJava` 통과
+- #36: `./gradlew cleanTest test` 통과
+- #36: `git diff --check` 통과
+- #36: head `d8bea2b`, base `feature/agent-suggestion-update-api`, mergeState `CLEAN`
+- #36: GitHub checks 없음. base #35에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 자료의 AI 문서 분석 상태 조회만 다룬다.
+- `GET /api/project-rooms/{roomId}/ai-documents` 목록 조회와 AI 문서 생성/분석 실행은 후속 PR로 남긴다.
+- resource download-url/S3 presigned URL은 실제 Storage Service가 생긴 뒤 별도 PR에서 다룬다.
 
 ### 작업 카드 20. #35 agent_suggestions 상태/내용 수정 API
 
@@ -650,15 +679,16 @@ Last checked: 2026-06-25 03:15 KST
 | #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `a863439` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
 | #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `698557a` | checks 없음, merge clean, draft | 6/25 기준 agent_job_events 조회 API 추가 |
 | #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `f27b0ce` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
+| #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 03:12 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35다.
+2026-06-25 03:24 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#35는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#36은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -671,7 +701,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. download-url/ai-document API는 후속 PR로 나눈다 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#35에서 job 상태, suggestion 목록/수정, job event 조회 API 추가 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#36에서 job 상태, suggestion 목록/수정, job event, resource ai-document 조회 API 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
@@ -695,6 +725,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 후보 타입 | 기획/가이드는 TODO, WBS, REQUIREMENT, SCHEDULE, QUESTION, CONTRACT_FIELD, CONTRACT_REVIEW, DOCUMENT_DRAFT, DAILY_SUMMARY, MEMO 등 후보를 통합 저장한다고 설명 | #26 보정 완료. `TASK`, `REVIEW_ITEM`은 기존 데이터 모델 표와 저장값 호환을 위해 유지 |
 | 에이전트 작업 조회 | `GET /api/agent-jobs/{jobId}`, `GET /api/agent-jobs/{jobId}/events` 포함 | #32, #34 보정 완료. 본인 job만 조회하고 event 목록은 `agent_job_events` 기준으로 반환한다 |
 | 에이전트 후보 수정 | `PATCH /api/agent/suggestions/{id}`는 후보 승인, 수정, 보류, 삭제를 다룸 | #35 보정 완료. `agent_suggestions` 자체의 상태/내용만 수정하며, 승인 후 `tasks`, `wbs_items`, `schedules`, `memos` 확정 저장은 후속 target domain Service PR에서 다룬다 |
+| AI 문서 조회 | `GET /api/resources/{id}/ai-document`는 자료의 AI 문서 분류와 분석 상태를 반환 | #36 보정 완료. 자료 읽기 권한 확인 후 `ai_documents` 단건 상태를 반환한다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
@@ -720,9 +751,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#35는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 resource download-url/ai-document API 가능성을 다시 보거나 Entity/Flyway 정합성 점검을 이어가는 것이다.
-10. #19~#35는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#36은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 `GET /api/project-rooms/{roomId}/ai-documents` 목록 조회 또는 Entity/Flyway 정합성 점검이다.
+10. #19~#36은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
