@@ -1,0 +1,26 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-room-id-here
+
+### 프로젝트룸 목록
+GET {{baseUrl}}/api/project-rooms?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 생성
+POST {{baseUrl}}/api/project-rooms
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "브랜드 사이트 제작",
+  "clientName": "블루클라이언트",
+  "contractAmount": 1500000,
+  "paymentStatus": "PENDING",
+  "paymentDueDate": "2026-07-10",
+  "paidAt": null,
+  "status": "ACTIVE"
+}
+
+### 프로젝트룸 상세
+GET {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}

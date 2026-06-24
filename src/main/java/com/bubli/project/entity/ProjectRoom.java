@@ -58,6 +58,20 @@ public class ProjectRoom {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static ProjectRoom create(UUID createdByUserId, String name, String clientName, BigDecimal contractAmount,
+			PaymentStatus paymentStatus, LocalDate paymentDueDate, LocalDate paidAt, ProjectRoomStatus status) {
+		ProjectRoom projectRoom = new ProjectRoom();
+		projectRoom.createdByUserId = createdByUserId;
+		projectRoom.name = name;
+		projectRoom.clientName = clientName;
+		projectRoom.contractAmount = contractAmount;
+		projectRoom.paymentStatus = paymentStatus == null ? PaymentStatus.NOT_RECORDED : paymentStatus;
+		projectRoom.paymentDueDate = paymentDueDate;
+		projectRoom.paidAt = paidAt;
+		projectRoom.status = status == null ? ProjectRoomStatus.ACTIVE : status;
+		return projectRoom;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

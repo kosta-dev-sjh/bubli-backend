@@ -21,10 +21,14 @@ public enum ErrorCode {
     AUTH_401_002(HttpStatus.UNAUTHORIZED, "AUTH_401_002", "토큰이 유효하지 않습니다."),
     AUTH_401_003(HttpStatus.UNAUTHORIZED, "AUTH_401_003", "토큰이 만료되었습니다."),
     AUTH_403_001(HttpStatus.FORBIDDEN, "AUTH_403_001", "접근 권한이 없습니다."),
+    AUTH_501_001(HttpStatus.NOT_IMPLEMENTED, "AUTH_501_001", "인증 API 구현이 아직 연결되지 않았습니다."),
 
     // PROJECT
     PROJECT_403_001(HttpStatus.FORBIDDEN, "PROJECT_403_001", "프로젝트룸 접근 권한이 없습니다."),
-    PROJECT_404_001(HttpStatus.NOT_FOUND, "PROJECT_404_001", "프로젝트를 찾을 수 없습니다."),
+    PROJECT_404_001(HttpStatus.NOT_FOUND, "PROJECT_404_001", "프로젝트룸을 찾을 수 없습니다."),
+
+    // USER
+    USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
     // RESOURCE
     RESOURCE_404_001(HttpStatus.NOT_FOUND, "RESOURCE_404_001", "자료를 찾을 수 없습니다."),
