@@ -7,16 +7,19 @@ import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceRelation;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
+import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
@@ -42,6 +45,7 @@ public class ResourceService {
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
 	private final ResourceFileRepository resourceFileRepository;
+	private final ResourceRelationRepository resourceRelationRepository;
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final RoomAccessService roomAccessService;
@@ -103,6 +107,15 @@ public class ResourceService {
 		ResourceSummary summary = resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_004));
 		return ResourceSummaryResult.from(summary);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponse<ResourceRelatedResult> getRelatedResources(UUID userId, UUID resourceId, Pageable pageable) {
+		getReadableResource(userId, resourceId);
+		Page<ResourceRelatedResult> page = resourceRelationRepository
+				.findByResourceId(resourceId, withRelationDefaultSort(pageable))
+				.map(relation -> toRelatedResult(userId, relation));
+		return toRelatedPageResponse(page);
 	}
 
 	@Transactional
@@ -233,6 +246,11 @@ public class ResourceService {
 		return ResourceVersionResult.from(version, file);
 	}
 
+	private ResourceRelatedResult toRelatedResult(UUID userId, ResourceRelation relation) {
+		Resource relatedResource = getReadableResource(userId, relation.getRelatedResourceId());
+		return ResourceRelatedResult.from(relation, relatedResource);
+	}
+
 	private void validateParentComment(UUID resourceId, UUID parentId) {
 		if (parentId == null) {
 			return;
@@ -294,6 +312,17 @@ public class ResourceService {
 		);
 	}
 
+	private PageResponse<ResourceRelatedResult> toRelatedPageResponse(Page<ResourceRelatedResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
 	private Pageable withDefaultSort(Pageable pageable) {
 		if (pageable.getSort().isSorted()) {
 			return pageable;
@@ -324,6 +353,19 @@ public class ResourceService {
 				pageable.getPageNumber(),
 				pageable.getPageSize(),
 				Sort.by("versionNo").descending().and(Sort.by("id").descending())
+		);
+	}
+
+	private Pageable withRelationDefaultSort(Pageable pageable) {
+		if (pageable.getSort().isSorted()) {
+			return pageable;
+		}
+		return PageRequest.of(
+				pageable.getPageNumber(),
+				pageable.getPageSize(),
+				Sort.by("score").descending()
+						.and(Sort.by("createdAt").descending())
+						.and(Sort.by("id").descending())
 		);
 	}
 }

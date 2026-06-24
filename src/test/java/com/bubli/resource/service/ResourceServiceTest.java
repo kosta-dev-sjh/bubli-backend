@@ -12,10 +12,12 @@ import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceRelation;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
+import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
@@ -34,6 +36,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,6 +59,9 @@ class ResourceServiceTest {
 
 	@Mock
 	ResourceFileRepository resourceFileRepository;
+
+	@Mock
+	ResourceRelationRepository resourceRelationRepository;
 
 	@Mock
 	ResourceSummaryRepository resourceSummaryRepository;
@@ -407,6 +413,86 @@ class ResourceServiceTest {
 		assertThat(result.jobId()).isEqualTo(jobId);
 		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.SUCCEEDED);
 		assertThat(result.summaryJson()).contains("핵심 요약");
+	}
+
+	@Test
+	void getRelatedResourcesRequiresReadableResourcesAndReturnsRelatedMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID relatedResourceId = UUID.randomUUID();
+		UUID relationId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"기준 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		Resource relatedResource = Resource.create(
+				userId,
+				null,
+				"관련 자료",
+				ResourceKind.MEMO,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ReflectionTestUtils.setField(relatedResource, "id", relatedResourceId);
+		ResourceRelation relation = ResourceRelation.create(
+				resourceId,
+				relatedResourceId,
+				"같은 계약서 묶음",
+				new BigDecimal("0.87654")
+		);
+		ReflectionTestUtils.setField(relation, "id", relationId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRelationRepository.findByResourceId(eq(resourceId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(relation), pageable, 1));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(relatedResourceId)).willReturn(Optional.of(relatedResource));
+
+		var result = resourceService.getRelatedResources(userId, resourceId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(relationId);
+		assertThat(result.getItems().getFirst().reason()).isEqualTo("같은 계약서 묶음");
+		assertThat(result.getItems().getFirst().score()).isEqualByComparingTo("0.87654");
+		assertThat(result.getItems().getFirst().relatedResource().id()).isEqualTo(relatedResourceId);
+		assertThat(result.getItems().getFirst().relatedResource().title()).isEqualTo("관련 자료");
+	}
+
+	@Test
+	void getRelatedResourcesRejectsUnreadableRelatedResource() {
+		UUID userId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID relatedResourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"기준 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		Resource otherUserResource = Resource.create(
+				otherUserId,
+				null,
+				"다른 사용자 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceRelation relation = ResourceRelation.create(resourceId, relatedResourceId, null, null);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRelationRepository.findByResourceId(eq(resourceId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(relation), pageable, 1));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(relatedResourceId)).willReturn(Optional.of(otherUserResource));
+
+		assertThatThrownBy(() -> resourceService.getRelatedResources(userId, resourceId, pageable))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_403_001));
 	}
 
 	@Test
