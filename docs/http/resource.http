@@ -68,6 +68,10 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/resources/{{resourceId}}/related?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
+### 자료 다운로드 URL 발급
+GET {{baseUrl}}/api/resources/{{resourceId}}/download-url
+Authorization: Bearer {{accessToken}}
+
 ### 자료 버전 등록
 POST {{baseUrl}}/api/resources/{{resourceId}}/versions
 Authorization: Bearer {{accessToken}}

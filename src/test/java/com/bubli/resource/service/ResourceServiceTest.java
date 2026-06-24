@@ -21,6 +21,8 @@ import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
+import com.bubli.resource.storage.StorageDownloadUrl;
+import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceSummaryStatus;
@@ -37,6 +39,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,6 +71,9 @@ class ResourceServiceTest {
 
 	@Mock
 	ResourceVersionRepository resourceVersionRepository;
+
+	@Mock
+	StorageDownloadUrlProvider storageDownloadUrlProvider;
 
 	@Mock
 	RoomAccessService roomAccessService;
@@ -378,6 +384,49 @@ class ResourceServiceTest {
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().versionNo()).isEqualTo(1);
 		assertThat(result.getItems().getFirst().originalName()).isEqualTo("계약서.pdf");
+	}
+
+	@Test
+	void getResourceDownloadUrlRequiresReadableResourceAndIssuesUrlForLatestVersion() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Instant expiresAt = Instant.now().plusSeconds(600);
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"다운로드 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/v2.pdf".formatted(resourceId),
+				"계약서-v2.pdf",
+				"application/pdf",
+				4096L,
+				null
+		);
+		ReflectionTestUtils.setField(file, "id", fileId);
+		ResourceVersion version = ResourceVersion.create(resourceId, 2, fileId, userId);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId))
+				.willReturn(Optional.of(version));
+		given(resourceFileRepository.findById(fileId)).willReturn(Optional.of(file));
+		given(storageDownloadUrlProvider.issueDownloadUrl(
+				"resources/%s/v2.pdf".formatted(resourceId),
+				"계약서-v2.pdf"
+		)).willReturn(new StorageDownloadUrl("https://storage.example/download", expiresAt));
+
+		var result = resourceService.getResourceDownloadUrl(userId, resourceId);
+
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.fileId()).isEqualTo(fileId);
+		assertThat(result.versionNo()).isEqualTo(2);
+		assertThat(result.downloadUrl()).isEqualTo("https://storage.example/download");
+		assertThat(result.expiresAt()).isEqualTo(expiresAt);
+		assertThat(result.originalName()).isEqualTo("계약서-v2.pdf");
 	}
 
 	@Test

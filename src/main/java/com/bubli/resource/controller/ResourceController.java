@@ -9,6 +9,7 @@ import com.bubli.resource.dto.CreateResourceRequest;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResponse;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceDownloadUrlResponse;
 import com.bubli.resource.dto.ResourceRelatedResponse;
 import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResponse;
@@ -128,6 +129,16 @@ public class ResourceController {
 	) {
 		return ApiResponse.success(mapRelatedPage(
 				resourceService.getRelatedResources(authUser.userId(), resourceId, pageable)
+		));
+	}
+
+	@GetMapping("/api/resources/{resourceId}/download-url")
+	public ApiResponse<ResourceDownloadUrlResponse> getResourceDownloadUrl(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		return ApiResponse.success(ResourceDownloadUrlResponse.from(
+				resourceService.getResourceDownloadUrl(authUser.userId(), resourceId)
 		));
 	}
 

@@ -7,6 +7,7 @@ import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceDownloadUrlResult;
 import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
@@ -23,6 +24,8 @@ import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
+import com.bubli.resource.storage.StorageDownloadUrl;
+import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +51,7 @@ public class ResourceService {
 	private final ResourceRelationRepository resourceRelationRepository;
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
+	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
 	private final RoomAccessService roomAccessService;
 
 	@Transactional(readOnly = true)
@@ -116,6 +120,29 @@ public class ResourceService {
 				.findByResourceId(resourceId, withRelationDefaultSort(pageable))
 				.map(relation -> toRelatedResult(userId, relation));
 		return toRelatedPageResponse(page);
+	}
+
+	@Transactional(readOnly = true)
+	public ResourceDownloadUrlResult getResourceDownloadUrl(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		ResourceVersion version = resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		ResourceFile file = resourceFileRepository.findById(version.getFileId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		StorageDownloadUrl downloadUrl = storageDownloadUrlProvider.issueDownloadUrl(
+				file.getStorageKey(),
+				file.getOriginalName()
+		);
+		return new ResourceDownloadUrlResult(
+				resourceId,
+				file.getId(),
+				version.getVersionNo(),
+				downloadUrl.url(),
+				downloadUrl.expiresAt(),
+				file.getOriginalName(),
+				file.getMimeType(),
+				file.getSizeBytes()
+		);
 	}
 
 	@Transactional
