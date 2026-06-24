@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 05:00 KST
+Last checked: 2026-06-25 05:06 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -65,11 +65,39 @@ Last checked: 2026-06-25 05:00 KST
 - #48 user preferences API 로컬 검증 통과. GitHub checks 없음 (base #47에 stacked PR CI workflow 없음)
 - #49 user notification preferences API 로컬 검증 통과. GitHub checks 없음 (base #48에 stacked PR CI workflow 없음)
 - #50 user privacy consents API 로컬 검증 통과. GitHub checks 없음 (base #49에 stacked PR CI workflow 없음)
-- 열린 PR #19~#50 상태 재확인 완료 (2026-06-25 05:00 KST)
+- #51 user project rooms API 로컬 검증 통과. GitHub checks 없음 (base #50에 stacked PR CI workflow 없음)
+- 열린 PR #19~#51 상태 재확인 완료 (2026-06-25 05:06 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 36. #51 내 프로젝트룸 목록 API
+
+처리 시각: 2026-06-25 05:06 KST
+
+변경 내용:
+
+- #51 `feature/user-project-rooms-api`를 #50 `feature/user-privacy-consents-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/me/project-rooms`를 추가했다.
+- 기존 `GET /api/project-rooms`와 같은 `ProjectRoomService.getProjectRooms` 조회 기준을 사용한다.
+- 로그인 사용자의 active room membership 기준으로 접근 가능한 프로젝트룸만 반환한다.
+- 응답은 Entity를 직접 반환하지 않고 `ProjectRoomResponse` DTO를 사용한다.
+- `docs/http/user.http`에 내 프로젝트룸 목록 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #51: `./gradlew compileTestJava` 통과
+- #51: `./gradlew cleanTest test` 통과
+- #51: `git diff --check` 통과
+- #51: head `8650257`, base `feature/user-privacy-consents-api`, mergeState `CLEAN`
+- #51: GitHub checks 없음. base #50에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 `/api/me/project-rooms` alias API만 다룬다.
+- `/api/project-rooms`와 `/api/me/project-rooms`를 둘 다 유지할지는 최종 API 수정본에서 보정 가능하다.
+- 내가 만든 프로젝트룸과 참여 중인 프로젝트룸을 별도 구분해야 하면 응답 DTO를 후속 보정한다.
 
 ### 작업 카드 35. #50 사용자 개인정보 동의 API
 
@@ -1091,15 +1119,16 @@ Last checked: 2026-06-25 05:00 KST
 | #48 | `[feat] 사용자 설정 API 추가` | `feature/user-preferences-api` | `feature/user-me-update-api` | `bbad8ae` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/preferences 추가 |
 | #49 | `[feat] 사용자 알림 설정 API 추가` | `feature/user-notification-preferences-api` | `feature/user-preferences-api` | `f94239e` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/notification-preferences 추가 |
 | #50 | `[feat] 사용자 개인정보 동의 API 추가` | `feature/user-privacy-consents-api` | `feature/user-notification-preferences-api` | `bb44f55` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/privacy-consents 추가 |
+| #51 | `[feat] 내 프로젝트룸 목록 API 추가` | `feature/user-project-rooms-api` | `feature/user-privacy-consents-api` | `8650257` | checks 없음, merge clean, draft | 6/25 기준 GET /api/me/project-rooms 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 05:00 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50다.
+2026-06-25 05:06 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#50은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#51은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -1111,7 +1140,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
-| 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료 |
+| 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
@@ -1174,9 +1203,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#50은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 agent job 실행 큐 연결 전 Repository/Service 경계 점검, S3 presigned URL 구현체 추가, 또는 사용자 프로젝트룸 목록 API다.
-10. #19~#50은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#51은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 agent job 실행 큐 연결 전 Repository/Service 경계 점검, S3 presigned URL 구현체 추가, 또는 Entity/Flyway 정합성 점검이다.
+10. #19~#51은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
