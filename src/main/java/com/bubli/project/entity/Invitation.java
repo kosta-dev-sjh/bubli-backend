@@ -50,6 +50,35 @@ public class Invitation {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static Invitation create(UUID roomId, UUID inviterUserId, UUID inviteeUserId,
+			RoomMemberRole role, Instant expiresAt) {
+		Invitation invitation = new Invitation();
+		invitation.roomId = roomId;
+		invitation.inviterUserId = inviterUserId;
+		invitation.inviteeUserId = inviteeUserId;
+		invitation.role = role == null ? RoomMemberRole.MEMBER : role;
+		invitation.status = InvitationStatus.PENDING;
+		invitation.expiresAt = expiresAt;
+		return invitation;
+	}
+
+	public boolean isPending() {
+		return status == InvitationStatus.PENDING;
+	}
+
+	public boolean isExpired(Instant now) {
+		return expiresAt.isBefore(now) || expiresAt.equals(now);
+	}
+
+	public void accept(Instant acceptedAt) {
+		this.status = InvitationStatus.ACCEPTED;
+		this.acceptedAt = acceptedAt;
+	}
+
+	public void expire() {
+		this.status = InvitationStatus.EXPIRED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

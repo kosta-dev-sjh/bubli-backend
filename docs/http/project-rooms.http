@@ -1,6 +1,8 @@
 @baseUrl = http://localhost:8080
 @accessToken = paste-access-token-here
 @roomId = paste-room-id-here
+@inviteeUserId = paste-invitee-user-id-here
+@invitationId = paste-invitation-id-here
 
 ### 프로젝트룸 목록
 GET {{baseUrl}}/api/project-rooms?page=0&size=20
@@ -23,4 +25,26 @@ Content-Type: application/json
 
 ### 프로젝트룸 상세
 GET {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 멤버 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/members?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 초대 생성
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/invitations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inviteeUserId": "{{inviteeUserId}}",
+  "role": "MEMBER"
+}
+
+### 프로젝트룸 초대 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/invitations?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 초대 수락
+PATCH {{baseUrl}}/api/invitations/{{invitationId}}/accept
 Authorization: Bearer {{accessToken}}

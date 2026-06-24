@@ -61,6 +61,20 @@ public class RoomMember {
 		return roomMember;
 	}
 
+	public static RoomMember create(UUID roomId, UUID userId, RoomMemberRole role) {
+		RoomMember roomMember = new RoomMember();
+		roomMember.roomId = roomId;
+		roomMember.userId = userId;
+		roomMember.role = role == null ? RoomMemberRole.MEMBER : role;
+		roomMember.status = RoomMemberStatus.ACTIVE;
+		return roomMember;
+	}
+
+	public void reactivate(RoomMemberRole role) {
+		this.role = role == null ? RoomMemberRole.MEMBER : role;
+		this.status = RoomMemberStatus.ACTIVE;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
