@@ -18,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -59,10 +60,7 @@ public class ResourceService {
 
 	@Transactional(readOnly = true)
 	public ResourceResult getResource(UUID userId, UUID resourceId) {
-		Resource resource = resourceRepository.findByIdAndDeletedAtIsNull(resourceId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
-		validateReadable(userId, resource);
-		return ResourceResult.from(resource);
+		return ResourceResult.from(getReadableResource(userId, resourceId));
 	}
 
 	@Transactional
@@ -78,6 +76,22 @@ public class ResourceService {
 				ResourceStatus.READY
 		);
 		return ResourceResult.from(resourceRepository.save(resource));
+	}
+
+	@Transactional
+	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
+		Resource resource = getReadableResource(userId, resourceId);
+		if (title != null && title.isBlank()) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		resource.updateTitle(title);
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public void deleteResource(UUID userId, UUID resourceId) {
+		Resource resource = getReadableResource(userId, resourceId);
+		resource.markDeleted(Instant.now());
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
@@ -109,6 +123,13 @@ public class ResourceService {
 			return;
 		}
 		throw new BusinessException(ErrorCode.RESOURCE_403_001);
+	}
+
+	private Resource getReadableResource(UUID userId, UUID resourceId) {
+		Resource resource = resourceRepository.findByIdAndDeletedAtIsNull(resourceId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+		validateReadable(userId, resource);
+		return resource;
 	}
 
 	private void validateRoomResourceAccess(UUID userId, UUID roomId) {

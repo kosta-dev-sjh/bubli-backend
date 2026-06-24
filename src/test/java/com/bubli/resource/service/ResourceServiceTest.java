@@ -134,6 +134,46 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void updateResourceChangesTitleAfterAccessCheck() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"이전 제목",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		ResourceResult result = resourceService.updateResource(userId, resourceId, "새 제목");
+
+		assertThat(result.title()).isEqualTo("새 제목");
+		assertThat(resource.getTitle()).isEqualTo("새 제목");
+	}
+
+	@Test
+	void deleteResourceMarksResourceDeleted() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"삭제할 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		resourceService.deleteResource(userId, resourceId);
+
+		assertThat(resource.getDeletedAt()).isNotNull();
+		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
+	}
+
+	@Test
 	void getResourceRejectsOtherUserPersonalResource() {
 		UUID ownerId = UUID.randomUUID();
 		UUID otherUserId = UUID.randomUUID();
