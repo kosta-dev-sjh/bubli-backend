@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 05:12 KST
+Last checked: 2026-06-25 05:19 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -67,11 +67,38 @@ Last checked: 2026-06-25 05:12 KST
 - #50 user privacy consents API 로컬 검증 통과. GitHub checks 없음 (base #49에 stacked PR CI workflow 없음)
 - #51 user project rooms API 로컬 검증 통과. GitHub checks 없음 (base #50에 stacked PR CI workflow 없음)
 - #52 S3 download-url provider 로컬 검증 통과. GitHub checks 없음 (base #46에 stacked PR CI workflow 없음)
-- 열린 PR #19~#52 상태 재확인 완료 (2026-06-25 05:12 KST)
+- #53 agent job dispatch boundary 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
+- 열린 PR #19~#53 상태 재확인 완료 (2026-06-25 05:19 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 38. #53 에이전트 작업 dispatch 경계
+
+처리 시각: 2026-06-25 05:19 KST
+
+변경 내용:
+
+- #53 `feature/agent-job-dispatch-boundary`를 #45 `feature/review-contract-documents-job-api` 위의 draft stacked PR로 생성했다.
+- AgentJob 생성 후 실제 실행을 직접 호출하지 않고 dispatch boundary로 넘기는 구조를 추가했다.
+- `AgentJobDispatchPort`와 기본 no-op 구현을 추가했다.
+- dispatch는 Spring event로 발행하고 listener가 transaction commit 이후 port를 호출한다.
+- agent가 `tasks`, `wbs_items`, `schedules`, `memos`를 직접 확정 저장하는 로직은 추가하지 않았다.
+
+검증 결과:
+
+- #53: `./gradlew compileTestJava` 통과
+- #53: `./gradlew cleanTest test` 통과
+- #53: `git diff --check` 통과
+- #53: head `1884979`, base `feature/review-contract-documents-job-api`, mergeState `CLEAN`
+- #53: GitHub checks 없음. base #45에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 실행 큐 연결 전 경계만 다룬다.
+- 실제 큐 adapter, retry/enqueue 실패 처리, 모델 실행 흐름은 후속 PR로 분리한다.
+- job 실행 결과를 suggestion/ai_document로 저장하는 세부 흐름은 최종 API 수정본에서 보정 가능하다.
 
 ### 작업 카드 37. #52 S3 다운로드 URL Provider
 
@@ -1142,6 +1169,7 @@ Last checked: 2026-06-25 05:12 KST
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
 | #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `8fefcee` | checks 없음, merge clean, draft | 6/25 기준 review-contract-documents agent job 생성 API 추가 |
+| #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `1884979` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port 경계 추가 |
 | #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `5e70334` | checks 없음, merge clean, draft | 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
 | #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `0de5a0a` | checks 없음, merge clean, draft | #46 provider 경계에 S3 presigned download URL 구현 추가 |
 | #47 | `[feat] 내 프로필 수정 API 추가` | `feature/user-me-update-api` | `develop` | `2a132a6` | `build` pass, merge blocked, draft | 6/25 기준 PATCH /api/me 추가 |
@@ -1152,12 +1180,12 @@ Last checked: 2026-06-25 05:12 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 05:12 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52다.
+2026-06-25 05:19 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#52는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#53은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -1171,7 +1199,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 실행 큐 연결 전 dispatch port 경계 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
@@ -1232,9 +1260,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#52는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 agent job 실행 큐 연결 전 Repository/Service 경계 점검, Entity/Flyway 정합성 점검, 또는 S3 업로드/삭제 StorageService 경계 추가다.
-10. #19~#52는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#53은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 Entity/Flyway 정합성 점검, S3 업로드/삭제 StorageService 경계 추가, 또는 agent dispatch queue adapter 초안이다.
+10. #19~#53은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
