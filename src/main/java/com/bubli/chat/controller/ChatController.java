@@ -5,6 +5,7 @@ import com.bubli.chat.dto.ChatMessageResult;
 import com.bubli.chat.dto.ChatRoomReadResponse;
 import com.bubli.chat.dto.ChatRoomResponse;
 import com.bubli.chat.dto.ChatRoomResult;
+import com.bubli.chat.dto.CreateDirectChatRoomRequest;
 import com.bubli.chat.dto.MarkChatRoomReadRequest;
 import com.bubli.chat.dto.SendChatMessageRequest;
 import com.bubli.chat.service.ChatService;
@@ -38,6 +39,16 @@ public class ChatController {
 			@PageableDefault(size = 20) Pageable pageable
 	) {
 		return ApiResponse.success(mapRoomPage(chatService.getChatRooms(authUser.userId(), pageable)));
+	}
+
+	@PostMapping("/api/chat/direct-rooms")
+	public ApiResponse<ChatRoomResponse> createDirectRoom(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody CreateDirectChatRoomRequest request
+	) {
+		return ApiResponse.success(ChatRoomResponse.from(
+				chatService.createDirectRoom(authUser.userId(), request.targetUserId())
+		));
 	}
 
 	@GetMapping("/api/chat/rooms/{chatRoomId}/messages")

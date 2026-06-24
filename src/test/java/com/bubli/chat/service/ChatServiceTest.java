@@ -2,6 +2,7 @@ package com.bubli.chat.service;
 
 import com.bubli.chat.dto.ChatMessageResult;
 import com.bubli.chat.dto.ChatRoomReadResponse;
+import com.bubli.chat.dto.ChatRoomResult;
 import com.bubli.chat.dto.SendChatMessageCommand;
 import com.bubli.chat.entity.ChatMessage;
 import com.bubli.chat.entity.ChatRoom;
@@ -10,6 +11,7 @@ import com.bubli.chat.repository.ChatMessageRepository;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
 import com.bubli.chat.type.ChatMemberStatus;
+import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +59,62 @@ class ChatServiceTest {
 
 	@InjectMocks
 	ChatService chatService;
+
+	@Test
+	void createDirectRoomCreatesRoomAndTwoMembers() {
+		UUID requesterId = UUID.randomUUID();
+		UUID targetUserId = UUID.randomUUID();
+		User targetUser = user(targetUserId, "준화");
+		given(userRepository.findById(targetUserId)).willReturn(Optional.of(targetUser));
+		given(chatRoomRepository.findDirectRoomBetween(
+				requesterId,
+				targetUserId,
+				ChatType.DIRECT,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(Optional.empty());
+		given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> {
+			ChatRoom chatRoom = invocation.getArgument(0);
+			ReflectionTestUtils.setField(chatRoom, "id", UUID.randomUUID());
+			ReflectionTestUtils.setField(chatRoom, "createdAt", Instant.now());
+			ReflectionTestUtils.setField(chatRoom, "updatedAt", Instant.now());
+			return chatRoom;
+		});
+
+		ChatRoomResult result = chatService.createDirectRoom(requesterId, targetUserId);
+
+		assertThat(result.chatType()).isEqualTo(ChatType.DIRECT);
+		assertThat(result.name()).isEqualTo("준화");
+
+		ArgumentCaptor<ChatRoomMember> memberCaptor = ArgumentCaptor.forClass(ChatRoomMember.class);
+		verify(chatRoomMemberRepository, times(2)).save(memberCaptor.capture());
+		assertThat(memberCaptor.getAllValues())
+				.extracting(ChatRoomMember::getUserId)
+				.containsExactlyInAnyOrder(requesterId, targetUserId);
+	}
+
+	@Test
+	void createDirectRoomReturnsExistingRoomWhenAlreadyExists() {
+		UUID requesterId = UUID.randomUUID();
+		UUID targetUserId = UUID.randomUUID();
+		User targetUser = user(targetUserId, "준화");
+		ChatRoom existing = ChatRoom.createDirect("준화");
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
+		ReflectionTestUtils.setField(existing, "updatedAt", Instant.now());
+		given(userRepository.findById(targetUserId)).willReturn(Optional.of(targetUser));
+		given(chatRoomRepository.findDirectRoomBetween(
+				requesterId,
+				targetUserId,
+				ChatType.DIRECT,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(Optional.of(existing));
+
+		ChatRoomResult result = chatService.createDirectRoom(requesterId, targetUserId);
+
+		assertThat(result.id()).isEqualTo(existing.getId());
+		verify(chatRoomRepository, never()).save(any(ChatRoom.class));
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
 
 	@Test
 	void sendMessageStoresMessageWithNextRoomSequence() throws Exception {

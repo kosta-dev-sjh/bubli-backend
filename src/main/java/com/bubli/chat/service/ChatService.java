@@ -11,6 +11,7 @@ import com.bubli.chat.repository.ChatMessageRepository;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
 import com.bubli.chat.type.ChatMemberStatus;
+import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
@@ -59,6 +60,25 @@ public class ChatService {
 				page.getTotalPages(),
 				page.hasNext()
 		);
+	}
+
+	@Transactional
+	public ChatRoomResult createDirectRoom(UUID requesterId, UUID targetUserId) {
+		if (requesterId.equals(targetUserId)) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		User targetUser = userRepository.findById(targetUserId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+
+		return chatRoomRepository.findDirectRoomBetween(
+						requesterId,
+						targetUserId,
+						ChatType.DIRECT,
+						ChatMemberStatus.ACTIVE
+				)
+				.map(ChatRoomResult::from)
+				.orElseGet(() -> createNewDirectRoom(requesterId, targetUser));
 	}
 
 	@Transactional(readOnly = true)
@@ -141,6 +161,13 @@ public class ChatService {
 				command.resourceId()
 		);
 		return chatMessageRepository.save(message);
+	}
+
+	private ChatRoomResult createNewDirectRoom(UUID requesterId, User targetUser) {
+		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(targetUser.getName()));
+		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), requesterId));
+		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), targetUser.getId()));
+		return ChatRoomResult.from(chatRoom);
 	}
 
 	private void checkActiveMember(UUID userId, UUID chatRoomId) {

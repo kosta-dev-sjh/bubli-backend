@@ -1,11 +1,21 @@
 @baseUrl = http://localhost:8080
 @accessToken = paste-access-token-here
 @chatRoomId = paste-chat-room-id-here
+@targetUserId = paste-target-user-id-here
 @lastReadMessageId = paste-message-id-here
 
 ### 내가 참여한 채팅방 목록
 GET {{baseUrl}}/api/chat/rooms?page=0&size=20
 Authorization: Bearer {{accessToken}}
+
+### 1:1 채팅방 생성 또는 기존 방 조회
+POST {{baseUrl}}/api/chat/direct-rooms
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "targetUserId": "{{targetUserId}}"
+}
 
 ### 채팅 메시지 목록
 GET {{baseUrl}}/api/chat/rooms/{{chatRoomId}}/messages?page=0&size=30

@@ -6,6 +6,7 @@ import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.repository.ChatMessageRepository;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
+import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
@@ -56,6 +57,32 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		chatRoomMemberRepository.deleteAll();
 		chatRoomRepository.deleteAll();
 		userRepository.deleteAll();
+	}
+
+	@Test
+	void createDirectRoomCreatesChatRoomForTwoUsers() throws Exception {
+		User requester = createUser("google-sub-direct-requester", "정현");
+		User target = createUser("google-sub-direct-target", "준화");
+
+		mockMvc.perform(post("/api/chat/direct-rooms")
+						.header(AUTHORIZATION, bearerToken(requester))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "targetUserId": "%s"
+								}
+								""".formatted(target.getId())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.chatType").value("DIRECT"))
+				.andExpect(jsonPath("$.data.name").value("준화"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		ChatRoom chatRoom = chatRoomRepository.findAll().getFirst();
+		assertThat(chatRoom.getChatType()).isEqualTo(ChatType.DIRECT);
+		assertThat(chatRoomMemberRepository.findAll())
+				.extracting(ChatRoomMember::getUserId)
+				.containsExactlyInAnyOrder(requester.getId(), target.getId());
 	}
 
 	@Test
