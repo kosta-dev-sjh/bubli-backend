@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 02:30 KST
+Last checked: 2026-06-25 02:59 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -45,11 +45,124 @@ Last checked: 2026-06-25 02:30 KST
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource summary API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
-- 열린 PR #19~#30 상태 재확인 완료 (2026-06-25 02:30 KST)
+- #31 resource related API 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
+- #32 agent job status API 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
+- #33 agent suggestion list API 로컬 검증 통과. GitHub checks 없음 (base #32에 stacked PR CI workflow 없음)
+- #34 agent job events API 로컬 검증 통과. GitHub checks 없음 (base #33에 stacked PR CI workflow 없음)
+- 열린 PR #19~#34 상태 재확인 완료 (2026-06-25 02:59 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 19. #34 agent_job_events 조회 API
+
+처리 시각: 2026-06-25 02:54 KST
+
+변경 내용:
+
+- #34 `feature/agent-job-events-api`를 #33 `feature/agent-suggestion-list-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/agent-jobs/{jobId}/events`를 추가했다.
+- 로그인 사용자 본인이 요청한 `agent_jobs`의 이벤트만 조회한다.
+- `agent_job_events`를 기준으로 이벤트 목록을 페이지 응답으로 반환한다.
+- 응답은 Entity를 직접 반환하지 않고 `AgentJobEventResponse` DTO로 감싼다.
+- `docs/http/agent.http`에 작업 이벤트 조회 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #34: `./gradlew compileTestJava` 통과
+- #34: `./gradlew cleanTest test` 통과
+- #34: `git diff --check` 통과
+- #34: head `698557a`, base `feature/agent-suggestion-list-api`, mergeState `CLEAN`
+- #34: GitHub checks 없음. base #33에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 agent job event 조회만 다룬다.
+- event 생성/저장 API는 에이전트 실행 모듈과 상태 전이 정책이 정리되면 후속 PR에서 다룬다.
+- agent가 tasks, wbs_items, schedules, memos를 직접 확정 저장하는 흐름은 넣지 않았다.
+
+### 작업 카드 18. #33 agent_suggestions 조회 API
+
+처리 시각: 2026-06-25 02:49 KST
+
+변경 내용:
+
+- #33 `feature/agent-suggestion-list-api`를 #32 `feature/agent-job-status-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/agent/suggestions`를 추가했다.
+- `GET /api/project-rooms/{roomId}/agent/suggestions`를 추가했다.
+- 기본 `status`는 `DRAFT`로 두고 페이지 응답으로 반환한다.
+- 프로젝트룸 제안함은 `RoomAccessService.validateActiveMember`로 ACTIVE 멤버만 조회하게 했다.
+- 응답은 Entity를 직접 반환하지 않고 `AgentSuggestionResponse` DTO로 감싼다.
+- `docs/http/agent.http`에 개인/프로젝트룸 제안함 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #33: `./gradlew compileTestJava` 통과
+- #33: `./gradlew cleanTest test` 통과
+- #33: `git diff --check` 통과
+- #33: head `a863439`, base `feature/agent-job-status-api`, mergeState `CLEAN`
+- #33: GitHub checks 없음. base #32에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 agent suggestion 조회만 다룬다.
+- `PATCH /api/agent/suggestions/{id}` 승인/수정/보류/삭제 API는 확정 저장 책임이 커서 후속 PR로 남긴다.
+- agent가 tasks, wbs_items, schedules, memos를 직접 확정 저장하는 흐름은 넣지 않았다.
+
+### 작업 카드 17. #32 agent_jobs 상태 조회 API
+
+처리 시각: 2026-06-25 02:44 KST
+
+변경 내용:
+
+- #32 `feature/agent-job-status-api`를 #26 `feature/agent-storage-foundation` 위의 draft stacked PR로 생성했다.
+- `GET /api/agent-jobs/{jobId}`를 추가했다.
+- 로그인 사용자 본인이 요청한 `agent_jobs`만 조회한다.
+- 존재하지 않거나 본인 job이 아니면 `AGENT_404_001`로 응답한다.
+- 응답은 Entity를 직접 반환하지 않고 `AgentJobResponse` DTO로 감싼다.
+- `docs/http/agent.http`에 작업 상태 조회 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #32: `./gradlew compileTestJava` 통과
+- #32: `./gradlew cleanTest test` 통과
+- #32: `git diff --check` 통과
+- #32: head `d667612`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #32: GitHub checks 없음. base #26에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 agent job 상태 조회만 다룬다.
+- `POST /api/ai/*` 작업 생성 API는 권한, 분석 제한, 큐 연결 정책이 더 필요해서 후속 PR로 남긴다.
+- agent가 tasks, wbs_items, schedules, memos를 직접 확정 저장하는 흐름은 넣지 않았다.
+
+### 작업 카드 16. #31 resource_relations 조회 API
+
+처리 시각: 2026-06-25 02:40 KST
+
+변경 내용:
+
+- #31 `feature/resource-related-api`를 #25 `feature/resource-basic-foundation` 위의 draft stacked PR로 생성했다.
+- `GET /api/resources/{resourceId}/related`를 추가했다.
+- `resource_relations`를 기준으로 관련 자료 목록을 조회한다.
+- 기준 자료와 관련 자료 모두 사용자 접근 권한을 확인한다.
+- 응답은 Entity를 직접 반환하지 않고 `ResourceRelatedResponse` DTO로 감싼다.
+- `docs/http/resource.http`에 관련 자료 목록 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #31: `./gradlew compileTestJava` 통과
+- #31: `./gradlew cleanTest test` 통과
+- #31: `git diff --check` 통과
+- #31: head `4148e57`, base `feature/resource-basic-foundation`, mergeState `CLEAN`
+- #31: GitHub checks 없음. base #25에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 관련 자료 조회만 다룬다.
+- 관련 자료 관계 생성/갱신은 에이전트 분석 저장 정책이 정리된 뒤 별도 PR에서 다룬다.
+- `download-url`, `ai-document` API는 아직 후속 작업이다.
 
 ### 작업 카드 15. #25 resource_summaries 조회 API 보정
 
@@ -500,17 +613,21 @@ Last checked: 2026-06-25 02:30 KST
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean, draft | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean, draft | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` 확인 중, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `76799f2` | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
+| #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `4148e57` | checks 없음, merge clean, draft | 6/25 기준 resource_relations 조회 API 추가 |
+| #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `d667612` | checks 없음, merge clean, draft | 6/25 기준 agent_jobs 상태 조회 API 추가 |
+| #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `a863439` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
+| #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `698557a` | checks 없음, merge clean, draft | 6/25 기준 agent_job_events 조회 API 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 02:30 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29다.
+2026-06-25 02:59 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#34는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -522,8 +639,8 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. download-url/ai-document/related API는 후속 PR로 나눈다 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. download-url/ai-document API는 후속 PR로 나눈다 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#34에서 job 상태, suggestion 목록, job event 조회 API 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
@@ -543,7 +660,10 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 자료 댓글 | `GET/POST /api/resources/{id}/comments`, `PATCH/DELETE /api/resource-comments/{id}` 포함 | #25 보정 완료. 작성자만 수정/삭제 가능하고 삭제는 `deleted_at` 처리 |
 | 자료 버전 | `GET/POST /api/resources/{id}/versions` 포함 | #25 보정 완료. `resource_files`와 `resource_versions` 메타데이터를 저장/조회한다 |
 | 자료 요약 | `GET /api/resources/{id}/summary` 포함 | #25 보정 완료. `resource_summaries` 최신 행을 DTO로 반환한다 |
+| 자료 관련 문서 | `GET /api/resources/{id}/related` 포함 | #31 보정 완료. `resource_relations` 목록과 접근 가능한 관련 자료 DTO를 반환한다 |
 | 에이전트 후보 타입 | 기획/가이드는 TODO, WBS, REQUIREMENT, SCHEDULE, QUESTION, CONTRACT_FIELD, CONTRACT_REVIEW, DOCUMENT_DRAFT, DAILY_SUMMARY, MEMO 등 후보를 통합 저장한다고 설명 | #26 보정 완료. `TASK`, `REVIEW_ITEM`은 기존 데이터 모델 표와 저장값 호환을 위해 유지 |
+| 에이전트 작업 조회 | `GET /api/agent-jobs/{jobId}`, `GET /api/agent-jobs/{jobId}/events` 포함 | #32, #34 보정 완료. 본인 job만 조회하고 event 목록은 `agent_job_events` 기준으로 반환한다 |
+| 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
@@ -568,9 +688,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 resource download-url/ai-document/related API 또는 agent Controller/API 연결 중 하나를 별도 PR로 나누는 것이다.
-10. #19~#30은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#34는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 resource download-url/ai-document API 또는 agent suggestion PATCH API 중 하나를 별도 PR로 나누는 것이다.
+10. #19~#34는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
