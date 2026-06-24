@@ -55,6 +55,10 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/project-rooms/{{roomId}}
 Authorization: Bearer {{accessToken}}
 
+### 프로젝트룸 이벤트 누락 보충
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/events?afterSequence=0&limit=100
+Authorization: Bearer {{accessToken}}
+
 ### 프로젝트룸 멤버 목록
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/members?page=0&size=20
 Authorization: Bearer {{accessToken}}
