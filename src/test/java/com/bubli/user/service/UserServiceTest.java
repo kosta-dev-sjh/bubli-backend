@@ -2,23 +2,31 @@ package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.project.service.ProjectRoomService;
+import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
 import com.bubli.user.dto.UpdateUserProfileCommand;
 import com.bubli.user.dto.UpdateUserPreferenceCommand;
+import com.bubli.user.dto.UserNotificationPreferencesResult;
 import com.bubli.user.dto.UserPreferenceResult;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.entity.UserNotificationPreference;
 import com.bubli.user.entity.UserPreference;
+import com.bubli.user.repository.UserNotificationPreferenceRepository;
 import com.bubli.user.repository.UserPreferenceRepository;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.type.NotificationType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,6 +40,9 @@ class UserServiceTest {
 
 	@Mock
 	UserPreferenceRepository userPreferenceRepository;
+
+	@Mock
+	UserNotificationPreferenceRepository userNotificationPreferenceRepository;
 
 	@Mock
 	ProjectRoomService projectRoomService;
@@ -121,5 +132,62 @@ class UserServiceTest {
 		assertThat(result.defaultHomeType()).isEqualTo("PROJECT_ROOM");
 		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
 		org.mockito.Mockito.verify(projectRoomService).getProjectRoom(userId, roomId);
+	}
+
+	@Test
+	void getNotificationPreferencesReturnsAllTypesEnabledByDefault() {
+		UUID userId = UUID.randomUUID();
+		given(userNotificationPreferenceRepository.findByIdUserId(userId)).willReturn(List.of());
+
+		UserNotificationPreferencesResult result = userService.getNotificationPreferences(userId);
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.items())
+				.extracting(item -> item.notificationType())
+				.containsExactly(NotificationType.values());
+		assertThat(result.items())
+				.allSatisfy(item -> assertThat(item.enabled()).isTrue());
+	}
+
+	@Test
+	void updateNotificationPreferencesUpsertsRequestedTypes() {
+		UUID userId = UUID.randomUUID();
+		UserNotificationPreference existingPreference = UserNotificationPreference.create(
+				userId,
+				NotificationType.MESSAGE,
+				true
+		);
+		given(userNotificationPreferenceRepository.findByIdUserId(userId)).willReturn(List.of(existingPreference));
+
+		UserNotificationPreferencesResult result = userService.updateNotificationPreferences(
+				userId,
+				new UpdateNotificationPreferencesCommand(List.of(
+						new UpdateNotificationPreferencesCommand.Item(NotificationType.MESSAGE, false),
+						new UpdateNotificationPreferencesCommand.Item(NotificationType.AGENT, true)
+				))
+		);
+
+		assertThat(result.items())
+				.filteredOn(item -> item.notificationType() == NotificationType.MESSAGE)
+				.singleElement()
+				.satisfies(item -> assertThat(item.enabled()).isFalse());
+		assertThat(result.items())
+				.filteredOn(item -> item.notificationType() == NotificationType.AGENT)
+				.singleElement()
+				.satisfies(item -> assertThat(item.enabled()).isTrue());
+		org.mockito.Mockito.verify(userNotificationPreferenceRepository)
+				.saveAll(ArgumentMatchers.argThat(preferences -> {
+					List<UserNotificationPreference> savedPreferences = StreamSupport.stream(
+							preferences.spliterator(),
+							false
+					).toList();
+					return savedPreferences.size() == 2
+							&& savedPreferences.stream()
+							.anyMatch(preference -> preference.getNotificationType() == NotificationType.MESSAGE
+									&& !preference.isEnabled())
+							&& savedPreferences.stream()
+							.anyMatch(preference -> preference.getNotificationType() == NotificationType.AGENT
+									&& preference.isEnabled());
+				}));
 	}
 }

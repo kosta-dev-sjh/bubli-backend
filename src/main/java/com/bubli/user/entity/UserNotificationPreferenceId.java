@@ -24,4 +24,13 @@ public class UserNotificationPreferenceId implements Serializable {
 	@Column(name = "notification_type", nullable = false)
 	@Enumerated(EnumType.STRING)
 	private NotificationType notificationType;
+
+	private UserNotificationPreferenceId(UUID userId, NotificationType notificationType) {
+		this.userId = userId;
+		this.notificationType = notificationType;
+	}
+
+	public static UserNotificationPreferenceId of(UUID userId, NotificationType notificationType) {
+		return new UserNotificationPreferenceId(userId, notificationType);
+	}
 }

@@ -5,7 +5,9 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.user.dto.MeResponse;
 import com.bubli.user.dto.UpdateMeRequest;
+import com.bubli.user.dto.UpdateNotificationPreferencesRequest;
 import com.bubli.user.dto.UpdateUserPreferenceRequest;
+import com.bubli.user.dto.UserNotificationPreferenceResponse;
 import com.bubli.user.dto.UserPreferenceResponse;
 import com.bubli.user.service.UserService;
 import jakarta.validation.Valid;
@@ -52,5 +54,22 @@ public class MeController {
 				authUser.userId(),
 				request.toCommand()
 		)));
+	}
+
+	@GetMapping("/api/me/notification-preferences")
+	public ApiResponse<UserNotificationPreferenceResponse> getNotificationPreferences(@CurrentUser AuthUser authUser) {
+		return ApiResponse.success(UserNotificationPreferenceResponse.from(
+				userService.getNotificationPreferences(authUser.userId())
+		));
+	}
+
+	@PatchMapping("/api/me/notification-preferences")
+	public ApiResponse<UserNotificationPreferenceResponse> updateNotificationPreferences(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody UpdateNotificationPreferencesRequest request
+	) {
+		return ApiResponse.success(UserNotificationPreferenceResponse.from(
+				userService.updateNotificationPreferences(authUser.userId(), request.toCommand())
+		));
 	}
 }
