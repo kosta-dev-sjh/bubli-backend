@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 03:40 KST
+Last checked: 2026-06-25 03:52 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -53,11 +53,38 @@ Last checked: 2026-06-25 03:40 KST
 - #36 resource ai-document API 로컬 검증 통과. GitHub checks 없음 (base #35에 stacked PR CI workflow 없음)
 - #37 room ai-documents API 로컬 검증 통과. GitHub checks 없음 (base #36에 stacked PR CI workflow 없음)
 - #38 entity boundary guard 로컬 검증 통과. GitHub Actions `build` 통과
-- 열린 PR #19~#38 상태 재확인 완료 (2026-06-25 03:40 KST)
+- #39 storage usage API 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
+- 열린 PR #19~#39 상태 재확인 완료 (2026-06-25 03:52 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 24. #39 storage usage 조회 API
+
+처리 시각: 2026-06-25 03:52 KST
+
+변경 내용:
+
+- #39 `feature/storage-usage-api`를 #31 `feature/resource-related-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/storage/usage`를 추가했다.
+- 현재 사용자 개인 `storage_usage`와 ACTIVE로 참여 중인 프로젝트룸의 ROOM scope `storage_usage`를 함께 조회한다.
+- 각 usage row의 `remainingBytes`와 전체 `totalUsedBytes`, `totalLimitBytes`, `totalRemainingBytes`를 계산해 반환한다.
+- 응답은 Entity를 직접 반환하지 않고 `StorageUsageResponse`와 `StorageUsageResult` 계열 DTO로 분리했다.
+- `docs/http/resource.http`에 저장 용량 조회 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #39: `./gradlew compileTestJava` 통과
+- #39: `./gradlew cleanTest test` 통과
+- #39: `git diff --check` 통과
+- #39: head `db757bc`, base `feature/resource-related-api`, mergeState `CLEAN`
+- #39: GitHub checks 없음. base #31에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 저장 용량 조회만 다룬다.
+- 파일 업로드, resource download-url, LocalFileStorage/S3Storage 구현은 별도 PR로 남긴다.
 
 ### 작업 카드 23. #38 엔티티 경계 가드 테스트
 
@@ -739,15 +766,16 @@ Last checked: 2026-06-25 03:40 KST
 | #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
 | #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `aa52ec1` | checks 없음, merge clean, draft | 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
 | #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `a22ee45` | `build` pass, merge clean, draft | BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 추가 |
+| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `db757bc` | checks 없음, merge clean, draft | 6/25 기준 storage usage 조회 API 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 03:40 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38다.
+2026-06-25 03:52 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#38은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#39는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -787,6 +815,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | AI 문서 조회 | `GET /api/resources/{id}/ai-document`는 자료의 AI 문서 분류와 분석 상태를 반환 | #36 보정 완료. 자료 읽기 권한 확인 후 `ai_documents` 단건 상태를 반환한다 |
 | AI 문서 목록 | `GET /api/project-rooms/{roomId}/ai-documents`는 프로젝트룸 AI 문서 분석 목록을 반환 | #37 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `ai_documents` 목록을 반환한다 |
 | 엔티티 경계 | BaseTimeEntity, global 공통 엔티티, Tauri `local_*` 서버 엔티티 금지 | #38 보정 완료. 금지 구조를 테스트로 고정했다 |
+| 저장 용량 | `GET /api/storage/usage`는 사용자별 서버 저장 용량과 남은 용량 조회 | #39 보정 완료. 개인/참여 룸 usage row 조회와 합계 계산을 추가했다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
@@ -812,9 +841,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#38은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+8. draft PR #24~#29, #31~#39는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 9. 다음 추천 작업은 resource download-url의 Storage Service 선행 조건 정리 또는 남은 API 차이 재점검이다.
-10. #19~#38은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+10. #19~#39는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
