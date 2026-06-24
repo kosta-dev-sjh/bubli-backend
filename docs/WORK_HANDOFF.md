@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 04:20 KST
+Last checked: 2026-06-25 04:26 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -60,11 +60,40 @@ Last checked: 2026-06-25 04:20 KST
 - #43 generate-wbs job API 로컬 검증 통과. GitHub checks 없음 (base #42에 stacked PR CI workflow 없음)
 - #44 generate-questions job API 로컬 검증 통과. GitHub checks 없음 (base #43에 stacked PR CI workflow 없음)
 - #45 review-contract-documents job API 로컬 검증 통과. GitHub checks 없음 (base #44에 stacked PR CI workflow 없음)
-- 열린 PR #19~#45 상태 재확인 완료 (2026-06-25 04:20 KST)
+- #46 resource download-url API 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
+- 열린 PR #19~#46 상태 재확인 완료 (2026-06-25 04:26 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 31. #46 resource download-url API 뼈대
+
+처리 시각: 2026-06-25 04:26 KST
+
+변경 내용:
+
+- #46 `feature/resource-download-url-api`를 #31 `feature/resource-related-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/resources/{resourceId}/download-url`를 추가했다.
+- 자료 읽기 권한을 확인한 뒤 최신 `resource_versions`와 연결된 `resource_files.storage_key`를 조회한다.
+- 실제 S3 presigned URL을 지어내지 않고 `StorageDownloadUrlProvider` 경계로 분리했다.
+- 기본 Provider는 저장소 URL 발급 미연결 상태를 `RESOURCE_501_001`로 반환한다.
+- 응답은 Entity를 직접 반환하지 않고 `ResourceDownloadUrlResponse` DTO를 사용한다.
+- `docs/http/resource.http`에 자료 다운로드 URL 발급 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #46: `./gradlew compileTestJava` 통과
+- #46: `./gradlew cleanTest test` 통과
+- #46: `git diff --check` 통과
+- #46: head `5e70334`, base `feature/resource-related-api`, mergeState `CLEAN`
+- #46: GitHub checks 없음. base #31에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 download-url API 표면과 저장소 Provider 경계만 다룬다.
+- S3 presigned URL 구현, 만료 시간 정책, 특정 버전 다운로드 지원 여부는 후속 PR로 남긴다.
+- 가짜 다운로드 URL을 만들지 않았다.
 
 ### 작업 카드 30. #45 review-contract-documents 에이전트 작업 생성 API
 
@@ -941,15 +970,16 @@ Last checked: 2026-06-25 04:20 KST
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
 | #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `8fefcee` | checks 없음, merge clean, draft | 6/25 기준 review-contract-documents agent job 생성 API 추가 |
+| #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `5e70334` | checks 없음, merge clean, draft | 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 04:20 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45다.
+2026-06-25 04:26 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#45는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#46은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -961,7 +991,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. download-url/ai-document API는 후속 PR로 나눈다 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
@@ -977,7 +1007,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 프로젝트룸 초대 | 6/25 기준은 가입 사용자 ID 초대, 수락, 취소, 멤버 역할 변경/삭제 중심 | #19 보정 완료. 6/24 메모의 invite-links API는 6/25 기준에서 제외됨 |
 | 인증 | Google-only authorize/callback, refresh, logout | #24 보정 완료. signup/email-password는 되살리지 않음 |
 | 자료 상태값 | `ResourceResponse.status` 예시는 `UPLOADED`, `ANALYZING`, `ANALYZED`, `FAILED`, `ARCHIVED` | 당시 데이터 딕셔너리와 코드 enum은 `UPLOADING`, `READY`, `ANALYZING`, `ANALYZED`, `FAILED`, `DELETED`이었다. 6/25 기준으로 상태값 명칭 재확인 필요 |
-| 자료 업로드 | `POST /api/resources`는 개인 또는 프로젝트룸 자료 업로드 | #25는 파일/S3 업로드 전 단계의 자료 카드 메타데이터 저장/조회 기반, 댓글 API, 파일 메타데이터/버전 API, summary 조회 API까지 구현함. multipart 업로드와 S3 다운로드 URL은 별도 PR 필요 |
+| 자료 업로드 | `POST /api/resources`는 개인 또는 프로젝트룸 자료 업로드 | #25는 파일/S3 업로드 전 단계의 자료 카드 메타데이터 저장/조회 기반, 댓글 API, 파일 메타데이터/버전 API, summary 조회 API까지 구현함. #46에서 download-url API 뼈대를 추가했으나 실제 S3 presigned URL 구현은 별도 PR 필요 |
 | 자료 수정/삭제 | `PATCH /api/resources/{id}`, `DELETE /api/resources/{id}` 포함 | #25 보정 완료. #24 base 병합 충돌도 해결되어 PR mergeState는 CLEAN |
 | 자료 댓글 | `GET/POST /api/resources/{id}/comments`, `PATCH/DELETE /api/resource-comments/{id}` 포함 | #25 보정 완료. 작성자만 수정/삭제 가능하고 삭제는 `deleted_at` 처리 |
 | 자료 버전 | `GET/POST /api/resources/{id}/versions` 포함 | #25 보정 완료. `resource_files`와 `resource_versions` 메타데이터를 저장/조회한다 |
@@ -1021,9 +1051,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#45는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 resource download-url의 Storage Service 선행 조건 정리 또는 agent job 실행 큐 연결 전 Repository/Service 경계 점검이다.
-10. #19~#45는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#46은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 agent job 실행 큐 연결 전 Repository/Service 경계 점검 또는 S3 presigned URL 구현체 추가다.
+10. #19~#46은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
