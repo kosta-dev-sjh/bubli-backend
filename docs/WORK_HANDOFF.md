@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 04:12 KST
+Last checked: 2026-06-25 04:16 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -58,11 +58,39 @@ Last checked: 2026-06-25 04:12 KST
 - #41 generate-requirements job API 로컬 검증 통과. GitHub checks 없음 (base #40에 stacked PR CI workflow 없음)
 - #42 generate-tasks job API 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
 - #43 generate-wbs job API 로컬 검증 통과. GitHub checks 없음 (base #42에 stacked PR CI workflow 없음)
-- 열린 PR #19~#43 상태 재확인 완료 (2026-06-25 04:12 KST)
+- #44 generate-questions job API 로컬 검증 통과. GitHub checks 없음 (base #43에 stacked PR CI workflow 없음)
+- 열린 PR #19~#44 상태 재확인 완료 (2026-06-25 04:16 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 29. #44 generate-questions 에이전트 작업 생성 API
+
+처리 시각: 2026-06-25 04:16 KST
+
+변경 내용:
+
+- #44 `feature/generate-questions-job-api`를 #43 `feature/generate-wbs-job-api` 위의 draft stacked PR로 생성했다.
+- `POST /api/ai/generate-questions`를 추가했다.
+- 프로젝트룸 ACTIVE 멤버 권한을 확인한 뒤 `GENERATE_QUESTIONS` agent job을 `PENDING` 상태로 생성한다.
+- 실제 모델 실행, 확인 질문 후보 저장, 업무 데이터 확정 저장은 아직 실행하지 않는다.
+- 응답은 Entity를 직접 반환하지 않고 `AgentJobResponse` DTO를 사용한다.
+- `docs/http/agent.http`에 확인 질문 후보 생성 작업 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #44: `./gradlew compileTestJava` 통과
+- #44: `./gradlew cleanTest test` 통과
+- #44: `git diff --check` 통과
+- #44: head `a8eea88`, base `feature/generate-wbs-job-api`, mergeState `CLEAN`
+- #44: GitHub checks 없음. base #43에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 확인 질문 후보 생성 작업 생성만 다룬다.
+- agent가 업무 데이터를 직접 확정 저장하는 흐름은 넣지 않았다.
+- job 실행 큐 연결과 `agent_suggestions` 후보 저장 payload는 후속 PR로 남긴다.
 
 ### 작업 카드 28. #43 generate-wbs 에이전트 작업 생성 API
 
@@ -883,15 +911,16 @@ Last checked: 2026-06-25 04:12 KST
 | #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge clean, draft | 6/25 기준 generate-requirements agent job 생성 API 추가 |
 | #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `7a25da0` | checks 없음, merge clean, draft | 6/25 기준 generate-tasks agent job 생성 API 추가 |
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
+| #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 04:12 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43다.
+2026-06-25 04:16 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#43은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#44는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -936,6 +965,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 작업 생성 | `POST /api/ai/generate-requirements`는 요구사항 후보 생성 작업 생성 | #41 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/generate-tasks`는 TODO 후보 생성 작업 생성 | #42 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/generate-wbs`는 WBS 후보 생성 작업 생성 | #43 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
+| 에이전트 작업 생성 | `POST /api/ai/generate-questions`는 확인 질문 후보 생성 작업 생성 | #44 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
@@ -961,9 +991,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#43은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+8. draft PR #24~#29, #31~#44는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 9. 다음 추천 작업은 추가 `POST /api/ai/*` 작업 생성 API를 같은 원칙으로 나누거나, resource download-url의 Storage Service 선행 조건을 정리하는 것이다.
-10. #19~#43은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+10. #19~#44는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
