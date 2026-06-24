@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 06:58 KST
+Last checked: 2026-06-25 07:07 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -38,7 +38,7 @@ Last checked: 2026-06-25 06:58 KST
 - GitHub Actions CI 통과 (#28, 2026-06-24 21:47 KST)
 - GitHub Actions CI 통과 (#29, 2026-06-25 00:26 KST)
 - GitHub Actions CI 통과 (#19, 2026-06-25 00:55 KST)
-- GitHub Actions CI 통과 (#20, 2026-06-25 01:01 KST)
+- GitHub Actions CI 통과 (#20, 2026-06-25 07:06 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
@@ -74,11 +74,40 @@ Last checked: 2026-06-25 06:58 KST
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
 - #28에 #27 최신 FK 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 06:58 KST)
+- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 07:07 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 55. #20 채팅 읽음 처리 lastReadSequence 보정
+
+처리 시각: 2026-06-25 07:07 KST
+
+변경 내용:
+
+- #20 `feature/chat-basic-api` 기존 PR 브랜치를 갱신했다.
+- `PATCH /api/chat/rooms/{chatRoomId}/read` 요청/응답을 6/25 API 기준의 `lastReadSequence`로 보정했다.
+- `chat_room_members.last_read_sequence` 컬럼과 `ChatRoomMember.lastReadSequence` 필드를 추가했다.
+- 내부 참조용 `last_read_message_id`는 유지하고, 읽음 위치 API/동기화 기준은 sequence로 맞췄다.
+- `docs/http/chat.http` 수동 검증 예시도 `lastReadSequence`로 바꿨다.
+- Entity를 API 응답으로 직접 반환하지 않았고, DTO 흐름을 유지했다.
+
+검증 결과:
+
+- #20: `./gradlew compileTestJava` 통과
+- #20: `./gradlew cleanTest test` 통과
+- #20: `git diff --check` 통과
+- #20: head `5532c00`, base `develop`, mergeState `BLOCKED`
+- #20: GitHub Actions `build` 통과
+- #20 CI run: `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28132658076`
+- #20 CI job: `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28132658076/job/83312333066`
+- #20 CI duration: 1m12s
+
+메모:
+
+- `09_Data-Model.md`에는 `last_read_message_id` 표기와 `lastReadSequence -> last_read_sequence` 설명이 함께 있어, 기존 message id 참조는 유지하고 sequence 컬럼을 추가하는 방식으로 보정했다.
+- 읽음 처리 응답에 message id를 함께 내려줄지는 최종 API 수정본에서 보정 가능하다.
 
 ### 작업 카드 54. #53 agent dispatch 성공 event 저장
 
@@ -1563,7 +1592,7 @@ Last checked: 2026-06-25 06:58 KST
 | PR | 제목 | 브랜치 | base | 확인한 head | CI/상태 | 현재 메모 |
 |---|---|---|---|---|---|---|
 | #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | `build` pass, merge blocked | 6/25 기준 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 완료 |
-| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `d2eada3` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회 API 보정 완료. read DTO는 최종 기준에서 추가 확인 필요 |
+| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `5532c00` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리 보정 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
@@ -1604,7 +1633,7 @@ Last checked: 2026-06-25 06:58 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 06:58 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
+2026-06-25 07:07 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
@@ -1617,7 +1646,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 |---|---|---|
 | 문서 기준 | `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md` | 6/24 참조를 활성 문서에서 제거하고 archive로만 보존 |
 | 프로젝트룸/초대 | `POST/GET /api/project-rooms/{roomId}/invitations`, `PATCH /api/invitations/{id}/accept`, `PATCH /api/invitations/{id}/cancel`, 멤버 역할 변경/삭제 | #19에서 보정 완료. 6/25 기준에는 invite-links API가 없다 |
-| 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에서 `POST /api/chat/direct-rooms` 보정 완료. `lastReadSequence`와 read DTO는 최종 기준에서 추가 확인 필요 |
+| 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에서 `POST /api/chat/direct-rooms`와 `lastReadSequence` 기반 읽음 처리 보정 완료 |
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
@@ -1661,7 +1690,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 작업 생성 | `POST /api/ai/review-contract-documents`는 계약서와 요구사항 문서 검토 작업 생성 | #45 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | #27 보강 완료. `agent_model_call_logs` Flyway 정의는 6/25 데이터 모델/Entity와 맞으며 agent 핵심 테이블 컬럼 집합, 주요 타입, agent enum baseline, FK를 테스트로 고정했다 |
-| 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
+| 채팅 | `POST /api/chat/direct-rooms`, `PATCH /api/chat/rooms/{id}/read` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만들며, 읽음 위치는 `lastReadSequence`로 저장한다 |
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
 | WBS 작업판 | `GET /api/project-rooms/{roomId}/wbs-board` 포함 | #21 보정 완료. WBS 항목과 프로젝트룸 TODO를 함께 반환한다 |
 | 타이머 | `POST /api/time-logs/start`, pause, resume, stop, heartbeat 포함 | #30 보정 완료. `personal.timer`에서 `time_logs`를 원본으로 처리한다 |
