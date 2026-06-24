@@ -24,12 +24,6 @@ public class AuthController {
 		return ApiResponse.success(authService.login(request));
 	}
 
-	@PostMapping("/api/auth/signup")
-	public ApiResponse<AuthTokenResponse> signup(@Valid @RequestBody AuthLoginRequest request) {
-		// Google 로그인만 사용하므로 signup도 첫 로그인 처리 흐름과 같은 서비스로 연결한다.
-		return ApiResponse.success(authService.login(request));
-	}
-
 	@PostMapping("/api/auth/refresh")
 	public ApiResponse<AuthTokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
 		return ApiResponse.success(authService.refresh(request));
