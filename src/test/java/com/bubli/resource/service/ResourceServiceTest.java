@@ -209,6 +209,39 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void uploadDeletesStoredObjectWhenMetadataSaveFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storageService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file.pdf".formatted(resourceId),
+						"계약서.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		RuntimeException dbFailure = new IllegalStateException("metadata save failed");
+		given(resourceFileRepository.save(any(ResourceFile.class))).willThrow(dbFailure);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(dbFailure);
+
+		verify(storageService).delete("resources/%s/file.pdf".formatted(resourceId));
+	}
+
+	@Test
 	void getPersonalResourcesReturnsOnlyOwnerPersonalResources() {
 		UUID userId = UUID.randomUUID();
 		Resource resource = Resource.create(

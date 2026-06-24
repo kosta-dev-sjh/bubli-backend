@@ -177,27 +177,33 @@ public class ResourceService {
 				command.visibility(),
 				ResourceStatus.READY
 		));
-		FileUploadResult uploaded = storageService.save(
-				storageKey(resource.getId(), command.originalName()),
-				command.originalName(),
-				command.mimeType(),
-				command.content()
-		);
-		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
-				resource.getId(),
-				uploaded.storageKey(),
-				uploaded.originalName(),
-				uploaded.mimeType(),
-				uploaded.sizeBytes(),
-				uploaded.checksum()
-		));
-		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
-		resourceVersionRepository.save(ResourceVersion.create(
-				resource.getId(),
-				nextVersionNo,
-				file.getId(),
-				userId
-		));
+		FileUploadResult uploaded = null;
+		try {
+			uploaded = storageService.save(
+					storageKey(resource.getId(), command.originalName()),
+					command.originalName(),
+					command.mimeType(),
+					command.content()
+			);
+			ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+					resource.getId(),
+					uploaded.storageKey(),
+					uploaded.originalName(),
+					uploaded.mimeType(),
+					uploaded.sizeBytes(),
+					uploaded.checksum()
+			));
+			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
+			resourceVersionRepository.save(ResourceVersion.create(
+					resource.getId(),
+					nextVersionNo,
+					file.getId(),
+					userId
+			));
+		} catch (RuntimeException e) {
+			deleteUploadedObject(uploaded, e);
+			throw e;
+		}
 		return ResourceResult.from(resource);
 	}
 
@@ -298,6 +304,17 @@ public class ResourceService {
 		String extension = StringUtils.getFilenameExtension(originalName);
 		String suffix = StringUtils.hasText(extension) ? "." + extension : "";
 		return "resources/%s/%s%s".formatted(resourceId, UUID.randomUUID(), suffix);
+	}
+
+	private void deleteUploadedObject(FileUploadResult uploaded, RuntimeException cause) {
+		if (uploaded == null || !StringUtils.hasText(uploaded.storageKey())) {
+			return;
+		}
+		try {
+			storageService.delete(uploaded.storageKey());
+		} catch (RuntimeException deleteException) {
+			cause.addSuppressed(deleteException);
+		}
 	}
 
 	private void validateReadable(UUID userId, Resource resource) {
