@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 03:12 KST
+Last checked: 2026-06-25 03:15 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -643,7 +643,7 @@ Last checked: 2026-06-25 03:12 KST
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean, draft | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean, draft | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `59a07e3` | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `4148e57` | checks 없음, merge clean, draft | 6/25 기준 resource_relations 조회 API 추가 |
 | #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `d667612` | checks 없음, merge clean, draft | 6/25 기준 agent_jobs 상태 조회 API 추가 |
