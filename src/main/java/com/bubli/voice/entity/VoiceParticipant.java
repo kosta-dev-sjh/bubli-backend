@@ -1,23 +1,43 @@
 package com.bubli.voice.entity;
 
+import com.bubli.global.entity.CreatedAtEntity;
+import com.bubli.voice.type.VoiceParticipantStatus;
+import java.time.Instant;
+
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/**
- * 보이스챗 참가 기록.
- *
- * 테이블: voice_participants
- * 주요 필드: voice_room_id, user_id, guest_session_id, joined_at, left_at
- *
- * user_id와 guest_session_id 중 하나만 존재해야 한다 (CHECK 제약).
- * 회원은 room_members 권한, 게스트는 ACTIVE guest_session + chat_guest_access로 확인.
- */
-@Entity
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "voice_participants")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class VoiceParticipant {
+public class VoiceParticipant extends CreatedAtEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "voice_room_id", nullable = false)
+	private UUID voiceRoomId;
+
+	@Column(name = "user_id", nullable = false)
+	private UUID userId;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private VoiceParticipantStatus status;
+
+	@Column(name = "joined_at", nullable = false)
+	private Instant joinedAt;
+
+	@Column(name = "left_at")
+	private Instant leftAt;
+
+	@Column(name = "mic_status", length = 30)
+	private String micStatus;
+
 }

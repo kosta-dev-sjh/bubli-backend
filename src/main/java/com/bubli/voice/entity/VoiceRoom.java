@@ -1,24 +1,36 @@
 package com.bubli.voice.entity;
 
+import com.bubli.global.entity.CreatedAtEntity;
+import com.bubli.voice.type.VoiceRoomStatus;
+
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/**
- * 보이스챗 방.
- *
- * 테이블: voice_rooms
- * 주요 필드: room_id(프로젝트룸), chat_room_id, livekit_room_name(UNIQUE), status
- *
- * status: OPEN / ENDED
- * LiveKit roomName과 Bubli 프로젝트룸을 연결한다.
- * LiveKit API key/secret은 서버에서만 관리한다.
- */
-@Entity
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "voice_rooms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class VoiceRoom {
+public class VoiceRoom extends CreatedAtEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "room_id")
+	private UUID roomId;
+
+	@Column(name = "chat_room_id", nullable = false)
+	private UUID chatRoomId;
+
+	@Column(name = "livekit_room_name", nullable = false, unique = true, length = 120)
+	private String livekitRoomName;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private VoiceRoomStatus status = VoiceRoomStatus.OPEN;
+
 }

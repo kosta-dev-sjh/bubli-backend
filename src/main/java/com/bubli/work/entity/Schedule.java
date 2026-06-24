@@ -1,0 +1,58 @@
+package com.bubli.work.entity;
+
+import com.bubli.global.entity.BaseTimeEntity;
+import com.bubli.work.type.ScheduleSyncStatus;
+import java.time.Instant;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
+@Getter
+@Entity
+@Table(name = "schedules")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Schedule extends BaseTimeEntity {
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "owner_user_id", nullable = false)
+	private UUID ownerUserId;
+
+	@Column(name = "room_id")
+	private UUID roomId;
+
+	@Column(name = "task_id")
+	private UUID taskId;
+
+	@Column(name = "wbs_item_id")
+	private UUID wbsItemId;
+
+	@Column(name = "google_event_id", unique = true, length = 255)
+	private String googleEventId;
+
+	@Column(nullable = false, length = 200)
+	private String title;
+
+	@Column(name = "starts_at", nullable = false)
+	private Instant startsAt;
+
+	@Column(name = "ends_at")
+	private Instant endsAt;
+
+	@Column(name = "is_all_day", nullable = false)
+	private boolean allDay;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "sync_status", nullable = false, length = 30)
+	private ScheduleSyncStatus syncStatus = ScheduleSyncStatus.LOCAL_ONLY;
+
+	@Column(name = "last_synced_at")
+	private Instant lastSyncedAt;
+
+}

@@ -1,26 +1,50 @@
 package com.bubli.resource.entity;
 
+import com.bubli.global.entity.BaseTimeEntity;
+import com.bubli.resource.type.ResourceKind;
+import com.bubli.resource.type.ResourceStatus;
+import com.bubli.resource.type.ResourceVisibility;
+import java.time.Instant;
+
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/**
- * 개인 자료 또는 프로젝트룸 자료 카드.
- *
- * 테이블: resources
- * 주요 필드: owner_id, project_id, room_id, title, kind, visibility, status
- *
- * visibility: PERSONAL(owner만 접근) / ROOM_SHARED(room_members 접근)
- * status: UPLOADING → READY → ANALYZING → ANALYZED / FAILED / DELETE_CANDIDATE / ARCHIVED
- *
- * PERSONAL 자료는 프로젝트룸 멤버에게 보이지 않으며,
- * 프로젝트룸 에이전트 context에 포함되지 않는다.
- */
-@Entity
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "resources")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Resource {
+public class Resource extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "owner_id", nullable = false)
+	private UUID ownerId;
+
+	@Column(name = "room_id")
+	private UUID roomId;
+
+	@Column(nullable = false, length = 200)
+	private String title;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private ResourceKind kind;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private ResourceVisibility visibility;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private ResourceStatus status;
+
+	@Column(name = "deleted_at")
+	private Instant deletedAt;
+
 }
