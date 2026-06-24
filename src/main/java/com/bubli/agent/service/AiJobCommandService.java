@@ -39,4 +39,14 @@ public class AiJobCommandService {
 				AgentJobType.GENERATE_REQUIREMENTS
 		));
 	}
+
+	@Transactional
+	public AgentJobResult createGenerateTasksJob(UUID userId, UUID roomId) {
+		roomAccessService.validateActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.GENERATE_TASKS
+		));
+	}
 }

@@ -38,4 +38,14 @@ public class AiJobCommandController {
 				aiJobCommandService.createGenerateRequirementsJob(authUser.userId(), request.roomId())
 		));
 	}
+
+	@PostMapping("/api/ai/generate-tasks")
+	public ApiResponse<AgentJobResponse> generateTasks(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody CreateRoomAgentJobRequest request
+	) {
+		return ApiResponse.success(AgentJobResponse.from(
+				aiJobCommandService.createGenerateTasksJob(authUser.userId(), request.roomId())
+		));
+	}
 }
