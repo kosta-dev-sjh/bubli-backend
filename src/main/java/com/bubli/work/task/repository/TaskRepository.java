@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
@@ -14,6 +15,8 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 	Page<Task> findByOwnerUserIdAndRoomIdIsNull(UUID ownerUserId, Pageable pageable);
 
 	Page<Task> findByRoomId(UUID roomId, Pageable pageable);
+
+	List<Task> findByRoomIdOrderByUpdatedAtDesc(UUID roomId);
 
 	Page<Task> findByAssigneeUserId(UUID assigneeUserId, Pageable pageable);
 

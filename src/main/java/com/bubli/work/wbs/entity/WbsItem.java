@@ -69,6 +69,11 @@ public class WbsItem {
 		}
 	}
 
+	public void reorder(UUID parentId, Integer orderNo) {
+		this.parentId = parentId;
+		this.orderNo = orderNo;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

@@ -3,12 +3,17 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.repository.TaskRepository;
 import com.bubli.work.wbs.dto.CreateWbsItemRequest;
+import com.bubli.work.wbs.dto.ReorderWbsItemRequest;
+import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
 import com.bubli.work.wbs.dto.UpdateWbsItemRequest;
+import com.bubli.work.wbs.dto.WbsBoardResult;
 import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
+import com.bubli.work.task.type.TaskStatus;
 import com.bubli.work.wbs.type.WbsStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +48,25 @@ class WbsItemServiceTest {
 
 	@InjectMocks
 	WbsItemService wbsItemService;
+
+	@Test
+	void getWbsBoardReturnsRoomWbsItemsAndTasks() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "요구사항 정리", 1, WbsStatus.TODO);
+		Task task = Task.createRoomTask(roomId, userId, null, "계약서 확인", null, TaskStatus.TODO, null);
+		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
+				.willReturn(true);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId)).willReturn(List.of(item));
+		given(taskRepository.findByRoomIdOrderByUpdatedAtDesc(roomId)).willReturn(List.of(task));
+
+		WbsBoardResult result = wbsItemService.getWbsBoard(userId, roomId);
+
+		assertThat(result.wbsItems()).hasSize(1);
+		assertThat(result.wbsItems().get(0).title()).isEqualTo("요구사항 정리");
+		assertThat(result.tasks()).hasSize(1);
+		assertThat(result.tasks().get(0).title()).isEqualTo("계약서 확인");
+	}
 
 	@Test
 	void createWbsItemUsesNextOrderNoWhenRequestHasNoOrderNo() {
@@ -105,6 +130,52 @@ class WbsItemServiceTest {
 		assertThat(result.title()).isEqualTo("수정 작업");
 		assertThat(result.orderNo()).isEqualTo(2);
 		assertThat(result.status()).isEqualTo(WbsStatus.IN_PROGRESS);
+	}
+
+	@Test
+	void reorderWbsItemsChangesSiblingOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID firstId = UUID.randomUUID();
+		UUID secondId = UUID.randomUUID();
+		WbsItem first = WbsItem.create(roomId, null, "첫 번째", 1, WbsStatus.TODO);
+		WbsItem second = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(first, "id", firstId);
+		ReflectionTestUtils.setField(second, "id", secondId);
+		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
+				.willReturn(true);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(first, second));
+
+		List<WbsItemResult> results = wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
+				new ReorderWbsItemRequest(firstId, null, 2),
+				new ReorderWbsItemRequest(secondId, null, 1)
+		)));
+
+		assertThat(results).hasSize(2);
+		assertThat(first.getOrderNo()).isEqualTo(2);
+		assertThat(second.getOrderNo()).isEqualTo(1);
+	}
+
+	@Test
+	void reorderWbsItemsRejectsDuplicatedSiblingOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID firstId = UUID.randomUUID();
+		UUID secondId = UUID.randomUUID();
+		WbsItem first = WbsItem.create(roomId, null, "첫 번째", 1, WbsStatus.TODO);
+		WbsItem second = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(first, "id", firstId);
+		ReflectionTestUtils.setField(second, "id", secondId);
+		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
+				.willReturn(true);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(first, second));
+
+		assertThatThrownBy(() -> wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
+				new ReorderWbsItemRequest(firstId, null, 1),
+				new ReorderWbsItemRequest(secondId, null, 1)
+		)))).isInstanceOf(BusinessException.class);
 	}
 
 	@Test

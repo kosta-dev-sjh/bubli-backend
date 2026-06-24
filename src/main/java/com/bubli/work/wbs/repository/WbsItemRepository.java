@@ -7,11 +7,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface WbsItemRepository extends JpaRepository<WbsItem, UUID> {
 
 	Page<WbsItem> findByRoomIdOrderByOrderNoAsc(UUID roomId, Pageable pageable);
+
+	List<WbsItem> findByRoomIdOrderByParentIdAscOrderNoAsc(UUID roomId);
+
+	List<WbsItem> findAllByIdIn(Collection<UUID> ids);
 
 	boolean existsByParentId(UUID parentId);
 

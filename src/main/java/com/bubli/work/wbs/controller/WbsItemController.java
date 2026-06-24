@@ -5,7 +5,9 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.work.wbs.dto.CreateWbsItemRequest;
+import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
 import com.bubli.work.wbs.dto.UpdateWbsItemRequest;
+import com.bubli.work.wbs.dto.WbsBoardResponse;
 import com.bubli.work.wbs.dto.WbsItemResponse;
 import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.service.WbsItemService;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,6 +31,14 @@ import java.util.UUID;
 public class WbsItemController {
 
 	private final WbsItemService wbsItemService;
+
+	@GetMapping("/api/project-rooms/{roomId}/wbs-board")
+	public ApiResponse<WbsBoardResponse> getWbsBoard(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId
+	) {
+		return ApiResponse.success(WbsBoardResponse.from(wbsItemService.getWbsBoard(authUser.userId(), roomId)));
+	}
 
 	@GetMapping("/api/project-rooms/{roomId}/wbs-items")
 	public ApiResponse<PageResponse<WbsItemResponse>> getRoomWbsItems(
@@ -45,6 +56,17 @@ public class WbsItemController {
 			@Valid @RequestBody CreateWbsItemRequest request
 	) {
 		return ApiResponse.success(WbsItemResponse.from(wbsItemService.create(authUser.userId(), roomId, request)));
+	}
+
+	@PatchMapping("/api/project-rooms/{roomId}/wbs-items/reorder")
+	public ApiResponse<List<WbsItemResponse>> reorderWbsItems(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@Valid @RequestBody ReorderWbsItemsRequest request
+	) {
+		return ApiResponse.success(wbsItemService.reorder(authUser.userId(), roomId, request).stream()
+				.map(WbsItemResponse::from)
+				.toList());
 	}
 
 	@PatchMapping("/api/wbs-items/{wbsItemId}")

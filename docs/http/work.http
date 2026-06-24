@@ -65,6 +65,10 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items?page=0&size=50
 Authorization: Bearer {{accessToken}}
 
+### 프로젝트룸 WBS 작업판
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-board
+Authorization: Bearer {{accessToken}}
+
 ### 프로젝트룸 WBS 생성
 POST {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items
 Authorization: Bearer {{accessToken}}
@@ -75,6 +79,21 @@ Content-Type: application/json
   "title": "요구사항 정리",
   "orderNo": null,
   "status": "TODO"
+}
+
+### 프로젝트룸 WBS 순서 변경
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items/reorder
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "wbsItemId": "{{wbsItemId}}",
+      "parentId": null,
+      "orderNo": 1
+    }
+  ]
 }
 
 ### WBS 수정
