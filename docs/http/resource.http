@@ -4,6 +4,10 @@
 @commentId = replace-with-comment-id
 @roomId = replace-with-room-id
 
+### 저장 용량 조회
+GET {{baseUrl}}/api/storage/usage
+Authorization: Bearer {{accessToken}}
+
 ### 개인 자료 목록
 GET {{baseUrl}}/api/resources?scope=personal
 Authorization: Bearer {{accessToken}}

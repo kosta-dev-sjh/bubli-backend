@@ -44,6 +44,22 @@ public class StorageUsage {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static StorageUsage create(
+			UUID userId,
+			UUID roomId,
+			StorageScope storageScope,
+			long usedBytes,
+			long limitBytes
+	) {
+		StorageUsage storageUsage = new StorageUsage();
+		storageUsage.userId = userId;
+		storageUsage.roomId = roomId;
+		storageUsage.storageScope = storageScope;
+		storageUsage.usedBytes = usedBytes;
+		storageUsage.limitBytes = limitBytes;
+		return storageUsage;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
