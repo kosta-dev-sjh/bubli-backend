@@ -4,11 +4,12 @@ import com.bubli.agent.dto.AiDocumentResult;
 import com.bubli.agent.dto.CreateAiDocumentCommand;
 import com.bubli.agent.entity.AiDocument;
 import com.bubli.agent.repository.AiDocumentRepository;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -32,6 +33,6 @@ public class AiDocumentService {
 	public AiDocumentResult getByResourceId(UUID resourceId) {
 		return aiDocumentRepository.findByResourceId(resourceId)
 				.map(AiDocumentResult::from)
-				.orElseThrow(NoSuchElementException::new);
+				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_003));
 	}
 }

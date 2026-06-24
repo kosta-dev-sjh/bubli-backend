@@ -2,6 +2,7 @@
 @accessToken = replace-with-local-access-token
 @agentJobId = replace-with-agent-job-id
 @suggestionId = replace-with-agent-suggestion-id
+@resourceId = replace-with-resource-id
 @roomId = replace-with-room-id
 
 ### 에이전트 작업 상태 조회
@@ -10,6 +11,10 @@ Authorization: Bearer {{accessToken}}
 
 ### 에이전트 작업 이벤트 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}/events?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 AI 문서 분석 상태 조회
+GET {{baseUrl}}/api/resources/{{resourceId}}/ai-document
 Authorization: Bearer {{accessToken}}
 
 ### 개인 에이전트 제안함

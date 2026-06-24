@@ -384,4 +384,37 @@ class AgentStorageServiceTest {
 		assertThat(result.status()).isEqualTo(AiDocumentStatus.READY);
 		assertThat(result.detectedConfidence()).isEqualByComparingTo("0.875");
 	}
+
+	@Test
+	void getAiDocumentByResourceIdReturnsDocumentStatus() {
+		UUID aiDocumentId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				resourceId,
+				roomId,
+				AiDocumentType.CONTRACT,
+				BigDecimal.valueOf(0.9500)
+		);
+		ReflectionTestUtils.setField(aiDocument, "id", aiDocumentId);
+		given(aiDocumentRepository.findByResourceId(resourceId)).willReturn(Optional.of(aiDocument));
+
+		AiDocumentResult result = aiDocumentService.getByResourceId(resourceId);
+
+		assertThat(result.id()).isEqualTo(aiDocumentId);
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.roomId()).isEqualTo(roomId);
+		assertThat(result.documentType()).isEqualTo(AiDocumentType.CONTRACT);
+		assertThat(result.status()).isEqualTo(AiDocumentStatus.READY);
+	}
+
+	@Test
+	void getAiDocumentByResourceIdThrowsWhenMissing() {
+		UUID resourceId = UUID.randomUUID();
+		given(aiDocumentRepository.findByResourceId(resourceId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> aiDocumentService.getByResourceId(resourceId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_003));
+	}
 }
