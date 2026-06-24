@@ -2,6 +2,7 @@ package com.bubli.personal.timer.entity;
 
 import com.bubli.personal.timer.type.TimeLogStatus;
 import com.bubli.personal.timer.type.TimerType;
+import java.time.Duration;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -61,6 +62,56 @@ public class TimeLog {
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	public static TimeLog start(UUID userId, UUID roomId, TimerType timerType,
+			String idempotencyKey, UUID recoveredFromTimeLogId, Instant now) {
+		TimeLog timeLog = new TimeLog();
+		timeLog.userId = userId;
+		timeLog.roomId = roomId;
+		timeLog.timerType = timerType == null ? TimerType.GENERAL : timerType;
+		timeLog.idempotencyKey = idempotencyKey;
+		timeLog.recoveredFromTimeLogId = recoveredFromTimeLogId;
+		timeLog.status = TimeLogStatus.RUNNING;
+		timeLog.startedAt = now;
+		timeLog.lastStartedAt = now;
+		timeLog.durationSeconds = 0L;
+		timeLog.lastHeartbeatAt = now;
+		return timeLog;
+	}
+
+	public void pause(Instant now) {
+		this.durationSeconds += runningSecondsUntil(now);
+		this.status = TimeLogStatus.PAUSED;
+		this.lastStartedAt = null;
+		this.lastHeartbeatAt = now;
+	}
+
+	public void resume(Instant now) {
+		this.status = TimeLogStatus.RUNNING;
+		this.lastStartedAt = now;
+		this.lastHeartbeatAt = now;
+	}
+
+	public void stop(Instant now) {
+		if (TimeLogStatus.RUNNING.equals(this.status)) {
+			this.durationSeconds += runningSecondsUntil(now);
+		}
+		this.status = TimeLogStatus.ENDED;
+		this.lastStartedAt = null;
+		this.endedAt = now;
+		this.lastHeartbeatAt = now;
+	}
+
+	public void heartbeat(Instant now) {
+		this.lastHeartbeatAt = now;
+	}
+
+	private long runningSecondsUntil(Instant now) {
+		if (this.lastStartedAt == null || now.isBefore(this.lastStartedAt)) {
+			return 0L;
+		}
+		return Duration.between(this.lastStartedAt, now).getSeconds();
+	}
 
 	@PrePersist
 	private void onCreate() {
