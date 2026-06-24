@@ -55,16 +55,19 @@ Last checked: 2026-06-25 00:25 KST
 - 다운로드 원본 백엔드 가이드는 `docs/archive/2026-06-25-downloads/Bubli_백엔드_개발_가이드_2026-06-25.original.md`에 보존했다.
 - `docs/00_BACKEND_START_HERE.md`, `docs/CODEX_BACKEND_WORKFLOW.md`, `docs/CURRENT_API_BASELINE_WORK.md`, 로컬 `bubli-backend-workflow` 스킬을 6/25 기준으로 갱신했다.
 
-검증 예정:
+검증 결과:
 
-- Downloads 원본과 반영 파일 shasum 비교
-- 활성 문서의 구 기준 참조 검색
-- 백엔드 레포와 위키 레포 `git diff --check`
+- Downloads 원본과 반영 파일 shasum 비교 완료
+- 활성 문서의 구 기준 참조 검색 완료
+- 백엔드 레포 `git diff --check` 통과
+- 위키 레포 `git diff --check` 통과
+- GitHub Actions CI 통과: #29 `build` pass, 1m6s
 
 메모:
 
 - 6/25 기준 문서 반영 PR 이후 #19~#28을 새 기준으로 재검토한다.
 - 이번 작업은 문서/자동화 기준 갱신이며 Java 코드는 수정하지 않는다.
+- 백엔드 PR: https://github.com/kosta-dev-sjh/bubli-backend/pull/29
 
 ### 작업 카드 9. Testcontainers/CI 테스트 기반 보강
 
