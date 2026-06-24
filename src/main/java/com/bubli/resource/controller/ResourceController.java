@@ -7,12 +7,15 @@ import com.bubli.global.security.CurrentUser;
 import com.bubli.resource.dto.CreateResourceRequest;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.UpdateResourceRequest;
 import com.bubli.resource.service.ResourceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +62,26 @@ public class ResourceController {
 			@PathVariable UUID resourceId
 	) {
 		return ApiResponse.success(ResourceResponse.from(resourceService.getResource(authUser.userId(), resourceId)));
+	}
+
+	@PatchMapping("/api/resources/{resourceId}")
+	public ApiResponse<ResourceResponse> updateResource(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@Valid @RequestBody UpdateResourceRequest request
+	) {
+		return ApiResponse.success(ResourceResponse.from(
+				resourceService.updateResource(authUser.userId(), resourceId, request.trimmedTitle())
+		));
+	}
+
+	@DeleteMapping("/api/resources/{resourceId}")
+	public ApiResponse<Void> deleteResource(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		resourceService.deleteResource(authUser.userId(), resourceId);
+		return ApiResponse.success(null);
 	}
 
 	private PageResponse<ResourceResponse> mapPage(PageResponse<ResourceResult> page) {
