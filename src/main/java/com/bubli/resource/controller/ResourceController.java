@@ -1,0 +1,76 @@
+package com.bubli.resource.controller;
+
+import com.bubli.global.response.ApiResponse;
+import com.bubli.global.response.PageResponse;
+import com.bubli.global.security.AuthUser;
+import com.bubli.global.security.CurrentUser;
+import com.bubli.resource.dto.CreateResourceRequest;
+import com.bubli.resource.dto.ResourceResponse;
+import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.service.ResourceService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
+
+@RestController
+@RequiredArgsConstructor
+public class ResourceController {
+
+	private final ResourceService resourceService;
+
+	@GetMapping("/api/resources")
+	public ApiResponse<PageResponse<ResourceResponse>> getPersonalResources(
+			@CurrentUser AuthUser authUser,
+			@RequestParam(defaultValue = "personal") String scope,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapPage(resourceService.getPersonalResources(authUser.userId(), scope, pageable)));
+	}
+
+	@GetMapping("/api/project-rooms/{roomId}/resources")
+	public ApiResponse<PageResponse<ResourceResponse>> getRoomResources(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapPage(resourceService.getRoomResources(authUser.userId(), roomId, pageable)));
+	}
+
+	@PostMapping("/api/resources")
+	public ApiResponse<ResourceResponse> createResource(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody CreateResourceRequest request
+	) {
+		return ApiResponse.success(ResourceResponse.from(resourceService.create(authUser.userId(), request.toCommand())));
+	}
+
+	@GetMapping("/api/resources/{resourceId}")
+	public ApiResponse<ResourceResponse> getResource(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		return ApiResponse.success(ResourceResponse.from(resourceService.getResource(authUser.userId(), resourceId)));
+	}
+
+	private PageResponse<ResourceResponse> mapPage(PageResponse<ResourceResult> page) {
+		return new PageResponse<>(
+				page.getItems().stream()
+						.map(ResourceResponse::from)
+						.toList(),
+				page.getPage(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.isHasNext()
+		);
+	}
+}

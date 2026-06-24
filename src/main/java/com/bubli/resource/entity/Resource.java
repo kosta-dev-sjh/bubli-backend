@@ -52,6 +52,33 @@ public class Resource {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	private Resource(
+			UUID ownerId,
+			UUID roomId,
+			String title,
+			ResourceKind kind,
+			ResourceVisibility visibility,
+			ResourceStatus status
+	) {
+		this.ownerId = ownerId;
+		this.roomId = roomId;
+		this.title = title;
+		this.kind = kind;
+		this.visibility = visibility;
+		this.status = status;
+	}
+
+	public static Resource create(
+			UUID ownerId,
+			UUID roomId,
+			String title,
+			ResourceKind kind,
+			ResourceVisibility visibility,
+			ResourceStatus status
+	) {
+		return new Resource(ownerId, roomId, title, kind, visibility, status);
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

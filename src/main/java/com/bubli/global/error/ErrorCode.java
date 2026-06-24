@@ -31,6 +31,8 @@ public enum ErrorCode {
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
     // RESOURCE
+    RESOURCE_400_001(HttpStatus.BAD_REQUEST, "RESOURCE_400_001", "자료 요청 값이 올바르지 않습니다."),
+    RESOURCE_403_001(HttpStatus.FORBIDDEN, "RESOURCE_403_001", "자료 접근 권한이 없습니다."),
     RESOURCE_404_001(HttpStatus.NOT_FOUND, "RESOURCE_404_001", "자료를 찾을 수 없습니다."),
 
     // SCHEDULE

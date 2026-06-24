@@ -1,0 +1,39 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-local-access-token
+@resourceId = replace-with-resource-id
+@roomId = replace-with-room-id
+
+### 개인 자료 목록
+GET {{baseUrl}}/api/resources?scope=personal
+Authorization: Bearer {{accessToken}}
+
+### 개인 자료 메타데이터 생성
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "계약서 초안",
+  "kind": "FILE",
+  "visibility": "PERSONAL"
+}
+
+### 프로젝트룸 자료 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/resources
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 자료 메타데이터 생성
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "회의록",
+  "kind": "FILE",
+  "visibility": "ROOM_SHARED",
+  "roomId": "{{roomId}}"
+}
+
+### 자료 상세
+GET {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
