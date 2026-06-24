@@ -1,0 +1,184 @@
+package com.bubli.project.controller;
+
+import com.bubli.global.security.AuthUser;
+import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.project.entity.ProjectRoom;
+import com.bubli.project.entity.RoomMember;
+import com.bubli.project.repository.ProjectRoomRepository;
+import com.bubli.project.repository.RoomMemberRepository;
+import com.bubli.project.type.PaymentStatus;
+import com.bubli.project.type.ProjectRoomStatus;
+import com.bubli.project.type.RoomMemberRole;
+import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.support.PostgresIntegrationTestSupport;
+import com.bubli.user.entity.User;
+import com.bubli.user.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Testcontainers(disabledWithoutDocker = true)
+class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSupport {
+
+	private static final String AUTHORIZATION = "Authorization";
+
+	@Autowired
+	MockMvc mockMvc;
+
+	@Autowired
+	JwtTokenProvider jwtTokenProvider;
+
+	@Autowired
+	UserRepository userRepository;
+
+	@Autowired
+	ProjectRoomRepository projectRoomRepository;
+
+	@Autowired
+	RoomMemberRepository roomMemberRepository;
+
+	@BeforeEach
+	void setUp() {
+		roomMemberRepository.deleteAll();
+		projectRoomRepository.deleteAll();
+		userRepository.deleteAll();
+	}
+
+	@Test
+	void getMeReturnsCurrentUserProfile() throws Exception {
+		User user = createUser("google-sub-me", "정현");
+
+		mockMvc.perform(get("/api/me")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").value(user.getId().toString()))
+				.andExpect(jsonPath("$.data.email").value("junghyun@example.com"))
+				.andExpect(jsonPath("$.data.name").value("정현"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void createProjectRoomPersistsRoomAndLeaderMember() throws Exception {
+		User user = createUser("google-sub-room-create", "미연");
+
+		mockMvc.perform(post("/api/project-rooms")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "name": "브랜드 사이트 제작",
+								  "clientName": "블루클라이언트",
+								  "contractAmount": 1500000,
+								  "paymentStatus": "PENDING",
+								  "paymentDueDate": "2026-07-10",
+								  "status": "ACTIVE"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").isNotEmpty())
+				.andExpect(jsonPath("$.data.name").value("브랜드 사이트 제작"))
+				.andExpect(jsonPath("$.data.clientName").value("블루클라이언트"))
+				.andExpect(jsonPath("$.data.paymentStatus").value("PENDING"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		assertThat(projectRoomRepository.findAll()).hasSize(1);
+		ProjectRoom savedRoom = projectRoomRepository.findAll().getFirst();
+		assertThat(savedRoom.getCreatedByUserId()).isEqualTo(user.getId());
+		assertThat(savedRoom.getContractAmount()).isEqualByComparingTo(BigDecimal.valueOf(1_500_000));
+
+		assertThat(roomMemberRepository.findAll()).hasSize(1);
+		RoomMember leader = roomMemberRepository.findAll().getFirst();
+		assertThat(leader.getRoomId()).isEqualTo(savedRoom.getId());
+		assertThat(leader.getUserId()).isEqualTo(user.getId());
+		assertThat(leader.getRole()).isEqualTo(RoomMemberRole.PROJECT_LEADER);
+		assertThat(leader.getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void getProjectRoomsReturnsOnlyRoomsWithActiveMembership() throws Exception {
+		User user = createUser("google-sub-room-list", "준화");
+		User otherUser = createUser("google-sub-other", "재민");
+		ProjectRoom activeRoom = saveRoom(user.getId(), "앱 UI 개선");
+		ProjectRoom otherRoom = saveRoom(otherUser.getId(), "다른 사람 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(activeRoom.getId(), user.getId()));
+		roomMemberRepository.save(RoomMember.createLeader(otherRoom.getId(), otherUser.getId()));
+
+		mockMvc.perform(get("/api/project-rooms")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "junhwa@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(activeRoom.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].name").value("앱 UI 개선"))
+				.andExpect(jsonPath("$.data.totalElements").value(1))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void getProjectRoomRejectsUserWithoutActiveMembership() throws Exception {
+		User user = createUser("google-sub-no-member", "민서");
+		User leader = createUser("google-sub-leader", "리더");
+		ProjectRoom room = saveRoom(leader.getId(), "접근 불가 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(get("/api/project-rooms/{roomId}", room.getId())
+				.header(AUTHORIZATION, bearerToken(user.getId(), "minseo@example.com")))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_403_001"));
+	}
+
+	@Test
+	void projectRoomApiRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/project-rooms"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.error.code").value("AUTH_401_001"));
+	}
+
+	private User createUser(String googleSub, String name) {
+		return userRepository.save(User.createGoogleUser(
+				googleSub,
+				googleSub.replace("google-sub-", ""),
+				name,
+				null,
+				"ko",
+				"Asia/Seoul"
+		));
+	}
+
+	private ProjectRoom saveRoom(UUID userId, String name) {
+		return projectRoomRepository.save(ProjectRoom.create(
+				userId,
+				name,
+				null,
+				null,
+				PaymentStatus.NOT_RECORDED,
+				null,
+				null,
+				ProjectRoomStatus.ACTIVE
+		));
+	}
+
+	private String bearerToken(UUID userId, String email) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	}
+}
