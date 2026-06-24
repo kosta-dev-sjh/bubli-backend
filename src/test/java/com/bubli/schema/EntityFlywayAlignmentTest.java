@@ -37,6 +37,10 @@ class EntityFlywayAlignmentTest {
 			"CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(\\w+)\\s+ON\\s+(\\w+)\\s+\\(([^)]+)\\);",
 			Pattern.CASE_INSENSITIVE
 	);
+	private static final Pattern ALTER_TABLE_FOREIGN_KEY_PATTERN = Pattern.compile(
+			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+CONSTRAINT\\s+\\w+\\s+(FOREIGN\\s+KEY\\s+\\([^)]+\\)\\s+REFERENCES\\s+\\w+\\(id\\));",
+			Pattern.CASE_INSENSITIVE
+	);
 	private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("@Table\\(name = \"([^\"]+)\"");
 	private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("@Column\\(name = \"([^\"]+)\"");
 	private static final Pattern FIELD_PATTERN = Pattern.compile("private\\s+[^;=]+\\s+(\\w+)\\s*(?:=[^;]+)?;");
@@ -220,6 +224,157 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void coreDomainTablesMatchCurrentDataDictionaryForeignKeys() throws IOException {
+		Map<String, Set<String>> schema = parseForeignKeys(Files.readString(MIGRATION));
+
+		assertForeignKeys(schema, "user_sessions", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "user_preferences", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (default_room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "user_notification_preferences", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "user_privacy_consents", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "friend_requests", Set.of(
+				"FOREIGN KEY (requester_id) REFERENCES users(id)",
+				"FOREIGN KEY (receiver_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "friendships", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (friend_user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "project_rooms", Set.of(
+				"FOREIGN KEY (created_by_user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "room_members", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "invitations", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (inviter_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (invitee_user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "project_room_events", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (actor_user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "resources", Set.of(
+				"FOREIGN KEY (owner_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "resource_files", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)"
+		));
+		assertForeignKeys(schema, "resource_versions", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (file_id) REFERENCES resource_files(id)",
+				"FOREIGN KEY (created_by) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "resource_summaries", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (job_id) REFERENCES agent_jobs(id)"
+		));
+		assertForeignKeys(schema, "resource_embeddings", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (owner_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "resource_comments", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (author_id) REFERENCES users(id)",
+				"FOREIGN KEY (parent_id) REFERENCES resource_comments(id)"
+		));
+		assertForeignKeys(schema, "resource_relations", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (related_resource_id) REFERENCES resources(id)"
+		));
+		assertForeignKeys(schema, "room_memory_summaries", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (created_by_user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "daily_summaries", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "wbs_items", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (parent_id) REFERENCES wbs_items(id)"
+		));
+		assertForeignKeys(schema, "tasks", Set.of(
+				"FOREIGN KEY (owner_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (assignee_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (wbs_item_id) REFERENCES wbs_items(id)"
+		));
+		assertForeignKeys(schema, "schedules", Set.of(
+				"FOREIGN KEY (owner_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (task_id) REFERENCES tasks(id)",
+				"FOREIGN KEY (wbs_item_id) REFERENCES wbs_items(id)"
+		));
+		assertForeignKeys(schema, "memos", Set.of(
+				"FOREIGN KEY (author_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "time_logs", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (recovered_from_time_log_id) REFERENCES time_logs(id)"
+		));
+		assertForeignKeys(schema, "activity_logs", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "chat_rooms", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "chat_room_members", Set.of(
+				"FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id)",
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (last_read_message_id) REFERENCES chat_messages(id)"
+		));
+		assertForeignKeys(schema, "chat_messages", Set.of(
+				"FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id)",
+				"FOREIGN KEY (sender_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)"
+		));
+		assertForeignKeys(schema, "notifications", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "voice_rooms", Set.of(
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id)"
+		));
+		assertForeignKeys(schema, "voice_participants", Set.of(
+				"FOREIGN KEY (voice_room_id) REFERENCES voice_rooms(id)",
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "storage_usage", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "widget_context_settings", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (selected_room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "widget_bubble_settings", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "widget_item_states", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)"
+		));
+		assertForeignKeys(schema, "widget_daily_summaries", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (bubble_setting_id) REFERENCES widget_bubble_settings(id)"
+		));
+	}
+
+	@Test
 	void coreLookupIndexesMatchCurrentDataDictionaryAccessPatterns() throws IOException {
 		Map<String, String> indexes = parseIndexes(Files.readString(MIGRATION));
 
@@ -334,6 +489,12 @@ class EntityFlywayAlignmentTest {
 				foreignKeys.add(line.replaceFirst("^CONSTRAINT\\s+\\w+\\s+", ""));
 			}
 			schema.put(tableName, foreignKeys);
+		}
+		Matcher alterMatcher = ALTER_TABLE_FOREIGN_KEY_PATTERN.matcher(sql);
+		while (alterMatcher.find()) {
+			String tableName = alterMatcher.group(1);
+			String foreignKey = alterMatcher.group(2).replaceAll("\\s+", " ");
+			schema.computeIfAbsent(tableName, ignored -> new HashSet<>()).add(foreignKey);
 		}
 		return schema;
 	}
