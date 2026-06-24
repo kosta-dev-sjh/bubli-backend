@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 05:51 KST
+Last checked: 2026-06-25 05:59 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -53,7 +53,7 @@ Last checked: 2026-06-25 05:51 KST
 - #36 resource ai-document API 로컬 검증 통과. GitHub checks 없음 (base #35에 stacked PR CI workflow 없음)
 - #37 room ai-documents API 로컬 검증 통과. GitHub checks 없음 (base #36에 stacked PR CI workflow 없음)
 - #38 entity boundary guard 로컬 검증 통과. GitHub Actions `build` 통과
-- #39 storage usage API 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
+- #39 storage usage API와 accounting boundary 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
 - #40 analyze-resource job API 로컬 검증 통과. GitHub checks 없음 (base #37에 stacked PR CI workflow 없음)
 - #41 generate-requirements job API 로컬 검증 통과. GitHub checks 없음 (base #40에 stacked PR CI workflow 없음)
 - #42 generate-tasks job API 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
@@ -73,11 +73,39 @@ Last checked: 2026-06-25 05:51 KST
 - #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼 고정 테스트 보강. 로컬 검증 통과. GitHub checks 없음
-- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 05:51 KST)
+- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 05:59 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 44. #39 storage usage accounting boundary
+
+처리 시각: 2026-06-25 05:59 KST
+
+변경 내용:
+
+- #39 `feature/storage-usage-api` 기존 PR 브랜치를 갱신했다.
+- `StorageUsageService`에 개인/프로젝트룸 업로드 사용량 기록 메서드를 추가했다.
+- `StorageUsageService`에 개인/프로젝트룸 사용량 해제 메서드를 추가했다.
+- `storage_usage` row가 없으면 설정 기반 기본 quota로 생성하는 경계를 추가했다.
+- `storage.default-personal-limit-bytes`, `storage.default-room-limit-bytes` 설정을 사용한다.
+- 사용량이 `limit_bytes`를 넘으면 `STORAGE_400_002`로 거절한다.
+- 조회 API endpoint와 응답 DTO는 바꾸지 않았다.
+
+검증 결과:
+
+- #39: `./gradlew compileTestJava` 통과
+- #39: `./gradlew cleanTest test` 통과
+- #39: `git diff --check` 통과
+- #39: head `282a7d1`, base `feature/resource-related-api`, mergeState `CLEAN`
+- #39: GitHub checks 없음. base #31에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 storage usage accounting Service 경계만 다룬다.
+- resource upload flow에서 이 boundary를 호출하는 위치는 #57 이후 upload stack 보정 PR로 분리한다.
+- 실제 quota 기본값, 에러 코드 세분화, quota row 선생성 정책은 최종 API 수정본에서 보정 가능하다.
 
 ### 작업 카드 43. #57 자료 업로드 정책 검사
 
@@ -101,7 +129,7 @@ Last checked: 2026-06-25 05:51 KST
 메모:
 
 - 실제 최대 파일 크기 기본값과 허용 MIME 타입 목록은 최종 API 수정본 또는 운영 정책에 맞춰 보정 가능하다.
-- 사용자/프로젝트룸별 quota와 storage usage 차감 정책은 별도 PR로 분리한다.
+- resource upload flow에서 storage usage accounting boundary를 호출하는 작업은 별도 PR로 분리한다.
 - 업로드 정책 에러 코드를 세분화할지는 최종 API 응답 규칙에 맞춰 보정한다.
 
 ### 작업 카드 42. #56 자료 업로드 실패 보상 삭제
@@ -1295,7 +1323,7 @@ Last checked: 2026-06-25 05:51 KST
 | #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
 | #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `aa52ec1` | checks 없음, merge clean, draft | 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
 | #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `a22ee45` | `build` pass, merge clean, draft | BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 추가 |
-| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `db757bc` | checks 없음, merge clean, draft | 6/25 기준 storage usage 조회 API 추가 |
+| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `282a7d1` | checks 없음, merge clean, draft | 6/25 기준 storage usage 조회 API와 accounting boundary 추가 |
 | #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `769a707` | checks 없음, merge clean, draft | 6/25 기준 analyze-resource agent job 생성 API 추가 |
 | #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge clean, draft | 6/25 기준 generate-requirements agent job 생성 API 추가 |
 | #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `7a25da0` | checks 없음, merge clean, draft | 6/25 기준 generate-tasks agent job 생성 API 추가 |
@@ -1317,7 +1345,7 @@ Last checked: 2026-06-25 05:51 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 05:51 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
+2026-06-25 05:59 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
@@ -1365,7 +1393,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | AI 문서 조회 | `GET /api/resources/{id}/ai-document`는 자료의 AI 문서 분류와 분석 상태를 반환 | #36 보정 완료. 자료 읽기 권한 확인 후 `ai_documents` 단건 상태를 반환한다 |
 | AI 문서 목록 | `GET /api/project-rooms/{roomId}/ai-documents`는 프로젝트룸 AI 문서 분석 목록을 반환 | #37 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `ai_documents` 목록을 반환한다 |
 | 엔티티 경계 | BaseTimeEntity, global 공통 엔티티, Tauri `local_*` 서버 엔티티 금지 | #38 보정 완료. 금지 구조를 테스트로 고정했다 |
-| 저장 용량 | `GET /api/storage/usage`는 사용자별 서버 저장 용량과 남은 용량 조회 | #39 보정 완료. 개인/참여 룸 usage row 조회와 합계 계산을 추가했다 |
+| 저장 용량 | `GET /api/storage/usage`는 사용자별 서버 저장 용량과 남은 용량 조회 | #39 보정 완료. 개인/참여 룸 usage row 조회와 합계 계산을 추가했고, 업로드 사용량 기록/해제와 quota 초과 검사 Service 경계를 추가했다 |
 | 에이전트 작업 생성 | `POST /api/ai/analyze-resource`는 자료 요약, 임베딩, AI 문서 분류 작업 생성 | #40 보정 완료. 자료 접근 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/generate-requirements`는 요구사항 후보 생성 작업 생성 | #41 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/generate-tasks`는 TODO 후보 생성 작업 생성 | #42 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
@@ -1398,7 +1426,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
 8. draft PR #24~#29, #31~#57은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 storage usage quota 차감 경계, agent dispatch queue adapter 초안, 또는 Entity/Flyway 타입/FK/인덱스 검증 보강이다.
+9. 다음 추천 작업은 resource upload flow에서 storage usage accounting boundary 호출, agent dispatch queue adapter 초안, 또는 Entity/Flyway 타입/FK/인덱스 검증 보강이다.
 10. #19~#57은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
