@@ -19,16 +19,15 @@ git status --short --branch
 작업 대상 기능이 정해지면 아래 순서로 필요한 부분만 읽는다.
 
 1. 최종 기획문서에서 기능 의도와 사용자 흐름을 확인한다.
-2. 데이터 딕셔너리에서 테이블, 컬럼, 상태값, FK/UK/NULL 기준을 확인한다.
+2. `09_Data-Model.md`에서 서버 DB 테이블, 컬럼, 상태값, FK/UK/NULL 기준을 확인한다.
 3. `10_API-Design.md`에서 API 주소, 요청, 응답 기준을 확인한다.
 4. 백엔드 개발 가이드에서 패키지 위치, 계층 책임, 권한 검사, 테스트 기준을 확인한다.
 5. 실제 코드에서 같은 패턴의 controller, service, repository, dto, entity를 확인한다.
 
-## 현재 API 기준 작업
+## 2026-06-25 최신 기준 작업
 
-API 명세서가 아직 덜 수정된 상태라도 작업을 멈추지 않는다.
-현재 `10_API-Design.md`를 작업 기준선으로 삼아 백엔드 뼈대와 기본 API를 구현한다.
-수정본 API가 오면 차이 보정 작업으로 처리한다.
+2026-06-25에 들어온 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md`를 현재 최신 기준으로 본다.
+기존 6/24 기준으로 만든 구현과 PR은 버리지 않고, 차이 나는 부분만 보정 작업으로 처리한다.
 
 - 패키지 구조와 도메인 위치 점검
 - Entity, Enum, Repository, Flyway 기준 점검
@@ -36,25 +35,25 @@ API 명세서가 아직 덜 수정된 상태라도 작업을 멈추지 않는다
 - 공통 응답, 공통 에러, Validation 점검
 - 프로젝트룸 권한 검사 서비스 점검
 - Testcontainers와 테스트 support 점검
-- 현재 API 기준 Controller/DTO/Service/Repository/Test 구현
+- 6/25 기준 Controller/DTO/Service/Repository/Test 구현
 - `.http` 요청 예시 정리
 
 이 모드에서는 구현을 진행한다.
 다만 기획/DB와 충돌하는 API나 불확실한 판단은 `docs/WORK_HANDOFF.md`에 남긴다.
 
-## API 명세 완성본이 들어왔을 때
+## 새 기준 문서가 다시 들어왔을 때
 
 사용자가 "API 명세서가 왔다", "API 명세 완성본이다", "이 파일이 최종 API다"라고 말하면 먼저 문서와 스킬을 갱신한다.
 
-1. 새 API 명세 파일 위치를 확인한다.
-2. 기존 API 기준 문서와 차이를 확인한다.
-3. 기준 파일이 바뀌면 아래 파일의 API 기준 경로를 갱신한다.
+1. 새 기준 파일 위치를 확인한다.
+2. 기존 6/25 기준 문서와 차이를 확인한다.
+3. 기준 파일이 바뀌면 아래 파일의 기준 경로를 갱신한다.
    - `docs/00_BACKEND_START_HERE.md`
    - `docs/WORK_HANDOFF.md`
    - `docs/CODEX_BACKEND_WORKFLOW.md`
-   - `docs/Bubli_백엔드_개발_가이드_2026-06-24.md`
+   - `docs/Bubli_백엔드_개발_가이드_2026-06-25.md`
    - `/Users/maren/.codex/skills/bubli-backend-workflow/SKILL.md`
-4. `docs/WORK_HANDOFF.md`의 현재 작업 모드를 새 API 기준 작업 모드로 바꾼다.
+4. `docs/WORK_HANDOFF.md`의 현재 작업 모드를 새 기준 작업 모드로 바꾼다.
 5. 현재 구현과 새 API의 endpoint, DTO, 테스트 차이를 다시 정리한다.
 6. 그 다음 한 PR씩 차이 보정 작업을 한다.
 
@@ -84,11 +83,11 @@ API 명세서가 아직 덜 수정된 상태라도 작업을 멈추지 않는다
 
 ```bash
 ls docs/00_BACKEND_START_HERE.md docs/WORK_HANDOFF.md docs/CODEX_BACKEND_WORKFLOW.md
-rg "10_API-Design.md|최종기획|데이터딕셔너리|WORK_HANDOFF|GitHub Actions|CI" docs
+rg "09_Data-Model.md|09C_DB-Tauri-SQLite.md|10_API-Design.md|WORK_HANDOFF|GitHub Actions|CI" docs --glob '!docs/archive/**'
 git diff --check
 ```
 
-추가로 예전 다운로드 폴더의 API Design 절대경로가 문서나 코드에 남아 있지 않은지 확인한다.
+추가로 예전 다운로드 폴더의 API Design 절대경로와 6/24 기준 문서 참조가 활성 문서에 남아 있지 않은지 확인한다.
 
 코드를 수정한 경우:
 
@@ -113,8 +112,7 @@ CI가 아직 돌고 있거나 실패했다면 완료로 보고하지 않는다.
 
 ## PR 재검토 순서
 
-1. #19 프로젝트룸 멤버/초대 API
-2. #20 채팅 기본 API
-3. #21 작업/WBS 기본 API
-4. #22 일정 기본 API
-5. 자료/AI 문서/RAG API
+1. #19~#22 develop 대상 기본 API PR
+2. #23~#28 stacked foundation PR
+3. 자료, 에이전트, Entity/Flyway, CI 보강 PR
+4. 6/25 기준과 맞지 않는 DTO, endpoint, enum, 권한 검사 보정 PR
