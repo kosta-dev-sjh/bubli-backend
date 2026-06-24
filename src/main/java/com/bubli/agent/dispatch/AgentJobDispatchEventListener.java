@@ -13,6 +13,7 @@ public class AgentJobDispatchEventListener {
 
 	private final AgentJobDispatchPort agentJobDispatchPort;
 	private final AgentJobDispatchFailureRecorder failureRecorder;
+	private final AgentJobDispatchSuccessRecorder successRecorder;
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onAgentJobCreated(AgentJobDispatchEvent event) {
@@ -21,6 +22,12 @@ public class AgentJobDispatchEventListener {
 		} catch (RuntimeException exception) {
 			log.warn("Failed to dispatch agent job. jobId={}", event.command().jobId(), exception);
 			failureRecorder.recordEnqueueFailure(event.command(), exception);
+			return;
+		}
+		try {
+			successRecorder.recordQueued(event.command());
+		} catch (RuntimeException exception) {
+			log.warn("Failed to record dispatched agent job event. jobId={}", event.command().jobId(), exception);
 		}
 	}
 }
