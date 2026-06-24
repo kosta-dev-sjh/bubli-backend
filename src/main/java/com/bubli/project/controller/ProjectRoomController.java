@@ -7,12 +7,16 @@ import com.bubli.global.security.CurrentUser;
 import com.bubli.project.dto.CreateProjectRoomRequest;
 import com.bubli.project.dto.ProjectRoomResponse;
 import com.bubli.project.dto.ProjectRoomResult;
+import com.bubli.project.dto.UpdateProjectRoomPaymentRequest;
+import com.bubli.project.dto.UpdateProjectRoomRequest;
 import com.bubli.project.service.ProjectRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +53,36 @@ public class ProjectRoomController {
 			@PathVariable UUID roomId
 	) {
 		return ApiResponse.success(ProjectRoomResponse.from(projectRoomService.getProjectRoom(authUser.userId(), roomId)));
+	}
+
+	@PatchMapping("/api/project-rooms/{roomId}")
+	public ApiResponse<ProjectRoomResponse> updateProjectRoom(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@Valid @RequestBody UpdateProjectRoomRequest request
+	) {
+		return ApiResponse.success(ProjectRoomResponse.from(
+				projectRoomService.updateProjectRoom(authUser.userId(), roomId, request.toCommand())
+		));
+	}
+
+	@PatchMapping("/api/project-rooms/{roomId}/payment")
+	public ApiResponse<ProjectRoomResponse> updateProjectRoomPayment(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@Valid @RequestBody UpdateProjectRoomPaymentRequest request
+	) {
+		return ApiResponse.success(ProjectRoomResponse.from(
+				projectRoomService.updateProjectRoomPayment(authUser.userId(), roomId, request.toCommand())
+		));
+	}
+
+	@DeleteMapping("/api/project-rooms/{roomId}")
+	public ApiResponse<ProjectRoomResponse> closeProjectRoom(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId
+	) {
+		return ApiResponse.success(ProjectRoomResponse.from(projectRoomService.closeProjectRoom(authUser.userId(), roomId)));
 	}
 
 	private PageResponse<ProjectRoomResponse> mapPage(PageResponse<ProjectRoomResult> page) {
