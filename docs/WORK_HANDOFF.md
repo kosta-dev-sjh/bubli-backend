@@ -500,7 +500,7 @@ Last checked: 2026-06-25 02:30 KST
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean, draft | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean, draft | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `1e189b2` | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `67a7fd5` | `build` 확인 중, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 
 ## Draft PR 후속 전환 메모
