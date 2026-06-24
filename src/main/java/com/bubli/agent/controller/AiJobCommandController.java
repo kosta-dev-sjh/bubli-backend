@@ -68,4 +68,14 @@ public class AiJobCommandController {
 				aiJobCommandService.createGenerateQuestionsJob(authUser.userId(), request.roomId())
 		));
 	}
+
+	@PostMapping("/api/ai/review-contract-documents")
+	public ApiResponse<AgentJobResponse> reviewContractDocuments(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody CreateRoomAgentJobRequest request
+	) {
+		return ApiResponse.success(AgentJobResponse.from(
+				aiJobCommandService.createReviewContractDocumentsJob(authUser.userId(), request.roomId())
+		));
+	}
 }

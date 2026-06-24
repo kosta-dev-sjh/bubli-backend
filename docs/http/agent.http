@@ -50,6 +50,15 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
+### 계약서 문서 검토 작업 생성
+POST {{baseUrl}}/api/ai/review-contract-documents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
 ### 에이전트 작업 상태 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
