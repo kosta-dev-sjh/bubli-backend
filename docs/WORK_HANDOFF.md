@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 00:25 KST
+Last checked: 2026-06-25 00:39 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -36,6 +36,8 @@ Last checked: 2026-06-25 00:25 KST
 - `./gradlew cleanTest test` 통과 (2026-06-24 21:44 KST)
 - `git diff --check` 통과 (2026-06-24 21:44 KST)
 - GitHub Actions CI 통과 (#28, 2026-06-24 21:47 KST)
+- GitHub Actions CI 통과 (#29, 2026-06-25 00:26 KST)
+- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 00:39 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
@@ -201,30 +203,32 @@ Last checked: 2026-06-25 00:25 KST
 
 ## 열린 PR 상태
 
-| PR | 제목 | 브랜치 | 확인한 head | 현재 메모 |
-|---|---|---|---|---|
-| #19 | `feat: 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `4a16d9e` | 6/25 API의 invitations, invite-links 기준으로 재검토 필요 |
-| #20 | `feat: 채팅 기본 API 추가` | `feature/chat-basic-api` | `f13a43e` | 6/25 API의 direct room, room sequence, read state 기준으로 재검토 필요 |
-| #21 | `feat: 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `4dd06c6` | 6/25 API의 dashboard tasks, WBS board, reorder, time-log 분리 기준으로 재검토 필요 |
-| #22 | `feat: 일정 기본 API 추가` | `feature/schedule-basic-api` | `3e2a7bf` | 6/25 API와 Google Calendar 범위, room/personal 일정 기준 재검토 필요 |
-| #23 | `feat: 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `5aa677a` | 6/25 DB의 `room_members` 권한 기준과 맞는지 재검토 필요 |
-| #24 | `chore: Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `223e01d` | 6/25 API의 auth endpoint와 Google-only 방향 충돌 여부 재검토 필요 |
-| #25 | `feat: 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `3ab98f8` | 6/25 Data Model의 `resources`, 파일/버전/댓글/요약 분리 기준 재검토 필요 |
-| #26 | `feat: 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `977ea52` | 6/25 Data Model의 `agent_jobs`, `agent_suggestions`, `ai_documents` 기준 재검토 필요 |
-| #27 | `test: Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `af54d17` | 6/25 Data Model 기준으로 Entity/Flyway 검사 범위 재검토 필요 |
-| #28 | `ci: stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `d6aa68e` | stacked PR CI 보강. 6/25 문서 PR의 base 브랜치 |
+| PR | 제목 | 브랜치 | base | 확인한 head | CI/상태 | 현재 메모 |
+|---|---|---|---|---|---|---|
+| #19 | `feat: 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `4a16d9e` | `build` pass, merge blocked | 초대 생성/목록/수락은 있음. 6/25 기준 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 필요 |
+| #20 | `feat: 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `f13a43e` | `build` pass, merge blocked | 방 목록/메시지/읽음 갱신은 있음. 6/25 기준 direct room 생성 API와 sequence/read DTO 재확인 필요 |
+| #21 | `feat: 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `4dd06c6` | `build` pass, merge blocked | 기본 task/WBS CRUD는 있음. dashboard tasks, WBS board, reorder, time-log API는 별도 보정 필요 |
+| #22 | `feat: 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
+| #23 | `feat: 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
+| #24 | `chore: Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `223e01d` | checks 없음, merge clean | signup은 제거됐지만 `POST /api/auth/login`이 남아 있음. 6/25 기준 Google authorize/callback endpoint 보정 필요 |
+| #25 | `feat: 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `3ab98f8` | checks 없음, merge clean | 자료 메타데이터 저장/조회 기반은 있음. 파일/버전/댓글/요약/AI 문서/다운로드 URL API는 별도 보정 필요 |
+| #26 | `feat: 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `977ea52` | checks 없음, merge clean | 저장 기반은 있음. 6/25 기준 `AgentSuggestionType`, `AgentJobType` enum 확장 보정 필요 |
+| #27 | `test: Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `af54d17` | checks 없음, merge clean | 테이블/컬럼 검사는 있음. 타입, FK, 인덱스, enum 값 검증은 아직 없음 |
+| #28 | `ci: stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d6aa68e` | `build` pass, merge clean | stacked PR CI 보강 완료 |
+| #29 | `docs: 2026-06-25 backend baseline 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `dc34f2d` | `build` pass, merge clean | 6/25 기준 문서와 워크플로 기준 반영 완료 |
 
 ## 6/25 기준 재검토 후보
 
 | 영역 | 새 기준 | 현재 할 일 |
 |---|---|---|
 | 문서 기준 | `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md` | 6/24 참조를 활성 문서에서 제거하고 archive로만 보존 |
-| 프로젝트룸/초대 | `invitations`와 초대 링크 API 기준 | #19의 가입 사용자 ID 초대 구현과 링크 초대 범위 비교 |
-| 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20의 endpoint와 DTO 비교 |
-| 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21의 작업 범위와 time-log 분리 여부 비교 |
-| 일정 | personal/room 일정, Google Calendar 범위 | #22의 일정 API와 Google 연동 제외/포함 범위 비교 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries` | #25가 메타데이터 기반인지 파일 업로드까지 다루는지 재확인 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents` | #26의 후보 타입, 확정 데이터 생성 금지, RAG 연결 범위 재확인 |
+| 프로젝트룸/초대 | `POST/GET /api/project-rooms/{roomId}/invitations`, `PATCH /api/invitations/{id}/accept`, `PATCH /api/invitations/{id}/cancel`, 멤버 역할 변경/삭제 | #19에 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 API를 보정한다. 6/25 기준에는 invite-links API가 없다 |
+| 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에 `POST /api/chat/direct-rooms`를 보정하고, `lastReadSequence`와 `afterSequence` DTO를 다시 맞춘다 |
+| 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에는 기본 task/WBS만 유지하고, dashboard tasks, WBS board/reorder, time_logs는 별도 PR로 나눈다 |
+| 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
+| 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 `POST /api/auth/login`과 `.http` 예시를 Google callback 기준으로 보정한다 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `ai_documents` | #25는 메타데이터 기반으로 유지하고, patch/delete/download-url/version/comment/summary/ai-document API는 후속 PR로 나눈다 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장한다 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
