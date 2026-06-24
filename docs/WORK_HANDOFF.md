@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 07:36 KST
+Last checked: 2026-06-25 07:43 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -73,14 +73,41 @@ Last checked: 2026-06-25 07:36 KST
 - #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
+- #59 project room events API 로컬 검증 통과. GitHub checks 없음 (base #58에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#58 상태 재확인 완료 (2026-06-25 07:36 KST)
+- 열린 PR #19~#59 상태 재확인 완료 (2026-06-25 07:43 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 59. #59 프로젝트룸 이벤트 조회 API
+
+처리 시각: 2026-06-25 07:43 KST
+
+변경 내용:
+
+- #59 `feature/project-room-events-api`를 #58 `feature/project-room-management-api` 위의 draft stacked PR로 생성했다.
+- `GET /api/project-rooms/{roomId}/events?afterSequence={sequence}&limit=100`를 추가했다.
+- ACTIVE 프로젝트룸 멤버만 이벤트를 조회할 수 있게 검증했다.
+- `payload_json`은 JSON 객체로 파싱해 response envelope의 `payload`로 내려준다.
+- 응답은 Entity를 직접 반환하지 않고 `ProjectRoomEventResponse`, `ProjectRoomEventActorResponse` DTO를 사용한다.
+- WebSocket/STOMP 송신, 이벤트 생성/저장 호출, 이벤트 타입 enum화는 추가하지 않았다.
+
+검증 결과:
+
+- #59: `./gradlew compileTestJava` 통과
+- #59: `./gradlew cleanTest test` 통과
+- #59: `git diff --check` 통과
+- #59: head `825da57`, base `feature/project-room-management-api`, mergeState `CLEAN`
+- #59: GitHub checks 없음. base #58에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 끊긴 WebSocket 이벤트를 HTTP로 보충하는 조회 API 뼈대만 다룬다.
+- 각 도메인 상태 변경 시 `project_room_events`를 저장하고 STOMP topic으로 송신하는 작업은 후속 PR로 분리한다.
 
 ### 작업 카드 58. #27/#28 core lookup index 검증 보강
 
@@ -1684,6 +1711,7 @@ Last checked: 2026-06-25 07:36 KST
 |---|---|---|---|---|---|---|
 | #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | `build` pass, merge blocked | 6/25 기준 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 완료 |
 | #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, draft | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
+| #59 | `[feat] 프로젝트룸 이벤트 조회 API 추가` | `feature/project-room-events-api` | `feature/project-room-management-api` | `825da57` | checks 없음, merge clean, draft | #58 위에 `GET /api/project-rooms/{roomId}/events` 누락 보충 API 추가. WebSocket 송신/이벤트 저장 호출은 후속 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `5f0729a` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
@@ -1725,19 +1753,19 @@ Last checked: 2026-06-25 07:36 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 07:28 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57, #58이다.
+2026-06-25 07:43 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57, #58, #59이다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#58은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#59는 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
 | 영역 | 새 기준 | 현재 할 일 |
 |---|---|---|
 | 문서 기준 | `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md` | 6/24 참조를 활성 문서에서 제거하고 archive로만 보존 |
-| 프로젝트룸/초대 | `PATCH /api/project-rooms/{roomId}`, `PATCH /api/project-rooms/{roomId}/payment`, `DELETE /api/project-rooms/{roomId}`, 초대/멤버 API | #19에서 초대/멤버 API 보정 완료. #58에서 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
+| 프로젝트룸/초대/이벤트 | `PATCH /api/project-rooms/{roomId}`, `PATCH /api/project-rooms/{roomId}/payment`, `DELETE /api/project-rooms/{roomId}`, `GET /api/project-rooms/{roomId}/events`, 초대/멤버 API | #19에서 초대/멤버 API 보정 완료. #58에서 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. #59에서 이벤트 누락 보충 조회 API 추가. `description`은 DB 컬럼 부재로 보류 |
 | 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에서 `POST /api/chat/direct-rooms`, `lastReadSequence` 기반 읽음 처리, 방 단위 `clientMessageId` 중복 기준 보정 완료 |
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
@@ -1786,6 +1814,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
 | WBS 작업판 | `GET /api/project-rooms/{roomId}/wbs-board` 포함 | #21 보정 완료. WBS 항목과 프로젝트룸 TODO를 함께 반환한다 |
 | 타이머 | `POST /api/time-logs/start`, pause, resume, stop, heartbeat 포함 | #30 보정 완료. `personal.timer`에서 `time_logs`를 원본으로 처리한다 |
+| 프로젝트룸 이벤트 | `GET /api/project-rooms/{roomId}/events?afterSequence={lastReceivedSequence}&limit=100` 포함 | #59 보정 완료. ACTIVE 멤버 권한 확인 뒤 `project_room_events.sequence` 기준으로 누락 이벤트를 보충 조회한다 |
 | 일정 | `GET/POST/PATCH/DELETE /api/schedules` | #22와 대체로 맞음. Google Calendar 직접 연동은 별도 PR로 분리 가능 |
 
 ## 구조 검토 메모
@@ -1805,9 +1834,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
 6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#58은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+8. draft PR #24~#29, #31~#59는 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 9. 다음 추천 작업은 resource upload/storage usage stack 정렬 뒤 파일 삭제와 용량 해제 연결, agent dispatch retry/outbox 초안, 또는 남은 FK/인덱스 세부 정책 검증 보강이다.
-10. #19~#58은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+10. #19~#59는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
