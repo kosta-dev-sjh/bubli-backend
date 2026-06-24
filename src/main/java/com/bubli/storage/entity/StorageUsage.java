@@ -60,6 +60,14 @@ public class StorageUsage {
 		return storageUsage;
 	}
 
+	public void increaseUsedBytes(long bytes) {
+		this.usedBytes += bytes;
+	}
+
+	public void decreaseUsedBytes(long bytes) {
+		this.usedBytes = Math.max(this.usedBytes - bytes, 0L);
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

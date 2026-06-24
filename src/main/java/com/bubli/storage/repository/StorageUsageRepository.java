@@ -12,5 +12,7 @@ public interface StorageUsageRepository extends JpaRepository<StorageUsage, UUID
 
 	Optional<StorageUsage> findByUserIdAndStorageScope(UUID userId, StorageScope storageScope);
 
+	Optional<StorageUsage> findByRoomIdAndStorageScope(UUID roomId, StorageScope storageScope);
+
 	List<StorageUsage> findByRoomIdInAndStorageScope(List<UUID> roomIds, StorageScope storageScope);
 }
