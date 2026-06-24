@@ -16,3 +16,18 @@ Content-Type: application/json
   "locale": "ko-KR",
   "timezone": "Asia/Seoul"
 }
+
+### 내 사용자 설정 조회
+GET {{baseUrl}}/api/me/preferences
+Authorization: Bearer {{accessToken}}
+
+### 내 사용자 설정 수정
+PATCH {{baseUrl}}/api/me/preferences
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "theme": "LIGHT",
+  "defaultHomeType": "PROJECT_ROOM",
+  "defaultProjectRoomId": "replace-with-room-id"
+}

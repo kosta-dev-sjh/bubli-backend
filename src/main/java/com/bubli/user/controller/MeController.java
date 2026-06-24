@@ -5,6 +5,8 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.user.dto.MeResponse;
 import com.bubli.user.dto.UpdateMeRequest;
+import com.bubli.user.dto.UpdateUserPreferenceRequest;
+import com.bubli.user.dto.UserPreferenceResponse;
 import com.bubli.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,22 @@ public class MeController {
 		return ApiResponse.success(MeResponse.from(userService.updateMe(
 				authUser.userId(),
 				authUser.email(),
+				request.toCommand()
+		)));
+	}
+
+	@GetMapping("/api/me/preferences")
+	public ApiResponse<UserPreferenceResponse> getPreferences(@CurrentUser AuthUser authUser) {
+		return ApiResponse.success(UserPreferenceResponse.from(userService.getPreferences(authUser.userId())));
+	}
+
+	@PatchMapping("/api/me/preferences")
+	public ApiResponse<UserPreferenceResponse> updatePreferences(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody UpdateUserPreferenceRequest request
+	) {
+		return ApiResponse.success(UserPreferenceResponse.from(userService.updatePreferences(
+				authUser.userId(),
 				request.toCommand()
 		)));
 	}

@@ -1,9 +1,14 @@
 package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.project.service.ProjectRoomService;
 import com.bubli.user.dto.UpdateUserProfileCommand;
+import com.bubli.user.dto.UpdateUserPreferenceCommand;
+import com.bubli.user.dto.UserPreferenceResult;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.entity.UserPreference;
+import com.bubli.user.repository.UserPreferenceRepository;
 import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +29,12 @@ class UserServiceTest {
 
 	@Mock
 	UserRepository userRepository;
+
+	@Mock
+	UserPreferenceRepository userPreferenceRepository;
+
+	@Mock
+	ProjectRoomService projectRoomService;
 
 	@InjectMocks
 	UserService userService;
@@ -71,5 +82,44 @@ class UserServiceTest {
 		assertThat(result.avatarUrl()).isEqualTo("https://cdn.example/avatar.png");
 		assertThat(result.locale()).isEqualTo("ja-JP");
 		assertThat(result.timezone()).isEqualTo("Asia/Tokyo");
+	}
+
+	@Test
+	void getPreferencesReturnsEmptyResultWhenPreferenceDoesNotExist() {
+		UUID userId = UUID.randomUUID();
+		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());
+
+		UserPreferenceResult result = userService.getPreferences(userId);
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.theme()).isNull();
+		assertThat(result.defaultHomeType()).isNull();
+		assertThat(result.defaultProjectRoomId()).isNull();
+	}
+
+	@Test
+	void updatePreferencesValidatesDefaultProjectRoomAndSavesPreference() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID preferenceId = UUID.randomUUID();
+		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());
+		given(userPreferenceRepository.save(org.mockito.ArgumentMatchers.any(UserPreference.class)))
+				.willAnswer(invocation -> {
+					UserPreference preference = invocation.getArgument(0);
+					ReflectionTestUtils.setField(preference, "id", preferenceId);
+					return preference;
+				});
+
+		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
+				"LIGHT",
+				"PROJECT_ROOM",
+				roomId
+		));
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.theme()).isEqualTo("LIGHT");
+		assertThat(result.defaultHomeType()).isEqualTo("PROJECT_ROOM");
+		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
+		org.mockito.Mockito.verify(projectRoomService).getProjectRoom(userId, roomId);
 	}
 }
