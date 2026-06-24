@@ -117,6 +117,20 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void sendMessageAllowsSameClientMessageIdInDifferentRooms() throws Exception {
+		User user = createUser("google-sub-chat-same-client-message", "정현");
+		ChatRoom firstRoom = chatRoomRepository.save(ChatRoom.createRoom(null, "첫 번째 채팅"));
+		ChatRoom secondRoom = chatRoomRepository.save(ChatRoom.createRoom(null, "두 번째 채팅"));
+		chatRoomMemberRepository.save(ChatRoomMember.create(firstRoom.getId(), user.getId()));
+		chatRoomMemberRepository.save(ChatRoomMember.create(secondRoom.getId(), user.getId()));
+
+		sendTextMessage(user, firstRoom, "same-client-message-id", "첫 번째 방");
+		sendTextMessage(user, secondRoom, "same-client-message-id", "두 번째 방");
+
+		assertThat(chatMessageRepository.findAll()).hasSize(2);
+	}
+
+	@Test
 	void getMessagesRequiresActiveChatRoomMember() throws Exception {
 		User user = createUser("google-sub-chat-forbidden", "민서");
 		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createRoom(null, "접근 불가 채팅"));
@@ -158,6 +172,25 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.data.lastReadSequence").value(1))
 				.andExpect(jsonPath("$.data.lastReadAt").isNotEmpty())
 				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	private void sendTextMessage(User user, ChatRoom chatRoom, String clientMessageId, String text) throws Exception {
+		mockMvc.perform(post("/api/chat/rooms/{chatRoomId}/messages", chatRoom.getId())
+						.header(AUTHORIZATION, bearerToken(user))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientMessageId": "%s",
+								  "messageType": "TEXT",
+								  "body": {
+								    "text": "%s"
+								  }
+								}
+								""".formatted(clientMessageId, text)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.clientMessageId").value(clientMessageId))
+				.andExpect(jsonPath("$.data.roomSequence").value(1));
 	}
 
 	private User createUser(String googleSub, String name) {
