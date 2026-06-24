@@ -16,6 +16,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
 	Optional<ChatMessage> findByIdAndChatRoomId(UUID id, UUID chatRoomId);
 
+	Optional<ChatMessage> findByChatRoomIdAndRoomSequence(UUID chatRoomId, Long roomSequence);
+
 	@Query("""
 		select coalesce(max(message.roomSequence), 0)
 		from ChatMessage message

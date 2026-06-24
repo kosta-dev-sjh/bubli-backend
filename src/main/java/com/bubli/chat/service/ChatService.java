@@ -131,19 +131,19 @@ public class ChatService {
 	}
 
 	@Transactional
-	public ChatRoomReadResponse markRead(UUID userId, UUID chatRoomId, UUID lastReadMessageId) {
+	public ChatRoomReadResponse markRead(UUID userId, UUID chatRoomId, Long lastReadSequence) {
 		ChatRoomMember member = chatRoomMemberRepository.findByChatRoomIdAndUserIdAndStatus(
 				chatRoomId,
 				userId,
 				ChatMemberStatus.ACTIVE
 		).orElseThrow(() -> new BusinessException(ErrorCode.CHAT_403_001));
 
-		ChatMessage message = chatMessageRepository.findByIdAndChatRoomId(lastReadMessageId, chatRoomId)
+		ChatMessage message = chatMessageRepository.findByChatRoomIdAndRoomSequence(chatRoomId, lastReadSequence)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_404_002));
 
 		Instant now = Instant.now();
-		member.markRead(message.getId(), now);
-		return new ChatRoomReadResponse(chatRoomId, message.getId(), now);
+		member.markRead(message.getId(), message.getRoomSequence(), now);
+		return new ChatRoomReadResponse(chatRoomId, message.getRoomSequence(), now);
 	}
 
 	private ChatMessage createMessage(UUID senderUserId, UUID chatRoomId, SendChatMessageCommand command) {

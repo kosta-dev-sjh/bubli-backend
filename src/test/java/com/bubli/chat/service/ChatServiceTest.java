@@ -225,16 +225,17 @@ class ChatServiceTest {
 	}
 
 	@Test
-	void markReadStoresLastReadMessage() {
+	void markReadStoresLastReadSequence() {
 		UUID chatRoomId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
 		UUID messageId = UUID.randomUUID();
+		long roomSequence = 1L;
 		ChatRoomMember member = ChatRoomMember.create(chatRoomId, userId);
 		ChatMessage message = ChatMessage.create(
 				chatRoomId,
 				userId,
 				"client-read",
-				1L,
+				roomSequence,
 				MessageType.TEXT,
 				"{\"text\":\"읽음\"}",
 				null
@@ -245,14 +246,16 @@ class ChatServiceTest {
 				userId,
 				ChatMemberStatus.ACTIVE
 		)).willReturn(Optional.of(member));
-		given(chatMessageRepository.findByIdAndChatRoomId(messageId, chatRoomId)).willReturn(Optional.of(message));
+		given(chatMessageRepository.findByChatRoomIdAndRoomSequence(chatRoomId, roomSequence))
+				.willReturn(Optional.of(message));
 
-		ChatRoomReadResponse response = chatService.markRead(userId, chatRoomId, messageId);
+		ChatRoomReadResponse response = chatService.markRead(userId, chatRoomId, roomSequence);
 
 		assertThat(response.chatRoomId()).isEqualTo(chatRoomId);
-		assertThat(response.lastReadMessageId()).isEqualTo(messageId);
+		assertThat(response.lastReadSequence()).isEqualTo(roomSequence);
 		assertThat(response.lastReadAt()).isNotNull();
 		assertThat(member.getLastReadMessageId()).isEqualTo(messageId);
+		assertThat(member.getLastReadSequence()).isEqualTo(roomSequence);
 	}
 
 	private ChatRoom chatRoom(UUID chatRoomId) {

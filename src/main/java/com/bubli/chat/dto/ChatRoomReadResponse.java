@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record ChatRoomReadResponse(
 		UUID chatRoomId,
-		UUID lastReadMessageId,
+		Long lastReadSequence,
 		Instant lastReadAt
 ) {
 }

@@ -30,6 +30,9 @@ public class ChatRoomMember {
 	@Column(name = "last_read_message_id")
 	private UUID lastReadMessageId;
 
+	@Column(name = "last_read_sequence")
+	private Long lastReadSequence;
+
 	@Column(name = "last_read_at")
 	private Instant lastReadAt;
 
@@ -51,8 +54,9 @@ public class ChatRoomMember {
 		return member;
 	}
 
-	public void markRead(UUID lastReadMessageId, Instant lastReadAt) {
+	public void markRead(UUID lastReadMessageId, Long lastReadSequence, Instant lastReadAt) {
 		this.lastReadMessageId = lastReadMessageId;
+		this.lastReadSequence = lastReadSequence;
 		this.lastReadAt = lastReadAt;
 	}
 

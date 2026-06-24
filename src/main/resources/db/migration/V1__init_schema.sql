@@ -390,6 +390,7 @@ CREATE TABLE chat_room_members (
     chat_room_id UUID NOT NULL,
     user_id UUID NOT NULL,
     last_read_message_id UUID,
+    last_read_sequence BIGINT,
     last_read_at TIMESTAMPTZ,
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
@@ -508,4 +509,3 @@ CREATE TABLE widget_daily_summaries (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT uk_widget_daily_summaries_rollup UNIQUE (user_id, device_id, summary_date, bubble_setting_id)
 );
-

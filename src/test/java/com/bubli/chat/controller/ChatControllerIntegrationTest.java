@@ -149,13 +149,13 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
-								  "lastReadMessageId": "%s"
+								  "lastReadSequence": 1
 								}
-								""".formatted(message.getId())))
+								"""))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.chatRoomId").value(chatRoom.getId().toString()))
-				.andExpect(jsonPath("$.data.lastReadMessageId").value(message.getId().toString()))
+				.andExpect(jsonPath("$.data.lastReadSequence").value(1))
 				.andExpect(jsonPath("$.data.lastReadAt").isNotEmpty())
 				.andExpect(jsonPath("$.error").value(nullValue()));
 	}

@@ -85,7 +85,7 @@ public class ChatController {
 			@PathVariable UUID chatRoomId,
 			@Valid @RequestBody MarkChatRoomReadRequest request
 	) {
-		return ApiResponse.success(chatService.markRead(authUser.userId(), chatRoomId, request.lastReadMessageId()));
+		return ApiResponse.success(chatService.markRead(authUser.userId(), chatRoomId, request.lastReadSequence()));
 	}
 
 	private PageResponse<ChatRoomResponse> mapRoomPage(PageResponse<ChatRoomResult> page) {
