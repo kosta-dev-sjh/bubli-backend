@@ -4,9 +4,13 @@ import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import com.bubli.resource.dto.CreateResourceCommentRequest;
 import com.bubli.resource.dto.CreateResourceRequest;
+import com.bubli.resource.dto.ResourceCommentResponse;
+import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.UpdateResourceCommentRequest;
 import com.bubli.resource.dto.UpdateResourceRequest;
 import com.bubli.resource.service.ResourceService;
 import jakarta.validation.Valid;
@@ -64,6 +68,31 @@ public class ResourceController {
 		return ApiResponse.success(ResourceResponse.from(resourceService.getResource(authUser.userId(), resourceId)));
 	}
 
+	@GetMapping("/api/resources/{resourceId}/comments")
+	public ApiResponse<PageResponse<ResourceCommentResponse>> getResourceComments(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapCommentPage(
+				resourceService.getResourceComments(authUser.userId(), resourceId, pageable)
+		));
+	}
+
+	@PostMapping("/api/resources/{resourceId}/comments")
+	public ApiResponse<ResourceCommentResponse> createResourceComment(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@Valid @RequestBody CreateResourceCommentRequest request
+	) {
+		return ApiResponse.success(ResourceCommentResponse.from(resourceService.createComment(
+				authUser.userId(),
+				resourceId,
+				request.parentId(),
+				request.trimmedBody()
+		)));
+	}
+
 	@PatchMapping("/api/resources/{resourceId}")
 	public ApiResponse<ResourceResponse> updateResource(
 			@CurrentUser AuthUser authUser,
@@ -84,10 +113,43 @@ public class ResourceController {
 		return ApiResponse.success(null);
 	}
 
+	@PatchMapping("/api/resource-comments/{commentId}")
+	public ApiResponse<ResourceCommentResponse> updateResourceComment(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID commentId,
+			@Valid @RequestBody UpdateResourceCommentRequest request
+	) {
+		return ApiResponse.success(ResourceCommentResponse.from(
+				resourceService.updateComment(authUser.userId(), commentId, request.trimmedBody())
+		));
+	}
+
+	@DeleteMapping("/api/resource-comments/{commentId}")
+	public ApiResponse<Void> deleteResourceComment(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID commentId
+	) {
+		resourceService.deleteComment(authUser.userId(), commentId);
+		return ApiResponse.success(null);
+	}
+
 	private PageResponse<ResourceResponse> mapPage(PageResponse<ResourceResult> page) {
 		return new PageResponse<>(
 				page.getItems().stream()
 						.map(ResourceResponse::from)
+						.toList(),
+				page.getPage(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.isHasNext()
+		);
+	}
+
+	private PageResponse<ResourceCommentResponse> mapCommentPage(PageResponse<ResourceCommentResult> page) {
+		return new PageResponse<>(
+				page.getItems().stream()
+						.map(ResourceCommentResponse::from)
 						.toList(),
 				page.getPage(),
 				page.getSize(),

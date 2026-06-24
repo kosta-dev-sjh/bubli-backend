@@ -5,8 +5,11 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
+import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.entity.Resource;
+import com.bubli.resource.entity.ResourceComment;
+import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -28,6 +31,7 @@ public class ResourceService {
 	private static final String PERSONAL_SCOPE = "personal";
 
 	private final ResourceRepository resourceRepository;
+	private final ResourceCommentRepository resourceCommentRepository;
 	private final RoomAccessService roomAccessService;
 
 	@Transactional(readOnly = true)
@@ -63,6 +67,15 @@ public class ResourceService {
 		return ResourceResult.from(getReadableResource(userId, resourceId));
 	}
 
+	@Transactional(readOnly = true)
+	public PageResponse<ResourceCommentResult> getResourceComments(UUID userId, UUID resourceId, Pageable pageable) {
+		getReadableResource(userId, resourceId);
+		Page<ResourceCommentResult> page = resourceCommentRepository
+				.findByResourceIdAndDeletedAtIsNull(resourceId, withCommentDefaultSort(pageable))
+				.map(ResourceCommentResult::from);
+		return toCommentPageResponse(page);
+	}
+
 	@Transactional
 	public ResourceResult create(UUID userId, CreateResourceCommand command) {
 		validateCreateCommand(userId, command);
@@ -92,6 +105,33 @@ public class ResourceService {
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
 		resource.markDeleted(Instant.now());
+	}
+
+	@Transactional
+	public ResourceCommentResult createComment(UUID userId, UUID resourceId, UUID parentId, String body) {
+		getReadableResource(userId, resourceId);
+		validateCommentBody(body);
+		validateParentComment(resourceId, parentId);
+		ResourceComment comment = ResourceComment.create(resourceId, userId, parentId, body);
+		return ResourceCommentResult.from(resourceCommentRepository.save(comment));
+	}
+
+	@Transactional
+	public ResourceCommentResult updateComment(UUID userId, UUID commentId, String body) {
+		ResourceComment comment = getReadableComment(commentId);
+		getReadableResource(userId, comment.getResourceId());
+		checkCommentAuthor(userId, comment);
+		validateCommentBody(body);
+		comment.updateBody(body);
+		return ResourceCommentResult.from(comment);
+	}
+
+	@Transactional
+	public void deleteComment(UUID userId, UUID commentId) {
+		ResourceComment comment = getReadableComment(commentId);
+		getReadableResource(userId, comment.getResourceId());
+		checkCommentAuthor(userId, comment);
+		comment.markDeleted(Instant.now());
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
@@ -132,6 +172,33 @@ public class ResourceService {
 		return resource;
 	}
 
+	private ResourceComment getReadableComment(UUID commentId) {
+		return resourceCommentRepository.findByIdAndDeletedAtIsNull(commentId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_002));
+	}
+
+	private void validateParentComment(UUID resourceId, UUID parentId) {
+		if (parentId == null) {
+			return;
+		}
+		ResourceComment parent = getReadableComment(parentId);
+		if (!resourceId.equals(parent.getResourceId())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+	}
+
+	private void validateCommentBody(String body) {
+		if (body == null || body.isBlank()) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+	}
+
+	private void checkCommentAuthor(UUID userId, ResourceComment comment) {
+		if (!userId.equals(comment.getAuthorId())) {
+			throw new BusinessException(ErrorCode.RESOURCE_403_001);
+		}
+	}
+
 	private void validateRoomResourceAccess(UUID userId, UUID roomId) {
 		if (!roomAccessService.isActiveMember(userId, roomId)) {
 			throw new BusinessException(ErrorCode.RESOURCE_403_001);
@@ -139,6 +206,17 @@ public class ResourceService {
 	}
 
 	private PageResponse<ResourceResult> toPageResponse(Page<ResourceResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
+	private PageResponse<ResourceCommentResult> toCommentPageResponse(Page<ResourceCommentResult> page) {
 		return new PageResponse<>(
 				page.getContent(),
 				page.getNumber(),
@@ -157,6 +235,17 @@ public class ResourceService {
 				pageable.getPageNumber(),
 				pageable.getPageSize(),
 				Sort.by("createdAt").descending().and(Sort.by("id").descending())
+		);
+	}
+
+	private Pageable withCommentDefaultSort(Pageable pageable) {
+		if (pageable.getSort().isSorted()) {
+			return pageable;
+		}
+		return PageRequest.of(
+				pageable.getPageNumber(),
+				pageable.getPageSize(),
+				Sort.by("createdAt").ascending().and(Sort.by("id").ascending())
 		);
 	}
 }

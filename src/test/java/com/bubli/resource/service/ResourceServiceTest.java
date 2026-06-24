@@ -5,8 +5,11 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.RoomAccessService;
 import com.bubli.resource.dto.CreateResourceCommand;
+import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.entity.Resource;
+import com.bubli.resource.entity.ResourceComment;
+import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
@@ -38,6 +41,9 @@ class ResourceServiceTest {
 
 	@Mock
 	ResourceRepository resourceRepository;
+
+	@Mock
+	ResourceCommentRepository resourceCommentRepository;
 
 	@Mock
 	RoomAccessService roomAccessService;
@@ -171,6 +177,105 @@ class ResourceServiceTest {
 
 		assertThat(resource.getDeletedAt()).isNotNull();
 		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
+	}
+
+	@Test
+	void createCommentRequiresReadableResourceAndStoresAuthor() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID commentId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"댓글 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceCommentRepository.save(any(ResourceComment.class))).willAnswer(invocation -> {
+			ResourceComment comment = invocation.getArgument(0);
+			ReflectionTestUtils.setField(comment, "id", commentId);
+			return comment;
+		});
+
+		ResourceCommentResult result = resourceService.createComment(userId, resourceId, null, "확인했습니다");
+
+		assertThat(result.id()).isEqualTo(commentId);
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.authorId()).isEqualTo(userId);
+		assertThat(result.body()).isEqualTo("확인했습니다");
+	}
+
+	@Test
+	void getResourceCommentsRequiresReadableResource() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"댓글 목록 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceComment comment = ResourceComment.create(resourceId, userId, null, "첫 댓글");
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceCommentRepository.findByResourceIdAndDeletedAtIsNull(
+				eq(resourceId),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(comment), pageable, 1));
+
+		PageResponse<ResourceCommentResult> result = resourceService.getResourceComments(userId, resourceId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().body()).isEqualTo("첫 댓글");
+	}
+
+	@Test
+	void updateCommentRejectsNonAuthor() {
+		UUID ownerId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID commentId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				ownerId,
+				null,
+				"댓글 수정 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceComment comment = ResourceComment.create(resourceId, ownerId, null, "원래 댓글");
+		given(resourceCommentRepository.findByIdAndDeletedAtIsNull(commentId)).willReturn(Optional.of(comment));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		assertThatThrownBy(() -> resourceService.updateComment(otherUserId, commentId, "수정"))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_403_001));
+	}
+
+	@Test
+	void deleteCommentMarksCommentDeleted() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID commentId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"댓글 삭제 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceComment comment = ResourceComment.create(resourceId, userId, null, "삭제할 댓글");
+		given(resourceCommentRepository.findByIdAndDeletedAtIsNull(commentId)).willReturn(Optional.of(comment));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		resourceService.deleteComment(userId, commentId);
+
+		assertThat(comment.getDeletedAt()).isNotNull();
 	}
 
 	@Test

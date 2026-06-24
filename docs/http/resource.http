@@ -1,6 +1,7 @@
 @baseUrl = http://localhost:8080
 @accessToken = replace-with-local-access-token
 @resourceId = replace-with-resource-id
+@commentId = replace-with-comment-id
 @roomId = replace-with-room-id
 
 ### 개인 자료 목록
@@ -49,4 +50,31 @@ Content-Type: application/json
 
 ### 자료 삭제
 DELETE {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
+
+### 자료 댓글 목록
+GET {{baseUrl}}/api/resources/{{resourceId}}/comments?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 댓글 작성
+POST {{baseUrl}}/api/resources/{{resourceId}}/comments
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "parentId": null,
+  "body": "확인했습니다."
+}
+
+### 자료 댓글 수정
+PATCH {{baseUrl}}/api/resource-comments/{{commentId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "body": "확인했습니다. 수정합니다."
+}
+
+### 자료 댓글 삭제
+DELETE {{baseUrl}}/api/resource-comments/{{commentId}}
 Authorization: Bearer {{accessToken}}
