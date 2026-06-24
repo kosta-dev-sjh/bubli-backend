@@ -242,6 +242,40 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void uploadRejectsFileLargerThanConfiguredLimit() {
+		UUID userId = UUID.randomUUID();
+		ReflectionTestUtils.setField(resourceService, "maxUploadSizeBytes", 2L);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+	}
+
+	@Test
+	void uploadRejectsMimeTypeOutsideConfiguredAllowList() {
+		UUID userId = UUID.randomUUID();
+		ReflectionTestUtils.setField(resourceService, "allowedMimeTypes", "application/pdf,image/png");
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"텍스트 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"memo.txt",
+				"text/plain",
+				new byte[]{1, 2, 3}
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+	}
+
+	@Test
 	void getPersonalResourcesReturnsOnlyOwnerPersonalResources() {
 		UUID userId = UUID.randomUUID();
 		Resource resource = Resource.create(

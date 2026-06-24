@@ -32,6 +32,7 @@ import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +49,7 @@ import java.util.UUID;
 public class ResourceService {
 
 	private static final String PERSONAL_SCOPE = "personal";
+	private static final long DEFAULT_MAX_UPLOAD_SIZE_BYTES = 104_857_600L;
 
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
@@ -58,6 +60,12 @@ public class ResourceService {
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
 	private final StorageService storageService;
 	private final RoomAccessService roomAccessService;
+
+	@Value("${storage.max-upload-size-bytes:104857600}")
+	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
+
+	@Value("${storage.allowed-mime-types:}")
+	private String allowedMimeTypes = "";
 
 	@Transactional(readOnly = true)
 	public PageResponse<ResourceResult> getPersonalResources(UUID userId, String scope, Pageable pageable) {
@@ -297,7 +305,22 @@ public class ResourceService {
 				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())) {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
+		if (command.content().length > maxUploadSizeBytes || !isAllowedMimeType(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
 		validateCreateCommand(userId, command.toCreateResourceCommand());
+	}
+
+	private boolean isAllowedMimeType(String mimeType) {
+		if (!StringUtils.hasText(allowedMimeTypes)) {
+			return true;
+		}
+		for (String allowedMimeType : allowedMimeTypes.split(",")) {
+			if (mimeType.equalsIgnoreCase(allowedMimeType.trim())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private String storageKey(UUID resourceId, String originalName) {
