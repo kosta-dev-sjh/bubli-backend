@@ -29,6 +29,7 @@ public class ProjectRoomService {
 
 	private final ProjectRoomRepository projectRoomRepository;
 	private final RoomMemberRepository roomMemberRepository;
+	private final ProjectRoomEventRecorder projectRoomEventRecorder;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomResult> getProjectRooms(UUID userId, Pageable pageable) {
@@ -75,6 +76,7 @@ public class ProjectRoomService {
 		checkProjectLeader(userId, roomId);
 		ProjectRoom projectRoom = getRoomOrThrow(roomId);
 		projectRoom.updateBasicInfo(command.name(), command.clientName(), command.status(), Instant.now());
+		projectRoomEventRecorder.recordRoomUpdated(userId, projectRoom);
 		return ProjectRoomResult.from(projectRoom);
 	}
 
@@ -92,6 +94,7 @@ public class ProjectRoomService {
 				command.paymentDueDate(),
 				command.paidAt()
 		);
+		projectRoomEventRecorder.recordPaymentUpdated(userId, projectRoom);
 		return ProjectRoomResult.from(projectRoom);
 	}
 
@@ -100,6 +103,7 @@ public class ProjectRoomService {
 		checkProjectLeader(userId, roomId);
 		ProjectRoom projectRoom = getRoomOrThrow(roomId);
 		projectRoom.close(Instant.now());
+		projectRoomEventRecorder.recordRoomClosed(userId, projectRoom);
 		return ProjectRoomResult.from(projectRoom);
 	}
 
