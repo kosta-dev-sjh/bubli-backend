@@ -106,6 +106,14 @@ public class AgentJob {
 		markFailed(errorCode, errorMessage);
 	}
 
+	public void markRetryQueued() {
+		this.status = AgentJobStatus.PENDING;
+		this.errorCode = null;
+		this.errorMessage = null;
+		this.startedAt = null;
+		this.finishedAt = null;
+	}
+
 	public void cancel() {
 		this.status = AgentJobStatus.CANCELED;
 		this.finishedAt = Instant.now();
