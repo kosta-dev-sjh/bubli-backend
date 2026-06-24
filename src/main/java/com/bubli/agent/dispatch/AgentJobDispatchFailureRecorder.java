@@ -23,7 +23,7 @@ public class AgentJobDispatchFailureRecorder {
 		agentJobRepository.findById(command.jobId())
 				.ifPresent(agentJob -> {
 					String message = errorMessage(exception);
-					agentJob.markFailed(ENQUEUE_FAILURE_ERROR_CODE, message);
+					agentJob.markDispatchFailed(ENQUEUE_FAILURE_ERROR_CODE, message);
 					agentJobEventRepository.save(AgentJobEvent.create(command.jobId(), FAILED_EVENT_TYPE, message));
 				});
 	}

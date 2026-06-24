@@ -101,6 +101,11 @@ public class AgentJob {
 		this.finishedAt = Instant.now();
 	}
 
+	public void markDispatchFailed(String errorCode, String errorMessage) {
+		this.retryCount++;
+		markFailed(errorCode, errorMessage);
+	}
+
 	public void cancel() {
 		this.status = AgentJobStatus.CANCELED;
 		this.finishedAt = Instant.now();
