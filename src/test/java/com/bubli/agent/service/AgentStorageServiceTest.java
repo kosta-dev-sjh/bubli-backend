@@ -7,8 +7,10 @@ import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.dto.CreateAgentSuggestionCommand;
 import com.bubli.agent.dto.CreateAiDocumentCommand;
 import com.bubli.agent.entity.AgentJob;
+import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.entity.AiDocument;
+import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.repository.AiDocumentRepository;
@@ -49,6 +51,9 @@ class AgentStorageServiceTest {
 
 	@Mock
 	AgentJobRepository agentJobRepository;
+
+	@Mock
+	AgentJobEventRepository agentJobEventRepository;
 
 	@Mock
 	AgentSuggestionRepository agentSuggestionRepository;
@@ -144,6 +149,33 @@ class AgentStorageServiceTest {
 		assertThatThrownBy(() -> agentJobService.getRequestedJob(userId, jobId))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_001));
+	}
+
+	@Test
+	void getRequestedJobEventsReturnsEventsAfterRequesterCheck() {
+		UUID userId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		UUID eventId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				userId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		AgentJobEvent event = AgentJobEvent.create(jobId, "STARTED", "분석을 시작했습니다.");
+		ReflectionTestUtils.setField(event, "id", eventId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentJobRepository.findByIdAndRequestedByUserId(jobId, userId)).willReturn(Optional.of(agentJob));
+		given(agentJobEventRepository.findByJobId(eq(jobId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(event), pageable, 1));
+
+		var result = agentJobService.getRequestedJobEvents(userId, jobId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(eventId);
+		assertThat(result.getItems().getFirst().eventType()).isEqualTo("STARTED");
+		assertThat(result.getItems().getFirst().message()).isEqualTo("분석을 시작했습니다.");
 	}
 
 	@Test

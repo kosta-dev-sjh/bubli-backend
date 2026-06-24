@@ -1,12 +1,19 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.dto.AgentJobEventResult;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.entity.AgentJob;
+import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.global.response.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +24,7 @@ import java.util.UUID;
 public class AgentJobService {
 
 	private final AgentJobRepository agentJobRepository;
+	private final AgentJobEventRepository agentJobEventRepository;
 
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
@@ -34,6 +42,15 @@ public class AgentJobService {
 		return agentJobRepository.findByIdAndRequestedByUserId(jobId, requestedByUserId)
 				.map(AgentJobResult::from)
 				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponse<AgentJobEventResult> getRequestedJobEvents(UUID requestedByUserId, UUID jobId, Pageable pageable) {
+		getRequestedJob(requestedByUserId, jobId);
+		Page<AgentJobEventResult> page = agentJobEventRepository
+				.findByJobId(jobId, withEventDefaultSort(pageable))
+				.map(AgentJobEventResult::from);
+		return toEventPageResponse(page);
 	}
 
 	@Transactional
@@ -60,5 +77,27 @@ public class AgentJobService {
 	private AgentJob getJob(UUID jobId) {
 		return agentJobRepository.findById(jobId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
+	}
+
+	private PageResponse<AgentJobEventResult> toEventPageResponse(Page<AgentJobEventResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
+	private Pageable withEventDefaultSort(Pageable pageable) {
+		if (pageable.getSort().isSorted()) {
+			return pageable;
+		}
+		return PageRequest.of(
+				pageable.getPageNumber(),
+				pageable.getPageSize(),
+				Sort.by("createdAt").ascending().and(Sort.by("id").ascending())
+		);
 	}
 }

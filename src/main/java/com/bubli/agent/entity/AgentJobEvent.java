@@ -32,6 +32,16 @@ public class AgentJobEvent {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	private AgentJobEvent(UUID jobId, String eventType, String message) {
+		this.jobId = jobId;
+		this.eventType = eventType;
+		this.message = message;
+	}
+
+	public static AgentJobEvent create(UUID jobId, String eventType, String message) {
+		return new AgentJobEvent(jobId, eventType, message);
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();

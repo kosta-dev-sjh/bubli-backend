@@ -7,6 +7,10 @@
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
 
+### 에이전트 작업 이벤트 조회
+GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}/events?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
 ### 개인 에이전트 제안함
 GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&page=0&size=20
 Authorization: Bearer {{accessToken}}
