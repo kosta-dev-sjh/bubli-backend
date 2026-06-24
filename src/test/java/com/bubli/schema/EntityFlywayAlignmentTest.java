@@ -189,6 +189,33 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void agentTablesMatchCurrentDataDictionaryForeignKeys() throws IOException {
+		Map<String, Set<String>> schema = parseForeignKeys(Files.readString(MIGRATION));
+
+		assertForeignKeys(schema, "ai_documents", Set.of(
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)"
+		));
+		assertForeignKeys(schema, "agent_jobs", Set.of(
+				"FOREIGN KEY (requested_by_user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)"
+		));
+		assertForeignKeys(schema, "agent_job_events", Set.of(
+				"FOREIGN KEY (job_id) REFERENCES agent_jobs(id)"
+		));
+		assertForeignKeys(schema, "agent_model_call_logs", Set.of(
+				"FOREIGN KEY (job_id) REFERENCES agent_jobs(id)"
+		));
+		assertForeignKeys(schema, "agent_suggestions", Set.of(
+				"FOREIGN KEY (user_id) REFERENCES users(id)",
+				"FOREIGN KEY (room_id) REFERENCES project_rooms(id)",
+				"FOREIGN KEY (job_id) REFERENCES agent_jobs(id)",
+				"FOREIGN KEY (resource_id) REFERENCES resources(id)"
+		));
+	}
+
+	@Test
 	void agentEnumsContainCurrentDataDictionaryValues() {
 		assertThat(enumNames(AiDocumentStatus.class))
 				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");
@@ -262,6 +289,24 @@ class EntityFlywayAlignmentTest {
 		return schema;
 	}
 
+	private Map<String, Set<String>> parseForeignKeys(String sql) {
+		Map<String, Set<String>> schema = new HashMap<>();
+		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
+		while (tableMatcher.find()) {
+			String tableName = tableMatcher.group(1);
+			Set<String> foreignKeys = new HashSet<>();
+			for (String rawLine : tableMatcher.group(2).split("\\n")) {
+				String line = rawLine.strip().replaceFirst(",$", "");
+				if (!line.startsWith("CONSTRAINT") || !line.contains(" FOREIGN KEY ")) {
+					continue;
+				}
+				foreignKeys.add(line.replaceFirst("^CONSTRAINT\\s+\\w+\\s+", ""));
+			}
+			schema.put(tableName, foreignKeys);
+		}
+		return schema;
+	}
+
 	private void assertTableColumns(Map<String, Set<String>> schema, String tableName, Set<String> expectedColumns) {
 		assertThat(schema)
 				.as("schema contains table %s", tableName)
@@ -282,6 +327,15 @@ class EntityFlywayAlignmentTest {
 		assertThat(schema.get(tableName))
 				.as("%s column types", tableName)
 				.containsAllEntriesOf(expectedColumnTypes);
+	}
+
+	private void assertForeignKeys(Map<String, Set<String>> schema, String tableName, Set<String> expectedForeignKeys) {
+		assertThat(schema)
+				.as("schema contains table %s", tableName)
+				.containsKey(tableName);
+		assertThat(schema.get(tableName))
+				.as("%s foreign keys", tableName)
+				.isEqualTo(expectedForeignKeys);
 	}
 
 	private String columnType(String columnDefinition) {
