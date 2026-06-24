@@ -38,6 +38,7 @@ public enum ErrorCode {
     RESOURCE_404_003(HttpStatus.NOT_FOUND, "RESOURCE_404_003", "자료 파일을 찾을 수 없습니다."),
     RESOURCE_404_004(HttpStatus.NOT_FOUND, "RESOURCE_404_004", "자료 요약을 찾을 수 없습니다."),
     RESOURCE_501_001(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_001", "자료 저장소 URL 발급이 아직 연결되지 않았습니다."),
+    RESOURCE_501_002(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_002", "자료 저장소 저장/삭제가 아직 연결되지 않았습니다."),
 
     // SCHEDULE
     SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),
