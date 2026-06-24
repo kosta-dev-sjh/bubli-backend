@@ -75,6 +75,18 @@ public class RoomMember {
 		this.status = RoomMemberStatus.ACTIVE;
 	}
 
+	public void updateRole(RoomMemberRole role) {
+		this.role = role == null ? RoomMemberRole.MEMBER : role;
+	}
+
+	public void leave() {
+		this.status = RoomMemberStatus.LEFT;
+	}
+
+	public void remove() {
+		this.status = RoomMemberStatus.REMOVED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

@@ -148,6 +148,88 @@ class ProjectRoomMemberServiceTest {
 		assertThat(memberCaptor.getValue().getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
+	@Test
+	void projectLeaderCanCancelPendingInvitation() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+		Invitation invitation = Invitation.create(
+				roomId,
+				leaderId,
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().plusSeconds(3600)
+		);
+		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
+
+		given(invitationRepository.findById(invitation.getId())).willReturn(Optional.of(invitation));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(userRepository.findById(invitee.getId())).willReturn(Optional.of(invitee));
+
+		InvitationResult result = projectRoomMemberService.cancelInvitation(leaderId, invitation.getId());
+
+		assertThat(result.status()).isEqualTo(InvitationStatus.CANCELED);
+	}
+
+	@Test
+	void projectLeaderCanUpdateMemberRole() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User memberUser = user(UUID.randomUUID(), "member", "정현");
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+		RoomMember member = RoomMember.createMember(roomId, memberUser.getId());
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberUser.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(member));
+		given(userRepository.findById(memberUser.getId())).willReturn(Optional.of(memberUser));
+
+		var result = projectRoomMemberService.updateMemberRole(
+				leaderId,
+				roomId,
+				memberUser.getId(),
+				RoomMemberRole.PROJECT_LEADER
+		);
+
+		assertThat(result.role()).isEqualTo(RoomMemberRole.PROJECT_LEADER);
+		assertThat(member.getRole()).isEqualTo(RoomMemberRole.PROJECT_LEADER);
+	}
+
+	@Test
+	void projectLeaderCanRemoveMember() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+		RoomMember member = RoomMember.createMember(roomId, memberId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(member));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+
+		projectRoomMemberService.removeMember(leaderId, roomId, memberId);
+
+		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.REMOVED);
+	}
+
+	@Test
+	void activeMemberCanLeaveRoom() {
+		UUID roomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		RoomMember member = RoomMember.createMember(roomId, memberId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(member));
+
+		projectRoomMemberService.removeMember(memberId, roomId, memberId);
+
+		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.LEFT);
+	}
+
 	private User user(UUID userId, String bubliId, String name) {
 		User user = User.createGoogleUser(
 				"google-sub-" + bubliId,

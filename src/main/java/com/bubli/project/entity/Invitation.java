@@ -79,6 +79,10 @@ public class Invitation {
 		this.status = InvitationStatus.EXPIRED;
 	}
 
+	public void cancel() {
+		this.status = InvitationStatus.CANCELED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

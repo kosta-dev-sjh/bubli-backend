@@ -144,6 +144,55 @@ public class ProjectRoomMemberService {
 		return InvitationResult.from(invitation, invitee);
 	}
 
+	@Transactional
+	public InvitationResult cancelInvitation(UUID requesterId, UUID invitationId) {
+		Invitation invitation = invitationRepository.findById(invitationId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
+		checkProjectLeader(requesterId, invitation.getRoomId());
+
+		if (!invitation.isPending()) {
+			throw new BusinessException(ErrorCode.PROJECT_409_002);
+		}
+
+		invitation.cancel();
+		User invitee = userRepository.findById(invitation.getInviteeUserId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		return InvitationResult.from(invitation, invitee);
+	}
+
+	@Transactional
+	public ProjectRoomMemberResult updateMemberRole(UUID requesterId, UUID roomId, UUID memberUserId, RoomMemberRole role) {
+		checkProjectLeader(requesterId, roomId);
+
+		RoomMember member = roomMemberRepository.findByRoomIdAndUserIdAndStatus(
+				roomId,
+				memberUserId,
+				RoomMemberStatus.ACTIVE
+		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
+
+		member.updateRole(role);
+		User user = userRepository.findById(memberUserId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		return ProjectRoomMemberResult.from(member, user);
+	}
+
+	@Transactional
+	public void removeMember(UUID requesterId, UUID roomId, UUID memberUserId) {
+		RoomMember member = roomMemberRepository.findByRoomIdAndUserIdAndStatus(
+				roomId,
+				memberUserId,
+				RoomMemberStatus.ACTIVE
+		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
+
+		if (requesterId.equals(memberUserId)) {
+			member.leave();
+			return;
+		}
+
+		checkProjectLeader(requesterId, roomId);
+		member.remove();
+	}
+
 	private void checkActiveMember(UUID userId, UUID roomId) {
 		boolean activeMember = roomMemberRepository.existsByRoomIdAndUserIdAndStatus(
 				roomId,

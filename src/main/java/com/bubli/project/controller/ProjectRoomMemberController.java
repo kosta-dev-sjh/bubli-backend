@@ -9,11 +9,13 @@ import com.bubli.project.dto.InvitationResponse;
 import com.bubli.project.dto.InvitationResult;
 import com.bubli.project.dto.ProjectRoomMemberResponse;
 import com.bubli.project.dto.ProjectRoomMemberResult;
+import com.bubli.project.dto.UpdateRoomMemberRoleRequest;
 import com.bubli.project.service.ProjectRoomMemberService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,6 +68,38 @@ public class ProjectRoomMemberController {
 		return ApiResponse.success(InvitationResponse.from(
 				projectRoomMemberService.acceptInvitation(authUser.userId(), invitationId)
 		));
+	}
+
+	@PatchMapping("/api/invitations/{invitationId}/cancel")
+	public ApiResponse<InvitationResponse> cancelInvitation(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID invitationId
+	) {
+		return ApiResponse.success(InvitationResponse.from(
+				projectRoomMemberService.cancelInvitation(authUser.userId(), invitationId)
+		));
+	}
+
+	@PatchMapping("/api/project-rooms/{roomId}/members/{userId}")
+	public ApiResponse<ProjectRoomMemberResponse> updateMemberRole(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@PathVariable UUID userId,
+			@Valid @RequestBody UpdateRoomMemberRoleRequest request
+	) {
+		return ApiResponse.success(ProjectRoomMemberResponse.from(
+				projectRoomMemberService.updateMemberRole(authUser.userId(), roomId, userId, request.role())
+		));
+	}
+
+	@DeleteMapping("/api/project-rooms/{roomId}/members/{userId}")
+	public ApiResponse<Void> removeMember(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@PathVariable UUID userId
+	) {
+		projectRoomMemberService.removeMember(authUser.userId(), roomId, userId);
+		return ApiResponse.success(null);
 	}
 
 	private PageResponse<ProjectRoomMemberResponse> mapMemberPage(PageResponse<ProjectRoomMemberResult> page) {
