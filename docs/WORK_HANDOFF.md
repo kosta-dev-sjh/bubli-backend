@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 07:28 KST
+Last checked: 2026-06-25 07:36 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -74,12 +74,47 @@ Last checked: 2026-06-25 07:28 KST
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
-- #28에 #27 최신 FK 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#58 상태 재확인 완료 (2026-06-25 07:28 KST)
+- #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
+- #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
+- 열린 PR #19~#58 상태 재확인 완료 (2026-06-25 07:36 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 58. #27/#28 core lookup index 검증 보강
+
+처리 시각: 2026-06-25 07:36 KST
+
+변경 내용:
+
+- #27 `feature/entity-flyway-alignment` 기존 PR 브랜치를 갱신했다.
+- `09_Data-Model.md`의 "권한 조회, 목록 조회, 동기화 기준 컬럼에는 인덱스를 둔다"는 기준에 맞춰 Flyway V1에 core lookup index를 추가했다.
+- 대상은 `room_members`, `invitations`, `resources`, `resource_comments`, `agent_jobs`, `agent_suggestions`, `ai_documents`, `tasks`, `schedules`, `time_logs`, `chat_room_members`, `chat_messages`다.
+- `EntityFlywayAlignmentTest`에 index parser와 index name/table/columns 검증을 추가했다.
+- #28 `feature/testcontainers-ci-foundation`에 #27 최신 변경을 병합해 GitHub Actions CI 범위에 포함했다.
+- 운영 API 응답, Controller endpoint, Service 로직은 바꾸지 않았다.
+
+검증 결과:
+
+- #27: `./gradlew compileTestJava` 통과
+- #27: `./gradlew cleanTest test` 통과
+- #27: `git diff --check` 통과
+- #27: head `5d0b7de`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #27: GitHub checks 없음. workflow 보강 전 생성된 stacked draft PR이다.
+- #28: `./gradlew compileTestJava` 통과
+- #28: `./gradlew cleanTest test` 통과
+- #28: `git diff --check` 통과
+- #28: head `d1b58a4`, base `feature/entity-flyway-alignment`, mergeState `CLEAN`
+- #28: GitHub Actions `build` 통과
+- #28 CI run: `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28134017077`
+- #28 CI job: `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28134017077/job/83316659632`
+- #28 CI duration: 1m20s
+
+메모:
+
+- 이번 변경은 조회 성능과 DB 계약 검증 기반만 다룬다.
+- 실제 쿼리 플랜 기준의 partial index, 추가 unique/index 정책은 최종 API 수정본이나 운영 데이터 기준으로 보정 가능하다.
 
 ### 작업 카드 57. #58 프로젝트룸 수정/결제/종료 API
 
@@ -1656,8 +1691,8 @@ Last checked: 2026-06-25 07:28 KST
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean, draft | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `36b9b55` | checks 없음, merge clean, draft | 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean, draft | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
-| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `d799825` | checks 없음, merge clean, draft | agent 핵심 테이블 컬럼 집합/타입, enum baseline, FK 검증 보강. `agent_model_call_logs` 정합성 확인 완료 |
-| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b6f6943` | `build` pass, draft | stacked PR CI 보강 완료. #27 최신 FK 보강까지 병합 뒤 CI 재통과 |
+| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `5d0b7de` | checks 없음, merge clean, draft | agent 핵심 테이블 컬럼 집합/타입, enum baseline, FK, core lookup index 검증 보강. `agent_model_call_logs` 정합성 확인 완료 |
+| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d1b58a4` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 최신 core lookup index 보강까지 병합 뒤 CI 재통과 |
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `4148e57` | checks 없음, merge clean, draft | 6/25 기준 resource_relations 조회 API 추가 |
@@ -1746,7 +1781,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 작업 생성 | `POST /api/ai/generate-questions`는 확인 질문 후보 생성 작업 생성 | #44 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/review-contract-documents`는 계약서와 요구사항 문서 검토 작업 생성 | #45 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
-| Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | #27 보강 완료. `agent_model_call_logs` Flyway 정의는 6/25 데이터 모델/Entity와 맞으며 agent 핵심 테이블 컬럼 집합, 주요 타입, agent enum baseline, FK를 테스트로 고정했다 |
+| Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의, 권한/목록/동기화 조회 인덱스 | #27 보강 완료. `agent_model_call_logs` Flyway 정의는 6/25 데이터 모델/Entity와 맞으며 agent 핵심 테이블 컬럼 집합, 주요 타입, agent enum baseline, FK, core lookup index를 테스트로 고정했다 |
 | 채팅 | `POST /api/chat/direct-rooms`, `PATCH /api/chat/rooms/{id}/read`, `chatRoomId + clientMessageId` 중복 방지 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만들며, 읽음 위치는 `lastReadSequence`로 저장한다 |
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
 | WBS 작업판 | `GET /api/project-rooms/{roomId}/wbs-board` 포함 | #21 보정 완료. WBS 항목과 프로젝트룸 TODO를 함께 반환한다 |
@@ -1767,11 +1802,11 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 2. #24는 #22, #23 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
-5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
-6. #28은 #27 최신 FK 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
+5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
+6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
 8. draft PR #24~#29, #31~#58은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 resource upload/storage usage stack 정렬 뒤 파일 삭제와 용량 해제 연결, agent dispatch retry/outbox 초안, 또는 나머지 테이블 FK/인덱스 검증 보강이다.
+9. 다음 추천 작업은 resource upload/storage usage stack 정렬 뒤 파일 삭제와 용량 해제 연결, agent dispatch retry/outbox 초안, 또는 남은 FK/인덱스 세부 정책 검증 보강이다.
 10. #19~#58은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
