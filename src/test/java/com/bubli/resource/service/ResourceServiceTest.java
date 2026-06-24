@@ -178,7 +178,7 @@ class ResourceServiceTest {
 	}
 
 	@Test
-	void deleteResourceMarksResourceDeleted() {
+	void deleteResourceSetsDeletedAtWithoutChangingStatus() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		Resource resource = Resource.create(
@@ -194,7 +194,7 @@ class ResourceServiceTest {
 		resourceService.deleteResource(userId, resourceId);
 
 		assertThat(resource.getDeletedAt()).isNotNull();
-		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
+		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
 	}
 
 	@Test
