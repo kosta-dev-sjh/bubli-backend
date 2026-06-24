@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static java.util.Map.entry;
 
 class EntityFlywayAlignmentTest {
 
@@ -117,6 +118,69 @@ class EntityFlywayAlignmentTest {
 		));
 	}
 
+	@Test
+	void agentTablesMatchCurrentDataDictionaryColumnTypes() throws IOException {
+		Map<String, Map<String, String>> schema = parseColumnTypes(Files.readString(MIGRATION));
+
+		assertColumnTypes(schema, "ai_documents", Map.ofEntries(
+				entry("id", "UUID"),
+				entry("resource_id", "UUID"),
+				entry("room_id", "UUID"),
+				entry("document_type", "VARCHAR(40)"),
+				entry("detected_confidence", "NUMERIC(5, 4)"),
+				entry("status", "VARCHAR(30)"),
+				entry("created_at", "TIMESTAMPTZ"),
+				entry("updated_at", "TIMESTAMPTZ")
+		));
+		assertColumnTypes(schema, "agent_jobs", Map.ofEntries(
+				entry("id", "UUID"),
+				entry("requested_by_user_id", "UUID"),
+				entry("room_id", "UUID"),
+				entry("resource_id", "UUID"),
+				entry("job_type", "VARCHAR(40)"),
+				entry("status", "VARCHAR(30)"),
+				entry("retry_count", "INTEGER"),
+				entry("error_code", "VARCHAR(80)"),
+				entry("error_message", "TEXT"),
+				entry("started_at", "TIMESTAMPTZ"),
+				entry("finished_at", "TIMESTAMPTZ"),
+				entry("created_at", "TIMESTAMPTZ"),
+				entry("updated_at", "TIMESTAMPTZ")
+		));
+		assertColumnTypes(schema, "agent_job_events", Map.ofEntries(
+				entry("id", "UUID"),
+				entry("job_id", "UUID"),
+				entry("event_type", "VARCHAR(60)"),
+				entry("message", "TEXT"),
+				entry("created_at", "TIMESTAMPTZ")
+		));
+		assertColumnTypes(schema, "agent_model_call_logs", Map.ofEntries(
+				entry("id", "UUID"),
+				entry("job_id", "UUID"),
+				entry("prompt_version", "VARCHAR(40)"),
+				entry("schema_version", "VARCHAR(40)"),
+				entry("model_name", "VARCHAR(100)"),
+				entry("latency_ms", "BIGINT"),
+				entry("input_tokens", "INTEGER"),
+				entry("output_tokens", "INTEGER"),
+				entry("error_code", "VARCHAR(80)"),
+				entry("created_at", "TIMESTAMPTZ")
+		));
+		assertColumnTypes(schema, "agent_suggestions", Map.ofEntries(
+				entry("id", "UUID"),
+				entry("user_id", "UUID"),
+				entry("room_id", "UUID"),
+				entry("job_id", "UUID"),
+				entry("resource_id", "UUID"),
+				entry("suggestion_type", "VARCHAR(40)"),
+				entry("payload_json", "JSONB"),
+				entry("evidence_json", "JSONB"),
+				entry("status", "VARCHAR(30)"),
+				entry("created_at", "TIMESTAMPTZ"),
+				entry("updated_at", "TIMESTAMPTZ")
+		));
+	}
+
 	private Map<String, Set<String>> parseSchema(String sql) {
 		Map<String, Set<String>> schema = new HashMap<>();
 		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
@@ -135,6 +199,25 @@ class EntityFlywayAlignmentTest {
 		return schema;
 	}
 
+	private Map<String, Map<String, String>> parseColumnTypes(String sql) {
+		Map<String, Map<String, String>> schema = new HashMap<>();
+		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
+		while (tableMatcher.find()) {
+			String tableName = tableMatcher.group(1);
+			Map<String, String> columnTypes = new HashMap<>();
+			for (String rawLine : tableMatcher.group(2).split("\\n")) {
+				String line = rawLine.strip().replaceFirst(",$", "");
+				if (line.isBlank() || line.startsWith("CONSTRAINT") || line.startsWith("PRIMARY KEY")) {
+					continue;
+				}
+				String columnName = line.split("\\s+")[0].replace("\"", "");
+				columnTypes.put(columnName, columnType(line.substring(line.indexOf(columnName) + columnName.length())));
+			}
+			schema.put(tableName, columnTypes);
+		}
+		return schema;
+	}
+
 	private void assertTableColumns(Map<String, Set<String>> schema, String tableName, Set<String> expectedColumns) {
 		assertThat(schema)
 				.as("schema contains table %s", tableName)
@@ -142,6 +225,31 @@ class EntityFlywayAlignmentTest {
 		assertThat(schema.get(tableName))
 				.as("%s columns", tableName)
 				.isEqualTo(expectedColumns);
+	}
+
+	private void assertColumnTypes(
+			Map<String, Map<String, String>> schema,
+			String tableName,
+			Map<String, String> expectedColumnTypes
+	) {
+		assertThat(schema)
+				.as("schema contains table %s", tableName)
+				.containsKey(tableName);
+		assertThat(schema.get(tableName))
+				.as("%s column types", tableName)
+				.containsAllEntriesOf(expectedColumnTypes);
+	}
+
+	private String columnType(String columnDefinition) {
+		String definition = columnDefinition.strip();
+		Matcher constraintMatcher = Pattern.compile(
+				"\\s+(NOT\\s+NULL|PRIMARY\\s+KEY|UNIQUE|DEFAULT|REFERENCES|CHECK|CONSTRAINT)\\b",
+				Pattern.CASE_INSENSITIVE
+		).matcher(definition);
+		if (constraintMatcher.find()) {
+			return definition.substring(0, constraintMatcher.start()).strip();
+		}
+		return definition;
 	}
 
 	private List<Path> entityFiles() throws IOException {
