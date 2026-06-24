@@ -31,6 +31,7 @@ import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StorageService;
+import com.bubli.storage.service.StorageUsageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -59,6 +60,7 @@ public class ResourceService {
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
 	private final StorageService storageService;
+	private final StorageUsageService storageUsageService;
 	private final RoomAccessService roomAccessService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
@@ -186,7 +188,10 @@ public class ResourceService {
 				ResourceStatus.READY
 		));
 		FileUploadResult uploaded = null;
+		boolean storageUsageRecorded = false;
 		try {
+			recordStorageUsage(userId, roomId, command);
+			storageUsageRecorded = true;
 			uploaded = storageService.save(
 					storageKey(resource.getId(), command.originalName()),
 					command.originalName(),
@@ -210,6 +215,7 @@ public class ResourceService {
 			));
 		} catch (RuntimeException e) {
 			deleteUploadedObject(uploaded, e);
+			releaseRecordedStorageUsage(storageUsageRecorded, userId, roomId, command, e);
 			throw e;
 		}
 		return ResourceResult.from(resource);
@@ -228,7 +234,11 @@ public class ResourceService {
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
+		long usedBytes = resourceFileRepository.findByResourceId(resourceId).stream()
+				.mapToLong(ResourceFile::getSizeBytes)
+				.sum();
 		resource.markDeleted(Instant.now());
+		releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), usedBytes);
 	}
 
 	@Transactional
@@ -338,6 +348,48 @@ public class ResourceService {
 		} catch (RuntimeException deleteException) {
 			cause.addSuppressed(deleteException);
 		}
+	}
+
+	private void recordStorageUsage(UUID userId, UUID roomId, UploadResourceCommand command) {
+		long sizeBytes = command.content().length;
+		if (command.visibility() == ResourceVisibility.PERSONAL) {
+			storageUsageService.recordPersonalUpload(userId, sizeBytes);
+			return;
+		}
+		storageUsageService.recordRoomUpload(roomId, sizeBytes);
+	}
+
+	private void releaseRecordedStorageUsage(
+			boolean storageUsageRecorded,
+			UUID userId,
+			UUID roomId,
+			UploadResourceCommand command,
+			RuntimeException cause
+	) {
+		if (!storageUsageRecorded) {
+			return;
+		}
+		long sizeBytes = command.content().length;
+		try {
+			if (command.visibility() == ResourceVisibility.PERSONAL) {
+				storageUsageService.releasePersonalUsage(userId, sizeBytes);
+				return;
+			}
+			storageUsageService.releaseRoomUsage(roomId, sizeBytes);
+		} catch (RuntimeException releaseException) {
+			cause.addSuppressed(releaseException);
+		}
+	}
+
+	private void releaseStorageUsage(UUID userId, UUID roomId, ResourceVisibility visibility, long sizeBytes) {
+		if (sizeBytes <= 0) {
+			return;
+		}
+		if (visibility == ResourceVisibility.PERSONAL) {
+			storageUsageService.releasePersonalUsage(userId, sizeBytes);
+			return;
+		}
+		storageUsageService.releaseRoomUsage(roomId, sizeBytes);
 	}
 
 	private void validateReadable(UUID userId, Resource resource) {

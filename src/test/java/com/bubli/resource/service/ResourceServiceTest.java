@@ -30,6 +30,7 @@ import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StorageService;
+import com.bubli.storage.service.StorageUsageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -53,6 +54,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ResourceServiceTest {
@@ -80,6 +82,9 @@ class ResourceServiceTest {
 
 	@Mock
 	StorageService storageService;
+
+	@Mock
+	StorageUsageService storageUsageService;
 
 	@Mock
 	RoomAccessService roomAccessService;
@@ -193,6 +198,7 @@ class ResourceServiceTest {
 		verify(storageService).save(storageKeyCaptor.capture(), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class));
 		assertThat(storageKeyCaptor.getValue()).startsWith("resources/%s/".formatted(resourceId));
 		assertThat(storageKeyCaptor.getValue()).endsWith(".pdf");
+		verify(storageUsageService).recordPersonalUpload(userId, 3L);
 
 		ArgumentCaptor<ResourceFile> fileCaptor = ArgumentCaptor.forClass(ResourceFile.class);
 		verify(resourceFileRepository).save(fileCaptor.capture());
@@ -239,6 +245,68 @@ class ResourceServiceTest {
 		))).isSameAs(dbFailure);
 
 		verify(storageService).delete("resources/%s/file.pdf".formatted(resourceId));
+		verify(storageUsageService).recordPersonalUpload(userId, 3L);
+		verify(storageUsageService).releasePersonalUsage(userId, 3L);
+	}
+
+	@Test
+	void uploadRoomSharedResourceRecordsRoomStorageUsage() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(true);
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storageService.save(any(String.class), eq("회의록.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/meeting.pdf".formatted(resourceId),
+						"회의록.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(0);
+
+		resourceService.upload(userId, new UploadResourceCommand(
+				"회의록 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.ROOM_SHARED,
+				roomId,
+				"회의록.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		));
+
+		verify(storageUsageService).recordRoomUpload(roomId, 3L);
+	}
+
+	@Test
+	void uploadDoesNotStoreFileWhenStorageQuotaExceeded() {
+		UUID userId = UUID.randomUUID();
+		BusinessException quotaExceeded = new BusinessException(ErrorCode.STORAGE_400_002);
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(storageUsageService.recordPersonalUpload(userId, 3L)).willThrow(quotaExceeded);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(quotaExceeded);
+
+		verifyNoInteractions(storageService);
 	}
 
 	@Test
@@ -338,12 +406,22 @@ class ResourceServiceTest {
 				ResourceVisibility.PERSONAL,
 				ResourceStatus.READY
 		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				3L,
+				null
+		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
 		resourceService.deleteResource(userId, resourceId);
 
 		assertThat(resource.getDeletedAt()).isNotNull();
 		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
+		verify(storageUsageService).releasePersonalUsage(userId, 3L);
 	}
 
 	@Test
