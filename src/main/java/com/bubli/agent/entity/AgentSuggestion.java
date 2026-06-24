@@ -1,27 +1,73 @@
 package com.bubli.agent.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import com.bubli.agent.type.AgentSuggestionStatus;
+import com.bubli.agent.type.AgentSuggestionType;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-/**
- * 에이전트가 생성한 제안/후보.
- *
- * 테이블: agent_suggestions
- * 주요 필드: user_id, room_id, suggestion_type, payload_json, status
- *
- * suggestion_type: 요구사항 후보, WBS 후보, TODO 후보, 확인 질문, 문서 초안,
- *                  하루정리, 작업 메모, 버블 제안 등
- * status: DRAFT → APPROVED / HELD / REJECTED
- *
- * 사용자가 승인하기 전에는 확정 데이터(tasks, wbs_items 등)로 반영하지 않는다.
- * 승인 후 실제 데이터 반영은 대상 도메인 Service가 처리한다.
- */
-@Entity
+import java.time.Instant;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "agent_suggestions")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AgentSuggestion {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "user_id", nullable = false)
+	private UUID userId;
+
+	@Column(name = "room_id")
+	private UUID roomId;
+
+	@Column(name = "job_id")
+	private UUID jobId;
+
+	@Column(name = "resource_id")
+	private UUID resourceId;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "suggestion_type", nullable = false, length = 40)
+	private AgentSuggestionType suggestionType;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "payload_json", nullable = false, columnDefinition = "jsonb")
+	private String payloadJson;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "evidence_json", columnDefinition = "jsonb")
+	private String evidenceJson;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private AgentSuggestionStatus status = AgentSuggestionStatus.DRAFT;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
+
 }

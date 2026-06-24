@@ -1,23 +1,44 @@
 package com.bubli.resource.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
 
-/**
- * 프로젝트룸 자료 버전 기록.
- *
- * 테이블: resource_versions
- * 주요 필드: resource_id, version_no, file_id, created_by
- *
- * 같은 자료를 재업로드하면 기존 파일을 덮어쓰지 않고 새 버전으로 저장한다.
- * 최신 version만 기본 표시하고, 이전 버전은 버전 목록에서 선택.
- */
-@Entity
+import java.time.Instant;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "resource_versions",
+	uniqueConstraints = @UniqueConstraint(name = "uk_resource_versions_resource_version", columnNames = {"resource_id", "version_no"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ResourceVersion {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "resource_id", nullable = false)
+	private UUID resourceId;
+
+	@Column(name = "version_no", nullable = false)
+	private Integer versionNo;
+
+	@Column(name = "file_id", nullable = false)
+	private UUID fileId;
+
+	@Column(name = "created_by", nullable = false)
+	private UUID createdBy;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
+
 }

@@ -1,27 +1,58 @@
 package com.bubli.chat.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import com.bubli.chat.type.MessageType;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-/**
- * 채팅 메시지 원본.
- *
- * 테이블: chat_messages
- * 주요 필드: chat_room_id, sender_user_id, sender_guest_session_id,
- *           client_message_id, room_sequence, message_type, body
- *
- * message_type: USER_TEXT / AGENT_RESPONSE / SYSTEM
- * sender_user_id와 sender_guest_session_id 중 하나만 존재해야 한다 (CHECK 제약).
- * client_message_id로 중복 저장을 방지한다.
- * room_sequence로 채팅방 메시지 순서를 관리한다.
- * DB 저장 성공 후 WebSocket으로 전송한다.
- */
-@Entity
+import java.time.Instant;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "chat_messages",
+	uniqueConstraints = @UniqueConstraint(name = "uk_chat_messages_room_sequence", columnNames = {"chat_room_id", "room_sequence"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatMessage {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "chat_room_id", nullable = false)
+	private UUID chatRoomId;
+
+	@Column(name = "sender_user_id", nullable = false)
+	private UUID senderUserId;
+
+	@Column(name = "client_message_id", nullable = false, unique = true, length = 120)
+	private String clientMessageId;
+
+	@Column(name = "room_sequence", nullable = false)
+	private Long roomSequence;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "message_type", nullable = false, length = 30)
+	private MessageType messageType;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(nullable = false, columnDefinition = "jsonb")
+	private String body;
+
+	@Column(name = "resource_id")
+	private UUID resourceId;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
+
 }

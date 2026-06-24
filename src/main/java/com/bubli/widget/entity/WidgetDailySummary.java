@@ -1,23 +1,69 @@
 package com.bubli.widget.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import java.time.Instant;
+import java.time.LocalDate;
 
-/**
- * 위젯 날짜별 사용 집계.
- *
- * 테이블: widget_daily_summaries
- * 주요 필드: user_id, summary_date, bubble_type, usage_json
- *
- * Tauri SQLite의 local_widget_usage_rollups에서 집계된 결과만 서버에 반영.
- * 상세 사용 이벤트 원문(버블 열기/닫기/클릭/머문 시간)은 서버에 저장하지 않는다.
- */
-@Entity
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "widget_daily_summaries",
+	uniqueConstraints = @UniqueConstraint(name = "uk_widget_daily_summaries_rollup", columnNames = {"user_id", "device_id", "summary_date", "bubble_setting_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WidgetDailySummary {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "user_id", nullable = false)
+	private UUID userId;
+
+	@Column(name = "device_id", nullable = false, length = 120)
+	private String deviceId;
+
+	@Column(name = "rollup_key", nullable = false, unique = true, length = 160)
+	private String rollupKey;
+
+	@Column(name = "summary_date", nullable = false)
+	private LocalDate summaryDate;
+
+	@Column(name = "bubble_setting_id", nullable = false)
+	private UUID bubbleSettingId;
+
+	@Column(name = "open_count", nullable = false)
+	private Integer openCount = 0;
+
+	@Column(name = "interaction_count", nullable = false)
+	private Integer interactionCount = 0;
+
+	@Column(name = "visible_seconds", nullable = false)
+	private Long visibleSeconds = 0L;
+
+	@Column(name = "synced_at", nullable = false)
+	private Instant syncedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
+
 }

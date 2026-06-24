@@ -1,26 +1,64 @@
 package com.bubli.memory.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import com.bubli.memory.type.SummaryStatus;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-/**
- * 프로젝트룸 채팅/작업 맥락의 장기요약.
- *
- * 테이블: room_memory_summaries
- * 주요 필드: room_id, from_sequence, to_sequence, summary_json, created_by, status
- *
- * 저장 내용: 결정사항, 남은 질문, TODO 후보, WBS 후보, 관련 자료,
- *           요약한 메시지 범위 (from_sequence ~ to_sequence)
- * status: DRAFT / APPROVED
- *
- * /bubli 명령어 실행 시 에이전트가 생성하고, 필요한 장기요약만 저장한다.
- */
-@Entity
+import java.time.Instant;
+
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "room_memory_summaries")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoomMemorySummary {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "room_id", nullable = false)
+	private UUID roomId;
+
+	@Column(name = "from_sequence", nullable = false)
+	private Long fromSequence;
+
+	@Column(name = "to_sequence", nullable = false)
+	private Long toSequence;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "summary_json", nullable = false, columnDefinition = "jsonb")
+	private String summaryJson;
+
+	@Column(name = "created_by_user_id")
+	private UUID createdByUserId;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private SummaryStatus status = SummaryStatus.DRAFT;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
+
 }
