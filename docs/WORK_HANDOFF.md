@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 05:19 KST
+Last checked: 2026-06-25 05:25 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -68,11 +68,36 @@ Last checked: 2026-06-25 05:19 KST
 - #51 user project rooms API 로컬 검증 통과. GitHub checks 없음 (base #50에 stacked PR CI workflow 없음)
 - #52 S3 download-url provider 로컬 검증 통과. GitHub checks 없음 (base #46에 stacked PR CI workflow 없음)
 - #53 agent job dispatch boundary 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
-- 열린 PR #19~#53 상태 재확인 완료 (2026-06-25 05:19 KST)
+- #27 agent 핵심 테이블 Flyway 컬럼 고정 테스트 보강. 로컬 검증 통과. GitHub checks 없음
+- 열린 PR #19~#53 상태 재확인 완료 (2026-06-25 05:25 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 39. #27 agent 테이블 Entity/Flyway 정합성 보강
+
+처리 시각: 2026-06-25 05:25 KST
+
+변경 내용:
+
+- #27 `feature/entity-flyway-alignment` 기존 PR 브랜치를 갱신했다.
+- `EntityFlywayAlignmentTest`에 6/25 데이터 모델 기준 agent 핵심 테이블 컬럼 집합 검증을 추가했다.
+- 대상 테이블은 `ai_documents`, `agent_jobs`, `agent_job_events`, `agent_model_call_logs`, `agent_suggestions`다.
+- handoff에 남아 있던 `agent_model_call_logs` 정합성 의심은 실제 Flyway/Entity/데이터 모델 비교 결과 맞는 것으로 확인했다.
+
+검증 결과:
+
+- #27: `./gradlew compileTestJava` 통과
+- #27: `./gradlew cleanTest test` 통과
+- #27: `git diff --check` 통과
+- #27: head `3c96ed4`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #27: GitHub checks 없음. base #27에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 테스트 보강만 다룬다.
+- 타입, FK, 인덱스, enum 값까지의 전체 검증은 후속 Testcontainers/Flyway 검증에서 보강 가능하다.
 
 ### 작업 카드 38. #53 에이전트 작업 dispatch 경계
 
@@ -863,7 +888,7 @@ Last checked: 2026-06-25 05:19 KST
 - #26: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
 - #26: head `1382c41`, base `feature/resource-basic-foundation`, mergeState `CLEAN`, GitHub checks 없음
 - #27: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
-- #27: head `9a8827a`, base `feature/agent-storage-foundation`, mergeState `CLEAN`, GitHub checks 없음
+- #27: head `3c96ed4`, base `feature/agent-storage-foundation`, mergeState `CLEAN`, GitHub checks 없음
 - #28: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과
 - #28: head `810ec58`, base `feature/entity-flyway-alignment`, mergeState `CLEAN`, GitHub Actions `build` 통과
 
@@ -1057,7 +1082,7 @@ Last checked: 2026-06-25 05:19 KST
 - 이번 PR은 내부 저장 기반이다. 에이전트 Controller/API 연결은 별도 PR로 분리한다.
 - 후보 승인 후 확정 데이터 생성은 target 도메인 Service에서 처리해야 한다.
 - `AgentSuggestionType` enum은 현재 코드 기준 후보 타입만 있으며, 최종 API/기획 기준 타입 확장이 필요할 수 있다.
-- Flyway의 `agent_model_call_logs` 테이블 정의와 `AgentModelCallLog` 엔티티가 맞지 않는 흔적이 있어 Entity/Flyway 정합성 카드에서 확인해야 한다.
+- `agent_model_call_logs` 테이블 정의와 `AgentModelCallLog` 엔티티 정합성은 #27 보강에서 확인 완료했다.
 
 ### 작업 카드 6. resource 기본 저장/조회 기반
 
@@ -1150,7 +1175,7 @@ Last checked: 2026-06-25 05:19 KST
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean, draft | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `c01a0fc` | checks 없음, merge clean, draft | 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API 보정 완료 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean, draft | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
-| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean, draft | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
+| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `3c96ed4` | checks 없음, merge clean, draft | agent 핵심 테이블 컬럼 집합 검증 보강. `agent_model_call_logs` 정합성 확인 완료 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
@@ -1236,7 +1261,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 에이전트 작업 생성 | `POST /api/ai/generate-questions`는 확인 질문 후보 생성 작업 생성 | #44 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 작업 생성 | `POST /api/ai/review-contract-documents`는 계약서와 요구사항 문서 검토 작업 생성 | #45 보정 완료. 프로젝트룸 ACTIVE 멤버 권한 확인 후 `agent_jobs` PENDING job 생성까지만 처리한다 |
 | 에이전트 제안함 | `GET /api/agent/suggestions`, `GET /api/project-rooms/{roomId}/agent/suggestions` 포함 | #33 보정 완료. 개인 제안함과 프로젝트룸 ACTIVE 멤버 제안함 조회를 제공한다 |
-| Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
+| Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | #27 보강 완료. `agent_model_call_logs` Flyway 정의는 6/25 데이터 모델/Entity와 맞으며 agent 핵심 테이블 컬럼 집합을 테스트로 고정했다 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
 | WBS 작업판 | `GET /api/project-rooms/{roomId}/wbs-board` 포함 | #21 보정 완료. WBS 항목과 프로젝트룸 TODO를 함께 반환한다 |
@@ -1261,7 +1286,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
 8. draft PR #24~#29, #31~#53은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 Entity/Flyway 정합성 점검, S3 업로드/삭제 StorageService 경계 추가, 또는 agent dispatch queue adapter 초안이다.
+9. 다음 추천 작업은 S3 업로드/삭제 StorageService 경계 추가, agent dispatch queue adapter 초안, 또는 Entity/Flyway 타입/FK/인덱스 검증 보강이다.
 10. #19~#53은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
