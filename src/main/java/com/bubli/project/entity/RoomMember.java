@@ -43,6 +43,24 @@ public class RoomMember {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static RoomMember createLeader(UUID roomId, UUID userId) {
+		RoomMember roomMember = new RoomMember();
+		roomMember.roomId = roomId;
+		roomMember.userId = userId;
+		roomMember.role = RoomMemberRole.PROJECT_LEADER;
+		roomMember.status = RoomMemberStatus.ACTIVE;
+		return roomMember;
+	}
+
+	public static RoomMember createMember(UUID roomId, UUID userId) {
+		RoomMember roomMember = new RoomMember();
+		roomMember.roomId = roomId;
+		roomMember.userId = userId;
+		roomMember.role = RoomMemberRole.MEMBER;
+		roomMember.status = RoomMemberStatus.ACTIVE;
+		return roomMember;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

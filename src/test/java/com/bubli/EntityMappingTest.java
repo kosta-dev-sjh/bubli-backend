@@ -14,7 +14,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(properties = {
-        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.hibernate.ddl-auto=validate",
+        "spring.flyway.enabled=true",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -25,8 +26,7 @@ class EntityMappingTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
             .withDatabaseName("bubli_test")
             .withUsername("bubli")
-            .withPassword("bubli1234")
-            .withInitScript("init-test-db.sql");
+            .withPassword("bubli1234");
 
     @DynamicPropertySource
     static void registerDataSource(DynamicPropertyRegistry registry) {

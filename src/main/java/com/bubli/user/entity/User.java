@@ -51,6 +51,19 @@ public class User {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static User createGoogleUser(String googleSub, String bubliId, String name, String avatarUrl,
+			String locale, String timezone) {
+		User user = new User();
+		user.googleSub = googleSub;
+		user.bubliId = bubliId;
+		user.name = name;
+		user.avatarUrl = avatarUrl;
+		user.locale = locale;
+		user.timezone = timezone;
+		user.status = UserStatus.ACTIVE;
+		return user;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
