@@ -5,7 +5,7 @@
  * - 프로젝트와 프로젝트룸을 합친 project_rooms CRUD
  * - room_members 관리 (PROJECT_LEADER/MEMBER, ACTIVE/LEFT/REMOVED)
  * - 기존 회원 ID 기준 프로젝트룸 초대 (invitee_user_id, 중복 PENDING 방지)
- * - 게스트 초대, 링크 초대, 이메일 초대 제외
+ * - 게스트 초대, 링크 초대 제외
  * - 멤버 역할 변경, 나가기, 내보내기
  * - 프로젝트 리더 0명 방지
  * - 계약 참고값 (contract_amount, payment_status 등)
