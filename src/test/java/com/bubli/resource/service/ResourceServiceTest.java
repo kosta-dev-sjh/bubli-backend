@@ -12,13 +12,16 @@ import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
+import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
+import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +56,9 @@ class ResourceServiceTest {
 
 	@Mock
 	ResourceFileRepository resourceFileRepository;
+
+	@Mock
+	ResourceSummaryRepository resourceSummaryRepository;
 
 	@Mock
 	ResourceVersionRepository resourceVersionRepository;
@@ -366,6 +372,41 @@ class ResourceServiceTest {
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().versionNo()).isEqualTo(1);
 		assertThat(result.getItems().getFirst().originalName()).isEqualTo("계약서.pdf");
+	}
+
+	@Test
+	void getResourceSummaryRequiresReadableResourceAndReturnsLatestSummary() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"요약 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceSummary summary = ResourceSummary.create(
+				resourceId,
+				jobId,
+				"{\"summary\":\"핵심 요약\"}",
+				"{\"items\":[]}",
+				ResourceSummaryStatus.SUCCEEDED,
+				"prompt-v1",
+				"schema-v1",
+				"gpt-test"
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId))
+				.willReturn(Optional.of(summary));
+
+		var result = resourceService.getResourceSummary(userId, resourceId);
+
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.jobId()).isEqualTo(jobId);
+		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.SUCCEEDED);
+		assertThat(result.summaryJson()).contains("핵심 요약");
 	}
 
 	@Test

@@ -8,14 +8,17 @@ import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
+import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -39,6 +42,7 @@ public class ResourceService {
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
 	private final ResourceFileRepository resourceFileRepository;
+	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final RoomAccessService roomAccessService;
 
@@ -91,6 +95,14 @@ public class ResourceService {
 				.findByResourceId(resourceId, withVersionDefaultSort(pageable))
 				.map(this::toVersionResult);
 		return toVersionPageResponse(page);
+	}
+
+	@Transactional(readOnly = true)
+	public ResourceSummaryResult getResourceSummary(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		ResourceSummary summary = resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_004));
+		return ResourceSummaryResult.from(summary);
 	}
 
 	@Transactional

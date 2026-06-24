@@ -11,6 +11,7 @@ import com.bubli.resource.dto.ResourceCommentResponse;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSummaryResponse;
 import com.bubli.resource.dto.ResourceVersionResponse;
 import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.dto.UpdateResourceCommentRequest;
@@ -104,6 +105,16 @@ public class ResourceController {
 	) {
 		return ApiResponse.success(mapVersionPage(
 				resourceService.getResourceVersions(authUser.userId(), resourceId, pageable)
+		));
+	}
+
+	@GetMapping("/api/resources/{resourceId}/summary")
+	public ApiResponse<ResourceSummaryResponse> getResourceSummary(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		return ApiResponse.success(ResourceSummaryResponse.from(
+				resourceService.getResourceSummary(authUser.userId(), resourceId)
 		));
 	}
 
