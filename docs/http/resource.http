@@ -37,3 +37,16 @@ Content-Type: application/json
 ### 자료 상세
 GET {{baseUrl}}/api/resources/{{resourceId}}
 Authorization: Bearer {{accessToken}}
+
+### 자료 메타데이터 수정
+PATCH {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "계약서 초안 v2"
+}
+
+### 자료 삭제
+DELETE {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}

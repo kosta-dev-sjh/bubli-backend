@@ -120,7 +120,7 @@ class AgentStorageServiceTest {
 				null,
 				jobId,
 				resourceId,
-				AgentSuggestionType.TASK,
+				AgentSuggestionType.TODO,
 				"{\"title\":\"시안 정리\"}",
 				"{\"source\":\"resource\"}"
 		));
