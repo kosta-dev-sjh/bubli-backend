@@ -46,6 +46,41 @@ public class AiDocument {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	private AiDocument(
+			UUID resourceId,
+			UUID roomId,
+			AiDocumentType documentType,
+			BigDecimal detectedConfidence,
+			AiDocumentStatus status
+	) {
+		this.resourceId = resourceId;
+		this.roomId = roomId;
+		this.documentType = documentType;
+		this.detectedConfidence = detectedConfidence;
+		this.status = status;
+	}
+
+	public static AiDocument create(
+			UUID resourceId,
+			UUID roomId,
+			AiDocumentType documentType,
+			BigDecimal detectedConfidence
+	) {
+		return new AiDocument(resourceId, roomId, documentType, detectedConfidence, AiDocumentStatus.READY);
+	}
+
+	public void markAnalyzing() {
+		this.status = AiDocumentStatus.ANALYZING;
+	}
+
+	public void markAnalyzed() {
+		this.status = AiDocumentStatus.ANALYZED;
+	}
+
+	public void markFailed() {
+		this.status = AiDocumentStatus.FAILED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
