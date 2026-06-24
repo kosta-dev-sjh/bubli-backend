@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 01:07 KST
+Last checked: 2026-06-25 01:15 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -40,7 +40,7 @@ Last checked: 2026-06-25 01:07 KST
 - GitHub Actions CI 통과 (#19, 2026-06-25 00:55 KST)
 - GitHub Actions CI 통과 (#20, 2026-06-25 01:01 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
-- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 01:07 KST)
+- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 01:15 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
@@ -56,6 +56,7 @@ Last checked: 2026-06-25 01:07 KST
 - #20 `feature/chat-basic-api`에 `POST /api/chat/direct-rooms`를 추가했다.
 - #21 `feature/work-task-wbs-api`에 `GET /api/dashboard/tasks`를 추가했다.
 - #24 `feature/auth-google-foundation`에 Google authorize/callback endpoint 뼈대를 반영하고 `POST /api/auth/login` 뼈대를 제거했다.
+- #25 `feature/resource-basic-foundation`에 `PATCH /api/resources/{id}`, `DELETE /api/resources/{id}`를 추가했다.
 - #26 `feature/agent-storage-foundation`에 6/25 기준 agent suggestion/job enum을 확장했다.
 - #19, #20, #24, #26 PR 본문을 현재 변경 내용과 검증 결과 기준으로 갱신했다.
 
@@ -65,11 +66,13 @@ Last checked: 2026-06-25 01:07 KST
 - #20: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check`, GitHub Actions `build` pass
 - #21: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check`, GitHub Actions `build` pass
 - #24: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과. GitHub checks 없음
+- #25: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과. GitHub checks 없음. base 갱신 병합 중 `docs/WORK_HANDOFF.md` 충돌로 PR mergeState `DIRTY`
 - #26: `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 통과. GitHub checks 없음
 
 메모:
 
 - #24와 #26은 workflow 보강 전 생성된 draft stacked PR이라 GitHub checks가 없다.
+- #25도 workflow 보강 전 생성된 draft stacked PR이라 GitHub checks가 없다. #24 최신 base를 병합하려다 `docs/WORK_HANDOFF.md` 충돌이 나서 병합은 abort했다.
 - #24 변경에는 `SecurityConfig`의 auth permit 경로 보정이 포함된다. Gradle, GitHub Actions, PR 템플릿, README 같은 초기 개발환경 세팅 파일은 건드리지 않았다.
 - #19 브랜치에는 `docs/WORK_HANDOFF.md`가 없어서 새 파일을 추가하지 않았다. #19 결과는 PR 본문과 이 최신 handoff 문서에 기록했다.
 
@@ -241,7 +244,7 @@ Last checked: 2026-06-25 01:07 KST
 | #22 | `feat: 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
 | #23 | `feat: 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
 | #24 | `chore: Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
-| #25 | `feat: 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `3ab98f8` | checks 없음, merge clean | 자료 메타데이터 저장/조회 기반은 있음. 파일/버전/댓글/요약/AI 문서/다운로드 URL API는 별도 보정 필요 |
+| #25 | `feat: 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `35f3219` | checks 없음, merge dirty | 6/25 기준 자료 메타데이터 수정/삭제 보정 완료. #24 base 병합 중 `docs/WORK_HANDOFF.md` 충돌 발생 |
 | #26 | `feat: 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `cf3389b` | checks 없음, merge clean | 6/25 기준 `AgentSuggestionType`, `AgentJobType` enum 확장 보정 완료 |
 | #27 | `test: Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `af54d17` | checks 없음, merge clean | 테이블/컬럼 검사는 있음. 타입, FK, 인덱스, enum 값 검증은 아직 없음 |
 | #28 | `ci: stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d6aa68e` | `build` pass, merge clean | stacked PR CI 보강 완료 |
@@ -257,7 +260,7 @@ Last checked: 2026-06-25 01:07 KST
 | 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks 보정 완료. WBS board/reorder, time_logs는 별도 PR로 나눈다 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `ai_documents` | #25는 메타데이터 기반으로 유지하고, patch/delete/download-url/version/comment/summary/ai-document API는 후속 PR로 나눈다 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `ai_documents` | #25에서 metadata patch/delete 보정 완료. download-url/version/comment/summary/ai-document API는 후속 PR로 나눈다 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
@@ -274,6 +277,7 @@ Last checked: 2026-06-25 01:07 KST
 | 인증 | Google-only authorize/callback, refresh, logout | #24 보정 완료. signup/email-password는 되살리지 않음 |
 | 자료 상태값 | `ResourceResponse.status` 예시는 `UPLOADED`, `ANALYZING`, `ANALYZED`, `FAILED`, `ARCHIVED` | 당시 데이터 딕셔너리와 코드 enum은 `UPLOADING`, `READY`, `ANALYZING`, `ANALYZED`, `FAILED`, `DELETED`이었다. 6/25 기준으로 상태값 명칭 재확인 필요 |
 | 자료 업로드 | `POST /api/resources`는 개인 또는 프로젝트룸 자료 업로드 | #25는 파일/S3 업로드 전 단계의 자료 카드 메타데이터 저장/조회 기반만 구현함. multipart 업로드, 파일 메타데이터, 버전 생성은 별도 PR 필요 |
+| 자료 수정/삭제 | `PATCH /api/resources/{id}`, `DELETE /api/resources/{id}` 포함 | #25 보정 완료. 단, #24 base 갱신과 handoff 충돌 때문에 PR mergeState는 DIRTY |
 | 에이전트 후보 타입 | 기획/가이드는 TODO, WBS, REQUIREMENT, SCHEDULE, QUESTION, CONTRACT_FIELD, CONTRACT_REVIEW, DOCUMENT_DRAFT, DAILY_SUMMARY, MEMO 등 후보를 통합 저장한다고 설명 | #26 보정 완료. `TASK`, `REVIEW_ITEM`은 기존 데이터 모델 표와 저장값 호환을 위해 유지 |
 | Entity/Flyway | `agent_model_call_logs` 엔티티와 Flyway 테이블 정의 | Flyway 정의가 모델 호출 로그가 아니라 agent suggestion 형태 컬럼을 가진 것으로 보인다. 별도 정합성 PR에서 확인 필요 |
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
