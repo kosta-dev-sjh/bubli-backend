@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 01:51 KST
+Last checked: 2026-06-25 02:06 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -41,11 +41,41 @@ Last checked: 2026-06-25 01:51 KST
 - GitHub Actions CI 통과 (#20, 2026-06-25 01:01 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
-- 열린 PR #19~#29 상태 재확인 완료 (2026-06-25 01:38 KST)
+- #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
+- 열린 PR #19~#30 상태 재확인 완료 (2026-06-25 02:06 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 12. time_logs 기본 API 추가
+
+처리 시각: 2026-06-25 02:06 KST
+
+변경 내용:
+
+- #30 `feature/time-log-basic-api`를 #21 `feature/work-task-wbs-api` 위의 stacked PR로 생성했다.
+- `POST /api/time-logs/start`를 추가했다.
+- `PATCH /api/time-logs/{id}/pause`, `resume`, `stop`, `heartbeat`를 추가했다.
+- `idempotencyKey` 기준으로 중복 시작 요청은 기존 time_log를 반환하게 했다.
+- 일반 타이머와 작업 타이머를 `timer_type`으로 구분한다.
+- 작업 타이머가 `room_id`와 연결되면 `room_members.status=ACTIVE` 기준으로 권한을 검사한다.
+- Tauri `local_timer_state`는 서버 JPA 엔티티로 만들지 않았다.
+- `docs/http/personal.http`에 타이머 수동 검증 예시를 추가했다.
+
+검증 결과:
+
+- #30: `./gradlew compileTestJava` 통과
+- #30: `./gradlew cleanTest test` 통과
+- #30: `git diff --check` 통과
+- #30: head `f162377`, base `feature/work-task-wbs-api`, mergeState `CLEAN`
+- #30: GitHub checks 없음. base #21에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 현재 DB 기준 `time_logs`에는 `task_id`, `wbs_item_id`가 없으므로 TODO/WBS 직접 연결은 넣지 않았다.
+- 타이머 복구 정책은 Tauri `local_timer_state`와 앱 복구 UX가 확정되면 보강한다.
+- #30 변경에는 Gradle, GitHub Actions, PR 템플릿, README, SETUP 같은 초기 개발환경 세팅 파일 변경이 없다.
 
 ### 작업 카드 11-3. #21 WBS board/reorder 보정
 
@@ -372,7 +402,7 @@ Last checked: 2026-06-25 01:51 KST
 |---|---|---|---|---|---|---|
 | #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | `build` pass, merge blocked | 6/25 기준 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 완료 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `d2eada3` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회 API 보정 완료. read DTO는 최종 기준에서 추가 확인 필요 |
-| #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 별도 보정 필요 |
+| #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
@@ -380,7 +410,8 @@ Last checked: 2026-06-25 01:51 KST
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `1382c41` | checks 없음, merge clean | 6/25 기준 agent enum 보정 완료. #25 base 병합 충돌 정리 완료 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `9a8827a` | checks 없음, merge clean | 테이블/컬럼 검사 유지. #26 base 병합 충돌 정리 완료 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `810ec58` | `build` pass, merge clean | stacked PR CI 보강 완료. #27 base 병합 뒤 CI 재통과 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `903165e` | `build` pass, merge clean | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `39d0ae2` | `build` pass, merge clean | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 
 ## 6/25 기준 재검토 후보
 
@@ -389,7 +420,7 @@ Last checked: 2026-06-25 01:51 KST
 | 문서 기준 | `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md` | 6/24 참조를 활성 문서에서 제거하고 archive로만 보존 |
 | 프로젝트룸/초대 | `POST/GET /api/project-rooms/{roomId}/invitations`, `PATCH /api/invitations/{id}/accept`, `PATCH /api/invitations/{id}/cancel`, 멤버 역할 변경/삭제 | #19에서 보정 완료. 6/25 기준에는 invite-links API가 없다 |
 | 채팅 | room sequence, 읽음 상태, direct room API 기준 | #20에서 `POST /api/chat/direct-rooms` 보정 완료. `lastReadSequence`와 read DTO는 최종 기준에서 추가 확인 필요 |
-| 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. time_logs는 별도 PR로 나눈다 |
+| 작업/WBS/타이머 | WBS, tasks, time_logs 책임 분리 | #21에서 dashboard tasks, WBS board/reorder 보정 완료. #30에서 time_logs 기본 API 추가 |
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `ai_documents` | #25에서 metadata patch/delete 보정 완료. download-url/version/comment/summary/ai-document API는 후속 PR로 나눈다 |
@@ -415,7 +446,7 @@ Last checked: 2026-06-25 01:51 KST
 | 채팅 | `POST /api/chat/direct-rooms` 포함 | #20 보정 완료. 기존 DIRECT 방이 있으면 재사용하고 없으면 새 방을 만든다 |
 | 작업 대시보드 | `GET /api/dashboard/tasks` 포함 | #21 보정 완료. 개인 TODO와 담당 프로젝트룸 TODO를 함께 조회한다 |
 | WBS 작업판 | `GET /api/project-rooms/{roomId}/wbs-board` 포함 | #21 보정 완료. WBS 항목과 프로젝트룸 TODO를 함께 반환한다 |
-| 타이머 | `POST /api/time-logs/start`, pause, resume, stop, heartbeat 포함 | #21에 섞지 말고 `personal/timer` 또는 별도 time-log PR로 분리하는 편이 안전함 |
+| 타이머 | `POST /api/time-logs/start`, pause, resume, stop, heartbeat 포함 | #30 보정 완료. `personal.timer`에서 `time_logs`를 원본으로 처리한다 |
 | 일정 | `GET/POST/PATCH/DELETE /api/schedules` | #22와 대체로 맞음. Google Calendar 직접 연동은 별도 PR로 분리 가능 |
 
 ## 구조 검토 메모
@@ -435,8 +466,8 @@ Last checked: 2026-06-25 01:51 KST
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 6. #28은 #27 최신 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. 다음 추천 작업은 `time_logs`, resource download/version/comment/summary/ai-document API 중 하나를 별도 PR로 나누는 것이다.
-9. #19~#29는 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. 다음 추천 작업은 resource download/version/comment/summary/ai-document API 또는 agent Controller/API 연결 중 하나를 별도 PR로 나누는 것이다.
+9. #19~#30은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
