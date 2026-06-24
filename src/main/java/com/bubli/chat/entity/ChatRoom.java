@@ -2,7 +2,8 @@ package com.bubli.chat.entity;
 
 import com.bubli.chat.type.ChatRoomStatus;
 import com.bubli.chat.type.ChatType;
-import com.bubli.global.entity.BaseTimeEntity;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "chat_rooms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatRoom extends BaseTimeEntity {
+public class ChatRoom {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -34,5 +35,23 @@ public class ChatRoom extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private ChatRoomStatus status = ChatRoomStatus.ACTIVE;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

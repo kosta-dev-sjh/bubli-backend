@@ -1,8 +1,9 @@
 package com.bubli.widget.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.widget.type.BubbleType;
 import java.math.BigDecimal;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Table(name = "widget_bubble_settings",
 	uniqueConstraints = @UniqueConstraint(name = "uk_widget_bubble_settings_user_type", columnNames = {"user_id", "bubble_type"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WidgetBubbleSetting extends BaseTimeEntity {
+public class WidgetBubbleSetting {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -51,5 +52,23 @@ public class WidgetBubbleSetting extends BaseTimeEntity {
 
 	@Column(name = "alert_enabled", nullable = false)
 	private boolean alertEnabled = true;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

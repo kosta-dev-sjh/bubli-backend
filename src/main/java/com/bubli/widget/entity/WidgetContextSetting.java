@@ -1,7 +1,8 @@
 package com.bubli.widget.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.widget.type.WidgetMode;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "widget_context_settings")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WidgetContextSetting extends BaseTimeEntity {
+public class WidgetContextSetting {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -29,5 +30,23 @@ public class WidgetContextSetting extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private WidgetMode mode = WidgetMode.PERSONAL;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

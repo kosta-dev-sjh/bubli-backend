@@ -1,6 +1,5 @@
 package com.bubli.voice.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import java.time.Instant;
 
@@ -15,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "voice_participants")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class VoiceParticipant extends CreatedAtEntity {
+public class VoiceParticipant {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -39,5 +38,13 @@ public class VoiceParticipant extends CreatedAtEntity {
 
 	@Column(name = "mic_status", length = 30)
 	private String micStatus;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

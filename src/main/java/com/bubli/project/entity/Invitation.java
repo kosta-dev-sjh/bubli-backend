@@ -1,6 +1,5 @@
 package com.bubli.project.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
 import java.time.Instant;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "invitations")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Invitation extends BaseTimeEntity {
+public class Invitation {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -44,5 +43,23 @@ public class Invitation extends BaseTimeEntity {
 
 	@Column(name = "accepted_at")
 	private Instant acceptedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

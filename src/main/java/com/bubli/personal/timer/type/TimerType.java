@@ -1,4 +1,4 @@
-package com.bubli.personal.type;
+package com.bubli.personal.timer.type;
 
 public enum TimerType {
 	GENERAL,

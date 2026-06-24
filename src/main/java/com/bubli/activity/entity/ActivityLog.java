@@ -1,6 +1,5 @@
 package com.bubli.activity.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "activity_logs")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ActivityLog extends CreatedAtEntity {
+public class ActivityLog {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -40,5 +39,13 @@ public class ActivityLog extends CreatedAtEntity {
 
 	@Column(name = "duration_seconds", nullable = false)
 	private Long durationSeconds = 0L;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

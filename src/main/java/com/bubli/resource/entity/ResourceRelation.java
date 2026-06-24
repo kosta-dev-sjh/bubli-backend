@@ -1,7 +1,8 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 import java.math.BigDecimal;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Table(name = "resource_relations",
 	uniqueConstraints = @UniqueConstraint(name = "uk_resource_relations_pair", columnNames = {"resource_id", "related_resource_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceRelation extends CreatedAtEntity {
+public class ResourceRelation {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -32,5 +33,13 @@ public class ResourceRelation extends CreatedAtEntity {
 
 	@Column(precision = 8, scale = 5)
 	private BigDecimal score;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

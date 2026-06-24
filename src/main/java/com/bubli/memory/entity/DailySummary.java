@@ -1,6 +1,5 @@
 package com.bubli.memory.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.memory.type.SummaryStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,7 +18,7 @@ import java.util.UUID;
 @Table(name = "daily_summaries",
 	uniqueConstraints = @UniqueConstraint(name = "uk_daily_summaries_user_date", columnNames = {"user_id", "summary_date"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DailySummary extends BaseTimeEntity {
+public class DailySummary {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -41,5 +40,23 @@ public class DailySummary extends BaseTimeEntity {
 
 	@Column(name = "approved_at")
 	private Instant approvedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

@@ -1,7 +1,8 @@
 package com.bubli.storage.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.storage.type.StorageScope;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Table(name = "storage_usage",
 	uniqueConstraints = @UniqueConstraint(name = "uk_storage_usage_scope", columnNames = {"user_id", "room_id", "storage_scope"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class StorageUsage extends BaseTimeEntity {
+public class StorageUsage {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -36,5 +37,23 @@ public class StorageUsage extends BaseTimeEntity {
 
 	@Column(name = "limit_bytes", nullable = false)
 	private Long limitBytes;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

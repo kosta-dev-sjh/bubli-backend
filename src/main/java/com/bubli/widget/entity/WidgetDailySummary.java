@@ -1,6 +1,5 @@
 package com.bubli.widget.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Table(name = "widget_daily_summaries",
 	uniqueConstraints = @UniqueConstraint(name = "uk_widget_daily_summaries_rollup", columnNames = {"user_id", "device_id", "summary_date", "bubble_setting_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WidgetDailySummary extends BaseTimeEntity {
+public class WidgetDailySummary {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -48,5 +47,23 @@ public class WidgetDailySummary extends BaseTimeEntity {
 
 	@Column(name = "synced_at", nullable = false)
 	private Instant syncedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

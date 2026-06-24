@@ -1,4 +1,4 @@
-package com.bubli.work.type;
+package com.bubli.work.task.type;
 
 public enum TaskStatus {
 	TODO,

@@ -1,6 +1,7 @@
 package com.bubli.user.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "user_preferences")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class UserPreference extends BaseTimeEntity {
+public class UserPreference {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -30,5 +31,23 @@ public class UserPreference extends BaseTimeEntity {
 
 	@Column(name = "default_room_id")
 	private UUID defaultRoomId;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

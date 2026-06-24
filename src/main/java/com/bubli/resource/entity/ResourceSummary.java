@@ -1,9 +1,10 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "resource_summaries")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceSummary extends BaseTimeEntity {
+public class ResourceSummary {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -48,5 +49,23 @@ public class ResourceSummary extends BaseTimeEntity {
 
 	@Column(name = "model_name", length = 100)
 	private String modelName;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

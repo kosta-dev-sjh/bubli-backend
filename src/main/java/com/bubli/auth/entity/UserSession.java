@@ -2,7 +2,6 @@ package com.bubli.auth.entity;
 
 import com.bubli.auth.type.ClientType;
 import com.bubli.auth.type.SessionStatus;
-import com.bubli.global.entity.BaseTimeEntity;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -17,7 +16,7 @@ import java.util.UUID;
 @Table(name = "user_sessions",
 	uniqueConstraints = @UniqueConstraint(name = "uk_user_sessions_user_client", columnNames = {"user_id", "client_type"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class UserSession extends BaseTimeEntity {
+public class UserSession {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -45,5 +44,23 @@ public class UserSession extends BaseTimeEntity {
 
 	@Column(name = "revoked_at")
 	private Instant revokedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

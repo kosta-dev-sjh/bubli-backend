@@ -2,9 +2,10 @@ package com.bubli.agent.entity;
 
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
-import com.bubli.global.entity.BaseTimeEntity;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "agent_suggestions")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AgentSuggestion extends BaseTimeEntity {
+public class AgentSuggestion {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -50,5 +51,23 @@ public class AgentSuggestion extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private AgentSuggestionStatus status = AgentSuggestionStatus.DRAFT;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

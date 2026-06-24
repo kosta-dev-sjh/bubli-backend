@@ -1,7 +1,8 @@
 package com.bubli.voice.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 import com.bubli.voice.type.VoiceRoomStatus;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "voice_rooms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class VoiceRoom extends CreatedAtEntity {
+public class VoiceRoom {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -32,5 +33,13 @@ public class VoiceRoom extends CreatedAtEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private VoiceRoomStatus status = VoiceRoomStatus.OPEN;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

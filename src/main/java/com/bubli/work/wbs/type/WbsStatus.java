@@ -1,4 +1,4 @@
-package com.bubli.work.type;
+package com.bubli.work.wbs.type;
 
 public enum WbsStatus {
 	TODO,

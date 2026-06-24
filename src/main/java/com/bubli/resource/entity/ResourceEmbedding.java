@@ -1,9 +1,10 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.resource.type.ResourceVisibility;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Table(name = "resource_embeddings",
 	uniqueConstraints = @UniqueConstraint(name = "uk_resource_embeddings_resource_chunk", columnNames = {"resource_id", "chunk_index"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceEmbedding extends BaseTimeEntity {
+public class ResourceEmbedding {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -48,5 +49,23 @@ public class ResourceEmbedding extends BaseTimeEntity {
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "chunk_metadata", columnDefinition = "jsonb")
 	private String chunkMetadata;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

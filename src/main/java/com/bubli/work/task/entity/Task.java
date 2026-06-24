@@ -1,7 +1,6 @@
-package com.bubli.work.entity;
+package com.bubli.work.task.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
-import com.bubli.work.type.TaskStatus;
+import com.bubli.work.task.type.TaskStatus;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -15,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "tasks")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Task extends BaseTimeEntity {
+public class Task {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -45,5 +44,23 @@ public class Task extends BaseTimeEntity {
 
 	@Column(name = "due_at")
 	private Instant dueAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

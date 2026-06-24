@@ -1,8 +1,7 @@
-package com.bubli.personal.entity;
+package com.bubli.personal.timer.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
-import com.bubli.personal.type.TimeLogStatus;
-import com.bubli.personal.type.TimerType;
+import com.bubli.personal.timer.type.TimeLogStatus;
+import com.bubli.personal.timer.type.TimerType;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "time_logs")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class TimeLog extends BaseTimeEntity {
+public class TimeLog {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -56,5 +55,23 @@ public class TimeLog extends BaseTimeEntity {
 
 	@Column(name = "last_heartbeat_at")
 	private Instant lastHeartbeatAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

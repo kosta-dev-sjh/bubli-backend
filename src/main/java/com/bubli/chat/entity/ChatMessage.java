@@ -1,9 +1,10 @@
 package com.bubli.chat.entity;
 
 import com.bubli.chat.type.MessageType;
-import com.bubli.global.entity.CreatedAtEntity;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Table(name = "chat_messages",
 	uniqueConstraints = @UniqueConstraint(name = "uk_chat_messages_room_sequence", columnNames = {"chat_room_id", "room_sequence"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatMessage extends CreatedAtEntity {
+public class ChatMessage {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -45,5 +46,13 @@ public class ChatMessage extends CreatedAtEntity {
 
 	@Column(name = "resource_id")
 	private UUID resourceId;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

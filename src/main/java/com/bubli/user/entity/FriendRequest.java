@@ -1,6 +1,5 @@
 package com.bubli.user.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 import com.bubli.user.type.FriendRequestStatus;
 
 import jakarta.persistence.*;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Table(name = "friend_requests",
 	uniqueConstraints = @UniqueConstraint(name = "uk_friend_requests_pair", columnNames = {"requester_id", "receiver_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class FriendRequest extends CreatedAtEntity {
+public class FriendRequest {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -34,5 +33,13 @@ public class FriendRequest extends CreatedAtEntity {
 
 	@Column(name = "responded_at")
 	private Instant respondedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

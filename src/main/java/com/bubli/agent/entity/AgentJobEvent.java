@@ -1,6 +1,7 @@
 package com.bubli.agent.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "agent_job_events")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AgentJobEvent extends CreatedAtEntity {
+public class AgentJobEvent {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -27,5 +28,13 @@ public class AgentJobEvent extends CreatedAtEntity {
 
 	@Column(columnDefinition = "text")
 	private String message;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

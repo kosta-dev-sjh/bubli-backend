@@ -1,6 +1,5 @@
 package com.bubli.project.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.project.type.PaymentStatus;
 import com.bubli.project.type.ProjectRoomStatus;
 import java.math.BigDecimal;
@@ -18,7 +17,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "project_rooms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ProjectRoom extends BaseTimeEntity {
+public class ProjectRoom {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -52,5 +51,23 @@ public class ProjectRoom extends BaseTimeEntity {
 
 	@Column(name = "closed_at")
 	private Instant closedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

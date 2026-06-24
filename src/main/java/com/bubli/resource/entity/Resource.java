@@ -1,6 +1,5 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -17,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "resources")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Resource extends BaseTimeEntity {
+public class Resource {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -46,5 +45,23 @@ public class Resource extends BaseTimeEntity {
 
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

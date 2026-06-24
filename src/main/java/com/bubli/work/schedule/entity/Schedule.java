@@ -1,7 +1,6 @@
-package com.bubli.work.entity;
+package com.bubli.work.schedule.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
-import com.bubli.work.type.ScheduleSyncStatus;
+import com.bubli.work.schedule.type.ScheduleSyncStatus;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -15,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "schedules")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Schedule extends BaseTimeEntity {
+public class Schedule {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -54,5 +53,23 @@ public class Schedule extends BaseTimeEntity {
 
 	@Column(name = "last_synced_at")
 	private Instant lastSyncedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

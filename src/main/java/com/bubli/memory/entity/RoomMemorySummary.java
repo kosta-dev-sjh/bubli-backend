@@ -1,9 +1,10 @@
 package com.bubli.memory.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.memory.type.SummaryStatus;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "room_memory_summaries")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class RoomMemorySummary extends BaseTimeEntity {
+public class RoomMemorySummary {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -41,5 +42,23 @@ public class RoomMemorySummary extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private SummaryStatus status = SummaryStatus.DRAFT;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

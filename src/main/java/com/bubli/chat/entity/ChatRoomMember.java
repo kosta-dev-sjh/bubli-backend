@@ -1,7 +1,6 @@
 package com.bubli.chat.entity;
 
 import com.bubli.chat.type.ChatMemberStatus;
-import com.bubli.global.entity.BaseTimeEntity;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Table(name = "chat_room_members",
 	uniqueConstraints = @UniqueConstraint(name = "uk_chat_room_members_room_user", columnNames = {"chat_room_id", "user_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatRoomMember extends BaseTimeEntity {
+public class ChatRoomMember {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -37,5 +36,23 @@ public class ChatRoomMember extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private ChatMemberStatus status = ChatMemberStatus.ACTIVE;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

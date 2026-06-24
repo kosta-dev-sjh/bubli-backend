@@ -1,6 +1,5 @@
 package com.bubli.user.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -15,7 +14,7 @@ import java.util.UUID;
 @Table(name = "friendships",
 	uniqueConstraints = @UniqueConstraint(name = "uk_friendships_pair", columnNames = {"user_id", "friend_user_id"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Friendship extends CreatedAtEntity {
+public class Friendship {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -29,5 +28,13 @@ public class Friendship extends CreatedAtEntity {
 
 	@Column(name = "accepted_at")
 	private Instant acceptedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

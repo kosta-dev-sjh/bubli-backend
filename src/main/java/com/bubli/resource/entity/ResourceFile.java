@@ -1,6 +1,7 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "resource_files")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceFile extends CreatedAtEntity {
+public class ResourceFile {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -36,5 +37,13 @@ public class ResourceFile extends CreatedAtEntity {
 
 	@Column(length = 128)
 	private String checksum;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

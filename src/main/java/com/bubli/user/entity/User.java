@@ -1,6 +1,5 @@
 package com.bubli.user.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.user.type.UserStatus;
 import java.time.Instant;
 
@@ -15,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "users")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User extends BaseTimeEntity {
+public class User {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -45,5 +44,23 @@ public class User extends BaseTimeEntity {
 
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

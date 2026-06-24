@@ -1,4 +1,4 @@
-package com.bubli.work.type;
+package com.bubli.work.schedule.type;
 
 public enum ScheduleSyncStatus {
 	LOCAL_ONLY,

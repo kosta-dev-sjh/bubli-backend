@@ -1,6 +1,5 @@
 package com.bubli.resource.entity;
 
-import com.bubli.global.entity.BaseTimeEntity;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "resource_comments")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceComment extends BaseTimeEntity {
+public class ResourceComment {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -34,5 +33,23 @@ public class ResourceComment extends BaseTimeEntity {
 
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

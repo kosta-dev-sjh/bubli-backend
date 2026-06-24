@@ -1,6 +1,7 @@
 package com.bubli.agent.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
+
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "agent_model_call_logs")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AgentModelCallLog extends CreatedAtEntity {
+public class AgentModelCallLog {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -42,5 +43,13 @@ public class AgentModelCallLog extends CreatedAtEntity {
 
 	@Column(name = "error_code", length = 80)
 	private String errorCode;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

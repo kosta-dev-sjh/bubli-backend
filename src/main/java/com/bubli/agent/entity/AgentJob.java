@@ -2,7 +2,6 @@ package com.bubli.agent.entity;
 
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
-import com.bubli.global.entity.BaseTimeEntity;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "agent_jobs")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AgentJob extends BaseTimeEntity {
+public class AgentJob {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -53,5 +52,23 @@ public class AgentJob extends BaseTimeEntity {
 
 	@Column(name = "finished_at")
 	private Instant finishedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
 
 }

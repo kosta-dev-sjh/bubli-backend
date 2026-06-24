@@ -1,8 +1,7 @@
-package com.bubli.personal.entity;
+package com.bubli.personal.notification.entity;
 
-import com.bubli.global.entity.CreatedAtEntity;
-import com.bubli.personal.type.NotificationSourceType;
-import com.bubli.personal.type.NotificationStatus;
+import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.personal.notification.type.NotificationStatus;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "notifications")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Notification extends CreatedAtEntity {
+public class Notification {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -44,5 +43,13 @@ public class Notification extends CreatedAtEntity {
 
 	@Column(name = "read_at")
 	private Instant readAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@PrePersist
+	private void onCreate() {
+		this.createdAt = Instant.now();
+	}
 
 }

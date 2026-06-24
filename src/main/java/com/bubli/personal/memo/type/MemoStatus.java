@@ -1,4 +1,4 @@
-package com.bubli.personal.type;
+package com.bubli.personal.memo.type;
 
 public enum MemoStatus {
 	ACTIVE,
