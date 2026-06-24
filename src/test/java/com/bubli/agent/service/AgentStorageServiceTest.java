@@ -18,6 +18,8 @@ import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.agent.type.AiDocumentStatus;
 import com.bubli.agent.type.AiDocumentType;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -101,6 +104,37 @@ class AgentStorageServiceTest {
 		assertThat(result.status()).isEqualTo(AgentJobStatus.FAILED);
 		assertThat(result.errorCode()).isEqualTo("MODEL_TIMEOUT");
 		assertThat(result.finishedAt()).isNotNull();
+	}
+
+	@Test
+	void getRequestedJobReturnsOnlyRequesterJob() {
+		UUID userId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				userId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		given(agentJobRepository.findByIdAndRequestedByUserId(jobId, userId)).willReturn(Optional.of(agentJob));
+
+		AgentJobResult result = agentJobService.getRequestedJob(userId, jobId);
+
+		assertThat(result.id()).isEqualTo(jobId);
+		assertThat(result.requestedByUserId()).isEqualTo(userId);
+		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
+	}
+
+	@Test
+	void getRequestedJobThrowsAgentNotFoundWhenRequesterDoesNotOwnJob() {
+		UUID userId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(agentJobRepository.findByIdAndRequestedByUserId(jobId, userId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> agentJobService.getRequestedJob(userId, jobId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_001));
 	}
 
 	@Test

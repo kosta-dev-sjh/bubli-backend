@@ -35,6 +35,9 @@ public enum ErrorCode {
     RESOURCE_403_001(HttpStatus.FORBIDDEN, "RESOURCE_403_001", "자료 접근 권한이 없습니다."),
     RESOURCE_404_001(HttpStatus.NOT_FOUND, "RESOURCE_404_001", "자료를 찾을 수 없습니다."),
 
+    // AGENT
+    AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "에이전트 작업을 찾을 수 없습니다."),
+
     // SCHEDULE
     SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),
     SCHEDULE_403_001(HttpStatus.FORBIDDEN, "SCHEDULE_403_001", "일정 접근 권한이 없습니다."),
