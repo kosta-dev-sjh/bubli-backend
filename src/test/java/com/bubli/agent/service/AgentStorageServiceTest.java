@@ -1,5 +1,6 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.dispatch.AgentJobDispatchEvent;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.AgentSuggestionResult;
 import com.bubli.agent.dto.AiDocumentResult;
@@ -30,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -55,6 +57,9 @@ class AgentStorageServiceTest {
 
 	@Mock
 	AgentJobEventRepository agentJobEventRepository;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@Mock
 	AgentSuggestionRepository agentSuggestionRepository;
@@ -101,6 +106,14 @@ class AgentStorageServiceTest {
 		verify(agentJobRepository).save(jobCaptor.capture());
 		assertThat(jobCaptor.getValue().getResourceId()).isEqualTo(resourceId);
 		assertThat(jobCaptor.getValue().getRoomId()).isEqualTo(roomId);
+
+		ArgumentCaptor<AgentJobDispatchEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobDispatchEvent.class);
+		verify(eventPublisher).publishEvent(eventCaptor.capture());
+		assertThat(eventCaptor.getValue().command().jobId()).isEqualTo(jobId);
+		assertThat(eventCaptor.getValue().command().requestedByUserId()).isEqualTo(userId);
+		assertThat(eventCaptor.getValue().command().roomId()).isEqualTo(roomId);
+		assertThat(eventCaptor.getValue().command().resourceId()).isEqualTo(resourceId);
+		assertThat(eventCaptor.getValue().command().jobType()).isEqualTo(AgentJobType.ANALYZE_RESOURCE);
 	}
 
 	@Test

@@ -1,5 +1,6 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.dispatch.AgentJobDispatchEvent;
 import com.bubli.agent.dto.AgentJobEventResult;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
@@ -10,6 +11,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +27,7 @@ public class AgentJobService {
 
 	private final AgentJobRepository agentJobRepository;
 	private final AgentJobEventRepository agentJobEventRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
@@ -34,7 +37,9 @@ public class AgentJobService {
 				command.resourceId(),
 				command.jobType()
 		);
-		return AgentJobResult.from(agentJobRepository.save(agentJob));
+		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
+		eventPublisher.publishEvent(AgentJobDispatchEvent.from(savedAgentJob));
+		return AgentJobResult.from(savedAgentJob);
 	}
 
 	@Transactional(readOnly = true)
