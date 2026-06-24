@@ -392,7 +392,7 @@ class ResourceServiceTest {
 				jobId,
 				"{\"summary\":\"핵심 요약\"}",
 				"{\"items\":[]}",
-				ResourceSummaryStatus.SUCCEEDED,
+				ResourceSummaryStatus.ANALYZED,
 				"prompt-v1",
 				"schema-v1",
 				"gpt-test"
@@ -405,7 +405,7 @@ class ResourceServiceTest {
 
 		assertThat(result.resourceId()).isEqualTo(resourceId);
 		assertThat(result.jobId()).isEqualTo(jobId);
-		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.SUCCEEDED);
+		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.ANALYZED);
 		assertThat(result.summaryJson()).contains("핵심 요약");
 	}
 
