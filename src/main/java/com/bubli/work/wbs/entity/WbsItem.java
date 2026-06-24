@@ -44,6 +44,31 @@ public class WbsItem {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static WbsItem create(UUID roomId, UUID parentId, String title, Integer orderNo, WbsStatus status) {
+		WbsItem item = new WbsItem();
+		item.roomId = roomId;
+		item.parentId = parentId;
+		item.title = title;
+		item.orderNo = orderNo;
+		item.status = status == null ? WbsStatus.TODO : status;
+		return item;
+	}
+
+	public void update(String title, UUID parentId, Integer orderNo, WbsStatus status) {
+		if (title != null) {
+			this.title = title;
+		}
+		if (parentId != null) {
+			this.parentId = parentId;
+		}
+		if (orderNo != null) {
+			this.orderNo = orderNo;
+		}
+		if (status != null) {
+			this.status = status;
+		}
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

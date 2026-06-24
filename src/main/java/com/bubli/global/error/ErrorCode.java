@@ -27,6 +27,11 @@ public enum ErrorCode {
     PROJECT_403_001(HttpStatus.FORBIDDEN, "PROJECT_403_001", "프로젝트룸 접근 권한이 없습니다."),
     PROJECT_404_001(HttpStatus.NOT_FOUND, "PROJECT_404_001", "프로젝트룸을 찾을 수 없습니다."),
 
+    // WORK
+    WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),
+    WORK_404_001(HttpStatus.NOT_FOUND, "WORK_404_001", "TODO를 찾을 수 없습니다."),
+    WORK_404_002(HttpStatus.NOT_FOUND, "WORK_404_002", "WBS 항목을 찾을 수 없습니다."),
+
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 

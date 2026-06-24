@@ -1,0 +1,89 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-room-id-here
+@taskId = paste-task-id-here
+@wbsItemId = paste-wbs-item-id-here
+@userId = paste-user-id-here
+
+### 개인 TODO 목록
+GET {{baseUrl}}/api/tasks?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 내가 담당자인 TODO 목록
+GET {{baseUrl}}/api/tasks?scope=assigned&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 개인 TODO 생성
+POST {{baseUrl}}/api/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "오늘 할 일 정리",
+  "description": "회의 내용 기준으로 정리",
+  "status": "TODO",
+  "dueAt": "2026-07-01T09:00:00Z"
+}
+
+### 프로젝트룸 TODO 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/tasks?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 TODO 생성
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "assigneeUserId": "{{userId}}",
+  "wbsItemId": "{{wbsItemId}}",
+  "title": "계약서 확인",
+  "description": "범위와 납기 확인",
+  "status": "IN_PROGRESS",
+  "dueAt": "2026-07-02T09:00:00Z"
+}
+
+### TODO 수정
+PATCH {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "계약서 확인 완료",
+  "status": "DONE"
+}
+
+### TODO 삭제
+DELETE {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 WBS 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items?page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 WBS 생성
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "parentId": null,
+  "title": "요구사항 정리",
+  "orderNo": null,
+  "status": "TODO"
+}
+
+### WBS 수정
+PATCH {{baseUrl}}/api/wbs-items/{{wbsItemId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "요구사항 정리 완료",
+  "orderNo": 1,
+  "status": "DONE"
+}
+
+### WBS 삭제
+DELETE {{baseUrl}}/api/wbs-items/{{wbsItemId}}
+Authorization: Bearer {{accessToken}}
