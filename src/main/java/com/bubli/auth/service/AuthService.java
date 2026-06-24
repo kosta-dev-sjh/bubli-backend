@@ -1,7 +1,8 @@
 package com.bubli.auth.service;
 
-import com.bubli.auth.dto.AuthLoginRequest;
 import com.bubli.auth.dto.AuthTokenResponse;
+import com.bubli.auth.dto.GoogleAuthorizeResponse;
+import com.bubli.auth.dto.GoogleCallbackRequest;
 import com.bubli.auth.dto.RefreshTokenRequest;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
@@ -14,8 +15,14 @@ import java.util.UUID;
 public class AuthService {
 
 	@Transactional
-	public AuthTokenResponse login(AuthLoginRequest request) {
-		// TODO: Google ID token 검증 후 users와 user_sessions를 생성하거나 갱신한다.
+	public GoogleAuthorizeResponse createGoogleAuthorizeUrl() {
+		// TODO: Google OAuth authorize URL을 client type, state, redirect URI 기준으로 만든다.
+		throw new BusinessException(ErrorCode.AUTH_501_001);
+	}
+
+	@Transactional
+	public AuthTokenResponse handleGoogleCallback(GoogleCallbackRequest request) {
+		// TODO: Google OAuth code 검증 후 users와 user_sessions를 생성하거나 갱신한다.
 		// TODO: refresh token 원문은 저장하지 않고 hash로 저장하도록 구현한다.
 		throw new BusinessException(ErrorCode.AUTH_501_001);
 	}

@@ -1,18 +1,22 @@
 @baseUrl = http://localhost:8080
 @accessToken = paste-access-token-here
 @refreshToken = paste-refresh-token-here
+@redirectUri = http://localhost:3000/auth/callback
 
 ### 내 프로필 조회
 GET {{baseUrl}}/api/me
 Authorization: Bearer {{accessToken}}
 
-### Google 로그인
-### TODO: 프론트 Google 로그인 방식이 확정되면 googleIdToken 발급 위치를 연결한다.
-POST {{baseUrl}}/api/auth/login
+### Google OAuth 로그인 시작 URL
+GET {{baseUrl}}/api/auth/google/authorize
+
+### Google OAuth callback
+POST {{baseUrl}}/api/auth/google/callback
 Content-Type: application/json
 
 {
-  "googleIdToken": "paste-google-id-token-here",
+  "code": "paste-google-oauth-code-here",
+  "redirectUri": "{{redirectUri}}",
   "clientType": "WEB"
 }
 
