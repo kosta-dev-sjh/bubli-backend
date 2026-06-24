@@ -40,6 +40,10 @@ public enum ErrorCode {
     RESOURCE_501_001(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_001", "자료 저장소 URL 발급이 아직 연결되지 않았습니다."),
     RESOURCE_501_002(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_002", "자료 저장소 저장/삭제가 아직 연결되지 않았습니다."),
 
+    // STORAGE
+    STORAGE_400_001(HttpStatus.BAD_REQUEST, "STORAGE_400_001", "저장 용량 요청 값이 올바르지 않습니다."),
+    STORAGE_400_002(HttpStatus.BAD_REQUEST, "STORAGE_400_002", "저장 용량 한도를 초과했습니다."),
+
     // SCHEDULE
     SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),
     SCHEDULE_403_001(HttpStatus.FORBIDDEN, "SCHEDULE_403_001", "일정 접근 권한이 없습니다."),

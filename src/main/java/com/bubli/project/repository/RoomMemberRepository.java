@@ -5,6 +5,7 @@ import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface RoomMemberRepository extends JpaRepository<RoomMember, UUID> {
@@ -17,4 +18,6 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, UUID> {
 			RoomMemberStatus status,
 			RoomMemberRole role
 	);
+
+	List<RoomMember> findByUserIdAndStatus(UUID userId, RoomMemberStatus status);
 }
