@@ -33,6 +33,10 @@ class EntityFlywayAlignmentTest {
 			"CREATE TABLE (\\w+) \\((.*?)\\n\\);",
 			Pattern.DOTALL
 	);
+	private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(
+			"CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(\\w+)\\s+ON\\s+(\\w+)\\s+\\(([^)]+)\\);",
+			Pattern.CASE_INSENSITIVE
+	);
 	private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("@Table\\(name = \"([^\"]+)\"");
 	private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("@Column\\(name = \"([^\"]+)\"");
 	private static final Pattern FIELD_PATTERN = Pattern.compile("private\\s+[^;=]+\\s+(\\w+)\\s*(?:=[^;]+)?;");
@@ -216,6 +220,33 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void coreLookupIndexesMatchCurrentDataDictionaryAccessPatterns() throws IOException {
+		Map<String, String> indexes = parseIndexes(Files.readString(MIGRATION));
+
+		assertThat(indexes).containsAllEntriesOf(Map.ofEntries(
+				entry("idx_room_members_user_status", "room_members(user_id,status)"),
+				entry("idx_room_members_room_status", "room_members(room_id,status)"),
+				entry("idx_invitations_room_status", "invitations(room_id,status)"),
+				entry("idx_resources_owner_status", "resources(owner_id,status)"),
+				entry("idx_resources_room_status", "resources(room_id,status)"),
+				entry("idx_resource_comments_resource_created", "resource_comments(resource_id,created_at)"),
+				entry("idx_agent_jobs_requested_status", "agent_jobs(requested_by_user_id,status)"),
+				entry("idx_agent_jobs_room_status", "agent_jobs(room_id,status)"),
+				entry("idx_agent_suggestions_user_status", "agent_suggestions(user_id,status)"),
+				entry("idx_agent_suggestions_room_status", "agent_suggestions(room_id,status)"),
+				entry("idx_ai_documents_room_status", "ai_documents(room_id,status)"),
+				entry("idx_tasks_owner_status_due", "tasks(owner_user_id,status,due_at)"),
+				entry("idx_tasks_room_status_due", "tasks(room_id,status,due_at)"),
+				entry("idx_schedules_owner_starts", "schedules(owner_user_id,starts_at)"),
+				entry("idx_schedules_room_starts", "schedules(room_id,starts_at)"),
+				entry("idx_time_logs_user_status", "time_logs(user_id,status)"),
+				entry("idx_time_logs_room_status", "time_logs(room_id,status)"),
+				entry("idx_chat_room_members_user_status", "chat_room_members(user_id,status)"),
+				entry("idx_chat_messages_chat_room_created", "chat_messages(chat_room_id,created_at)")
+		));
+	}
+
+	@Test
 	void agentEnumsContainCurrentDataDictionaryValues() {
 		assertThat(enumNames(AiDocumentStatus.class))
 				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");
@@ -305,6 +336,18 @@ class EntityFlywayAlignmentTest {
 			schema.put(tableName, foreignKeys);
 		}
 		return schema;
+	}
+
+	private Map<String, String> parseIndexes(String sql) {
+		Map<String, String> indexes = new HashMap<>();
+		Matcher indexMatcher = CREATE_INDEX_PATTERN.matcher(sql);
+		while (indexMatcher.find()) {
+			String indexName = indexMatcher.group(1);
+			String tableName = indexMatcher.group(2);
+			String columns = indexMatcher.group(3).replaceAll("\\s+", "");
+			indexes.put(indexName, tableName + "(" + columns + ")");
+		}
+		return indexes;
 	}
 
 	private void assertTableColumns(Map<String, Set<String>> schema, String tableName, Set<String> expectedColumns) {
