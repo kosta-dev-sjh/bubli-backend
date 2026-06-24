@@ -215,7 +215,9 @@ CREATE TABLE ai_documents (
     detected_confidence NUMERIC(5, 4),
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_ai_documents_resource FOREIGN KEY (resource_id) REFERENCES resources(id),
+    CONSTRAINT fk_ai_documents_room FOREIGN KEY (room_id) REFERENCES project_rooms(id)
 );
 
 CREATE TABLE agent_jobs (
@@ -231,7 +233,10 @@ CREATE TABLE agent_jobs (
     started_at TIMESTAMPTZ,
     finished_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_agent_jobs_requested_by_user FOREIGN KEY (requested_by_user_id) REFERENCES users(id),
+    CONSTRAINT fk_agent_jobs_room FOREIGN KEY (room_id) REFERENCES project_rooms(id),
+    CONSTRAINT fk_agent_jobs_resource FOREIGN KEY (resource_id) REFERENCES resources(id)
 );
 
 CREATE TABLE agent_job_events (
@@ -239,7 +244,8 @@ CREATE TABLE agent_job_events (
     job_id UUID NOT NULL,
     event_type VARCHAR(60) NOT NULL,
     message TEXT,
-    created_at TIMESTAMPTZ NOT NULL
+    created_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_agent_job_events_job FOREIGN KEY (job_id) REFERENCES agent_jobs(id)
 );
 
 CREATE TABLE agent_model_call_logs (
@@ -252,7 +258,8 @@ CREATE TABLE agent_model_call_logs (
     input_tokens INTEGER,
     output_tokens INTEGER,
     error_code VARCHAR(80),
-    created_at TIMESTAMPTZ NOT NULL
+    created_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_agent_model_call_logs_job FOREIGN KEY (job_id) REFERENCES agent_jobs(id)
 );
 
 CREATE TABLE agent_suggestions (
@@ -266,7 +273,11 @@ CREATE TABLE agent_suggestions (
     evidence_json JSONB,
     status VARCHAR(30) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_agent_suggestions_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_agent_suggestions_room FOREIGN KEY (room_id) REFERENCES project_rooms(id),
+    CONSTRAINT fk_agent_suggestions_job FOREIGN KEY (job_id) REFERENCES agent_jobs(id),
+    CONSTRAINT fk_agent_suggestions_resource FOREIGN KEY (resource_id) REFERENCES resources(id)
 );
 
 CREATE TABLE room_memory_summaries (
@@ -508,4 +519,3 @@ CREATE TABLE widget_daily_summaries (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT uk_widget_daily_summaries_rollup UNIQUE (user_id, device_id, summary_date, bubble_setting_id)
 );
-
