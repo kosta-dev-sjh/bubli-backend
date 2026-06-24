@@ -59,4 +59,14 @@ public class AiJobCommandService {
 				AgentJobType.GENERATE_WBS
 		));
 	}
+
+	@Transactional
+	public AgentJobResult createGenerateQuestionsJob(UUID userId, UUID roomId) {
+		roomAccessService.validateActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.GENERATE_QUESTIONS
+		));
+	}
 }

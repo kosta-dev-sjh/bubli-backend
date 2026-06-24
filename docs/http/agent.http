@@ -41,6 +41,15 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
+### 확인 질문 후보 생성 작업 생성
+POST {{baseUrl}}/api/ai/generate-questions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
 ### 에이전트 작업 상태 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
