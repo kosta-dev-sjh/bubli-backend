@@ -5,6 +5,15 @@
 @resourceId = replace-with-resource-id
 @roomId = replace-with-room-id
 
+### 자료 분석 작업 생성
+POST {{baseUrl}}/api/ai/analyze-resource
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "resourceId": "{{resourceId}}"
+}
+
 ### 에이전트 작업 상태 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
