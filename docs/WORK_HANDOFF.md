@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 06:52 KST
+Last checked: 2026-06-25 06:58 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -67,18 +67,44 @@ Last checked: 2026-06-25 06:52 KST
 - #50 user privacy consents API 로컬 검증 통과. GitHub checks 없음 (base #49에 stacked PR CI workflow 없음)
 - #51 user project rooms API 로컬 검증 통과. GitHub checks 없음 (base #50에 stacked PR CI workflow 없음)
 - #52 S3 download-url provider 로컬 검증 통과. GitHub checks 없음 (base #46에 stacked PR CI workflow 없음)
-- #53 agent job dispatch boundary, in-memory queue adapter 초안, enqueue 실패 기록과 실패 event 저장 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
+- #53 agent job dispatch boundary, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
 - #54 S3 storage service boundary 로컬 검증 통과. GitHub checks 없음 (base #52에 stacked PR CI workflow 없음)
 - #55 resource multipart upload API 로컬 검증 통과. GitHub checks 없음 (base #54에 stacked PR CI workflow 없음)
 - #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #27 agent 핵심 테이블 Flyway 컬럼/타입, enum baseline, FK 보강. 로컬 검증 통과. GitHub checks 없음
 - #28에 #27 최신 FK 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 06:52 KST)
+- 열린 PR #19~#57 상태 재확인 완료 (2026-06-25 06:58 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 54. #53 agent dispatch 성공 event 저장
+
+처리 시각: 2026-06-25 06:58 KST
+
+변경 내용:
+
+- #53 `feature/agent-job-dispatch-boundary` 기존 PR 브랜치를 갱신했다.
+- dispatch enqueue 성공 시 `agent_job_events`에 `QUEUED` 이벤트를 저장하는 recorder를 추가했다.
+- `QUEUED` event 저장 실패는 dispatch 실패로 보지 않고, 이미 queue에 등록된 job을 `FAILED`로 바꾸지 않도록 방어했다.
+- enqueue 실패 시 `FAILED` event를 저장하는 기존 흐름은 유지했다.
+- 실제 retry, outbox, worker 실행은 추가하지 않았다.
+- agent가 `tasks`, `wbs_items`, `schedules`, `memos`를 직접 확정 저장하는 흐름은 추가하지 않았다.
+
+검증 결과:
+
+- #53: `./gradlew compileTestJava` 통과
+- #53: `./gradlew cleanTest test` 통과
+- #53: `git diff --check` 통과
+- #53: head `b0dec9a`, base `feature/review-contract-documents-job-api`, mergeState `CLEAN`
+- #53: GitHub checks 없음. base #45에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 queue 등록 성공/실패를 event log로 남기는 관찰 경계만 다룬다.
+- retry 정책, DB outbox/Redis queue 연동, worker 실행은 후속 PR로 분리한다.
 
 ### 작업 카드 53. #28 최신 #27 병합과 CI 재확인
 
@@ -1563,7 +1589,7 @@ Last checked: 2026-06-25 06:52 KST
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
 | #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `8fefcee` | checks 없음, merge clean, draft | 6/25 기준 review-contract-documents agent job 생성 API 추가 |
-| #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `3f4f13c` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 실패 기록과 실패 event 저장 추가 |
+| #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `b0dec9a` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
 | #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `5e70334` | checks 없음, merge clean, draft | 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
 | #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `0de5a0a` | checks 없음, merge clean, draft | #46 provider 경계에 S3 presigned download URL 구현 추가 |
 | #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `ae6eed7` | checks 없음, merge clean, draft | #52 S3 설정 위에 StorageService 저장/삭제 경계 추가. 업로드 API endpoint는 후속 PR |
@@ -1578,7 +1604,7 @@ Last checked: 2026-06-25 06:52 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 06:52 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
+2026-06-25 06:58 KST 기준 draft PR은 #24, #25, #26, #27, #28, #29, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56, #57다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
@@ -1597,7 +1623,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
 | 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가 |
-| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 실패 기록과 실패 event 저장 추가 |
+| 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
 ## 6/24 기준 메모 보존
