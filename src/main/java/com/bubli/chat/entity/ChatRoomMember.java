@@ -43,6 +43,19 @@ public class ChatRoomMember {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static ChatRoomMember create(UUID chatRoomId, UUID userId) {
+		ChatRoomMember member = new ChatRoomMember();
+		member.chatRoomId = chatRoomId;
+		member.userId = userId;
+		member.status = ChatMemberStatus.ACTIVE;
+		return member;
+	}
+
+	public void markRead(UUID lastReadMessageId, Instant lastReadAt) {
+		this.lastReadMessageId = lastReadMessageId;
+		this.lastReadAt = lastReadAt;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
