@@ -1,8 +1,15 @@
 package com.bubli.schema;
 
+import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.agent.type.AgentJobType;
+import com.bubli.agent.type.AgentSuggestionStatus;
+import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.agent.type.AiDocumentStatus;
+import com.bubli.agent.type.AiDocumentType;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -181,6 +188,43 @@ class EntityFlywayAlignmentTest {
 		));
 	}
 
+	@Test
+	void agentEnumsContainCurrentDataDictionaryValues() {
+		assertThat(enumNames(AiDocumentStatus.class))
+				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");
+		assertThat(enumNames(AiDocumentType.class))
+				.contains("CONTRACT", "REQUIREMENT", "MEETING_NOTE", "REFERENCE");
+		assertThat(enumNames(AgentJobStatus.class))
+				.containsExactlyInAnyOrder("PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELED");
+		assertThat(enumNames(AgentJobType.class))
+				.contains(
+						"ANALYZE_RESOURCE",
+						"GENERATE_REQUIREMENTS",
+						"GENERATE_WBS",
+						"GENERATE_TASKS",
+						"REVIEW_CONTRACT_DOCUMENTS",
+						"GENERATE_QUESTIONS",
+						"DAILY_SUMMARY"
+				);
+		assertThat(enumNames(AgentSuggestionStatus.class))
+				.containsExactlyInAnyOrder("DRAFT", "APPROVED", "HELD", "REJECTED");
+		assertThat(enumNames(AgentSuggestionType.class))
+				.contains(
+						"REQUIREMENT",
+						"TODO",
+						"WBS",
+						"TASK",
+						"SCHEDULE",
+						"QUESTION",
+						"CONTRACT_FIELD",
+						"CONTRACT_REVIEW",
+						"REVIEW_ITEM",
+						"DOCUMENT_DRAFT",
+						"DAILY_SUMMARY",
+						"MEMO"
+				);
+	}
+
 	private Map<String, Set<String>> parseSchema(String sql) {
 		Map<String, Set<String>> schema = new HashMap<>();
 		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
@@ -250,6 +294,12 @@ class EntityFlywayAlignmentTest {
 			return definition.substring(0, constraintMatcher.start()).strip();
 		}
 		return definition;
+	}
+
+	private <E extends Enum<E>> Set<String> enumNames(Class<E> enumType) {
+		return Arrays.stream(enumType.getEnumConstants())
+				.map(Enum::name)
+				.collect(java.util.stream.Collectors.toSet());
 	}
 
 	private List<Path> entityFiles() throws IOException {
