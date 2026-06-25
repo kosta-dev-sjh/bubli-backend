@@ -39,7 +39,7 @@ class ProjectRoomServiceTest {
 	RoomMemberRepository roomMemberRepository;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	ProjectRoomService projectRoomService;
@@ -79,7 +79,7 @@ class ProjectRoomServiceTest {
 	void getProjectRoomRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		givenRoomAccessDenied(userId, roomId);
+		givenProjectAccessDenied(userId, roomId);
 
 		assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
 				.isInstanceOf(BusinessException.class);
@@ -109,9 +109,9 @@ class ProjectRoomServiceTest {
 		assertThat(result.name()).isEqualTo("앱 UI 개선");
 	}
 
-	private void givenRoomAccessDenied(UUID userId, UUID roomId) {
+	private void givenProjectAccessDenied(UUID userId, UUID roomId) {
 		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
-				.given(roomAccessService)
-				.validateActiveMember(userId, roomId);
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 	}
 }
