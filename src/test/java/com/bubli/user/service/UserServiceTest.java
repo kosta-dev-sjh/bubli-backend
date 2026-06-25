@@ -1,7 +1,7 @@
 package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
-import com.bubli.project.service.ProjectRoomService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.dto.UpdateUserProfileCommand;
 import com.bubli.user.dto.UpdateUserPreferenceCommand;
 import com.bubli.user.dto.UserPreferenceResult;
@@ -34,7 +34,7 @@ class UserServiceTest {
 	UserPreferenceRepository userPreferenceRepository;
 
 	@Mock
-	ProjectRoomService projectRoomService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	UserService userService;
@@ -120,6 +120,6 @@ class UserServiceTest {
 		assertThat(result.theme()).isEqualTo("LIGHT");
 		assertThat(result.defaultHomeType()).isEqualTo("PROJECT_ROOM");
 		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
-		org.mockito.Mockito.verify(projectRoomService).getProjectRoom(userId, roomId);
+		org.mockito.Mockito.verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 }
