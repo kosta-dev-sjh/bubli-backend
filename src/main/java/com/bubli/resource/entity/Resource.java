@@ -87,7 +87,6 @@ public class Resource {
 
 	public void markDeleted(Instant deletedAt) {
 		this.deletedAt = deletedAt;
-		this.status = ResourceStatus.DELETED;
 	}
 
 	@PrePersist

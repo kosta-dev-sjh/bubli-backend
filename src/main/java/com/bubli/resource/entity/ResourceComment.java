@@ -40,6 +40,23 @@ public class ResourceComment {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static ResourceComment create(UUID resourceId, UUID authorId, UUID parentId, String body) {
+		ResourceComment comment = new ResourceComment();
+		comment.resourceId = resourceId;
+		comment.authorId = authorId;
+		comment.parentId = parentId;
+		comment.body = body;
+		return comment;
+	}
+
+	public void updateBody(String body) {
+		this.body = body;
+	}
+
+	public void markDeleted(Instant deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
