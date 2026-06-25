@@ -6,8 +6,8 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.work.schedule.dto.CreateScheduleRequest;
 import com.bubli.work.schedule.dto.ScheduleResponse;
+import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.dto.UpdateScheduleRequest;
-import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.service.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class ScheduleController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
 			@PageableDefault(size = 50) Pageable pageable
 	) {
-		PageResponse<Schedule> page = scheduleService.getSchedules(authUser.userId(), roomId, from, to, pageable);
+		PageResponse<ScheduleResult> page = scheduleService.getSchedules(authUser.userId(), roomId, from, to, pageable);
 		return ApiResponse.success(mapPage(page));
 	}
 
@@ -72,7 +72,7 @@ public class ScheduleController {
 		return ApiResponse.success(null);
 	}
 
-	private PageResponse<ScheduleResponse> mapPage(PageResponse<Schedule> page) {
+	private PageResponse<ScheduleResponse> mapPage(PageResponse<ScheduleResult> page) {
 		return new PageResponse<>(
 				page.getItems().stream()
 						.map(ScheduleResponse::from)

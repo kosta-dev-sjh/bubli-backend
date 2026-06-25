@@ -25,7 +25,7 @@ public class ProjectRoomService {
 
 	private final ProjectRoomRepository projectRoomRepository;
 	private final RoomMemberRepository roomMemberRepository;
-	private final RoomAccessService roomAccessService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomResult> getProjectRooms(UUID userId, Pageable pageable) {
@@ -44,7 +44,7 @@ public class ProjectRoomService {
 
 	@Transactional(readOnly = true)
 	public ProjectRoomResult getProjectRoom(UUID userId, UUID roomId) {
-		roomAccessService.validateActiveMember(userId, roomId);
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		return projectRoomRepository.findById(roomId)
 				.map(ProjectRoomResult::from)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_001));
