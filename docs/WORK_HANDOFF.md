@@ -170,7 +170,7 @@ Last checked: 2026-06-25 18:35 KST
 - #29 기준 재검증: `./gradlew compileTestJava` 통과
 - #29 기준 재검증: `./gradlew cleanTest test` 통과
 - #29 기준 재검증: `git diff --check` 통과
-- GitHub Actions CI 확인 예정
+- PR #86 head `1715ec7` 기준 GitHub checks 없음. 현재 CI workflow의 `pull_request.branches`가 `develop`, `main`, `feature/**`만 포함하고, PR #86 base가 `chore/latest-docs-2026-06-25`라서 check run이 생성되지 않는다.
 
 후속 PR stack 반영 순서:
 
