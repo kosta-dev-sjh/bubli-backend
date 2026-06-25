@@ -151,7 +151,7 @@ Last checked: 2026-06-25 18:19 KST
 
 - #29 `chore/latest-docs-2026-06-25` 브랜치에 최신 #28 `feature/testcontainers-ci-foundation` head `bb89d1d`를 병합했다.
 - 병합 중 `docs/WORK_HANDOFF.md` 충돌은 #29 문서 브랜치의 기존 인수인계 기록을 보존하는 방향으로 정리했다.
-- #29 head는 로컬에서 `a1b0945`까지 진행됐다. push 후 GitHub Actions CI를 다시 확인해야 한다.
+- #29 head는 최신 #28 병합과 문서 상태 갱신까지 push 완료됐다.
 - `docs/API_SKELETON_PR_MATRIX.csv`를 실제 GitHub 상태 기준으로 갱신했다.
 
 검증 결과:
@@ -159,7 +159,7 @@ Last checked: 2026-06-25 18:19 KST
 - #29: `git diff --check` 통과
 - #28: head `bb89d1d`, base `feature/entity-flyway-alignment`, draft 아님, mergeState `CLEAN`, GitHub Actions `build` 통과
 - #38: head `3a4adc7`, base `feature/testcontainers-ci-foundation`, draft 아님, mergeState `CLEAN`, GitHub Actions `build` 통과
-- #29: push 전 기준 GitHub mergeState는 `DIRTY`로 보인다. 최신 head push 후 재확인한다.
+- #29: 최신 head push 후 GitHub Actions `build` 통과, mergeState `CLEAN`
 
 메모:
 
