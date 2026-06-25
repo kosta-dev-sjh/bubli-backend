@@ -180,6 +180,14 @@ Last checked: 2026-06-25 18:35 KST
 - Agent dispatch/queue/execution stack: 최신 agent stack에서 `AgentJobDispatchPort`, `AgentJobExecutionPort`, `AgentJobQueueConsumerPort`가 이미 인터페이스이며 Redis/in-memory/noop 구현체가 이를 구현한다.
 - Agent model call stack: 현재는 모델 호출 로그 저장 구조만 있고 실제 모델 client 구현체는 없다. 실제 모델 호출 client가 생기면 모델 포트 인터페이스로 재점검한다.
 
+CI 재확인:
+
+- #90은 `gh pr checks 90` 기준 checks가 없다.
+- #90 base인 `feature/resource-ai-document-api`의 `.github/workflows/ci.yml`은 `pull_request` 대상을 `develop`, `main`으로만 제한한다.
+- #90 head branch push도 현재 workflow의 `push` 대상이 `develop`뿐이라 별도 Actions run이 생성되지 않았다.
+- #90을 억지로 `develop`으로 retarget하면 `ResourcePublicService`를 도입한 #36 stack 전체가 섞이므로, 작은 보정 PR 원칙에 맞지 않는다.
+- 따라서 #90은 #36 반영 뒤 또는 base workflow가 갱신된 뒤 GitHub Actions CI를 다시 확인한다.
+
 후속 병합 순서:
 
 1. #29 문서 PR을 먼저 확인한다.
