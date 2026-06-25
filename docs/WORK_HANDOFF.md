@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 18:19 KST
+Last checked: 2026-06-25 18:28 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -43,6 +43,9 @@ Last checked: 2026-06-25 18:19 KST
 - 개발 가이드는 참고 문서가 아니라 ArchUnit/CI 통과 기준이다.
 - API 구현은 최신 `10_API-Design.md`만 보지 않고 최종 기획, `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, 백엔드 가이드를 함께 본다.
 - 다른 도메인의 Repository/Entity 직접 참조를 제거하고 필요한 경우 `*PublicService`를 둔다.
+- 다른 도메인이 호출하는 `*PublicService`는 인터페이스 계약으로 두고 구현체는 `*PublicServiceImpl`로 분리한다.
+- Storage, OAuth/OIDC, AI model, agent 실행/dispatch/queue, S3/object storage, calendar provider 같은 외부 연동은 인터페이스 포트로 둔다.
+- 구현 교체 가능성이 낮고 같은 도메인 Controller만 호출하는 단순 CRUD Service는 구체 클래스로 유지한다.
 - Service public method는 Controller `*Request` DTO를 직접 받지 않고 Command, Query, Context, Result를 사용한다.
 - 기존 `V1` migration은 수정하지 않고 필요한 변경은 새 migration으로 분리한다.
 - enum/status 값은 Data Model과 최신 API의 공통 enum 선언을 우선한다.
@@ -142,6 +145,33 @@ Last checked: 2026-06-25 18:19 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 29-6. 추상화 정책 반영과 PR 재검토 범위 정리
+
+처리 시각: 2026-06-25 18:28 KST
+
+변경 내용:
+
+- `bubli-backend-workflow` 스킬에 선별적 인터페이스 기준을 반영했다.
+- `docs/CODEX_BACKEND_WORKFLOW.md`와 `docs/Bubli_백엔드_개발_가이드_2026-06-25.md`에 같은 기준을 추가했다.
+- 모든 Service를 인터페이스화하지 않고, `*PublicService`와 외부 연동 포트만 우선 인터페이스화하는 원칙으로 정리했다.
+
+PR 재검토 분류:
+
+| 분류 | 대상 | 조치 |
+|---|---|---|
+| 필수 재검토 | #23, #25, #36, #37, #39~#45, #47~#51, #55~#57, #64, #67, #75~#81 | `*PublicService`가 구체 클래스인지 확인하고 인터페이스/구현체 분리 후보로 본다 |
+| 필수 재검토 | #24 | OAuth/OIDC 연동 포트를 인터페이스로 둘지 확인한다 |
+| 필수 재검토 | #52, #54~#57, #64, #67, #75~#81 | Storage/S3/삭제 retry 외부 연동 경계가 구현체 직접 의존인지 확인한다 |
+| 필수 재검토 | #53, #60, #63, #65, #66, #68~#74, #78, #79 | agent dispatch, queue, execution, model call 경계가 인터페이스 포트인지 확인한다 |
+| 가벼운 확인 | #19~#22, #30, #31, #33~#35, #38, #58, #59, #61, #83, #85 | 단순 CRUD 또는 테스트/골격 중심이면 구체 Service 유지 가능 |
+| 당장 유지 | 같은 도메인 Controller만 호출하는 `UserService`, `TaskService`, `ScheduleService`, `ProjectRoomService`류 | 구현체 교체 가능성이 생기기 전까지 인터페이스화하지 않는다 |
+
+메모:
+
+- 기존 PR의 CI/CLEAN 상태는 유지된다. 이번 이슈는 컴파일 문제가 아니라 설계 기준 추가다.
+- merge 전에 전체 PR을 처음부터 다시 리뷰하기보다, 위 표 기준으로 추상화 영향이 있는 PR만 선별 재검토한다.
+- 보정이 필요하면 기존 PR을 억지로 섞지 말고 `codex/abstraction-boundary-*` 형태의 별도 보정 PR로 나눈다.
 
 ### 작업 카드 29-5. #29 최신 #28 기준 문서 PR 재정리
 

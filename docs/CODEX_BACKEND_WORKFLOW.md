@@ -66,6 +66,38 @@ PR 생성 전 코드 작업이면 아래를 우선 확인한다.
 ./gradlew test --tests '*ArchitectureTest'
 ```
 
+## 추상화 기준
+
+모든 Service를 인터페이스로 만들지 않는다.
+추상화는 바뀔 가능성이 있는 경계와 도메인 간 계약에만 둔다.
+
+인터페이스로 둔다:
+
+- 다른 도메인이 호출하는 `*PublicService`
+- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider 같은 외부 연동 포트
+- local/dev 구현과 production 구현을 바꿔 끼울 가능성이 있는 서비스
+
+구체 클래스로 둔다:
+
+- 같은 도메인 Controller만 호출하는 단순 CRUD Service
+- 구현체가 하나뿐이고 외부 연동이나 도메인 간 계약이 아닌 Service
+- 한 도메인 내부에서만 쓰는 helper Service
+
+이름은 아래처럼 맞춘다.
+
+```txt
+ProjectMembershipPublicService      인터페이스
+ProjectMembershipPublicServiceImpl  구현체
+StorageService                      인터페이스
+S3StorageService                    구현체
+GoogleOAuthClient                   Google OAuth 구현체
+AgentExecutionPort                  agent 실행 포트
+```
+
+다른 도메인에서 주입받는 타입은 인터페이스여야 한다.
+구현체는 자기 도메인의 Repository와 Entity를 사용할 수 있지만, 외부 도메인에는 Entity를 반환하지 않는다.
+`IService`, `ServiceInterface` 같은 이름은 쓰지 않는다.
+
 ## 새 기준 문서가 다시 들어왔을 때
 
 사용자가 "API 명세서가 왔다", "API 명세 완성본이다", "이 파일이 최종 API다"라고 말하면 먼저 문서와 스킬을 갱신한다.

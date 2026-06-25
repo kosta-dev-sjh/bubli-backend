@@ -50,6 +50,39 @@ Last checked: 2026-06-25 12:16 KST
 4. 바로 고칠 수 있는 endpoint, DTO, enum, 권한 검사, Request-to-Command 차이를 작은 보정 PR로 나눈다.
 5. 코드 보정 PR마다 `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check`를 확인한다.
 
+## 추상화 기준 재시작 조건
+
+2026-06-25 18:28 KST에 추상화 기준이 추가됐다.
+이 기준은 기존 CI/CLEAN 상태를 무효화하지 않는다.
+다만 merge 전에 설계 영향이 있는 PR만 선별 재검토한다.
+
+확정 기준:
+
+- 다른 도메인이 호출하는 `*PublicService`는 인터페이스로 둔다.
+- 구현체는 `*PublicServiceImpl` 이름을 쓴다.
+- 다른 도메인은 구현체가 아니라 `*PublicService` 인터페이스를 주입받는다.
+- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider는 외부 연동 포트로 보고 인터페이스화한다.
+- 같은 도메인 Controller만 호출하는 단순 CRUD Service는 구체 클래스로 유지한다.
+- 구현체가 하나뿐이고 외부 연동도 도메인 간 계약도 아닌 helper Service는 구체 클래스로 유지한다.
+
+재시작하면 먼저 볼 대상:
+
+| 우선순위 | 대상 | 이유 |
+|---|---|---|
+| 1 | `ProjectMembershipPublicService`, `ResourcePublicService`, `StoragePublicService`, `StorageUsagePublicService`, `UserPublicService`, `TaskPublicService`, `WbsItemPublicService` | 다른 도메인에서 호출하는 공개 계약 |
+| 2 | Storage/S3/download-url/upload/delete retry stack | 외부 저장소 구현 교체 가능성 |
+| 3 | OAuth/OIDC auth stack | Google-only라도 외부 연동 client 경계가 필요함 |
+| 4 | Agent dispatch/queue/execution/model call stack | 실행 방식과 provider 교체 가능성 |
+| 5 | 단순 CRUD Service | 기본 유지. 다른 도메인 호출이 생긴 경우만 재검토 |
+
+추천 재시작 목표:
+
+```text
+PublicService와 외부 연동 포트의 인터페이스화 보정 PR을 만든다.
+먼저 develop 또는 가장 이른 foundation base에서 ProjectMembershipPublicService 계열을 인터페이스/구현체로 분리하고,
+컴파일/ArchUnit/테스트를 통과시킨 뒤 후속 PR stack에 필요한 병합 순서를 WORK_HANDOFF.md에 기록한다.
+```
+
 ## 새 기준 문서가 다시 오면 하는 일
 
 사용자가 "API 명세 완성본이 왔다"라고 말하면 구현을 멈추고 아래를 먼저 한다.
