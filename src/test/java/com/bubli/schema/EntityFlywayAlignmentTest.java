@@ -28,10 +28,18 @@ import static java.util.Map.entry;
 class EntityFlywayAlignmentTest {
 
 	private static final Path SOURCE_ROOT = Path.of("src/main/java/com/bubli");
-	private static final Path MIGRATION = Path.of("src/main/resources/db/migration/V1__init_schema.sql");
+	private static final Path MIGRATION_ROOT = Path.of("src/main/resources/db/migration");
 	private static final Pattern CREATE_TABLE_PATTERN = Pattern.compile(
 			"CREATE TABLE (\\w+) \\((.*?)\\n\\);",
 			Pattern.DOTALL
+	);
+	private static final Pattern ALTER_TABLE_ADD_COLUMN_PATTERN = Pattern.compile(
+			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+COLUMN\\s+(\\w+)\\s+([^;]+);",
+			Pattern.CASE_INSENSITIVE
+	);
+	private static final Pattern ALTER_TABLE_PATTERN = Pattern.compile(
+			"ALTER\\s+TABLE\\s+(\\w+)\\s+(.*?);",
+			Pattern.CASE_INSENSITIVE | Pattern.DOTALL
 	);
 	private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(
 			"CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(\\w+)\\s+ON\\s+(\\w+)\\s+\\(([^)]+)\\);",
@@ -46,8 +54,8 @@ class EntityFlywayAlignmentTest {
 	private static final Pattern FIELD_PATTERN = Pattern.compile("private\\s+[^;=]+\\s+(\\w+)\\s*(?:=[^;]+)?;");
 
 	@Test
-	void entityTablesAndColumnsExistInFlywayV1() throws IOException {
-		Map<String, Set<String>> schema = parseSchema(Files.readString(MIGRATION));
+	void entityTablesAndColumnsExistInFlywayMigrations() throws IOException {
+		Map<String, Set<String>> schema = parseSchema(migrationSql());
 		List<String> missing = new ArrayList<>();
 
 		for (Path entityFile : entityFiles()) {
@@ -72,7 +80,7 @@ class EntityFlywayAlignmentTest {
 
 	@Test
 	void agentTablesMatchCurrentDataDictionaryColumns() throws IOException {
-		Map<String, Set<String>> schema = parseSchema(Files.readString(MIGRATION));
+		Map<String, Set<String>> schema = parseSchema(migrationSql());
 
 		assertTableColumns(schema, "ai_documents", Set.of(
 				"id",
@@ -135,7 +143,7 @@ class EntityFlywayAlignmentTest {
 
 	@Test
 	void agentTablesMatchCurrentDataDictionaryColumnTypes() throws IOException {
-		Map<String, Map<String, String>> schema = parseColumnTypes(Files.readString(MIGRATION));
+		Map<String, Map<String, String>> schema = parseColumnTypes(migrationSql());
 
 		assertColumnTypes(schema, "ai_documents", Map.ofEntries(
 				entry("id", "UUID"),
@@ -198,7 +206,7 @@ class EntityFlywayAlignmentTest {
 
 	@Test
 	void agentTablesMatchCurrentDataDictionaryForeignKeys() throws IOException {
-		Map<String, Set<String>> schema = parseForeignKeys(Files.readString(MIGRATION));
+		Map<String, Set<String>> schema = parseForeignKeys(migrationSql());
 
 		assertForeignKeys(schema, "ai_documents", Set.of(
 				"FOREIGN KEY (resource_id) REFERENCES resources(id)",
@@ -225,7 +233,7 @@ class EntityFlywayAlignmentTest {
 
 	@Test
 	void coreDomainTablesMatchCurrentDataDictionaryForeignKeys() throws IOException {
-		Map<String, Set<String>> schema = parseForeignKeys(Files.readString(MIGRATION));
+		Map<String, Set<String>> schema = parseForeignKeys(migrationSql());
 
 		assertForeignKeys(schema, "user_sessions", Set.of(
 				"FOREIGN KEY (user_id) REFERENCES users(id)"
@@ -376,7 +384,7 @@ class EntityFlywayAlignmentTest {
 
 	@Test
 	void coreLookupIndexesMatchCurrentDataDictionaryAccessPatterns() throws IOException {
-		Map<String, String> indexes = parseIndexes(Files.readString(MIGRATION));
+		Map<String, String> indexes = parseIndexes(migrationSql());
 
 		assertThat(indexes).containsAllEntriesOf(Map.ofEntries(
 				entry("idx_room_members_user_status", "room_members(user_id,status)"),
@@ -438,6 +446,20 @@ class EntityFlywayAlignmentTest {
 				);
 	}
 
+	private String migrationSql() throws IOException {
+		try (Stream<Path> paths = Files.list(MIGRATION_ROOT)) {
+			List<Path> migrations = paths
+					.filter(path -> path.getFileName().toString().endsWith(".sql"))
+					.sorted()
+					.toList();
+			StringBuilder sql = new StringBuilder();
+			for (Path migration : migrations) {
+				sql.append(Files.readString(migration)).append("\n");
+			}
+			return sql.toString();
+		}
+	}
+
 	private Map<String, Set<String>> parseSchema(String sql) {
 		Map<String, Set<String>> schema = new HashMap<>();
 		Matcher tableMatcher = CREATE_TABLE_PATTERN.matcher(sql);
@@ -452,6 +474,12 @@ class EntityFlywayAlignmentTest {
 				columns.add(line.split("\\s+")[0].replace("\"", ""));
 			}
 			schema.put(tableName, columns);
+		}
+		Matcher addColumnMatcher = ALTER_TABLE_ADD_COLUMN_PATTERN.matcher(sql);
+		while (addColumnMatcher.find()) {
+			String tableName = addColumnMatcher.group(1);
+			String columnName = addColumnMatcher.group(2).replace("\"", "");
+			schema.computeIfAbsent(tableName, ignored -> new HashSet<>()).add(columnName);
 		}
 		return schema;
 	}
@@ -472,6 +500,14 @@ class EntityFlywayAlignmentTest {
 			}
 			schema.put(tableName, columnTypes);
 		}
+		Matcher addColumnMatcher = ALTER_TABLE_ADD_COLUMN_PATTERN.matcher(sql);
+		while (addColumnMatcher.find()) {
+			String tableName = addColumnMatcher.group(1);
+			String columnName = addColumnMatcher.group(2).replace("\"", "");
+			String columnDefinition = addColumnMatcher.group(3);
+			schema.computeIfAbsent(tableName, ignored -> new HashMap<>())
+					.put(columnName, columnType(columnDefinition));
+		}
 		return schema;
 	}
 
@@ -490,11 +526,17 @@ class EntityFlywayAlignmentTest {
 			}
 			schema.put(tableName, foreignKeys);
 		}
-		Matcher alterMatcher = ALTER_TABLE_FOREIGN_KEY_PATTERN.matcher(sql);
+		Matcher alterMatcher = ALTER_TABLE_PATTERN.matcher(sql);
 		while (alterMatcher.find()) {
 			String tableName = alterMatcher.group(1);
-			String foreignKey = alterMatcher.group(2).replaceAll("\\s+", " ");
-			schema.computeIfAbsent(tableName, ignored -> new HashSet<>()).add(foreignKey);
+			for (String rawLine : alterMatcher.group(2).split("\\n")) {
+				String line = rawLine.strip().replaceFirst("[,;]$", "");
+				if (!line.startsWith("ADD CONSTRAINT") || !line.contains(" FOREIGN KEY ")) {
+					continue;
+				}
+				schema.computeIfAbsent(tableName, ignored -> new HashSet<>())
+						.add(line.replaceFirst("^ADD\\s+CONSTRAINT\\s+\\w+\\s+", ""));
+			}
 		}
 		return schema;
 	}
