@@ -15,4 +15,7 @@ public record UpdateTaskRequest(
 		TaskStatus status,
 		Instant dueAt
 ) {
+	public UpdateTaskCommand toCommand() {
+		return new UpdateTaskCommand(title, description, assigneeUserId, wbsItemId, status, dueAt);
+	}
 }
