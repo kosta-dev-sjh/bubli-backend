@@ -6,7 +6,7 @@ import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,7 +22,7 @@ import java.util.UUID;
 public class AgentSuggestionService {
 
 	private final AgentSuggestionRepository agentSuggestionRepository;
-	private final RoomAccessService roomAccessService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<AgentSuggestionResult> getPersonalSuggestions(
@@ -43,7 +43,7 @@ public class AgentSuggestionService {
 			AgentSuggestionStatus status,
 			Pageable pageable
 	) {
-		roomAccessService.validateActiveMember(userId, roomId);
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		Page<AgentSuggestionResult> page = agentSuggestionRepository
 				.findByRoomIdAndStatus(roomId, status, withDefaultSort(pageable))
 				.map(AgentSuggestionResult::from);

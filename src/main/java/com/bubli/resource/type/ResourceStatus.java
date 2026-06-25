@@ -5,7 +5,6 @@ public enum ResourceStatus {
 	READY,
 	ANALYZING,
 	ANALYZED,
-	FAILED,
-	DELETED
+	FAILED
 
 }
