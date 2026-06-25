@@ -3,9 +3,9 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
-import com.bubli.resource.dto.CreateResourceVersionRequest;
+import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
@@ -44,7 +44,7 @@ public class ResourceService {
 	private final ResourceFileRepository resourceFileRepository;
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
-	private final RoomAccessService roomAccessService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ResourceResult> getPersonalResources(UUID userId, String scope, Pageable pageable) {
@@ -146,15 +146,15 @@ public class ResourceService {
 	}
 
 	@Transactional
-	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionRequest request) {
+	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
 		getReadableResource(userId, resourceId);
 		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
 				resourceId,
-				request.storageKey(),
-				request.originalName(),
-				request.mimeType(),
-				request.sizeBytes(),
-				request.checksum()
+				command.storageKey(),
+				command.originalName(),
+				command.mimeType(),
+				command.sizeBytes(),
+				command.checksum()
 		));
 		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
 		ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
@@ -256,7 +256,7 @@ public class ResourceService {
 	}
 
 	private void validateRoomResourceAccess(UUID userId, UUID roomId) {
-		if (!roomAccessService.isActiveMember(userId, roomId)) {
+		if (!projectMembershipPublicService.isActiveMember(userId, roomId)) {
 			throw new BusinessException(ErrorCode.RESOURCE_403_001);
 		}
 	}

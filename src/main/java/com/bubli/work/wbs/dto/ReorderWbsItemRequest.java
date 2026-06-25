@@ -15,4 +15,7 @@ public record ReorderWbsItemRequest(
 		@Positive(message = "WBS 순서는 1 이상이어야 합니다.")
 		Integer orderNo
 ) {
+	public ReorderWbsItemCommand toCommand() {
+		return new ReorderWbsItemCommand(wbsItemId, parentId, orderNo);
+	}
 }

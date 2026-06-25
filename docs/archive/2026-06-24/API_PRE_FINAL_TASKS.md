@@ -145,18 +145,18 @@ git diff --check
 - `docs/http/auth.http`
 - `user_sessions`와 refresh token TODO
 
-현재 발견:
+정리 결과:
 
-- `auth/package-info.java`에 이메일/비밀번호 회원가입 설명이 남아 있다.
-- `SecurityConfig`에 `/api/auth/signup` permitAll이 남아 있다.
-- `AuthService`는 Google ID token 검증 TODO 상태다.
+- `auth/package-info.java`는 Google OAuth/OIDC, JWT, user_sessions 기준 설명으로 정리됐다.
+- `SecurityConfig`는 `/api/auth/google/authorize`, `/api/auth/google/callback`, `/api/auth/refresh`만 공개 허용한다.
+- `POST /api/auth/login`, `POST /api/auth/signup` 뼈대는 현재 API 기준과 맞지 않아 제거됐다.
+- `AuthService`는 Google OAuth code 검증 TODO 상태다.
 
 완료 기준:
 
 - 문서/주석에서 이메일/비밀번호 가입 기준 제거.
 - Google-only 인증 방향으로 TODO 정리.
 - 실제 엔드포인트 구현은 API 확정 뒤로 보류.
-- 필요하면 signup permitAll 제거 여부를 검토 후보로 남김.
 - 코드 수정이 있다면 테스트까지 확인.
 
 복붙 프롬프트:
@@ -169,9 +169,9 @@ API 명세 확정 전 모드야.
 다만 실제 Google ID token 검증 구현이나 새 API 확정은 하지 마.
 
 점검/정리 범위:
-- auth/package-info.java의 이메일/비밀번호 설명 제거
-- AuthService TODO를 Google-only 흐름으로 정리
-- SecurityConfig의 /api/auth/signup 허용이 현재 방향과 맞는지 검토
+- auth/package-info.java가 Google OAuth/OIDC 기준인지 확인
+- AuthService TODO가 Google-only 흐름인지 확인
+- SecurityConfig에 /api/auth/signup 허용이 되살아나지 않았는지 확인
 - docs/http/auth.http의 설명이 현재 방향과 맞는지 확인
 
 필요한 최소 수정만 하고,
