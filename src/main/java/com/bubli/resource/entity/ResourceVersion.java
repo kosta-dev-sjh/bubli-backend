@@ -36,6 +36,15 @@ public class ResourceVersion {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static ResourceVersion create(UUID resourceId, Integer versionNo, UUID fileId, UUID createdBy) {
+		ResourceVersion version = new ResourceVersion();
+		version.resourceId = resourceId;
+		version.versionNo = versionNo;
+		version.fileId = fileId;
+		version.createdBy = createdBy;
+		return version;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
