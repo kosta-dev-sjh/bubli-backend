@@ -148,6 +148,43 @@ Last checked: 2026-06-25 18:35 KST
 
 ## 최근 완료 작업
 
+### 작업 카드 AB-SUMMARY. 선별적 인터페이스화 재검토 결과 정리
+
+처리 시각: 2026-06-25 19:15 KST
+
+브랜치: `codex/abstraction-boundary-review-summary`
+
+변경 내용:
+
+- 2026-06-25 18:35 KST 확정 기준으로 열린 PR stack 중 `*PublicService`와 외부 연동 포트 영향을 받는 대상만 선별 재검토했다.
+- 구체 클래스였던 공개 계약 5개는 별도 보정 PR로 분리했다.
+- 이미 인터페이스 포트인 Storage/Agent 경계와 아직 외부 client 구현이 없는 OAuth/OIDC 경계는 추가 코드 PR 없이 확인 완료로 분류했다.
+
+보정 PR:
+
+| PR | 대상 | base | 상태 | 로컬 검증 | GitHub checks |
+|---|---|---|---|---|---|
+| #86 | `ProjectMembershipPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
+| #87 | `UserPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
+| #88 | `TaskPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
+| #89 | `WbsItemPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
+| #90 | `ResourcePublicService` | `feature/resource-ai-document-api` | `CLEAN` | 통과 | base workflow가 `develop`, `main`만 받아 checks 없음 |
+
+확인 후 추가 보정이 필요 없던 대상:
+
+- `StoragePublicService`, `StorageUsagePublicService`: resource delete/upload 최신 stack에서 이미 인터페이스이며 `S3StorageService`, `DisabledStorageService`, `StorageUsageService`가 구현체다.
+- OAuth/OIDC auth stack #24: 현재 `AuthService` TODO 골격만 있고 실제 Google OAuth/OIDC 외부 client 구현체가 아직 없다. 외부 client가 생기면 `GoogleOAuthClient` 같은 포트 인터페이스로 분리한다.
+- Agent dispatch/queue/execution stack: 최신 agent stack에서 `AgentJobDispatchPort`, `AgentJobExecutionPort`, `AgentJobQueueConsumerPort`가 이미 인터페이스이며 Redis/in-memory/noop 구현체가 이를 구현한다.
+- Agent model call stack: 현재는 모델 호출 로그 저장 구조만 있고 실제 모델 client 구현체는 없다. 실제 모델 호출 client가 생기면 모델 포트 인터페이스로 재점검한다.
+
+후속 병합 순서:
+
+1. #29 문서 PR을 먼저 확인한다.
+2. #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
+3. #36 뒤에 #90 `ResourcePublicService` 보정 PR을 반영한다.
+4. #37, #40~#45 agent/resource stack은 #90 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
+5. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
+
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
 처리 시각: 2026-06-25 18:35 KST
