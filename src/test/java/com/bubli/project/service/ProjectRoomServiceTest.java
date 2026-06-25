@@ -1,6 +1,7 @@
 package com.bubli.project.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.project.dto.CreateProjectRoomCommand;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.entity.ProjectRoom;
@@ -9,7 +10,6 @@ import com.bubli.project.repository.ProjectRoomRepository;
 import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.PaymentStatus;
 import com.bubli.project.type.ProjectRoomStatus;
-import com.bubli.project.type.RoomMemberStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +37,9 @@ class ProjectRoomServiceTest {
 
 	@Mock
 	RoomMemberRepository roomMemberRepository;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	ProjectRoomService projectRoomService;
@@ -76,8 +79,7 @@ class ProjectRoomServiceTest {
 	void getProjectRoomRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(false);
+		givenProjectAccessDenied(userId, roomId);
 
 		assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
 				.isInstanceOf(BusinessException.class);
@@ -99,13 +101,17 @@ class ProjectRoomServiceTest {
 		);
 		ReflectionTestUtils.setField(projectRoom, "id", roomId);
 
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(projectRoomRepository.findById(roomId)).willReturn(Optional.of(projectRoom));
 
 		ProjectRoomResult result = projectRoomService.getProjectRoom(userId, roomId);
 
 		assertThat(result.id()).isEqualTo(roomId);
 		assertThat(result.name()).isEqualTo("앱 UI 개선");
+	}
+
+	private void givenProjectAccessDenied(UUID userId, UUID roomId) {
+		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 	}
 }
