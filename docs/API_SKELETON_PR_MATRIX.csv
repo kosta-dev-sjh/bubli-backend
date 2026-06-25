@@ -10,7 +10,7 @@
 "36","[feat] 자료 AI 문서 조회 API 추가","feature/agent-suggestion-update-api","feature/resource-ai-document-api","451d05c","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","자료 AI 문서 조회 기본 API 골격"
 "37","[feat] 프로젝트룸 AI 문서 목록 조회 API 추가","feature/resource-ai-document-api","feature/room-ai-documents-api","4a9e7e3","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","프로젝트룸 AI 문서 목록 조회 기본 API 골격"
 "38","[test] 엔티티 경계 가드 추가","feature/testcontainers-ci-foundation","chore/entity-boundary-guards","cf7cdfd","stacked-ci","CI PASS CLEAN","after-base","앞 PR 정리 후 리뷰","도메인 경계 가드 테스트"
-"39","[feat] 저장 용량 조회 API 추가","feature/resource-related-api","feature/storage-usage-api","53e1fb0","stacked-draft","DIRTY draft","hold","RoomMemberRepository 충돌 해소 전 보류","저장 용량 조회 기본 API 골격"
+"39","[feat] 저장 용량 조회 API 추가","feature/resource-related-api","feature/storage-usage-api","05721e4","stacked","CLEAN no-checks","after-31","앞 PR #31 이후 리뷰","저장 용량 조회 기본 API 골격"
 "40","[feat] 자료 분석 작업 생성 API 추가","feature/room-ai-documents-api","feature/analyze-resource-job-api","e2b7e5c","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","자료 분석 job 생성 기본 API 골격"
 "41","[feat] 요구사항 후보 생성 작업 API 추가","feature/analyze-resource-job-api","feature/generate-requirements-job-api","4088d62","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","요구사항 후보 job 생성 기본 API 골격"
 "42","[feat] TODO 후보 생성 작업 API 추가","feature/generate-requirements-job-api","feature/generate-tasks-job-api","8bdc107","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","TODO 후보 job 생성 기본 API 골격"
