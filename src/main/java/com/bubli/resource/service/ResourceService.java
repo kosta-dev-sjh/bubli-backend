@@ -63,6 +63,7 @@ public class ResourceService {
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
 	private final StorageService storageService;
 	private final StorageUsageService storageUsageService;
+	private final ResourceStorageDeleteRetryRecorder storageDeleteRetryRecorder;
 	private final RoomAccessService roomAccessService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
@@ -364,7 +365,20 @@ public class ResourceService {
 						file.getId(),
 						file.getStorageKey(),
 						exception);
+				recordStorageDeleteRetry(file, exception);
 			}
+		}
+	}
+
+	private void recordStorageDeleteRetry(ResourceFile file, RuntimeException cause) {
+		try {
+			storageDeleteRetryRecorder.recordFailedDelete(file, cause);
+		} catch (RuntimeException recorderException) {
+			log.warn("Failed to record resource storage delete retry. resourceId={}, fileId={}, storageKey={}",
+					file.getResourceId(),
+					file.getId(),
+					file.getStorageKey(),
+					recorderException);
 		}
 	}
 

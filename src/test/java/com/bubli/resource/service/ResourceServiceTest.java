@@ -88,6 +88,9 @@ class ResourceServiceTest {
 	StorageUsageService storageUsageService;
 
 	@Mock
+	ResourceStorageDeleteRetryRecorder storageDeleteRetryRecorder;
+
+	@Mock
 	RoomAccessService roomAccessService;
 
 	@InjectMocks
@@ -456,6 +459,7 @@ class ResourceServiceTest {
 
 		assertThat(resource.getDeletedAt()).isNotNull();
 		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
+		verify(storageDeleteRetryRecorder).recordFailedDelete(eq(file), any(IllegalStateException.class));
 		verify(storageUsageService).releasePersonalUsage(userId, 3L);
 	}
 

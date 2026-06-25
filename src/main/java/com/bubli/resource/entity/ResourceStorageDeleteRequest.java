@@ -1,0 +1,83 @@
+package com.bubli.resource.entity;
+
+import com.bubli.resource.type.ResourceStorageDeleteStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Getter
+@Entity
+@Table(name = "resource_storage_delete_requests")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class ResourceStorageDeleteRequest {
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "resource_id", nullable = false)
+	private UUID resourceId;
+
+	@Column(name = "file_id")
+	private UUID fileId;
+
+	@Column(name = "storage_key", nullable = false, length = 500)
+	private String storageKey;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private ResourceStorageDeleteStatus status;
+
+	@Column(name = "retry_count", nullable = false)
+	private int retryCount;
+
+	@Column(name = "last_error_message", length = 1000)
+	private String lastErrorMessage;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	public static ResourceStorageDeleteRequest create(
+			UUID resourceId,
+			UUID fileId,
+			String storageKey,
+			String lastErrorMessage
+	) {
+		ResourceStorageDeleteRequest request = new ResourceStorageDeleteRequest();
+		request.resourceId = resourceId;
+		request.fileId = fileId;
+		request.storageKey = storageKey;
+		request.status = ResourceStorageDeleteStatus.PENDING;
+		request.retryCount = 0;
+		request.lastErrorMessage = lastErrorMessage;
+		return request;
+	}
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
+}

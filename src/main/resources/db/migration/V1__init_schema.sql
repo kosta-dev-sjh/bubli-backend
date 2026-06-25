@@ -147,6 +147,18 @@ CREATE TABLE resource_files (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE resource_storage_delete_requests (
+    id UUID PRIMARY KEY,
+    resource_id UUID NOT NULL,
+    file_id UUID,
+    storage_key VARCHAR(500) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    last_error_message VARCHAR(1000),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE resource_versions (
     id UUID PRIMARY KEY,
     resource_id UUID NOT NULL,
@@ -508,4 +520,3 @@ CREATE TABLE widget_daily_summaries (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT uk_widget_daily_summaries_rollup UNIQUE (user_id, device_id, summary_date, bubble_setting_id)
 );
-
