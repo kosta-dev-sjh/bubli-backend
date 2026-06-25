@@ -148,6 +148,36 @@ Last checked: 2026-06-25 18:35 KST
 
 ## 최근 완료 작업
 
+### 작업 카드 AB-1. ProjectMembershipPublicService 공개 계약 분리
+
+처리 시각: 2026-06-25 18:46 KST
+
+브랜치: `codex/abstraction-boundary-project-membership-docs`
+
+변경 내용:
+
+- #29 `chore/latest-docs-2026-06-25` 기준으로 `ProjectMembershipPublicService`를 인터페이스 계약으로 분리했다.
+- 기존 권한 확인 구현은 `ProjectMembershipPublicServiceImpl`로 옮겼다.
+- 다른 도메인 `work.task`, `work.schedule`, `work.wbs`는 기존 이름인 `ProjectMembershipPublicService` 인터페이스를 계속 주입받는다.
+- 구현체만 직접 테스트하도록 `ProjectMembershipPublicServiceTest`의 `@InjectMocks` 대상을 `ProjectMembershipPublicServiceImpl`로 맞췄다.
+
+검증 결과:
+
+- `origin/develop` 기준 1차 확인: `./gradlew test --tests '*ArchitectureTest'` 통과
+- `origin/develop` 기준 1차 확인: `./gradlew compileTestJava` 통과
+- `origin/develop` 기준 1차 확인: `./gradlew cleanTest test` 통과
+- #29 기준 재검증: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #29 기준 재검증: `./gradlew compileTestJava` 통과
+- #29 기준 재검증: `./gradlew cleanTest test` 통과
+- #29 기준 재검증: `git diff --check` 통과
+- GitHub Actions CI 확인 예정
+
+후속 PR stack 반영 순서:
+
+1. #29 문서 PR 뒤에 이 보정 PR을 반영한다.
+2. `ProjectMembershipPublicService`를 참조하는 #48~#51 user/settings stack, #39/#64 storage usage stack, #40~#45 agent API stack, #58~#61 project room stack은 이 PR 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
+3. 후속 PR에서 구현체를 직접 주입하는 코드가 생기면 `ProjectMembershipPublicService` 인터페이스 주입으로 되돌린다.
+
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
 처리 시각: 2026-06-25 18:35 KST
