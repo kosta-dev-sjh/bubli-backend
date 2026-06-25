@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 11:17 KST
+Last checked: 2026-06-25 11:22 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -49,6 +49,7 @@ Last checked: 2026-06-25 11:17 KST
 - #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #28 testcontainers/CI foundation 최신 #27 base 병합 로컬 검증과 GitHub Actions `build` 통과
+- #31 resource related API 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
@@ -107,11 +108,35 @@ Last checked: 2026-06-25 11:17 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:17 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:22 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 31-1. #31 자료 관련 문서 조회 API 최신 base 병합
+
+처리 시각: 2026-06-25 11:22 KST
+
+변경 내용:
+
+- #31 `feature/resource-related-api` 브랜치에 최신 #25 `feature/resource-basic-foundation`를 병합했다.
+- #25가 최신 #24 base를 받은 뒤 GitHub mergeState가 `UNKNOWN`으로 보이던 상태를 해소했다.
+- 병합 충돌은 없었다.
+- #31 PR 본문을 최신 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #31: `./gradlew compileTestJava` 통과
+- #31: `./gradlew cleanTest test` 통과
+- #31: `git diff --check` 통과
+- #31: head `2153b2c`, base `feature/resource-basic-foundation`, mergeState `CLEAN`
+- #31: GitHub checks 없음. base가 `feature/resource-basic-foundation`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- 이번 변경은 #31의 최신 base 병합만 다룬다.
+- #31은 draft PR 상태를 유지한다. ready 전환은 선행 PR merge 순서에 맞춰 별도 판단한다.
 
 ### 작업 카드 28-1. #28 stacked PR 테스트 검증 보강 최신 base 병합
 
@@ -2534,7 +2559,7 @@ Last checked: 2026-06-25 11:17 KST
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b9300fd` | `build` pass, merge clean, draft | 최신 #27 base 병합 후 CI 재통과. stacked PR CI 보강과 전체 Flyway migration 정합성 검사 포함 |
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
-| #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `4148e57` | checks 없음, merge clean, draft | 6/25 기준 resource_relations 조회 API 추가 |
+| #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `2153b2c` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
 | #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `d667612` | checks 없음, merge clean, draft | 6/25 기준 agent_jobs 상태 조회 API 추가 |
 | #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `a863439` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
 | #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `698557a` | checks 없음, merge clean, draft | 6/25 기준 agent_job_events 조회 API 추가 |
