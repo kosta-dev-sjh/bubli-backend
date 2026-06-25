@@ -159,6 +159,17 @@ git diff --check
 그 뒤 GitHub PR 화면에서 GitHub Actions CI가 통과했는지 확인한다.
 CI가 아직 돌고 있거나 실패했다면 완료로 보고하지 않는다.
 
+다만 feature/stack base PR에서 workflow 조건상 GitHub Actions checks가 생성되지 않는 경우는 CI-not-created 예외로 처리한다.
+이 경우 PR을 억지로 `develop`에 retarget해서 unrelated stack을 섞지 않는다.
+대신 아래 로컬 검증을 대체 gate로 삼고, PR 본문 또는 comment와 `WORK_HANDOFF.md`에 사유를 기록한다.
+
+```bash
+./gradlew test --tests '*ArchitectureTest'
+./gradlew compileTestJava
+./gradlew cleanTest test
+git diff --check
+```
+
 ## 보고할 때
 
 보고에는 아래만 짧게 쓴다.

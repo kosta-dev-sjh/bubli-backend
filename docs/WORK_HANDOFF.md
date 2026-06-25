@@ -170,7 +170,7 @@ Last checked: 2026-06-25 18:35 KST
 | #87 | `UserPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
 | #88 | `TaskPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
 | #89 | `WbsItemPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
-| #90 | `ResourcePublicService` | `feature/resource-ai-document-api` | `CLEAN` | 통과 | base workflow가 `develop`, `main`만 받아 checks 없음 |
+| #90 | `ResourcePublicService` | `feature/resource-ai-document-api` | `CLEAN` | 통과 | CI-not-created 예외. base workflow가 `develop`, `main`만 받아 checks 없음 |
 | #92 | `ProjectMembershipPublicService`, `UserPublicService`, `TaskPublicService`, `WbsItemPublicService` develop 재구성 | `develop` | `BLOCKED` | 통과 | `build` 통과. `BLOCKED`는 review required |
 
 확인 후 추가 보정이 필요 없던 대상:
@@ -186,7 +186,8 @@ CI 재확인:
 - #90 base인 `feature/resource-ai-document-api`의 `.github/workflows/ci.yml`은 `pull_request` 대상을 `develop`, `main`으로만 제한한다.
 - #90 head branch push도 현재 workflow의 `push` 대상이 `develop`뿐이라 별도 Actions run이 생성되지 않았다.
 - #90을 억지로 `develop`으로 retarget하면 `ResourcePublicService`를 도입한 #36 stack 전체가 섞이므로, 작은 보정 PR 원칙에 맞지 않는다.
-- 따라서 #90은 #36 반영 뒤 또는 base workflow가 갱신된 뒤 GitHub Actions CI를 다시 확인한다.
+- 2026-06-25 20:04 KST에 #90 브랜치에서 로컬 검증 4종을 다시 통과했다: `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check`.
+- 수정된 `bubli-backend-workflow` 기준으로 #90은 CI-not-created 예외 처리 대상이다. #36 반영 뒤 또는 base workflow가 갱신된 뒤 GitHub Actions CI를 다시 확인하는 것은 후속 품질 확인으로 남긴다.
 
 후속 병합 순서:
 

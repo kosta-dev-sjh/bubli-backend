@@ -98,7 +98,7 @@ Last checked: 2026-06-25 18:35 KST
 - `global`에는 설정, 응답, 에러, 보안, 검증 같은 공통 코드만 둔다.
 - 공통 엔티티나 `BaseTimeEntity`를 만들지 않는다. `createdAt`, `updatedAt`은 각 엔티티에 직접 둔다.
 - Tauri SQLite의 `local_*` 테이블은 서버 JPA 엔티티로 만들지 않는다.
-- 코드 작업 완료 보고는 로컬 검증과 GitHub Actions CI 확인 뒤에만 한다.
+- 코드 작업 완료 보고는 로컬 검증과 GitHub Actions CI 확인 뒤에만 한다. 단, feature/stack base라 workflow 조건상 checks가 생성되지 않는 PR은 `WORK_HANDOFF.md`와 PR 본문에 사유를 기록하고 로컬 검증 4종을 대체 gate로 삼는다.
 
 ## 다음 작업 시작 순서
 
@@ -107,4 +107,4 @@ Last checked: 2026-06-25 18:35 KST
 3. 해당 기능의 기준 문서를 위 표 순서대로 읽는다.
 4. 기존 코드에서 같은 패턴의 controller, service, repository, dto, entity를 확인한다.
 5. 한 기능만 수정한다.
-6. 로컬 검증과 CI 확인 뒤 `docs/WORK_HANDOFF.md`를 갱신한다.
+6. 로컬 검증과 CI 확인 뒤 `docs/WORK_HANDOFF.md`를 갱신한다. CI가 생성되지 않는 stacked PR은 사유와 로컬 검증 결과를 기록한다.
