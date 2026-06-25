@@ -1,9 +1,9 @@
 package com.bubli.resource.service;
 
-import com.bubli.resource.entity.ResourceStorageDeleteRequest;
-import com.bubli.resource.repository.ResourceStorageDeleteRequestRepository;
+import com.bubli.resource.entity.ResourceStorageDeleteRetryRecord;
+import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import com.bubli.resource.type.ResourceStorageDeleteStatus;
-import com.bubli.storage.service.StorageService;
+import com.bubli.storage.service.StoragePublicService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -25,10 +25,10 @@ class ResourceStorageDeleteRetryWorkerTest {
 
 	@Test
 	void retryDeleteRequestsDeletesPendingStorageObject() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		StorageService storageService = mock(StorageService.class);
-		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storageService);
-		ResourceStorageDeleteRequest request = deleteRequest("storage-key");
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		StoragePublicService storagePublicService = mock(StoragePublicService.class);
+		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storagePublicService);
+		ResourceStorageDeleteRetryRecord request = deleteRequest("storage-key");
 		when(repository.findByStatusIn(anyCollection(), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of(request)));
 
@@ -37,19 +37,19 @@ class ResourceStorageDeleteRetryWorkerTest {
 		assertThat(deletedCount).isEqualTo(1);
 		assertThat(request.getStatus()).isEqualTo(ResourceStorageDeleteStatus.DELETED);
 		assertThat(request.getLastErrorMessage()).isNull();
-		verify(storageService).delete("storage-key");
+		verify(storagePublicService).delete("storage-key");
 	}
 
 	@Test
 	void retryDeleteRequestsMarksFailedWhenStorageDeleteFails() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		StorageService storageService = mock(StorageService.class);
-		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storageService);
-		ResourceStorageDeleteRequest request = deleteRequest("storage-key");
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		StoragePublicService storagePublicService = mock(StoragePublicService.class);
+		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storagePublicService);
+		ResourceStorageDeleteRetryRecord request = deleteRequest("storage-key");
 		when(repository.findByStatusIn(anyCollection(), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of(request)));
 		doThrow(new IllegalStateException("storage unavailable"))
-				.when(storageService)
+				.when(storagePublicService)
 				.delete("storage-key");
 
 		int deletedCount = worker.retryDeleteRequests(10, 3);
@@ -62,15 +62,15 @@ class ResourceStorageDeleteRetryWorkerTest {
 
 	@Test
 	void retryDeleteRequestsMarksDeadLetterWhenRetryCountReachesLimit() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		StorageService storageService = mock(StorageService.class);
-		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storageService);
-		ResourceStorageDeleteRequest request = deleteRequest("storage-key");
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		StoragePublicService storagePublicService = mock(StoragePublicService.class);
+		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storagePublicService);
+		ResourceStorageDeleteRetryRecord request = deleteRequest("storage-key");
 		ReflectionTestUtils.setField(request, "retryCount", 2);
 		when(repository.findByStatusIn(anyCollection(), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of(request)));
 		doThrow(new IllegalStateException("storage unavailable"))
-				.when(storageService)
+				.when(storagePublicService)
 				.delete("storage-key");
 
 		int deletedCount = worker.retryDeleteRequests(10, 3);
@@ -84,10 +84,10 @@ class ResourceStorageDeleteRetryWorkerTest {
 
 	@Test
 	void retryDeleteRequestsDoesNotDeleteWhenAlreadyOverRetryLimit() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		StorageService storageService = mock(StorageService.class);
-		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storageService);
-		ResourceStorageDeleteRequest request = deleteRequest("storage-key");
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		StoragePublicService storagePublicService = mock(StoragePublicService.class);
+		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storagePublicService);
+		ResourceStorageDeleteRetryRecord request = deleteRequest("storage-key");
 		ReflectionTestUtils.setField(request, "retryCount", 3);
 		when(repository.findByStatusIn(anyCollection(), any(Pageable.class)))
 				.thenReturn(new PageImpl<>(List.of(request)));
@@ -98,23 +98,23 @@ class ResourceStorageDeleteRetryWorkerTest {
 		assertThat(request.getStatus()).isEqualTo(ResourceStorageDeleteStatus.DEAD_LETTER);
 		assertThat(request.getLastErrorMessage())
 				.isEqualTo(ResourceStorageDeleteRetryWorker.DEAD_LETTER_MESSAGE);
-		verifyNoInteractions(storageService);
+		verifyNoInteractions(storagePublicService);
 	}
 
 	@Test
 	void retryDeleteRequestsReturnsZeroWhenBatchSizeIsNotPositive() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		StorageService storageService = mock(StorageService.class);
-		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storageService);
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		StoragePublicService storagePublicService = mock(StoragePublicService.class);
+		ResourceStorageDeleteRetryWorker worker = new ResourceStorageDeleteRetryWorker(repository, storagePublicService);
 
 		int deletedCount = worker.retryDeleteRequests(0, 3);
 
 		assertThat(deletedCount).isZero();
-		verifyNoInteractions(repository, storageService);
+		verifyNoInteractions(repository, storagePublicService);
 	}
 
-	private ResourceStorageDeleteRequest deleteRequest(String storageKey) {
-		return ResourceStorageDeleteRequest.create(
+	private ResourceStorageDeleteRetryRecord deleteRequest(String storageKey) {
+		return ResourceStorageDeleteRetryRecord.create(
 				UUID.randomUUID(),
 				UUID.randomUUID(),
 				storageKey,

@@ -1,9 +1,9 @@
 package com.bubli.resource.service;
 
-import com.bubli.resource.entity.ResourceStorageDeleteRequest;
-import com.bubli.resource.repository.ResourceStorageDeleteRequestRepository;
+import com.bubli.resource.entity.ResourceStorageDeleteRetryRecord;
+import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import com.bubli.resource.type.ResourceStorageDeleteStatus;
-import com.bubli.storage.service.StorageService;
+import com.bubli.storage.service.StoragePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,8 +24,8 @@ public class ResourceStorageDeleteRetryWorker {
 			ResourceStorageDeleteStatus.FAILED
 	);
 
-	private final ResourceStorageDeleteRequestRepository resourceStorageDeleteRequestRepository;
-	private final StorageService storageService;
+	private final ResourceStorageDeleteRetryRecordRepository resourceStorageDeleteRetryRecordRepository;
+	private final StoragePublicService storagePublicService;
 
 	@Transactional
 	public int retryDeleteRequests(int batchSize, int maxRetryCount) {
@@ -33,32 +33,32 @@ public class ResourceStorageDeleteRetryWorker {
 			return 0;
 		}
 		int deletedCount = 0;
-		for (ResourceStorageDeleteRequest request : resourceStorageDeleteRequestRepository
+		for (ResourceStorageDeleteRetryRecord record : resourceStorageDeleteRetryRecordRepository
 				.findByStatusIn(
 						RETRYABLE_STATUSES,
 						PageRequest.of(0, batchSize, Sort.by("createdAt").ascending())
 				)
 				.getContent()) {
-			if (request.getRetryCount() >= maxRetryCount) {
-				request.markDeadLetter(DEAD_LETTER_MESSAGE);
+			if (record.getRetryCount() >= maxRetryCount) {
+				record.markDeadLetter(DEAD_LETTER_MESSAGE);
 				continue;
 			}
-			if (retryDelete(request, maxRetryCount)) {
+			if (retryDelete(record, maxRetryCount)) {
 				deletedCount++;
 			}
 		}
 		return deletedCount;
 	}
 
-	private boolean retryDelete(ResourceStorageDeleteRequest request, int maxRetryCount) {
+	private boolean retryDelete(ResourceStorageDeleteRetryRecord record, int maxRetryCount) {
 		try {
-			storageService.delete(request.getStorageKey());
-			request.markDeleted();
+			storagePublicService.delete(record.getStorageKey());
+			record.markDeleted();
 			return true;
 		} catch (RuntimeException exception) {
-			request.markFailed(errorMessage(exception));
-			if (request.getRetryCount() >= maxRetryCount) {
-				request.markDeadLetter(DEAD_LETTER_MESSAGE);
+			record.markFailed(errorMessage(exception));
+			if (record.getRetryCount() >= maxRetryCount) {
+				record.markDeadLetter(DEAD_LETTER_MESSAGE);
 			}
 			return false;
 		}
