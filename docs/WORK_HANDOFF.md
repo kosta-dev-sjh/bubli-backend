@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:35 KST
+Last checked: 2026-06-25 13:41 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -65,13 +65,13 @@ Last checked: 2026-06-25 13:35 KST
 - #27 entity/flyway alignment 최신 #26 base 병합, V1 develop 복원, V3 migration 분리, 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #28 testcontainers/CI foundation 최신 #27 base 병합 로컬 검증과 GitHub Actions `build` 통과
 - #31 resource related API 최신 #25 base 병합과 ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
-- #39 storage usage API 최신 #31 base 병합 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
+- #39 storage usage API 최신 #31 base 병합 시 `RoomMemberRepository.java` 충돌 발생. merge abort 후 보류
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource summary API, `ResourceSummaryStatus`, 자료 삭제 정책 6/25 기준 보정 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #31 resource related API 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
-- #32 agent job status API 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
+- #32 agent job status API 최신 #26 base 병합과 ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #33 agent suggestion list API 로컬 검증 통과. GitHub checks 없음 (base #32에 stacked PR CI workflow 없음)
 - #34 agent job events API 로컬 검증 통과. GitHub checks 없음 (base #33에 stacked PR CI workflow 없음)
 - #35 agent suggestion update API 로컬 검증 통과. GitHub checks 없음 (base #34에 stacked PR CI workflow 없음)
@@ -129,6 +129,52 @@ Last checked: 2026-06-25 13:35 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 32-2. #32 에이전트 작업 상태 조회 API 최신 #26 기준 정리
+
+처리 시각: 2026-06-25 13:41 KST
+
+변경 내용:
+
+- #32 `feature/agent-job-status-api` 브랜치에 최신 #26 `feature/agent-storage-foundation` head `2fd6295`를 병합했다.
+- 병합 충돌은 없었고, agent storage foundation의 최신 enum/Command/PublicService 기준을 유지했다.
+- agent 패키지는 다른 도메인의 Repository/Entity를 직접 참조하지 않는 상태로 확인했다.
+- #32 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #32: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #32: `./gradlew compileTestJava` 통과
+- #32: `./gradlew cleanTest test` 통과
+- #32: `git diff --check` 통과
+- #32: head `74da8e3`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #32: GitHub checks 없음. base가 `feature/agent-storage-foundation`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #32는 draft PR 상태를 유지한다.
+- #33은 #32 head `74da8e3` 기준으로 다음 agent stack 확인 대상이다.
+
+### 작업 카드 39-2. #39 저장 용량 API 최신 #31 병합 보류
+
+처리 시각: 2026-06-25 13:41 KST
+
+상태:
+
+- #39 `feature/storage-usage-api` 브랜치에 최신 #31 `feature/resource-related-api` head `84c12b4` 병합을 시도했다.
+- `src/main/java/com/bubli/project/repository/RoomMemberRepository.java`에서 merge conflict가 발생했다.
+- 충돌 자동 해결은 안전하지 않다고 판단해 `git merge --abort`로 작업트리를 원복했다.
+- 현재 #39 작업트리는 clean 상태다.
+
+보류 사유:
+
+- 충돌 파일이 project repository 공용 조회 메서드 영역이라, #31/#39 양쪽에서 필요한 메서드 보존 기준을 확인한 뒤 별도 처리해야 한다.
+- 목표 파일의 규칙에 따라 충돌 PR은 보류 사유를 남기고 다음 가능한 PR로 이동한다.
+
+다음 처리:
+
+- #39 재개 시 `RoomMemberRepository.java`의 최신 #31 메서드와 #39 storage usage 메서드를 모두 보존하는 방향으로 수동 병합한다.
+- 병합 뒤 `ArchitectureTest`, `compileTestJava`, `cleanTest test`, `git diff --check`를 다시 실행한다.
 
 ### 작업 카드 31-2. #31 자료 관련 문서 조회 API 최신 #25 기준 정리
 
@@ -2902,14 +2948,14 @@ Last checked: 2026-06-25 13:35 KST
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `ad4f1df` | `build` pass, merge clean, draft | 6/25 12:16 API 재갱신 기준과 PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `84c12b4` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
-| #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `d667612` | checks 없음, merge clean, draft | 6/25 기준 agent_jobs 상태 조회 API 추가 |
+| #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `74da8e3` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 6/25 기준 agent_jobs 상태 조회 API 추가 |
 | #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `a863439` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
 | #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `698557a` | checks 없음, merge clean, draft | 6/25 기준 agent_job_events 조회 API 추가 |
 | #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `f27b0ce` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
 | #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
 | #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `aa52ec1` | checks 없음, merge clean, draft | 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
 | #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `cf7cdfd` | `build` pass, merge clean, draft | 최신 #28 base 병합. BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 유지 |
-| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge clean, draft | 최신 #31 base 병합 후 CLEAN. 6/25 기준 storage usage 조회 API와 accounting boundary 유지 |
+| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge unknown, draft | 최신 #31 head `84c12b4` 병합 중 `RoomMemberRepository.java` 충돌. merge abort 후 보류 |
 | #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `769a707` | checks 없음, merge clean, draft | 6/25 기준 analyze-resource agent job 생성 API 추가 |
 | #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge clean, draft | 6/25 기준 generate-requirements agent job 생성 API 추가 |
 | #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `7a25da0` | checks 없음, merge clean, draft | 6/25 기준 generate-tasks agent job 생성 API 추가 |
@@ -3026,9 +3072,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #29는 #28 재확인 결과를 반영한 뒤 GitHub Actions CI를 확인한다.
-2. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 재검토한다.
-3. #31/#39처럼 #25 계열 downstream PR은 #25 head `a5d0ed6` 기준 이후 변경을 다시 확인한다.
+1. #33은 #32 최신 head `74da8e3` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
+3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
