@@ -60,6 +60,38 @@ public class Schedule {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static Schedule create(UUID ownerUserId, UUID roomId, UUID taskId, UUID wbsItemId,
+			String title, Instant startsAt, Instant endsAt, boolean allDay) {
+		Schedule schedule = new Schedule();
+		schedule.ownerUserId = ownerUserId;
+		schedule.roomId = roomId;
+		schedule.taskId = taskId;
+		schedule.wbsItemId = wbsItemId;
+		schedule.title = title;
+		schedule.startsAt = startsAt;
+		schedule.endsAt = endsAt;
+		schedule.allDay = allDay;
+		schedule.syncStatus = ScheduleSyncStatus.LOCAL_ONLY;
+		return schedule;
+	}
+
+	public void update(String title, Instant startsAt, Instant endsAt, Boolean allDay,
+			UUID taskId, UUID wbsItemId) {
+		if (title != null) {
+			this.title = title;
+		}
+		if (startsAt != null) {
+			this.startsAt = startsAt;
+		}
+		this.endsAt = endsAt;
+		if (allDay != null) {
+			this.allDay = allDay;
+		}
+		this.taskId = taskId;
+		this.wbsItemId = wbsItemId;
+		this.syncStatus = ScheduleSyncStatus.LOCAL_ONLY;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

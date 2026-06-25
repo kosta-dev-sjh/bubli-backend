@@ -11,4 +11,7 @@ public record AuthLoginRequest(
 		@NotNull(message = "클라이언트 종류는 필수입니다.")
 		ClientType clientType
 ) {
+	public AuthLoginCommand toCommand() {
+		return new AuthLoginCommand(googleIdToken, clientType);
+	}
 }
