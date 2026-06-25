@@ -7,7 +7,8 @@ import com.bubli.project.dto.ProjectRoomEventActorResponse;
 import com.bubli.project.dto.ProjectRoomEventResponse;
 import com.bubli.project.entity.ProjectRoomEvent;
 import com.bubli.project.repository.ProjectRoomEventRepository;
-import com.bubli.user.repository.UserRepository;
+import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +29,7 @@ public class ProjectRoomEventService {
 
 	private final ProjectRoomService projectRoomService;
 	private final ProjectRoomEventRepository projectRoomEventRepository;
-	private final UserRepository userRepository;
+	private final UserPublicService userPublicService;
 	private final ObjectMapper objectMapper;
 
 	@Transactional(readOnly = true)
@@ -76,9 +77,12 @@ public class ProjectRoomEventService {
 		if (event.getActorUserId() == null) {
 			return ProjectRoomEventActorResponse.system();
 		}
-		return userRepository.findById(event.getActorUserId())
-				.map(user -> ProjectRoomEventActorResponse.user(user.getId(), user.getName()))
-				.orElseGet(() -> ProjectRoomEventActorResponse.user(event.getActorUserId(), "Unknown"));
+		try {
+			UserResult user = userPublicService.getUser(event.getActorUserId());
+			return ProjectRoomEventActorResponse.user(user.id(), user.name());
+		} catch (BusinessException e) {
+			return ProjectRoomEventActorResponse.user(event.getActorUserId(), "Unknown");
+		}
 	}
 
 	private JsonNode payload(ProjectRoomEvent event) {

@@ -11,8 +11,8 @@ import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
-import com.bubli.user.entity.User;
-import com.bubli.user.repository.UserRepository;
+import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.UserPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +41,7 @@ class ProjectRoomMemberServiceTest {
 	InvitationRepository invitationRepository;
 
 	@Mock
-	UserRepository userRepository;
+	UserPublicService userPublicService;
 
 	@InjectMocks
 	ProjectRoomMemberService projectRoomMemberService;
@@ -50,18 +50,18 @@ class ProjectRoomMemberServiceTest {
 	void projectLeaderCanCreateInvitation() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
-		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		UserResult invitee = user(UUID.randomUUID(), "invitee", "준화");
 		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
-		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
+		CreateInvitationCommand command = new CreateInvitationCommand(invitee.id(), RoomMemberRole.MEMBER, null);
 
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(leader));
-		given(userRepository.findById(invitee.getId())).willReturn(Optional.of(invitee));
-		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+		given(userPublicService.getUser(invitee.id())).willReturn(invitee);
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.id(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.empty());
 		given(invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
 				roomId,
-				invitee.getId(),
+				invitee.id(),
 				InvitationStatus.PENDING
 		)).willReturn(false);
 		given(invitationRepository.save(any(Invitation.class))).willAnswer(invocation -> {
@@ -73,7 +73,7 @@ class ProjectRoomMemberServiceTest {
 		InvitationResult result = projectRoomMemberService.createInvitation(leaderId, roomId, command);
 
 		assertThat(result.roomId()).isEqualTo(roomId);
-		assertThat(result.inviteeUserId()).isEqualTo(invitee.getId());
+		assertThat(result.inviteeUserId()).isEqualTo(invitee.id());
 		assertThat(result.inviteeName()).isEqualTo("준화");
 		assertThat(result.role()).isEqualTo(RoomMemberRole.MEMBER);
 		assertThat(result.status()).isEqualTo(InvitationStatus.PENDING);
@@ -83,9 +83,9 @@ class ProjectRoomMemberServiceTest {
 	void ordinaryMemberCannotCreateInvitation() {
 		UUID roomId = UUID.randomUUID();
 		UUID memberId = UUID.randomUUID();
-		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		UserResult invitee = user(UUID.randomUUID(), "invitee", "준화");
 		RoomMember member = RoomMember.createMember(roomId, memberId);
-		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
+		CreateInvitationCommand command = new CreateInvitationCommand(invitee.id(), RoomMemberRole.MEMBER, null);
 
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberId, RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(member));
@@ -99,15 +99,15 @@ class ProjectRoomMemberServiceTest {
 	void cannotCreateInvitationForAlreadyActiveMember() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
-		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		UserResult invitee = user(UUID.randomUUID(), "invitee", "준화");
 		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
-		RoomMember activeMember = RoomMember.createMember(roomId, invitee.getId());
-		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
+		RoomMember activeMember = RoomMember.createMember(roomId, invitee.id());
+		CreateInvitationCommand command = new CreateInvitationCommand(invitee.id(), RoomMemberRole.MEMBER, null);
 
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(leader));
-		given(userRepository.findById(invitee.getId())).willReturn(Optional.of(invitee));
-		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+		given(userPublicService.getUser(invitee.id())).willReturn(invitee);
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.id(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(activeMember));
 
 		assertThatThrownBy(() -> projectRoomMemberService.createInvitation(leaderId, roomId, command))
@@ -119,24 +119,24 @@ class ProjectRoomMemberServiceTest {
 	void inviteeCanAcceptInvitationAndBecomeRoomMember() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
-		User invitee = user(UUID.randomUUID(), "invitee", "민서");
+		UserResult invitee = user(UUID.randomUUID(), "invitee", "민서");
 		Invitation invitation = Invitation.create(
 				roomId,
 				leaderId,
-				invitee.getId(),
+				invitee.id(),
 				RoomMemberRole.MEMBER,
 				Instant.now().plusSeconds(3600)
 		);
 		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
 
-		given(invitationRepository.findByIdAndInviteeUserId(invitation.getId(), invitee.getId()))
+		given(invitationRepository.findByIdAndInviteeUserId(invitation.getId(), invitee.id()))
 				.willReturn(Optional.of(invitation));
-		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.id(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.empty());
-		given(roomMemberRepository.findByRoomIdAndUserId(roomId, invitee.getId())).willReturn(Optional.empty());
-		given(userRepository.findById(invitee.getId())).willReturn(Optional.of(invitee));
+		given(roomMemberRepository.findByRoomIdAndUserId(roomId, invitee.id())).willReturn(Optional.empty());
+		given(userPublicService.getUser(invitee.id())).willReturn(invitee);
 
-		InvitationResult result = projectRoomMemberService.acceptInvitation(invitee.getId(), invitation.getId());
+		InvitationResult result = projectRoomMemberService.acceptInvitation(invitee.id(), invitation.getId());
 
 		assertThat(result.status()).isEqualTo(InvitationStatus.ACCEPTED);
 		assertThat(result.acceptedAt()).isNotNull();
@@ -144,7 +144,7 @@ class ProjectRoomMemberServiceTest {
 		ArgumentCaptor<RoomMember> memberCaptor = ArgumentCaptor.forClass(RoomMember.class);
 		verify(roomMemberRepository).save(memberCaptor.capture());
 		assertThat(memberCaptor.getValue().getRoomId()).isEqualTo(roomId);
-		assertThat(memberCaptor.getValue().getUserId()).isEqualTo(invitee.getId());
+		assertThat(memberCaptor.getValue().getUserId()).isEqualTo(invitee.id());
 		assertThat(memberCaptor.getValue().getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
@@ -152,12 +152,12 @@ class ProjectRoomMemberServiceTest {
 	void projectLeaderCanCancelPendingInvitation() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
-		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		UserResult invitee = user(UUID.randomUUID(), "invitee", "준화");
 		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
 		Invitation invitation = Invitation.create(
 				roomId,
 				leaderId,
-				invitee.getId(),
+				invitee.id(),
 				RoomMemberRole.MEMBER,
 				Instant.now().plusSeconds(3600)
 		);
@@ -166,7 +166,7 @@ class ProjectRoomMemberServiceTest {
 		given(invitationRepository.findById(invitation.getId())).willReturn(Optional.of(invitation));
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(leader));
-		given(userRepository.findById(invitee.getId())).willReturn(Optional.of(invitee));
+		given(userPublicService.getUser(invitee.id())).willReturn(invitee);
 
 		InvitationResult result = projectRoomMemberService.cancelInvitation(leaderId, invitation.getId());
 
@@ -177,20 +177,20 @@ class ProjectRoomMemberServiceTest {
 	void projectLeaderCanUpdateMemberRole() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
-		User memberUser = user(UUID.randomUUID(), "member", "정현");
+		UserResult memberUser = user(UUID.randomUUID(), "member", "정현");
 		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
-		RoomMember member = RoomMember.createMember(roomId, memberUser.getId());
+		RoomMember member = RoomMember.createMember(roomId, memberUser.id());
 
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(leader));
-		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberUser.getId(), RoomMemberStatus.ACTIVE))
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, memberUser.id(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.of(member));
-		given(userRepository.findById(memberUser.getId())).willReturn(Optional.of(memberUser));
+		given(userPublicService.getUser(memberUser.id())).willReturn(memberUser);
 
 		var result = projectRoomMemberService.updateMemberRole(
 				leaderId,
 				roomId,
-				memberUser.getId(),
+				memberUser.id(),
 				RoomMemberRole.PROJECT_LEADER
 		);
 
@@ -230,16 +230,15 @@ class ProjectRoomMemberServiceTest {
 		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.LEFT);
 	}
 
-	private User user(UUID userId, String bubliId, String name) {
-		User user = User.createGoogleUser(
-				"google-sub-" + bubliId,
+	private UserResult user(UUID userId, String bubliId, String name) {
+		return new UserResult(
+				userId,
+				null,
 				bubliId,
 				name,
 				null,
 				"ko",
 				"Asia/Seoul"
 		);
-		ReflectionTestUtils.setField(user, "id", userId);
-		return user;
 	}
 }
