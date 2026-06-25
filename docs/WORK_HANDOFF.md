@@ -228,7 +228,14 @@ CI 재확인:
 - #90 head branch push도 현재 workflow의 `push` 대상이 `develop`뿐이라 별도 Actions run이 생성되지 않았다.
 - #90을 억지로 `develop`으로 retarget하면 `ResourcePublicService`를 도입한 #36 stack 전체가 섞이므로, 작은 보정 PR 원칙에 맞지 않는다.
 - 2026-06-25 20:04 KST에 #90 브랜치에서 로컬 검증 4종을 다시 통과했다: `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check`.
+- 2026-06-25 20:58 KST에 #90 브랜치에 #92 공개 계약 보정 커밋을 cherry-pick했다. #90 head는 `abd042b`이고 로컬 검증 4종을 다시 통과했다.
 - 수정된 `bubli-backend-workflow` 기준으로 #90은 CI-not-created 예외 처리 대상이다. #36 반영 뒤 또는 base workflow가 갱신된 뒤 GitHub Actions CI를 다시 확인하는 것은 후속 품질 확인으로 남긴다.
+
+Agent/resource stack 재정리:
+
+- #37은 #90을 부모 base로 바꿨고 head `8f84b7e` 기준 `CLEAN`이다. `WORK_HANDOFF.md` 충돌은 #37 기록과 #90 기록을 모두 보존했고, 오래된 `RoomAccessService` 문구는 실제 코드 기준인 `ProjectMembershipPublicService.assertActiveMember`로 맞췄다.
+- #40은 최신 #37을 병합하면서 `ResourcePublicService` 충돌을 해결했다. `getReadableResource(...)`는 interface에 선언하고 구현은 `ResourcePublicServiceImpl`로 옮겼다. head `1a9ffd5` 기준 로컬 검증 4종 통과, GitHub checks 없음.
+- #41 head `40c4947`, #42 head `caf47b0`, #43 head `e559a56`, #44 head `5dcde7c`, #45 head `5de6f51`은 각각 부모 PR 최신 head를 clean merge했고 로컬 검증 4종을 통과했다. 모두 feature/stack base라 GitHub checks는 생성되지 않았다.
 
 후속 병합 순서:
 
@@ -236,8 +243,8 @@ CI 재확인:
 2. develop 대상 빠른 병합 흐름에서는 #92를 먼저 리뷰한다. #92는 #86~#89의 code-only 보정을 `develop` 위에 다시 구성한 PR이다.
    #92 뒤에 #47, #83, #85, #84를 각각 다시 확인했으며 모두 clean merge와 로컬 검증 4종을 통과했다.
 3. 문서 stack 흐름에서는 #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
-4. #36 뒤에 #90 `ResourcePublicService` 보정 PR을 반영한다.
-5. #37, #40~#45 agent/resource stack은 #90 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
+4. #36 뒤에 #90 `ResourcePublicService` + #92 공개 계약 보정 PR을 반영한다.
+5. 그 다음 #37 -> #40 -> #41 -> #42 -> #43 -> #44 -> #45 순서로 agent/resource job stack을 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
 6. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
 
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
