@@ -11,4 +11,7 @@ public record RefreshTokenRequest(
 		@NotNull(message = "클라이언트 종류는 필수입니다.")
 		ClientType clientType
 ) {
+	public RefreshTokenCommand toCommand() {
+		return new RefreshTokenCommand(refreshToken, clientType);
+	}
 }
