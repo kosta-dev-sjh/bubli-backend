@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 21:27 KST
+Last checked: 2026-06-25 21:31 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -144,6 +144,8 @@ Last checked: 2026-06-25 21:27 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
+- #27, #28, #62, #38 core/test stack을 2026-06-25 21:31 KST에 재확인했다. 모두 부모 최신 상태이며 로컬 검증 4종 통과
+- #31, #39 resource-base stack을 2026-06-25 21:31 KST에 재확인했다. 모두 부모 최신 상태이며 로컬 검증 4종 통과
 - #92 develop 대상 공개 계약 인터페이스화 보정 PR 로컬 검증과 GitHub Actions `build` 통과. GitHub상 `BLOCKED`는 review required 상태로 본다.
 - #92를 기준선으로 둔 뒤 #47, #83, #85, #84를 각각 #92 위에 병합 시뮬레이션했다. 네 PR 모두 충돌 없이 병합되고 로컬 검증 4종이 통과했다.
 - 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:27 KST)
@@ -192,6 +194,44 @@ Last checked: 2026-06-25 21:27 KST
 1. 프로젝트룸 흐름은 develop 대상 #85를 먼저 리뷰한 뒤, #59 -> #61 순서로 stack을 유지한다.
 2. #59/#61은 CI 미생성 예외로 기록하고 로컬 검증 4종을 gate로 삼는다.
 3. #85가 develop에 들어가면 #59 순수 변경분을 develop 기준으로 재구성할지 다시 판단한다.
+
+### 작업 카드 CORE-RESOURCE-VERIFY. core/test/resource-base stack 재검증
+
+처리 시각: 2026-06-25 21:31 KST
+
+브랜치:
+
+- #27 `feature/entity-flyway-alignment`
+- #28 `feature/testcontainers-ci-foundation`
+- #62 `feature/core-domain-fk-alignment`
+- #38 `chore/entity-boundary-guards`
+- #31 `feature/resource-related-api`
+- #39 `feature/storage-usage-api`
+
+변경 내용:
+
+- 코드 변경 없음.
+- #27은 현재 parent 기준 그대로 검증했다.
+- #28은 최신 #27 parent를 확인했고 이미 up to date였다.
+- #62는 최신 #27 parent를 확인했고 이미 up to date였다.
+- #38은 최신 #28 parent를 확인했고 이미 up to date였다.
+- #31은 최신 `feature/resource-basic-foundation` parent를 확인했고 이미 up to date였다.
+- #39는 최신 #31 parent를 확인했고 이미 up to date였다.
+
+검증 결과:
+
+- #27: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+- #28: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+- #62: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+- #38: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+- #31: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+- #39: `./gradlew test --tests '*ArchitectureTest'` 통과, `./gradlew compileTestJava` 통과, `./gradlew cleanTest test` 통과, `git diff --check` 통과
+
+후속:
+
+1. #27 -> #28, #27 -> #62, #28 -> #38, #31 -> #39 순서는 그대로 유지한다.
+2. 이번 확인 대상은 코드 보정이 필요 없어서 새 브랜치 push가 없다.
+3. feature/stack base에서 checks가 없는 PR은 CI 미생성 예외로 두고 로컬 검증 4종을 gate로 삼는다.
 
 ### 작업 카드 92-1. #92 기준선과 develop 직접 PR 재검증
 
