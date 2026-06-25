@@ -38,7 +38,7 @@
 "64","feat: connect resource upload storage usage","feature/resource-upload-policy","feature/resource-upload-storage-usage","637fa26","stacked","CLEAN no-checks","after-57","앞 PR #57 이후 리뷰","자료 업로드와 저장공간 사용량 연결"
 "65","[feat] 에이전트 dispatch 재시도 scheduler 추가","feature/agent-dispatch-retry-worker","feature/agent-dispatch-retry-scheduler","037c397","stacked","CLEAN no-checks","after-63","앞 PR #63 이후 리뷰","에이전트 dispatch 재시도 scheduler"
 "66","[feat] 에이전트 dispatch Redis adapter 추가","feature/agent-dispatch-retry-scheduler","feature/agent-dispatch-redis-adapter","b006662","stacked","CLEAN no-checks","after-65","앞 PR #65 이후 리뷰","Redis enqueue adapter"
-"67","[feat] 자료 삭제 저장소 객체 정리 추가","feature/resource-upload-storage-usage","feature/resource-delete-storage-cleanup","0fac143","stacked","DIRTY no-checks","hold","최신 #64 기준 충돌 해소 후 리뷰","자료 삭제 시 storage object 정리"
+"67","[feat] 자료 삭제 저장소 객체 정리 추가","feature/resource-upload-storage-usage","feature/resource-delete-storage-cleanup","8c553ca","stacked","CLEAN no-checks","after-64","앞 PR #64 이후 리뷰","자료 삭제 시 storage object 정리"
 "68","[feat] 에이전트 dispatch Redis consumer 경계 추가","feature/agent-dispatch-redis-adapter","feature/agent-dispatch-redis-consumer","6c47fde","stacked","CLEAN no-checks","after-66","앞 PR #66 이후 리뷰","Redis consume 경계"
 "69","[feat] 에이전트 dispatch worker shell 추가","feature/agent-dispatch-redis-consumer","feature/agent-dispatch-worker-loop","5c8f54b","stacked","CLEAN no-checks","after-68","앞 PR #68 이후 리뷰","worker shell과 RUNNING 전이"
 "70","[feat] 에이전트 실행 최종 상태 기록 추가","feature/agent-dispatch-worker-loop","feature/agent-dispatch-final-transition","ae29e3b","stacked","CLEAN no-checks","after-69","앞 PR #69 이후 리뷰","job 최종 상태 기록"
