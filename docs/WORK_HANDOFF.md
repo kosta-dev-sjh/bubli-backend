@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 15:13 KST
+Last checked: 2026-06-25 15:21 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -95,7 +95,7 @@ Last checked: 2026-06-25 15:13 KST
 - #53 agent job dispatch boundary, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
 - #54 S3 storage service boundary 최신 #52 base 병합, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #52에 stacked PR CI workflow 없음)
 - #55 resource multipart upload API 최신 #54 base 병합, StoragePublicService 경계 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #54에 stacked PR CI workflow 없음)
-- #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
+- #56 resource upload compensation 최신 #55 base 병합, StoragePublicService 보상 삭제 경계 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
 - #64 resource upload/storage usage 연결 로컬 검증 통과. GitHub checks 없음 (base #57에 stacked PR CI workflow 없음)
 - #67 resource delete storage cleanup 로컬 검증 통과. GitHub checks 없음 (base #64에 stacked PR CI workflow 없음)
@@ -129,6 +129,34 @@ Last checked: 2026-06-25 15:13 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 56-2. #56 자료 업로드 실패 보상 삭제 최신 #55 기준 정리
+
+처리 시각: 2026-06-25 15:21 KST
+
+변경 내용:
+
+- #56 `feature/resource-upload-compensation` 브랜치에 최신 #55 `feature/resource-multipart-upload-api` head `cb94fa1`를 병합했다.
+- `ResourceService.java` 충돌을 해결했다.
+- #56의 저장소 보상 삭제 try/catch 흐름과 #55의 `StoragePublicService` 공개 경계를 모두 보존했다.
+- 업로드 파일 저장 성공 후 DB file/version 메타데이터 저장 실패 시 `StoragePublicService.delete`로 저장소 객체를 정리한다.
+- 보상 삭제 실패는 원래 예외에 suppressed exception으로 붙이고 원래 예외를 전파하는 정책을 유지했다.
+- #56 자체 변경으로 `V1__initial_schema.sql`이나 `PostgresIntegrationTestSupport.java`를 건드리지 않는 상태로 확인했다.
+- #56 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #56: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #56: `./gradlew compileTestJava` 통과
+- #56: `./gradlew cleanTest test` 통과
+- #56: `git diff --check` 통과
+- #56: head `6d29e0d`, base `feature/resource-multipart-upload-api`, mergeState `CLEAN`
+- #56: GitHub checks 없음. base가 `feature/resource-multipart-upload-api`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #56은 draft PR 상태를 유지한다.
+- #57은 #56 head `6d29e0d` 기준으로 다음 resource upload policy stack 확인 대상이다.
 
 ### 작업 카드 55-2. #55 자료 multipart 업로드 API 최신 #54 기준 정리
 
@@ -3391,7 +3419,7 @@ Last checked: 2026-06-25 15:13 KST
 | #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `31d9eb8` | checks 없음, merge clean, draft | 최신 #46 base 병합 후 S3 presigned download URL provider 검증. #46 provider 경계에 구현 추가 |
 | #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `0f48244` | checks 없음, merge clean, draft | 최신 #52 base 병합 후 StorageService/S3 설정 검증. #52 S3 설정 위에 저장/삭제 경계 추가 |
 | #55 | `[feat] 자료 multipart 업로드 API 연결` | `feature/resource-multipart-upload-api` | `feature/s3-storage-service-boundary` | `cb94fa1` | checks 없음, merge clean, draft | #54 최신 base 병합, StoragePublicService 경계 보정, resource/file/version 생성까지 연결 |
-| #56 | `[feat] 자료 업로드 실패 보상 삭제 추가` | `feature/resource-upload-compensation` | `feature/resource-multipart-upload-api` | `b18efb6` | checks 없음, merge clean, draft | #55 업로드 흐름에서 DB 저장 실패 시 StorageService.delete 보상 처리 |
+| #56 | `[feat] 자료 업로드 실패 보상 삭제 추가` | `feature/resource-upload-compensation` | `feature/resource-multipart-upload-api` | `6d29e0d` | checks 없음, merge clean, draft | #55 최신 base 병합, DB 저장 실패 시 StoragePublicService.delete 보상 처리 |
 | #57 | `[feat] 자료 업로드 정책 검사 추가` | `feature/resource-upload-policy` | `feature/resource-upload-compensation` | `756174e` | checks 없음, merge clean, draft | #56 업로드 흐름에 설정 기반 크기/MIME 정책 검사 추가 |
 | #64 | `feat: connect resource upload storage usage` | `feature/resource-upload-storage-usage` | `feature/resource-upload-policy` | `b61b870` | checks 없음, merge clean, draft | #57 위에 #39 storage usage accounting boundary를 병합하고 업로드/삭제 사용량 기록과 해제를 연결 |
 | #67 | `[feat] 자료 삭제 저장소 객체 정리 추가` | `feature/resource-delete-storage-cleanup` | `feature/resource-upload-storage-usage` | `0fac143` | checks 없음, merge clean, draft | #64 위에 자료 삭제 시 연결 storage object best-effort 삭제 추가. 삭제 retry/outbox는 후속 |
@@ -3426,7 +3454,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결 및 StoragePublicService 공개 경계 보정. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가. #77에서 삭제 retry 조건부 scheduler 추가. #80에서 dead-letter 조회 서비스/DTO 기반 추가. #81에서 dead-letter 조회용 `(status, updated_at)` 인덱스 추가 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결 및 StoragePublicService 공개 경계 보정. #56에서 업로드 후 DB 저장 실패 시 StoragePublicService 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가. #77에서 삭제 retry 조건부 scheduler 추가. #80에서 dead-letter 조회 서비스/DTO 기반 추가. #81에서 dead-letter 조회용 `(status, updated_at)` 인덱스 추가 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가. #60에서 dispatch 실패 retry count 반영과 retry 후보 조회 경계 추가. #63에서 retry 가능한 FAILED job 재dispatch worker service 추가. #65에서 retry worker 조건부 scheduler 추가. #66에서 Redis enqueue adapter 추가. #68에서 Redis consume 경계 추가. #69에서 RUNNING/STARTED worker shell 추가. #70에서 RUNNING job의 SUCCEEDED/FAILED 최종 전이 event 기록기 추가. #71에서 execution port와 worker-result recorder 연결 shell 추가. #72에서 dispatch DB outbox 운영 테이블 초안과 상태 기록 흐름 추가. #73에서 PENDING/FAILED outbox 재발행 service와 DEAD_LETTER 전이 추가. #74에서 outbox 발행/재시도 조건부 scheduler 추가. #78에서 실행 성공 outcome의 후보를 `agent_suggestions` DRAFT로 저장하는 내부 경계 추가. #79에서 실행 outcome의 모델 호출 로그를 `agent_model_call_logs`에 저장하는 내부 경계 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
@@ -3444,7 +3472,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 사용자 프로필 | `GET /api/me`, `PATCH /api/me` 포함 | #47 보정 완료. 로그인 사용자 기준 프로필 조회/수정을 DTO로 제공한다 |
 | 사용자 설정 | `GET/PATCH /api/me/preferences`, `GET/PATCH /api/me/notification-preferences`, `GET/PATCH /api/me/privacy-consents` 포함 | #48 preferences 보정 완료. #49 notification-preferences 보정 완료. #50 privacy-consents 보정 완료. 기본 홈, 기본 프로젝트룸, 알림 종류별 On/Off, 민감 기능 동의 상태를 조회/수정한다 |
 | 자료 상태값 | `ResourceResponse.status` 예시는 `UPLOADED`, `ANALYZING`, `ANALYZED`, `FAILED`, `ARCHIVED` | 6/25 데이터 딕셔너리 기준으로 `ResourceSummaryStatus`와 `ResourceStatus.DELETED` 제거는 #25에서 보정했다. `ResourceResponse.status` 예시의 `UPLOADED/ARCHIVED`와 코드 `UPLOADING/READY` 명칭 차이는 최종 API 기준에서 추가 확인 필요 |
-| 자료 업로드/삭제 | `POST /api/resources`는 개인 또는 프로젝트룸 자료 업로드, `DELETE /api/resources/{id}`는 자료 삭제 | #25는 파일/S3 업로드 전 단계의 자료 카드 메타데이터 저장/조회 기반, 댓글 API, 파일 메타데이터/버전 API, summary 조회 API까지 구현함. #46에서 download-url API 뼈대를 추가했고, #52에서 S3 presigned URL Provider를 추가함. #54에서 S3 저장/삭제 Service 경계를 추가했고, #55에서 multipart upload를 `resources`, `resource_files`, `resource_versions` v1 생성까지 연결하고 storage 공개 포트는 `StoragePublicService`로 보정함. #56에서 DB 저장 실패 시 저장소 객체 보상 삭제를 추가했고, #57에서 파일 크기/MIME allow-list 검사를 추가함. #64에서 #39 storage usage accounting boundary를 upload stack에 병합하고 업로드/삭제 사용량 기록과 해제를 연결함. #67에서 삭제 시 storage object best-effort 정리를 추가함 |
+| 자료 업로드/삭제 | `POST /api/resources`는 개인 또는 프로젝트룸 자료 업로드, `DELETE /api/resources/{id}`는 자료 삭제 | #25는 파일/S3 업로드 전 단계의 자료 카드 메타데이터 저장/조회 기반, 댓글 API, 파일 메타데이터/버전 API, summary 조회 API까지 구현함. #46에서 download-url API 뼈대를 추가했고, #52에서 S3 presigned URL Provider를 추가함. #54에서 S3 저장/삭제 Service 경계를 추가했고, #55에서 multipart upload를 `resources`, `resource_files`, `resource_versions` v1 생성까지 연결하고 storage 공개 포트는 `StoragePublicService`로 보정함. #56에서 DB 저장 실패 시 StoragePublicService 보상 삭제를 추가했고, #57에서 파일 크기/MIME allow-list 검사를 추가함. #64에서 #39 storage usage accounting boundary를 upload stack에 병합하고 업로드/삭제 사용량 기록과 해제를 연결함. #67에서 삭제 시 storage object best-effort 정리를 추가함 |
 | 자료 수정/삭제 | `PATCH /api/resources/{id}`, `DELETE /api/resources/{id}` 포함 | #25 보정 완료. #24 base 병합 충돌도 해결되어 PR mergeState는 CLEAN |
 | 자료 댓글 | `GET/POST /api/resources/{id}/comments`, `PATCH/DELETE /api/resource-comments/{id}` 포함 | #25 보정 완료. 작성자만 수정/삭제 가능하고 삭제는 `deleted_at` 처리 |
 | 자료 버전 | `GET/POST /api/resources/{id}/versions` 포함 | #25 보정 완료. `resource_files`와 `resource_versions` 메타데이터를 저장/조회한다 |
@@ -3483,9 +3511,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #56은 #55 최신 head `cb94fa1` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #57은 #56 최신 head `6d29e0d` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
-3. #57 이후 resource upload stack은 #56 최신 head 기준으로 순차 재검증한다.
+3. #64 이후 resource upload/delete stack은 #57 최신 head 기준으로 순차 재검증한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
