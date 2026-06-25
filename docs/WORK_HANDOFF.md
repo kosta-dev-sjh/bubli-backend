@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 11:38 KST
+Last checked: 2026-06-25 12:16 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -18,17 +18,29 @@ Last checked: 2026-06-25 11:38 KST
 | Tauri 로컬 DB 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/09C_DB-Tauri-SQLite.md` |
 | 백엔드 규칙 | `docs/Bubli_백엔드_개발_가이드_2026-06-25.md` |
 | 6/25 기준 보정 계획 | `docs/CURRENT_API_BASELINE_WORK.md` |
+| 현재 API 해시 | `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b` |
 
 ## 현재 작업 모드
 
-상태: 2026-06-25 최신 문서 묶음을 기준으로 기존 PR과 현재 코드를 재검토한다.
+상태: 2026-06-25 문서 묶음과 2026-06-25 12:16 KST API 재갱신본을 기준으로 기존 PR과 현재 코드를 재검토한다.
 
 2026-06-25에 최신 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, 백엔드 개발 가이드가 들어왔다.
-6/24 기준으로 만든 #19~#28 PR은 닫지 않고, 새 기준과 차이 나는 부분만 후속 보정 PR로 처리한다.
+2026-06-25 12:16 KST에 `/Users/maren/Downloads/10_API-Design (1).md`가 새 API 기준으로 다시 반영됐다.
+새 API는 Data Model 기준 enum 목록과 API 전용 상태값 처리 원칙을 추가한다.
+6/24 또는 이전 6/25 기준으로 만든 #19~#81 PR은 닫지 않고, 새 기준과 차이 나는 부분만 후속 보정 PR로 처리한다.
 
 현재 브랜치는 #28 `feature/testcontainers-ci-foundation` 위의 `chore/latest-docs-2026-06-25`다.
 이번 브랜치는 문서와 자동화 기준 갱신만 다룬다.
 코드 보정은 이 PR 이후 새 기준으로 한 PR씩 처리한다.
+
+현재 핵심 규칙:
+
+- 개발 가이드는 참고 문서가 아니라 ArchUnit/CI 통과 기준이다.
+- API 구현은 최신 `10_API-Design.md`만 보지 않고 최종 기획, `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, 백엔드 가이드를 함께 본다.
+- 다른 도메인의 Repository/Entity 직접 참조를 제거하고 필요한 경우 `*PublicService`를 둔다.
+- Service public method는 Controller `*Request` DTO를 직접 받지 않고 Command, Query, Context, Result를 사용한다.
+- 기존 `V1` migration은 수정하지 않고 필요한 변경은 새 migration으로 분리한다.
+- enum/status 값은 Data Model과 최신 API의 공통 enum 선언을 우선한다.
 
 현재 컴파일 기준:
 
@@ -115,6 +127,33 @@ Last checked: 2026-06-25 11:38 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 40. 2026-06-25 API enum 기준 재갱신
+
+처리 시각: 2026-06-25 12:16 KST
+
+변경 내용:
+
+- `/Users/maren/Downloads/10_API-Design (1).md`를 새 API 기준으로 확인했다.
+- 기존 API 기준 해시 `88240ed836bd26c09f22cc59bc33fd504cb23a205472b2ca4cc2bf083e60b2b3`와 새 API 해시 `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`가 다름을 확인했다.
+- 최종 산출물 폴더의 canonical `10_API-Design.md`를 새 파일로 갱신했다.
+- 위키 레포 `p3-bubli.wiki`의 `10_API-Design.md`도 새 파일로 갱신했다.
+- 기존 canonical API 파일은 `archive/2026-06-25-before-api-enum-update/10_API-Design.md`로 보존했다.
+- `docs/00_BACKEND_START_HERE.md`, `docs/CODEX_BACKEND_WORKFLOW.md`, `docs/CURRENT_API_BASELINE_WORK.md`, `docs/Bubli_백엔드_개발_가이드_2026-06-25.md`, 로컬 `bubli-backend-workflow` 스킬에 새 API 해시와 enum 기준을 반영했다.
+- `.github/PULL_REQUEST_TEMPLATE.md`에 ArchUnit, Request-to-Command, PublicService, V1 migration, enum 기준 체크를 추가했다.
+
+새 API에서 특히 달라진 부분:
+
+- 상태값 enum은 Data Model의 데이터 딕셔너리를 기준으로 사용한다.
+- 상태 row가 없어서 판단할 수 없는 값은 API 전용 enum을 만들지 않고 `null` 또는 필드 생략으로 표현한다.
+- 화면 표시나 집계 응답 때문에 API 전용 상태값이 꼭 필요하면 `Api` 접두사를 붙이고 DB에는 저장하지 않는다.
+- `ProjectRoomResponse.paymentStatus`, `ProjectRoomResponse.status`, `ResourceResponse.status`, `summaryStatus`, `aiDocumentStatus`가 공통 enum 타입 기준으로 정리됐다.
+
+다음 처리:
+
+- #22의 ArchUnit 테스트와 #38 entity boundary guard를 구조 기준선으로 격상한다.
+- develop 대상 PR부터 #19, #20, #21, #22 순서로 새 API enum 기준과 ArchUnit 기준을 다시 확인한다.
+- 이후 foundation, resource, agent, user/settings, Flyway/FK stack을 base 순서대로 점검한다.
 
 ### 작업 카드 39-1. #39 저장 용량 조회 API 최신 base 병합
 

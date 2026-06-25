@@ -27,6 +27,8 @@ git status --short --branch
 ## 2026-06-25 최신 기준 작업
 
 2026-06-25에 들어온 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md`를 현재 최신 기준으로 본다.
+2026-06-25 12:16 KST 기준으로 `/Users/maren/Downloads/10_API-Design (1).md`가 canonical `10_API-Design.md`에 다시 반영됐다.
+현재 API 기준 해시는 `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`다.
 기존 6/24 기준으로 만든 구현과 PR은 버리지 않고, 차이 나는 부분만 보정 작업으로 처리한다.
 
 - 패키지 구조와 도메인 위치 점검
@@ -37,9 +39,31 @@ git status --short --branch
 - Testcontainers와 테스트 support 점검
 - 6/25 기준 Controller/DTO/Service/Repository/Test 구현
 - `.http` 요청 예시 정리
+- Data Model 기준 enum 정합성 점검
+- API 전용 상태값과 DB 상태값 분리 점검
+- ArchUnit 계층/도메인 경계 테스트 통과 점검
 
 이 모드에서는 구현을 진행한다.
 다만 기획/DB와 충돌하는 API나 불확실한 판단은 `docs/WORK_HANDOFF.md`에 남긴다.
+
+## ArchUnit 기준 작업
+
+개발 가이드는 참고 문서가 아니라 테스트 통과 기준이다.
+기존 코드 패턴이 개발 가이드와 충돌하면 개발 가이드를 우선한다.
+
+ArchUnit 실패는 아래 순서로 고친다.
+
+1. Service가 Controller Request DTO를 직접 받는 구조를 Command, Query, Context, Result로 분리한다.
+2. 다른 도메인의 Repository 직접 의존을 제거하고 해당 도메인의 PublicService를 사용한다.
+3. 다른 도메인의 Entity 직접 의존을 제거하고 id, boolean, Result, Context 같은 값으로 교환한다.
+4. global 패키지가 특정 도메인에 의존하지 않게 한다.
+5. agent 도메인이 다른 도메인의 Repository, Entity, 내부 구현에 직접 의존하지 않게 한다.
+
+PR 생성 전 코드 작업이면 아래를 우선 확인한다.
+
+```bash
+./gradlew test --tests '*ArchitectureTest'
+```
 
 ## 새 기준 문서가 다시 들어왔을 때
 
