@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 11:27 KST
+Last checked: 2026-06-25 11:38 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -43,6 +43,7 @@ Last checked: 2026-06-25 11:27 KST
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
 - GitHub Actions CI 통과 (#22, 최신 develop 병합 후 2026-06-25 10:43 KST)
+- GitHub Actions CI 통과 (#22, schedule 직접 의존 제거와 ArchUnit 추가 후 2026-06-25 11:37 KST)
 - #23 room access service 최신 #22 base 병합 로컬 검증 통과. GitHub checks 없음 (base #22에 stacked PR CI workflow 없음)
 - #24 Google-only auth foundation 최신 #23 base 병합 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
@@ -311,6 +312,34 @@ Last checked: 2026-06-25 11:27 KST
 
 - 이번 변경은 #23의 최신 base 병합과 충돌 정리만 다룬다.
 - #23은 ready PR 상태를 유지한다.
+
+### 작업 카드 22-2. #22 일정 API 도메인 직접 의존 제거
+
+처리 시각: 2026-06-25 11:38 KST
+
+변경 내용:
+
+- #22 `feature/schedule-basic-api` 브랜치에서 schedule 도메인이 project 도메인의 `RoomMember` Entity와 `RoomMemberRepository`를 직접 참조하던 부분을 제거했다.
+- 프로젝트룸 권한 검사는 `project.service.RoomAccessService` 경유로 분리했다.
+- 일정 목록 조회에서 ACTIVE 멤버 프로젝트룸 필터링은 `RoomAccessService.findActiveRoomIds(userId)`로 받은 room id 목록을 기준으로 처리한다.
+- `work.schedule` 코드가 다른 도메인의 repository/entity에 직접 의존하지 않도록 ArchUnit 테스트를 추가했다.
+- `PostgresIntegrationTestSupport.java`는 현재 `develop` 코드와 diff가 없어서 그대로 유지했다.
+- #22 PR 본문을 이번 피드백 처리 내용과 최신 CI 결과로 갱신했다.
+
+검증 결과:
+
+- #22: `./gradlew test --tests com.bubli.architecture.DomainDependencyArchitectureTest --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.project.service.RoomAccessServiceTest` 통과
+- #22: `./gradlew compileTestJava` 통과
+- #22: `./gradlew cleanTest test` 통과
+- #22: `git diff --check` 통과
+- #22: head `47b3c07`, base `develop`, mergeState `CLEAN`
+- #22: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28143094268`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28143094268/job/83344374034`
+
+메모:
+
+- 이번 ArchUnit 테스트는 #22 피드백 범위에 맞춰 `work.schedule` 도메인에 우선 적용했다.
+- 다른 도메인의 기존 직접 의존까지 한 번에 고치면 PR 범위가 커져서 후속 정리 대상으로 남긴다.
+- #22에 `RoomAccessService`가 들어가면서 #23 `feature/room-access-service`는 최신 #22 기준으로 중복/차이 정리가 필요하다.
 
 ### 작업 카드 22-1. #22 일정 기본 API 최신 develop 병합
 
@@ -2574,8 +2603,8 @@ Last checked: 2026-06-25 11:27 KST
 | #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, draft | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료. V1 migration 변경분을 V2로 이동 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
-| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `6b9329a` | `build` pass, merge clean | 최신 develop 병합 후 DIRTY 해소. 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
-| #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `0773a41` | checks 없음, merge clean | 최신 #22 base 병합 후 CLEAN. `RoomMemberRepository` 충돌은 권한 검사/멤버 조회 메서드를 모두 유지해 정리 |
+| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `47b3c07` | `build` pass, merge clean | schedule의 project entity/repository 직접 참조 제거, `RoomAccessService` 경유, ArchUnit 테스트 추가. `PostgresIntegrationTestSupport.java`는 develop 코드와 동일 유지 |
+| #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `0773a41` | checks 없음, merge unknown | #22에 `RoomAccessService`가 들어간 뒤 base가 갱신되어 중복/차이 정리 필요 |
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `e292f51` | checks 없음, merge clean, draft | 최신 #23 base 병합 후 CLEAN. Google authorize/callback endpoint 보정 유지, 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a4186eb` | checks 없음, merge clean, draft | 최신 #24 base 병합 후 CLEAN. 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 agent enum 보정 완료, 후보 저장 기반 유지 |
@@ -2709,7 +2738,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #23은 #22 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
+1. #23은 최신 #22 `47b3c07` 기준으로 먼저 중복/차이를 정리한 뒤 mergeState와 로컬 검증을 다시 확인한다.
 2. #24는 #22, #23 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
