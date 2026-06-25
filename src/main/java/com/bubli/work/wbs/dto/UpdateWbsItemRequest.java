@@ -14,4 +14,7 @@ public record UpdateWbsItemRequest(
 		Integer orderNo,
 		WbsStatus status
 ) {
+	public UpdateWbsItemCommand toCommand() {
+		return new UpdateWbsItemCommand(parentId, title, orderNo, status);
+	}
 }

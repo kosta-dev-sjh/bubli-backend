@@ -19,4 +19,7 @@ public record CreateRoomTaskRequest(
 		TaskStatus status,
 		Instant dueAt
 ) {
+	public CreateRoomTaskCommand toCommand() {
+		return new CreateRoomTaskCommand(assigneeUserId, wbsItemId, title, description, status, dueAt);
+	}
 }

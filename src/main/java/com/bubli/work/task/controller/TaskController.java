@@ -56,7 +56,7 @@ public class TaskController {
 			@CurrentUser AuthUser authUser,
 			@Valid @RequestBody CreatePersonalTaskRequest request
 	) {
-		return ApiResponse.success(TaskResponse.from(taskService.createPersonalTask(authUser.userId(), request)));
+		return ApiResponse.success(TaskResponse.from(taskService.createPersonalTask(authUser.userId(), request.toCommand())));
 	}
 
 	@GetMapping("/api/project-rooms/{roomId}/tasks")
@@ -74,7 +74,7 @@ public class TaskController {
 			@PathVariable UUID roomId,
 			@Valid @RequestBody CreateRoomTaskRequest request
 	) {
-		return ApiResponse.success(TaskResponse.from(taskService.createRoomTask(authUser.userId(), roomId, request)));
+		return ApiResponse.success(TaskResponse.from(taskService.createRoomTask(authUser.userId(), roomId, request.toCommand())));
 	}
 
 	@PatchMapping("/api/tasks/{taskId}")
@@ -83,7 +83,7 @@ public class TaskController {
 			@PathVariable UUID taskId,
 			@Valid @RequestBody UpdateTaskRequest request
 	) {
-		return ApiResponse.success(TaskResponse.from(taskService.updateTask(authUser.userId(), taskId, request)));
+		return ApiResponse.success(TaskResponse.from(taskService.updateTask(authUser.userId(), taskId, request.toCommand())));
 	}
 
 	@DeleteMapping("/api/tasks/{taskId}")
