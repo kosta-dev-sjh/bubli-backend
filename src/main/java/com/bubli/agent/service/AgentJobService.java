@@ -1,6 +1,7 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dispatch.AgentJobDispatchEvent;
+import com.bubli.agent.dispatch.AgentJobDispatchOutboxRecorder;
 import com.bubli.agent.dto.AgentJobEventResult;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
@@ -29,6 +30,7 @@ public class AgentJobService {
 	private final AgentJobRepository agentJobRepository;
 	private final AgentJobEventRepository agentJobEventRepository;
 	private final ApplicationEventPublisher eventPublisher;
+	private final AgentJobDispatchOutboxRecorder dispatchOutboxRecorder;
 
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
@@ -39,7 +41,9 @@ public class AgentJobService {
 				command.jobType()
 		);
 		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
-		eventPublisher.publishEvent(AgentJobDispatchEvent.from(savedAgentJob));
+		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);
+		dispatchOutboxRecorder.recordPending(dispatchEvent.command());
+		eventPublisher.publishEvent(dispatchEvent);
 		return AgentJobResult.from(savedAgentJob);
 	}
 

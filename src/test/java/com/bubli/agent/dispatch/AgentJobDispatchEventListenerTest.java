@@ -18,10 +18,12 @@ class AgentJobDispatchEventListenerTest {
 		AgentJobDispatchPort dispatchPort = mock(AgentJobDispatchPort.class);
 		AgentJobDispatchFailureRecorder failureRecorder = mock(AgentJobDispatchFailureRecorder.class);
 		AgentJobDispatchSuccessRecorder successRecorder = mock(AgentJobDispatchSuccessRecorder.class);
+		AgentJobDispatchOutboxRecorder outboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
 		AgentJobDispatchEventListener listener = new AgentJobDispatchEventListener(
 				dispatchPort,
 				failureRecorder,
-				successRecorder
+				successRecorder,
+				outboxRecorder
 		);
 		AgentJobDispatchCommand command = new AgentJobDispatchCommand(
 				UUID.randomUUID(),
@@ -34,6 +36,7 @@ class AgentJobDispatchEventListenerTest {
 		listener.onAgentJobCreated(new AgentJobDispatchEvent(command));
 
 		verify(dispatchPort).dispatch(command);
+		verify(outboxRecorder).recordDispatched(command.jobId());
 		verify(successRecorder).recordQueued(command);
 		verifyNoInteractions(failureRecorder);
 	}
@@ -43,10 +46,12 @@ class AgentJobDispatchEventListenerTest {
 		AgentJobDispatchPort dispatchPort = mock(AgentJobDispatchPort.class);
 		AgentJobDispatchFailureRecorder failureRecorder = mock(AgentJobDispatchFailureRecorder.class);
 		AgentJobDispatchSuccessRecorder successRecorder = mock(AgentJobDispatchSuccessRecorder.class);
+		AgentJobDispatchOutboxRecorder outboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
 		AgentJobDispatchEventListener listener = new AgentJobDispatchEventListener(
 				dispatchPort,
 				failureRecorder,
-				successRecorder
+				successRecorder,
+				outboxRecorder
 		);
 		AgentJobDispatchCommand command = new AgentJobDispatchCommand(
 				UUID.randomUUID(),
@@ -61,6 +66,11 @@ class AgentJobDispatchEventListenerTest {
 		assertThatNoException().isThrownBy(() -> listener.onAgentJobCreated(new AgentJobDispatchEvent(command)));
 
 		verify(failureRecorder).recordEnqueueFailure(command, exception);
+		verify(outboxRecorder).recordFailure(
+				command.jobId(),
+				AgentJobDispatchFailureRecorder.ENQUEUE_FAILURE_ERROR_CODE,
+				"queue unavailable"
+		);
 		verifyNoInteractions(successRecorder);
 	}
 
@@ -69,10 +79,12 @@ class AgentJobDispatchEventListenerTest {
 		AgentJobDispatchPort dispatchPort = mock(AgentJobDispatchPort.class);
 		AgentJobDispatchFailureRecorder failureRecorder = mock(AgentJobDispatchFailureRecorder.class);
 		AgentJobDispatchSuccessRecorder successRecorder = mock(AgentJobDispatchSuccessRecorder.class);
+		AgentJobDispatchOutboxRecorder outboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
 		AgentJobDispatchEventListener listener = new AgentJobDispatchEventListener(
 				dispatchPort,
 				failureRecorder,
-				successRecorder
+				successRecorder,
+				outboxRecorder
 		);
 		AgentJobDispatchCommand command = new AgentJobDispatchCommand(
 				UUID.randomUUID(),
@@ -88,6 +100,7 @@ class AgentJobDispatchEventListenerTest {
 		assertThatNoException().isThrownBy(() -> listener.onAgentJobCreated(new AgentJobDispatchEvent(command)));
 
 		verify(dispatchPort).dispatch(command);
+		verify(outboxRecorder).recordDispatched(command.jobId());
 		verify(successRecorder).recordQueued(command);
 		verifyNoInteractions(failureRecorder);
 	}
