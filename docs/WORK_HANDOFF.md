@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 14:22 KST
+Last checked: 2026-06-25 14:28 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -81,7 +81,7 @@ Last checked: 2026-06-25 14:22 KST
 - #39 storage usage API와 accounting boundary 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
 - #40 analyze-resource job API 최신 #37 base 병합, ResourcePublicService 권한 경계 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #37에 stacked PR CI workflow 없음)
 - #41 generate-requirements job API 최신 #40 base 수동 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #40에 stacked PR CI workflow 없음)
-- #42 generate-tasks job API 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
+- #42 generate-tasks job API 최신 #41 base 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
 - #43 generate-wbs job API 로컬 검증 통과. GitHub checks 없음 (base #42에 stacked PR CI workflow 없음)
 - #44 generate-questions job API 로컬 검증 통과. GitHub checks 없음 (base #43에 stacked PR CI workflow 없음)
 - #45 review-contract-documents job API 로컬 검증 통과. GitHub checks 없음 (base #44에 stacked PR CI workflow 없음)
@@ -129,6 +129,34 @@ Last checked: 2026-06-25 14:22 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 42-2. #42 TODO 후보 생성 작업 API 최신 #41 기준 정리
+
+처리 시각: 2026-06-25 14:28 KST
+
+변경 내용:
+
+- #42 `feature/generate-tasks-job-api` 브랜치에 최신 #41 `feature/generate-requirements-job-api` head `4088d62`를 병합했다.
+- 병합 충돌은 없었다.
+- generate-tasks 흐름의 오래된 `RoomAccessService` 호출 흔적을 `ProjectMembershipPublicService.assertActiveMember`로 보정했다.
+- agent 패키지는 다른 도메인의 Repository/Entity/일반 Service를 직접 참조하지 않는 상태로 확인했다.
+- TODO 후보 생성 작업은 `agent_jobs` PENDING 생성까지만 처리하며, `tasks` 확정 저장은 하지 않는 상태로 확인했다.
+- `PostgresIntegrationTestSupport.java`와 `V1__initial_schema.sql`은 develop 대비 diff가 없는 상태로 확인했다.
+- #42 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #42: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #42: `./gradlew compileTestJava` 통과
+- #42: `./gradlew cleanTest test` 통과
+- #42: `git diff --check` 통과
+- #42: head `8bdc107`, base `feature/generate-requirements-job-api`, mergeState `CLEAN`
+- #42: GitHub checks 없음. base가 `feature/generate-requirements-job-api`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #42는 draft PR 상태를 유지한다.
+- #43은 #42 head `8bdc107` 기준으로 다음 agent job 생성 stack 확인 대상이다.
 
 ### 작업 카드 41-2. #41 요구사항 후보 생성 작업 API 최신 #40 기준 정리
 
@@ -3146,7 +3174,7 @@ Last checked: 2026-06-25 14:22 KST
 | #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge unknown, draft | 최신 #31 head `84c12b4` 병합 중 `RoomMemberRepository.java` 충돌. merge abort 후 보류 |
 | #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `e2b7e5c` | checks 없음, merge clean, draft | 최신 #37 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 analyze-resource agent job 생성 API 추가 |
 | #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `4088d62` | checks 없음, merge clean, draft | 최신 #40 base 수동 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-requirements agent job 생성 API 추가 |
-| #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `7a25da0` | checks 없음, merge clean, draft | 6/25 기준 generate-tasks agent job 생성 API 추가 |
+| #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `8bdc107` | checks 없음, merge clean, draft | 최신 #41 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-tasks agent job 생성 API 추가 |
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
 | #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `8fefcee` | checks 없음, merge clean, draft | 6/25 기준 review-contract-documents agent job 생성 API 추가 |
@@ -3260,7 +3288,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #42는 #41 최신 head `4088d62` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #43은 #42 최신 head `8bdc107` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
