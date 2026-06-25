@@ -1,0 +1,184 @@
+package com.bubli.work.schedule.service;
+
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
+import com.bubli.global.response.PageResponse;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.dto.UpdateScheduleCommand;
+import com.bubli.work.schedule.entity.Schedule;
+import com.bubli.work.schedule.repository.ScheduleRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+class ScheduleServiceTest {
+
+	@Mock
+	ScheduleRepository scheduleRepository;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@InjectMocks
+	ScheduleService scheduleService;
+
+	@Test
+	void createPersonalScheduleSavesOwnerSchedule() {
+		UUID userId = UUID.randomUUID();
+		Instant startsAt = Instant.parse("2026-07-02T01:00:00Z");
+		Instant endsAt = Instant.parse("2026-07-02T02:00:00Z");
+		given(scheduleRepository.save(any(Schedule.class))).willAnswer(invocation -> {
+			Schedule schedule = invocation.getArgument(0);
+			ReflectionTestUtils.setField(schedule, "id", UUID.randomUUID());
+			return schedule;
+		});
+
+		ScheduleResult result = scheduleService.create(userId, new CreateScheduleCommand(
+				null,
+				null,
+				null,
+				"개인 포트폴리오 정리",
+				startsAt,
+				endsAt,
+				false
+		));
+
+		assertThat(result.ownerUserId()).isEqualTo(userId);
+		assertThat(result.roomId()).isNull();
+		assertThat(result.title()).isEqualTo("개인 포트폴리오 정리");
+		assertThat(result.startsAt()).isEqualTo(startsAt);
+
+		ArgumentCaptor<Schedule> scheduleCaptor = ArgumentCaptor.forClass(Schedule.class);
+		verify(scheduleRepository).save(scheduleCaptor.capture());
+		assertThat(scheduleCaptor.getValue().getOwnerUserId()).isEqualTo(userId);
+	}
+
+	@Test
+	void createRoomScheduleRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
+
+		assertThatThrownBy(() -> scheduleService.create(userId, new CreateScheduleCommand(
+				roomId,
+				null,
+				null,
+				"클라이언트 중간 리뷰",
+				Instant.parse("2026-07-03T05:00:00Z"),
+				Instant.parse("2026-07-03T06:00:00Z"),
+				false
+		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void getSchedulesReturnsPersonalAndAccessibleRoomSchedules() {
+		UUID userId = UUID.randomUUID();
+		Schedule personalSchedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				null,
+				false
+		);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(projectMembershipPublicService.findActiveRoomIds(userId)).willReturn(List.of());
+		given(scheduleRepository.findAll(anyScheduleSpec(), anyPageable()))
+				.willReturn(new org.springframework.data.domain.PageImpl<>(List.of(personalSchedule), pageable, 1));
+
+		PageResponse<ScheduleResult> result = scheduleService.getSchedules(userId, null, null, null, pageable);
+
+		assertThat(result.getItems()).extracting(ScheduleResult::title).containsExactly("개인 일정");
+		assertThat(result.getTotalElements()).isEqualTo(1);
+	}
+
+	@Test
+	void updatePersonalScheduleRejectsOtherUser() {
+		UUID ownerId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				ownerId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				null,
+				false
+		);
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+		assertThatThrownBy(() -> scheduleService.update(otherUserId, scheduleId, new UpdateScheduleCommand(
+				"수정",
+				null,
+				null,
+				null,
+				null,
+				null
+		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void updateRejectsInvalidTimeRange() {
+		UUID userId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				null,
+				false
+		);
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+		assertThatThrownBy(() -> scheduleService.update(userId, scheduleId, new UpdateScheduleCommand(
+				null,
+				Instant.parse("2026-07-02T03:00:00Z"),
+				Instant.parse("2026-07-02T02:00:00Z"),
+				null,
+				null,
+				null
+		))).isInstanceOf(BusinessException.class);
+	}
+
+	private Specification<Schedule> anyScheduleSpec() {
+		return org.mockito.ArgumentMatchers.<Specification<Schedule>>any();
+	}
+
+	private Pageable anyPageable() {
+		return org.mockito.ArgumentMatchers.<Pageable>any();
+	}
+}

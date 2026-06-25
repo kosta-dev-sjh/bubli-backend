@@ -5,7 +5,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(properties = {
@@ -24,16 +23,32 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 public abstract class PostgresIntegrationTestSupport {
 
-	@Container
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-			.withDatabaseName("bubli_test")
-			.withUsername("bubli")
-			.withPassword("bubli1234");
+	private static PostgreSQLContainer<?> postgres;
 
 	@DynamicPropertySource
 	static void registerDataSource(DynamicPropertyRegistry registry) {
-		registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-		registry.add("spring.datasource.username", POSTGRES::getUsername);
-		registry.add("spring.datasource.password", POSTGRES::getPassword);
+		if (hasExternalDataSource()) {
+			return;
+		}
+		PostgreSQLContainer<?> container = getPostgres();
+		registry.add("spring.datasource.url", container::getJdbcUrl);
+		registry.add("spring.datasource.username", container::getUsername);
+		registry.add("spring.datasource.password", container::getPassword);
+	}
+
+	private static boolean hasExternalDataSource() {
+		return System.getenv("SPRING_DATASOURCE_URL") != null
+				|| System.getProperty("spring.datasource.url") != null;
+	}
+
+	private static PostgreSQLContainer<?> getPostgres() {
+		if (postgres == null) {
+			postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
+					.withDatabaseName("bubli_test")
+					.withUsername("bubli")
+					.withPassword("bubli1234");
+			postgres.start();
+		}
+		return postgres;
 	}
 }
