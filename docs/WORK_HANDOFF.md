@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:23 KST
+Last checked: 2026-06-25 13:30 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -77,7 +77,7 @@ Last checked: 2026-06-25 13:23 KST
 - #35 agent suggestion update API 로컬 검증 통과. GitHub checks 없음 (base #34에 stacked PR CI workflow 없음)
 - #36 resource ai-document API 로컬 검증 통과. GitHub checks 없음 (base #35에 stacked PR CI workflow 없음)
 - #37 room ai-documents API 로컬 검증 통과. GitHub checks 없음 (base #36에 stacked PR CI workflow 없음)
-- #38 entity boundary guard 로컬 검증 통과. GitHub Actions `build` 통과
+- #38 entity boundary guard 최신 #28 base 병합 로컬 검증 통과. GitHub Actions `build` 통과
 - #39 storage usage API와 accounting boundary 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
 - #40 analyze-resource job API 로컬 검증 통과. GitHub checks 없음 (base #37에 stacked PR CI workflow 없음)
 - #41 generate-requirements job API 로컬 검증 통과. GitHub checks 없음 (base #40에 stacked PR CI workflow 없음)
@@ -129,6 +129,34 @@ Last checked: 2026-06-25 13:23 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 38-2. #38 엔티티 경계 가드 최신 #28 기준 정리
+
+처리 시각: 2026-06-25 13:30 KST
+
+변경 내용:
+
+- #38 `chore/entity-boundary-guards` 브랜치에 최신 #28 `feature/testcontainers-ci-foundation` head `ee26160`을 병합했다.
+- 병합 충돌은 없었고, #28의 CI workflow, #27의 V1 develop 복원/V3 migration 분리 기준을 함께 검증했다.
+- `V1__init_schema.sql`과 `PostgresIntegrationTestSupport.java`는 `origin/develop` 대비 차이 없음으로 확인했다.
+- #38 PR 본문을 최신 로컬 검증 결과와 GitHub Actions CI 결과로 갱신했다.
+
+검증 결과:
+
+- #38: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #38: `./gradlew compileTestJava` 통과
+- #38: `./gradlew cleanTest test` 통과
+- #38: `git diff --check` 통과
+- #38: `git diff origin/develop -- src/main/resources/db/migration/V1__init_schema.sql src/test/java/com/bubli/support/PostgresIntegrationTestSupport.java` 차이 없음
+- #38: GitHub Actions `build` 통과
+- #38: run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28146900472`
+- #38: job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28146900472/job/83355902151`
+- #38: duration `1m25s`, head `cf7cdfd`, base `feature/testcontainers-ci-foundation`, mergeState `CLEAN`
+
+메모:
+
+- #38은 draft PR 상태를 유지한다.
+- #31/#32 등 기능 downstream PR은 각 base 계열 순서대로 계속 재검토한다.
 
 ### 작업 카드 28-2. #28 Testcontainers/CI 최신 #27 기준 정리
 
@@ -2855,7 +2883,7 @@ Last checked: 2026-06-25 13:23 KST
 | #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `f27b0ce` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
 | #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
 | #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `aa52ec1` | checks 없음, merge clean, draft | 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
-| #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `a22ee45` | `build` pass, merge clean, draft | BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 추가 |
+| #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `cf7cdfd` | `build` pass, merge clean, draft | 최신 #28 base 병합. BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 유지 |
 | #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge clean, draft | 최신 #31 base 병합 후 CLEAN. 6/25 기준 storage usage 조회 API와 accounting boundary 유지 |
 | #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `769a707` | checks 없음, merge clean, draft | 6/25 기준 analyze-resource agent job 생성 API 추가 |
 | #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge clean, draft | 6/25 기준 generate-requirements agent job 생성 API 추가 |
