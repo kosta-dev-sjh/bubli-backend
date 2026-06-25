@@ -1,8 +1,8 @@
 package com.bubli.resource.service;
 
 import com.bubli.resource.entity.ResourceFile;
-import com.bubli.resource.entity.ResourceStorageDeleteRequest;
-import com.bubli.resource.repository.ResourceStorageDeleteRequestRepository;
+import com.bubli.resource.entity.ResourceStorageDeleteRetryRecord;
+import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -13,10 +13,10 @@ public class ResourceStorageDeleteRetryRecorder {
 
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
 
-	private final ResourceStorageDeleteRequestRepository resourceStorageDeleteRequestRepository;
+	private final ResourceStorageDeleteRetryRecordRepository resourceStorageDeleteRetryRecordRepository;
 
 	public void recordFailedDelete(ResourceFile file, RuntimeException cause) {
-		resourceStorageDeleteRequestRepository.save(ResourceStorageDeleteRequest.create(
+		resourceStorageDeleteRetryRecordRepository.save(ResourceStorageDeleteRetryRecord.create(
 				file.getResourceId(),
 				file.getId(),
 				file.getStorageKey(),

@@ -2,9 +2,7 @@ package com.bubli.storage.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.project.entity.RoomMember;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.storage.entity.StorageUsage;
 import com.bubli.storage.repository.StorageUsageRepository;
 import com.bubli.storage.type.StorageScope;
@@ -34,7 +32,7 @@ class StorageUsageServiceTest {
 	StorageUsageRepository storageUsageRepository;
 
 	@Mock
-	RoomMemberRepository roomMemberRepository;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	StorageUsageService storageUsageService;
@@ -45,12 +43,11 @@ class StorageUsageServiceTest {
 		UUID roomId = UUID.randomUUID();
 		StorageUsage personalUsage = storageUsage(userId, null, StorageScope.PERSONAL, 100L, 1000L);
 		StorageUsage roomUsage = storageUsage(null, roomId, StorageScope.ROOM, 300L, 2000L);
-		RoomMember roomMember = RoomMember.createMember(roomId, userId);
 
 		given(storageUsageRepository.findByUserIdAndStorageScope(userId, StorageScope.PERSONAL))
 				.willReturn(Optional.of(personalUsage));
-		given(roomMemberRepository.findByUserIdAndStatus(userId, RoomMemberStatus.ACTIVE))
-				.willReturn(List.of(roomMember));
+		given(projectMembershipPublicService.findActiveRoomIds(userId))
+				.willReturn(List.of(roomId));
 		given(storageUsageRepository.findByRoomIdInAndStorageScope(List.of(roomId), StorageScope.ROOM))
 				.willReturn(List.of(roomUsage));
 
@@ -67,7 +64,7 @@ class StorageUsageServiceTest {
 		UUID userId = UUID.randomUUID();
 		given(storageUsageRepository.findByUserIdAndStorageScope(userId, StorageScope.PERSONAL))
 				.willReturn(Optional.empty());
-		given(roomMemberRepository.findByUserIdAndStatus(userId, RoomMemberStatus.ACTIVE))
+		given(projectMembershipPublicService.findActiveRoomIds(userId))
 				.willReturn(List.of());
 
 		var result = storageUsageService.getMyStorageUsage(userId);
