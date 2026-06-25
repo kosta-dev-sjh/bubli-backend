@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 14:11 KST
+Last checked: 2026-06-25 14:16 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -80,7 +80,7 @@ Last checked: 2026-06-25 14:11 KST
 - #38 entity boundary guard 최신 #28 base 병합 로컬 검증 통과. GitHub Actions `build` 통과
 - #39 storage usage API와 accounting boundary 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
 - #40 analyze-resource job API 최신 #37 base 병합, ResourcePublicService 권한 경계 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #37에 stacked PR CI workflow 없음)
-- #41 generate-requirements job API 로컬 검증 통과. GitHub checks 없음 (base #40에 stacked PR CI workflow 없음)
+- #41 generate-requirements job API 최신 #40 base 병합 중 `AiJobCommandService.java` 충돌 발생. merge abort 후 보류
 - #42 generate-tasks job API 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
 - #43 generate-wbs job API 로컬 검증 통과. GitHub checks 없음 (base #42에 stacked PR CI workflow 없음)
 - #44 generate-questions job API 로컬 검증 통과. GitHub checks 없음 (base #43에 stacked PR CI workflow 없음)
@@ -129,6 +129,30 @@ Last checked: 2026-06-25 14:11 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 41-2. #41 요구사항 후보 생성 작업 API 최신 #40 병합 보류
+
+처리 시각: 2026-06-25 14:16 KST
+
+상태:
+
+- #41 `feature/generate-requirements-job-api` 브랜치에 최신 #40 `feature/analyze-resource-job-api` head `e2b7e5c` 병합을 시도했다.
+- `src/main/java/com/bubli/agent/service/AiJobCommandService.java`에서 merge conflict가 발생했다.
+- 충돌 자동 해결은 안전하지 않다고 판단해 `git merge --abort`로 작업트리를 원복했다.
+- 현재 #41 작업트리는 clean 상태다.
+- #41 PR 본문에 conflict 보류 사유와 재개 기준을 기록했다.
+
+보류 사유:
+
+- #40은 analyze-resource 흐름을 `ResourcePublicService.getReadableResource` 경계로 보정했다.
+- #41은 같은 `AiJobCommandService`에 generate-requirements 흐름과 오래된 `RoomAccessService` 의존을 추가한 상태다.
+- 재개 시 `ResourcePublicService`와 `ProjectMembershipPublicService.assertActiveMember`를 함께 유지하는 방향으로 수동 병합해야 한다.
+
+다음 처리:
+
+- #41 재개 시 `AiJobCommandService.java`에서 analyze-resource와 generate-requirements 메서드를 모두 보존한다.
+- 오래된 `RoomAccessService` 의존은 `ProjectMembershipPublicService.assertActiveMember`로 바꾼다.
+- 병합 뒤 `ArchitectureTest`, `compileTestJava`, `cleanTest test`, `git diff --check`를 다시 실행한다.
 
 ### 작업 카드 40-2. #40 자료 분석 작업 생성 API 최신 #37 기준 정리
 
@@ -3117,7 +3141,7 @@ Last checked: 2026-06-25 14:11 KST
 | #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `cf7cdfd` | `build` pass, merge clean, draft | 최신 #28 base 병합. BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 유지 |
 | #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge unknown, draft | 최신 #31 head `84c12b4` 병합 중 `RoomMemberRepository.java` 충돌. merge abort 후 보류 |
 | #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `e2b7e5c` | checks 없음, merge clean, draft | 최신 #37 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 analyze-resource agent job 생성 API 추가 |
-| #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge clean, draft | 6/25 기준 generate-requirements agent job 생성 API 추가 |
+| #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `9c12eae` | checks 없음, merge conflict, draft | 최신 #40 head `e2b7e5c` 병합 중 `AiJobCommandService.java` 충돌. merge abort 후 보류 |
 | #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `7a25da0` | checks 없음, merge clean, draft | 6/25 기준 generate-tasks agent job 생성 API 추가 |
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `7429dec` | checks 없음, merge clean, draft | 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `a8eea88` | checks 없음, merge clean, draft | 6/25 기준 generate-questions agent job 생성 API 추가 |
@@ -3232,7 +3256,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #41은 #40 최신 head `e2b7e5c` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #41은 최신 #40 head `e2b7e5c` 병합 중 `AiJobCommandService.java` 충돌로 보류 상태다. 재개 시 `ResourcePublicService`와 `ProjectMembershipPublicService`를 함께 유지하는 수동 병합이 필요하다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
