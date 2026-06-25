@@ -1,8 +1,7 @@
 package com.bubli.work.task.service;
 
 import com.bubli.global.error.BusinessException;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.task.dto.CreatePersonalTaskRequest;
 import com.bubli.work.task.dto.CreateRoomTaskRequest;
 import com.bubli.work.task.dto.TaskResult;
@@ -10,9 +9,7 @@ import com.bubli.work.task.dto.UpdateTaskRequest;
 import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.repository.TaskRepository;
 import com.bubli.work.task.type.TaskStatus;
-import com.bubli.work.wbs.entity.WbsItem;
-import com.bubli.work.wbs.repository.WbsItemRepository;
-import com.bubli.work.wbs.type.WbsStatus;
+import com.bubli.work.wbs.service.WbsItemPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,10 +37,10 @@ class TaskServiceTest {
 	TaskRepository taskRepository;
 
 	@Mock
-	RoomMemberRepository roomMemberRepository;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Mock
-	WbsItemRepository wbsItemRepository;
+	WbsItemPublicService wbsItemPublicService;
 
 	@InjectMocks
 	TaskService taskService;
@@ -64,7 +61,7 @@ class TaskServiceTest {
 			return task;
 		});
 
-		TaskResult result = taskService.createPersonalTask(userId, request);
+		TaskResult result = taskService.createPersonalTask(userId, request.toCommand());
 
 		assertThat(result.id()).isEqualTo(taskId);
 		assertThat(result.ownerUserId()).isEqualTo(userId);
@@ -78,13 +75,6 @@ class TaskServiceTest {
 		UUID assigneeUserId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID wbsItemId = UUID.randomUUID();
-		WbsItem wbsItem = WbsItem.create(roomId, null, "디자인", 1, WbsStatus.TODO);
-		ReflectionTestUtils.setField(wbsItem, "id", wbsItemId);
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, assigneeUserId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
-		given(wbsItemRepository.findById(wbsItemId)).willReturn(Optional.of(wbsItem));
 		given(taskRepository.save(any(Task.class))).willAnswer(invocation -> invocation.getArgument(0));
 		CreateRoomTaskRequest request = new CreateRoomTaskRequest(
 				assigneeUserId,
@@ -95,7 +85,7 @@ class TaskServiceTest {
 				null
 		);
 
-		TaskResult result = taskService.createRoomTask(userId, roomId, request);
+		TaskResult result = taskService.createRoomTask(userId, roomId, request.toCommand());
 
 		assertThat(result.roomId()).isEqualTo(roomId);
 		assertThat(result.assigneeUserId()).isEqualTo(assigneeUserId);
@@ -131,7 +121,7 @@ class TaskServiceTest {
 		assertThatThrownBy(() -> taskService.updateTask(
 				otherUserId,
 				taskId,
-				new UpdateTaskRequest("수정", null, null, null, null, null)
+				new UpdateTaskRequest("수정", null, null, null, null, null).toCommand()
 		)).isInstanceOf(BusinessException.class);
 	}
 
@@ -139,8 +129,6 @@ class TaskServiceTest {
 	void createRoomTaskSavesRoomTask() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(taskRepository.save(any(Task.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		taskService.createRoomTask(userId, roomId, new CreateRoomTaskRequest(
@@ -150,7 +138,7 @@ class TaskServiceTest {
 				null,
 				null,
 				null
-		));
+		).toCommand());
 
 		ArgumentCaptor<Task> taskCaptor = ArgumentCaptor.forClass(Task.class);
 		verify(taskRepository).save(taskCaptor.capture());

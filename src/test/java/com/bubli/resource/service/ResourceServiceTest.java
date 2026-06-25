@@ -3,9 +3,9 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
-import com.bubli.resource.dto.CreateResourceVersionRequest;
+import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceVersionResult;
@@ -64,7 +64,7 @@ class ResourceServiceTest {
 	ResourceVersionRepository resourceVersionRepository;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	ResourceService resourceService;
@@ -102,7 +102,7 @@ class ResourceServiceTest {
 	void createRoomSharedResourceRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(false);
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(false);
 
 		assertThatThrownBy(() -> resourceService.create(userId, new CreateResourceCommand(
 				"회의록",
@@ -323,7 +323,7 @@ class ResourceServiceTest {
 			return version;
 		});
 
-		ResourceVersionResult result = resourceService.createVersion(userId, resourceId, new CreateResourceVersionRequest(
+		ResourceVersionResult result = resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
 				"resources/%s/v3.pdf".formatted(resourceId),
 				"계약서-v3.pdf",
 				"application/pdf",
@@ -443,7 +443,7 @@ class ResourceServiceTest {
 				ResourceStatus.READY
 		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
-		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(false);
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(false);
 
 		assertThatThrownBy(() -> resourceService.getResource(userId, resourceId))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->

@@ -28,12 +28,12 @@ public class AuthController {
 
 	@PostMapping("/api/auth/google/callback")
 	public ApiResponse<AuthTokenResponse> callbackGoogle(@Valid @RequestBody GoogleCallbackRequest request) {
-		return ApiResponse.success(authService.handleGoogleCallback(request));
+		return ApiResponse.success(authService.handleGoogleCallback(request.toCommand()));
 	}
 
 	@PostMapping("/api/auth/refresh")
 	public ApiResponse<AuthTokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-		return ApiResponse.success(authService.refresh(request));
+		return ApiResponse.success(authService.refresh(request.toCommand()));
 	}
 
 	@PostMapping("/api/auth/logout")

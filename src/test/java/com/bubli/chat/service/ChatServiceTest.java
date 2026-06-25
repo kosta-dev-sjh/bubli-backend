@@ -15,8 +15,8 @@ import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.user.entity.User;
-import com.bubli.user.repository.UserRepository;
+import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class ChatServiceTest {
 	ChatMessageRepository chatMessageRepository;
 
 	@Mock
-	UserRepository userRepository;
+	UserPublicService userPublicService;
 
 	@Spy
 	ObjectMapper objectMapper = new ObjectMapper();
@@ -64,8 +64,8 @@ class ChatServiceTest {
 	void createDirectRoomCreatesRoomAndTwoMembers() {
 		UUID requesterId = UUID.randomUUID();
 		UUID targetUserId = UUID.randomUUID();
-		User targetUser = user(targetUserId, "준화");
-		given(userRepository.findById(targetUserId)).willReturn(Optional.of(targetUser));
+		UserResult targetUser = user(targetUserId, "준화");
+		given(userPublicService.getUser(targetUserId)).willReturn(targetUser);
 		given(chatRoomRepository.findDirectRoomBetween(
 				requesterId,
 				targetUserId,
@@ -96,12 +96,12 @@ class ChatServiceTest {
 	void createDirectRoomReturnsExistingRoomWhenAlreadyExists() {
 		UUID requesterId = UUID.randomUUID();
 		UUID targetUserId = UUID.randomUUID();
-		User targetUser = user(targetUserId, "준화");
+		UserResult targetUser = user(targetUserId, "준화");
 		ChatRoom existing = ChatRoom.createDirect("준화");
 		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
 		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
 		ReflectionTestUtils.setField(existing, "updatedAt", Instant.now());
-		given(userRepository.findById(targetUserId)).willReturn(Optional.of(targetUser));
+		given(userPublicService.getUser(targetUserId)).willReturn(targetUser);
 		given(chatRoomRepository.findDirectRoomBetween(
 				requesterId,
 				targetUserId,
@@ -120,7 +120,7 @@ class ChatServiceTest {
 	void sendMessageStoresMessageWithNextRoomSequence() throws Exception {
 		UUID chatRoomId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
-		User sender = user(userId, "정현");
+		UserResult sender = user(userId, "정현");
 		ChatRoom chatRoom = chatRoom(chatRoomId);
 		SendChatMessageCommand command = new SendChatMessageCommand(
 				"client-1",
@@ -145,7 +145,7 @@ class ChatServiceTest {
 			ReflectionTestUtils.setField(message, "createdAt", Instant.now());
 			return message;
 		});
-		given(userRepository.findById(userId)).willReturn(Optional.of(sender));
+		given(userPublicService.getUser(userId)).willReturn(sender);
 
 		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
 
@@ -165,7 +165,7 @@ class ChatServiceTest {
 	void sendMessageReturnsExistingMessageWhenClientMessageIdAlreadyExists() throws Exception {
 		UUID chatRoomId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
-		User sender = user(userId, "미연");
+		UserResult sender = user(userId, "미연");
 		ChatMessage existing = ChatMessage.create(
 				chatRoomId,
 				userId,
@@ -192,7 +192,7 @@ class ChatServiceTest {
 		)).willReturn(true);
 		given(chatMessageRepository.findByChatRoomIdAndClientMessageId(chatRoomId, "client-dup"))
 				.willReturn(Optional.of(existing));
-		given(userRepository.findById(userId)).willReturn(Optional.of(sender));
+		given(userPublicService.getUser(userId)).willReturn(sender);
 
 		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
 
@@ -264,16 +264,15 @@ class ChatServiceTest {
 		return chatRoom;
 	}
 
-	private User user(UUID userId, String name) {
-		User user = User.createGoogleUser(
-				"google-sub-" + userId,
+	private UserResult user(UUID userId, String name) {
+		return new UserResult(
+				userId,
+				null,
 				"user-" + userId,
 				name,
 				null,
 				"ko",
 				"Asia/Seoul"
 		);
-		ReflectionTestUtils.setField(user, "id", userId);
-		return user;
 	}
 }

@@ -125,7 +125,7 @@ public class ResourceController {
 			@Valid @RequestBody CreateResourceVersionRequest request
 	) {
 		return ApiResponse.success(ResourceVersionResponse.from(
-				resourceService.createVersion(authUser.userId(), resourceId, request)
+				resourceService.createVersion(authUser.userId(), resourceId, request.toCommand())
 		));
 	}
 
