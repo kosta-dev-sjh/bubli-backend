@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:02 KST
+Last checked: 2026-06-25 13:09 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -61,7 +61,7 @@ Last checked: 2026-06-25 13:02 KST
 - #23 room access service 최신 #22 base 병합과 PublicService 통합 로컬 검증 통과. GitHub checks 없음 (base #22에 stacked PR CI workflow 없음)
 - #24 Google-only auth foundation 최신 #23 base 병합과 GoogleCallbackCommand 보정 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합과 Resource PublicService/Command 보정 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
-- #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
+- #26 agent storage foundation 최신 #25 base 병합과 ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #28 testcontainers/CI foundation 최신 #27 base 병합 로컬 검증과 GitHub Actions `build` 통과
 - #31 resource related API 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
@@ -129,6 +129,32 @@ Last checked: 2026-06-25 13:02 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 26-2. #26 에이전트 저장 기반 최신 #25/ArchitectureTest 기준 정리
+
+처리 시각: 2026-06-25 13:09 KST
+
+변경 내용:
+
+- #26 `feature/agent-storage-foundation` 브랜치에 최신 #25 `feature/resource-basic-foundation`를 병합했다.
+- 병합 충돌은 없었고, #25의 `ProjectMembershipPublicService`, resource Command DTO, ArchUnit 기준을 그대로 이어받았다.
+- `agent` 패키지는 다른 도메인의 Repository/Entity를 직접 참조하지 않는 상태로 확인했다.
+- agent는 `tasks`, `wbs_items`, `schedules`, `memos`를 직접 확정 저장하지 않고 후보 저장 기반만 유지한다.
+- #26 PR 본문을 최신 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #26: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #26: `./gradlew compileTestJava` 통과
+- #26: `./gradlew cleanTest test` 통과
+- #26: `git diff --check` 통과
+- #26: head `2fd6295`, base `feature/resource-basic-foundation`, mergeState `CLEAN`
+- #26: GitHub checks 없음. base가 `feature/resource-basic-foundation`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #26은 draft PR 상태를 유지한다.
+- #27은 이미 이전 기록상 #26 base 병합 후 `CLEAN`이었지만, #26 head가 `2fd6295`로 갱신됐으므로 다음 확인 대상이다.
 
 ### 작업 카드 25-2. #25 자료 기본 API 최신 #24/ArchitectureTest 기준 정리
 
@@ -2892,16 +2918,13 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #26은 최신 #25 `a5d0ed6` 기준으로 먼저 병합/충돌 정리 후 mergeState와 로컬 검증을 다시 확인한다.
-2. #27은 #26 최신 base 병합 뒤 mergeState와 로컬 검증을 다시 확인한다.
-3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
-4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
-5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
-6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
-7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
-10. #19~#81은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+1. #27은 #26 최신 head `2fd6295` 기준으로 다시 병합/충돌 정리 후 mergeState와 로컬 검증을 확인한다.
+2. #28은 #27 최신 base 확인 뒤 GitHub Actions CI를 다시 확인한다.
+3. #29는 #26/#27/#28 재확인 결과를 계속 누적하고 GitHub Actions CI를 확인한다.
+4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
+5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
+7. #19~#81은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
