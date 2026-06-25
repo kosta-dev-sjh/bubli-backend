@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 17:49 KST
+Last checked: 2026-06-25 18:19 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -142,6 +142,30 @@ Last checked: 2026-06-25 17:49 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 29-5. #29 최신 #28 기준 문서 PR 재정리
+
+처리 시각: 2026-06-25 18:19 KST
+
+변경 내용:
+
+- #29 `chore/latest-docs-2026-06-25` 브랜치에 최신 #28 `feature/testcontainers-ci-foundation` head `bb89d1d`를 병합했다.
+- 병합 중 `docs/WORK_HANDOFF.md` 충돌은 #29 문서 브랜치의 기존 인수인계 기록을 보존하는 방향으로 정리했다.
+- #29 head는 로컬에서 `a1b0945`까지 진행됐다. push 후 GitHub Actions CI를 다시 확인해야 한다.
+- `docs/API_SKELETON_PR_MATRIX.csv`를 실제 GitHub 상태 기준으로 갱신했다.
+
+검증 결과:
+
+- #29: `git diff --check` 통과
+- #28: head `bb89d1d`, base `feature/entity-flyway-alignment`, draft 아님, mergeState `CLEAN`, GitHub Actions `build` 통과
+- #38: head `3a4adc7`, base `feature/testcontainers-ci-foundation`, draft 아님, mergeState `CLEAN`, GitHub Actions `build` 통과
+- #29: push 전 기준 GitHub mergeState는 `DIRTY`로 보인다. 최신 head push 후 재확인한다.
+
+메모:
+
+- develop 대상 #47, #83, #84, #85는 GitHub상 `BLOCKED`지만 CI는 `SUCCESS`다. 현재 의미는 코드 충돌보다 팀 리뷰/병합 조건 대기 쪽으로 분류한다.
+- #62는 draft가 아니며 `CLEAN`으로 복구됐다.
+- #75, #76, #77, #80, #81 resource delete retry/dead-letter stack은 모두 ready/CLEAN 상태다.
 
 ### 작업 카드 67-2. #67 자료 삭제 저장소 객체 정리 최신 #64 기준 정리
 
