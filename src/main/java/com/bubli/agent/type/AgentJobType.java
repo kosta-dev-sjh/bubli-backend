@@ -1,0 +1,12 @@
+package com.bubli.agent.type;
+
+public enum AgentJobType {
+    ANALYZE_RESOURCE,
+    GENERATE_WBS,
+    GENERATE_TASKS,
+    GENERATE_REQUIREMENTS,
+    REVIEW_CONTRACT_DOCUMENTS,
+    GENERATE_QUESTIONS,
+    DAILY_SUMMARY,
+    DRAFT_DOCUMENT
+}

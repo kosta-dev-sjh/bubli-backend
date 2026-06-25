@@ -1,0 +1,50 @@
+spring:
+  config:
+    activate:
+      on-profile: ai
+
+  ai:
+    model:
+      chat: bedrock-converse
+      embedding: bedrock-titan
+
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-northeast-2}
+        timeout: ${BEDROCK_TIMEOUT:2m}
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+        session-token: ${AWS_SESSION_TOKEN:}
+
+      converse:
+        chat:
+          options:
+            model: ${BEDROCK_CHAT_MODEL_ID:apac.anthropic.claude-3-haiku-20240307-v1:0}
+            temperature: ${BEDROCK_CHAT_TEMPERATURE:0.2}
+            max-tokens: ${BEDROCK_CHAT_MAX_TOKENS:1200}
+
+      titan:
+        embedding:
+          model: ${BEDROCK_EMBEDDING_MODEL_ID:amazon.titan-embed-text-v2:0}
+          input-type: TEXT
+
+    vectorstore:
+      type: pgvector
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: ${BEDROCK_EMBEDDING_DIMENSIONS:1024}
+        schema-name: public
+        table-name: vector_store
+        schema-validation: false
+        max-document-batch-size: 100
+
+bubli:
+  ai:
+    retry:
+      max-attempts: ${AI_RETRY_MAX_ATTEMPTS:3}
+      initial-delay: ${AI_RETRY_INITIAL_DELAY:1s}
+  rag:
+    smoke:
+      enabled: ${RAG_SMOKE_ENABLED:true}

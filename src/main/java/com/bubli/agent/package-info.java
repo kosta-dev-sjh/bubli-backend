@@ -10,10 +10,12 @@
  * - 모델 호출 로그 관리
  *
  * 내부 패키지 (다른 도메인은 직접 호출 금지):
+ * - contract   : 버전별 에이전트 입출력 JSON 계약
+ * - validation : 계약 구조와 제안 유형별 필수값 검증
  * - job        : 비동기 에이전트 작업 실행, 상태 추적
  * - suggestion : 후보 데이터 저장/조회/상태 관리
  * - prompt     : 프롬프트 템플릿 관리
- * - rag        : RAG 파이프라인, 임베딩, pgvector 검색
+ * - rag        : RAG 파이프라인, 임베딩, pgvector 검색 및 연결 Smoke Test
  * - model      : LLM 모델 호출, Structured Output 파싱
  *
  * 공개 Service (다른 도메인이 호출):
@@ -23,10 +25,9 @@
  * - PersonalAgentService    : 개인 에이전트 제안 (personal.service → agent)
  *
  * 엔티티:
- * - AgentJob          : 에이전트 작업 (room_id, resource_id, job_type, status)
- * - AgentJobEvent     : 작업 이벤트 로그 (agent_job_id, event_type, payload)
- * - AgentSuggestion   : 제안/후보 (user_id, room_id, suggestion_type, payload_json,
- *                        status: DRAFT/APPROVED/HELD/REJECTED)
+ * - AgentRequest      : 비동기 AI 요청과 재시도 상태
+ * - AgentSuggestion   : 원본 JSON과 사용자 수정 JSON을 보존하는 후보
+ * - SuggestionEvidence: 후보와 원문 문서/청크/페이지의 근거 연결
  * - AgentModelCallLog : 모델 호출 로그 (model_id, input_tokens, output_tokens, cost)
  *
  * 금지:

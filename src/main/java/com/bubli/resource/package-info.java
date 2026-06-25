@@ -18,7 +18,10 @@
  * - ResourceVersion  : 버전 기록 (resource_id, version_no, file_id)
  * - ResourceComment  : 자료 댓글 (resource_id, author_id, body, parent_id)
  * - ResourceAnalysis : 분석 결과 (summary_json, checklist_json, status)
+ * - Document         : RAG 처리 대상 문서와 처리 상태, 버전
+ * - DocumentChunk    : 페이지와 절 정보를 보존한 검색 단위
  *
- * resource는 파일 원본 접근과 자료 접근 권한을 책임진다.
+ * Resource는 사용자 화면과 업무 기준의 자료 원본이고,
+ * Document는 해당 자료를 RAG에서 추출·인덱싱하기 위한 처리 기록이다.
  */
 package com.bubli.resource;

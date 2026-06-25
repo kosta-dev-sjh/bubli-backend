@@ -1,7 +1,24 @@
 package com.bubli.resource.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import com.bubli.global.entity.BaseTimeEntity;
+import com.bubli.resource.type.ResourceKind;
+import com.bubli.resource.type.ResourceStatus;
+import com.bubli.resource.type.ResourceVisibility;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 개인 자료 또는 프로젝트룸 자료 카드.
@@ -16,11 +33,94 @@ import lombok.*;
  * 프로젝트룸 에이전트 context에 포함되지 않는다.
  */
 @Entity
+@Table(
+        name = "resources",
+        indexes = {
+                @Index(name = "idx_resources_owner_visibility", columnList = "owner_id,visibility"),
+                @Index(name = "idx_resources_room_status", columnList = "room_id,status")
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Resource {
+public class Resource extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private UUID id;
+
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
+
+    @Column(name = "room_id")
+    private UUID roomId;
+
+    @Column(name = "title", nullable = false, length = 255)
+    private String title;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 20)
+    private ResourceKind kind;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    private ResourceVisibility visibility;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private ResourceStatus status;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    private Resource(
+            UUID ownerId,
+            UUID roomId,
+            String title,
+            ResourceKind kind,
+            ResourceVisibility visibility
+    ) {
+        this.ownerId = require(ownerId, "ownerId");
+        this.roomId = roomId;
+        this.title = requireText(title, "title");
+        this.kind = require(kind, "kind");
+        this.visibility = require(visibility, "visibility");
+        if (visibility == ResourceVisibility.ROOM_SHARED && roomId == null) {
+            throw new IllegalArgumentException("ROOM_SHARED 자료에는 roomId가 필요합니다.");
+        }
+        this.status = ResourceStatus.UPLOADING;
+    }
+
+    public static Resource roomFile(UUID ownerId, UUID roomId, String title) {
+        return new Resource(ownerId, roomId, title, ResourceKind.FILE, ResourceVisibility.ROOM_SHARED);
+    }
+
+    public void markReady() {
+        status = ResourceStatus.READY;
+    }
+
+    public void startAnalysis() {
+        status = ResourceStatus.ANALYZING;
+    }
+
+    public void markAnalysisFailed() {
+        status = ResourceStatus.FAILED;
+    }
+
+    public void markAnalyzed() {
+        status = ResourceStatus.ANALYZED;
+    }
+
+    private static <T> T require(T value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        return value;
+    }
+
+    private static String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        return value;
+    }
 }

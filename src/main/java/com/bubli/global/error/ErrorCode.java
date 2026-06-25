@@ -28,6 +28,12 @@ public enum ErrorCode {
 
     // RESOURCE
     RESOURCE_404_001(HttpStatus.NOT_FOUND, "RESOURCE_404_001", "자료를 찾을 수 없습니다."),
+    RESOURCE_409_001(HttpStatus.CONFLICT, "RESOURCE_409_001", "동일한 문서가 이미 등록되어 있습니다."),
+    RESOURCE_413_001(HttpStatus.PAYLOAD_TOO_LARGE, "RESOURCE_413_001", "문서 크기는 50MB를 초과할 수 없습니다."),
+    RESOURCE_415_001(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "RESOURCE_415_001", "PDF 또는 UTF-8 TXT 파일만 업로드할 수 있습니다."),
+    RESOURCE_500_001(HttpStatus.INTERNAL_SERVER_ERROR, "RESOURCE_500_001", "문서 원본 저장에 실패했습니다."),
+    // AGENT
+    AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "Agent job not found."),
     ;
 
     private final HttpStatus httpStatus;
