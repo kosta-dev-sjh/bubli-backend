@@ -3,9 +3,9 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
-import com.bubli.resource.dto.CreateResourceVersionRequest;
+import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceDownloadUrlResult;
 import com.bubli.resource.dto.ResourceRelatedResult;
@@ -30,7 +30,7 @@ import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
-import com.bubli.storage.service.StorageService;
+import com.bubli.storage.service.StoragePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -58,8 +58,8 @@ public class ResourceService {
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
-	private final StorageService storageService;
-	private final RoomAccessService roomAccessService;
+	private final StoragePublicService storagePublicService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
 	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
@@ -187,7 +187,7 @@ public class ResourceService {
 		));
 		FileUploadResult uploaded = null;
 		try {
-			uploaded = storageService.save(
+			uploaded = storagePublicService.save(
 					storageKey(resource.getId(), command.originalName()),
 					command.originalName(),
 					command.mimeType(),
@@ -241,15 +241,15 @@ public class ResourceService {
 	}
 
 	@Transactional
-	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionRequest request) {
+	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
 		getReadableResource(userId, resourceId);
 		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
 				resourceId,
-				request.storageKey(),
-				request.originalName(),
-				request.mimeType(),
-				request.sizeBytes(),
-				request.checksum()
+				command.storageKey(),
+				command.originalName(),
+				command.mimeType(),
+				command.sizeBytes(),
+				command.checksum()
 		));
 		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
 		ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
@@ -334,7 +334,7 @@ public class ResourceService {
 			return;
 		}
 		try {
-			storageService.delete(uploaded.storageKey());
+			storagePublicService.delete(uploaded.storageKey());
 		} catch (RuntimeException deleteException) {
 			cause.addSuppressed(deleteException);
 		}
@@ -400,7 +400,7 @@ public class ResourceService {
 	}
 
 	private void validateRoomResourceAccess(UUID userId, UUID roomId) {
-		if (!roomAccessService.isActiveMember(userId, roomId)) {
+		if (!projectMembershipPublicService.isActiveMember(userId, roomId)) {
 			throw new BusinessException(ErrorCode.RESOURCE_403_001);
 		}
 	}
