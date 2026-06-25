@@ -152,4 +152,3 @@ Spring 백엔드에서는 기본 API 하나만 만들어도 Controller, DTO, Ser
 | 충돌 발생 | 임의 merge하지 않고 충돌 파일과 기준 branch를 보고 |
 | API 최종본 변경 | 기존 PR을 버리지 말고 차이만 보정 |
 | 기능 범위가 커짐 | 새 PR로 쪼갠다 |
-
