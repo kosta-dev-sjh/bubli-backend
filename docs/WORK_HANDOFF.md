@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 12:16 KST
+Last checked: 2026-06-25 12:21 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -49,6 +49,7 @@ Last checked: 2026-06-25 12:16 KST
 - `git diff --check` 통과 (2026-06-24 21:44 KST)
 - GitHub Actions CI 통과 (#28, 2026-06-24 21:47 KST)
 - GitHub Actions CI 통과 (#29, 2026-06-25 00:26 KST)
+- GitHub Actions CI 통과 (#29, API enum 재갱신 기준 반영 후 2026-06-25 12:21 KST)
 - GitHub Actions CI 통과 (#19, 2026-06-25 00:55 KST)
 - GitHub Actions CI 통과 (#20, 2026-06-25 07:16 KST)
 - GitHub Actions CI 통과 (#20, V1 migration 변경을 V2로 이동 후 2026-06-25 10:34 KST)
@@ -154,6 +155,13 @@ Last checked: 2026-06-25 12:16 KST
 - #22의 ArchUnit 테스트와 #38 entity boundary guard를 구조 기준선으로 격상한다.
 - develop 대상 PR부터 #19, #20, #21, #22 순서로 새 API enum 기준과 ArchUnit 기준을 다시 확인한다.
 - 이후 foundation, resource, agent, user/settings, Flyway/FK stack을 base 순서대로 점검한다.
+
+검증 결과:
+
+- 해시 확인 통과: 다운로드 원본, 최종 산출물, 위키 `10_API-Design.md` 모두 `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`
+- 백엔드 docs: `git diff --check` 통과
+- 위키 docs: `git diff --check` 통과
+- 백엔드 PR #29: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28144554869`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28144554869/job/83348820442`, duration `1m20s`
 
 ### 작업 카드 39-1. #39 저장 용량 조회 API 최신 base 병합
 
