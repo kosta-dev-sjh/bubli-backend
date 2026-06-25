@@ -76,6 +76,7 @@ Last checked: 2026-06-25 09:24 KST
 - #67 resource delete storage cleanup 로컬 검증 통과. GitHub checks 없음 (base #64에 stacked PR CI workflow 없음)
 - #75 resource delete cleanup retry record 로컬 검증 통과. GitHub checks 없음 (base #67에 stacked PR CI workflow 없음)
 - #76 resource delete retry worker 로컬 검증 통과. GitHub checks 없음 (base #75에 stacked PR CI workflow 없음)
+- #77 resource delete retry scheduler 로컬 검증 통과. GitHub checks 없음 (base #76에 stacked PR CI workflow 없음)
 - #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
 - #59 project room events API 로컬 검증 통과. GitHub checks 없음 (base #58에 stacked PR CI workflow 없음)
 - #61 project room event recording 로컬 검증 통과. GitHub checks 없음 (base #59에 stacked PR CI workflow 없음)
@@ -94,11 +95,38 @@ Last checked: 2026-06-25 09:24 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#76 상태 재확인 완료 (2026-06-25 09:46 KST)
+- 열린 PR #19~#77 상태 재확인 완료 (2026-06-25 09:51 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 77. #77 자료 삭제 저장소 재시도 scheduler
+
+처리 시각: 2026-06-25 09:51 KST
+
+변경 내용:
+
+- #77 `feature/resource-delete-retry-scheduler`를 #76 `feature/resource-delete-retry-worker` 위의 draft stacked PR로 생성했다.
+- `ResourceStorageDeleteRetryScheduler`가 `ResourceStorageDeleteRetryWorker.retryDeleteRequests(...)`를 설정값 기반으로 주기 호출한다.
+- scheduler는 `resource.storage-delete.retry.scheduler.enabled=true`일 때만 켜지도록 기본 비활성화했다.
+- worker 예외는 로그로 남기고 전파하지 않는다.
+- dead-letter 운영 알림, 관리자 조회 API, 최종 삭제 정책 조정은 추가하지 않았다.
+
+검증 결과:
+
+- #77: `./gradlew test --tests com.bubli.resource.service.ResourceStorageDeleteRetrySchedulerTest --tests com.bubli.resource.service.ResourceStorageDeleteRetryWorkerTest` 통과
+- #77: `./gradlew compileTestJava` 통과
+- #77: `./gradlew cleanTest test` 통과
+- #77: `git diff --check` 통과
+- #77: head `b8f9f22`, base `feature/resource-delete-retry-worker`, mergeState `CLEAN`
+- #77: GitHub checks 없음. base #76에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 resource 저장소 삭제 retry scheduler shell만 다룬다.
+- scheduler 활성화 기본값, fixed delay, batch size, max retry count, 운영 알림은 최종 운영 기준에서 보정 가능하다.
+- #24~#29, #31~#77 draft PR은 앞선 base PR merge와 CI 기준 정리가 끝나면 ready PR로 전환한다.
 
 ### 작업 카드 76. #76 자료 삭제 저장소 재시도 worker
 
@@ -2223,6 +2251,7 @@ Last checked: 2026-06-25 09:24 KST
 | #67 | `[feat] 자료 삭제 저장소 객체 정리 추가` | `feature/resource-delete-storage-cleanup` | `feature/resource-upload-storage-usage` | `0fac143` | checks 없음, merge clean, draft | #64 위에 자료 삭제 시 연결 storage object best-effort 삭제 추가. 삭제 retry/outbox는 후속 |
 | #75 | `[feat] 자료 삭제 저장소 재시도 기록 추가` | `feature/resource-delete-cleanup-retry` | `feature/resource-delete-storage-cleanup` | `4a563a5` | checks 없음, merge clean, draft | #67 위에 저장소 객체 삭제 실패 retry 요청 기록 기반 추가. 실제 retry worker/scheduler는 후속 |
 | #76 | `[feat] 자료 삭제 저장소 재시도 worker 추가` | `feature/resource-delete-retry-worker` | `feature/resource-delete-cleanup-retry` | `75fb12d` | checks 없음, merge clean, draft | #75 위에 저장소 객체 삭제 retry worker service 추가. scheduler/운영 알림은 후속 |
+| #77 | `[feat] 자료 삭제 저장소 재시도 scheduler 추가` | `feature/resource-delete-retry-scheduler` | `feature/resource-delete-retry-worker` | `b8f9f22` | checks 없음, merge clean, draft | #76 위에 저장소 객체 삭제 retry 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
 | #47 | `[feat] 내 프로필 수정 API 추가` | `feature/user-me-update-api` | `develop` | `2a132a6` | `build` pass, merge blocked, draft | 6/25 기준 PATCH /api/me 추가 |
 | #48 | `[feat] 사용자 설정 API 추가` | `feature/user-preferences-api` | `feature/user-me-update-api` | `bbad8ae` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/preferences 추가 |
 | #49 | `[feat] 사용자 알림 설정 API 추가` | `feature/user-notification-preferences-api` | `feature/user-preferences-api` | `f94239e` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/notification-preferences 추가 |
@@ -2249,7 +2278,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가. #77에서 삭제 retry 조건부 scheduler 추가 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가. #60에서 dispatch 실패 retry count 반영과 retry 후보 조회 경계 추가. #63에서 retry 가능한 FAILED job 재dispatch worker service 추가. #65에서 retry worker 조건부 scheduler 추가. #66에서 Redis enqueue adapter 추가. #68에서 Redis consume 경계 추가. #69에서 RUNNING/STARTED worker shell 추가. #70에서 RUNNING job의 SUCCEEDED/FAILED 최종 전이 event 기록기 추가. #71에서 execution port와 worker-result recorder 연결 shell 추가. #72에서 dispatch DB outbox 운영 테이블 초안과 상태 기록 흐름 추가. #73에서 PENDING/FAILED outbox 재발행 service와 DEAD_LETTER 전이 추가. #74에서 outbox 발행/재시도 조건부 scheduler 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
@@ -2313,9 +2342,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
 6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#76은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 resource 삭제 retry scheduler 분리, 남은 FK/인덱스 세부 정책 검증 보강, 또는 agent 실행 결과 저장 뼈대 분리다.
-10. #19~#76은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#77은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 남은 FK/인덱스 세부 정책 검증 보강, agent 실행 결과 저장 뼈대 분리, 또는 resource dead-letter 운영 조회/알림 범위 검토다.
+10. #19~#77은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
