@@ -29,17 +29,21 @@ class AgentJobDispatchWorkerTest {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
 		);
 		when(queueConsumer.poll()).thenReturn(Optional.empty());
 
 		boolean processed = worker.processNextQueuedJob();
 
 		assertThat(processed).isFalse();
-		verifyNoInteractions(agentJobRepository, agentJobEventRepository);
+		verifyNoInteractions(agentJobRepository, agentJobEventRepository, executionPort, executionResultRecorder);
 	}
 
 	@Test
@@ -47,12 +51,17 @@ class AgentJobDispatchWorkerTest {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
 		);
 		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
 		AgentJob agentJob = AgentJob.create(
 				UUID.randomUUID(),
 				UUID.randomUUID(),
@@ -60,8 +69,9 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message)).thenReturn(Optional.empty());
 
 		boolean processed = worker.processNextQueuedJob();
 
@@ -75,6 +85,76 @@ class AgentJobDispatchWorkerTest {
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_TYPE);
 		assertThat(eventCaptor.getValue().getMessage())
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_MESSAGE);
+		verifyNoInteractions(executionResultRecorder);
+	}
+
+	@Test
+	void processNextQueuedJobRecordsSucceededOutcome() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message)).thenReturn(Optional.of(AgentJobExecutionOutcome.succeeded()));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		verify(executionResultRecorder).recordSucceeded(jobId);
+		verify(executionResultRecorder, never()).recordFailed(any(), any(), any());
+	}
+
+	@Test
+	void processNextQueuedJobRecordsFailedOutcome() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message))
+				.thenReturn(Optional.of(AgentJobExecutionOutcome.failed("MODEL_TIMEOUT", "모델 응답 시간이 초과되었습니다.")));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		verify(executionResultRecorder, never()).recordSucceeded(any());
+		verify(executionResultRecorder).recordFailed(jobId, "MODEL_TIMEOUT", "모델 응답 시간이 초과되었습니다.");
 	}
 
 	@Test
@@ -82,10 +162,14 @@ class AgentJobDispatchWorkerTest {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
@@ -96,6 +180,7 @@ class AgentJobDispatchWorkerTest {
 		assertThat(processed).isFalse();
 		verify(agentJobRepository).findById(jobId);
 		verify(agentJobEventRepository, never()).save(any());
+		verifyNoInteractions(executionPort, executionResultRecorder);
 	}
 
 	@Test
@@ -103,10 +188,14 @@ class AgentJobDispatchWorkerTest {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = AgentJob.create(
@@ -124,6 +213,7 @@ class AgentJobDispatchWorkerTest {
 
 		assertThat(processed).isFalse();
 		verify(agentJobEventRepository, never()).save(any());
+		verifyNoInteractions(executionPort, executionResultRecorder);
 	}
 
 	private AgentJobQueueMessage message(UUID jobId) {

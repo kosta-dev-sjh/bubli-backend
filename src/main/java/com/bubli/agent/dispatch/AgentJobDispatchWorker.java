@@ -19,23 +19,44 @@ public class AgentJobDispatchWorker {
 	private final AgentJobQueueConsumerPort queueConsumer;
 	private final AgentJobRepository agentJobRepository;
 	private final AgentJobEventRepository agentJobEventRepository;
+	private final AgentJobExecutionPort executionPort;
+	private final AgentJobExecutionResultRecorder executionResultRecorder;
 
 	@Transactional
 	public boolean processNextQueuedJob() {
 		return queueConsumer.poll()
-				.flatMap(message -> agentJobRepository.findById(message.jobId()))
-				.filter(agentJob -> agentJob.getStatus() == AgentJobStatus.PENDING)
-				.map(this::markStarted)
+				.map(this::process)
 				.orElse(false);
 	}
 
-	private boolean markStarted(AgentJob agentJob) {
+	private boolean process(AgentJobQueueMessage message) {
+		return agentJobRepository.findById(message.jobId())
+				.filter(agentJob -> agentJob.getStatus() == AgentJobStatus.PENDING)
+				.map(agentJob -> markStartedAndExecute(agentJob, message))
+				.orElse(false);
+	}
+
+	private boolean markStartedAndExecute(AgentJob agentJob, AgentJobQueueMessage message) {
+		markStarted(agentJob);
+		executionPort.execute(message)
+				.ifPresent(outcome -> recordOutcome(agentJob, outcome));
+		return true;
+	}
+
+	private void recordOutcome(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
+		if (outcome.successful()) {
+			executionResultRecorder.recordSucceeded(agentJob.getId());
+			return;
+		}
+		executionResultRecorder.recordFailed(agentJob.getId(), outcome.errorCode(), outcome.errorMessage());
+	}
+
+	private void markStarted(AgentJob agentJob) {
 		agentJob.markRunning();
 		agentJobEventRepository.save(AgentJobEvent.create(
 				agentJob.getId(),
 				STARTED_EVENT_TYPE,
 				STARTED_EVENT_MESSAGE
 		));
-		return true;
 	}
 }
