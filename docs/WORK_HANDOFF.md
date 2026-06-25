@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 11:11 KST
+Last checked: 2026-06-25 11:17 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -48,6 +48,7 @@ Last checked: 2026-06-25 11:11 KST
 - #25 resource basic foundation 최신 #24 base 병합 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
+- #28 testcontainers/CI foundation 최신 #27 base 병합 로컬 검증과 GitHub Actions `build` 통과
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
@@ -106,11 +107,35 @@ Last checked: 2026-06-25 11:11 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:11 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:17 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 28-1. #28 stacked PR 테스트 검증 보강 최신 base 병합
+
+처리 시각: 2026-06-25 11:17 KST
+
+변경 내용:
+
+- #28 `feature/testcontainers-ci-foundation` 브랜치에 최신 #27 `feature/entity-flyway-alignment`를 병합했다.
+- #27의 전체 Flyway migration 기반 정합성 테스트 보정이 CI 범위에 포함되도록 했다.
+- 병합 충돌은 없었다.
+- #28 PR 본문을 최신 검증 결과와 GitHub Actions CI 결과로 갱신했다.
+
+검증 결과:
+
+- #28: `./gradlew compileTestJava` 통과
+- #28: `./gradlew cleanTest test` 통과
+- #28: `git diff --check` 통과
+- #28: head `b9300fd`, base `feature/entity-flyway-alignment`, mergeState `CLEAN`
+- #28: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28142390887`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28142390887/job/83342316241`
+
+메모:
+
+- 이번 변경은 #28의 최신 base 병합과 CI 재확인만 다룬다.
+- #28은 draft PR 상태를 유지한다. ready 전환은 선행 PR merge 순서에 맞춰 별도 판단한다.
 
 ### 작업 카드 27-1. #27 Entity/Flyway 정합성 검사 최신 base 병합
 
@@ -2506,7 +2531,7 @@ Last checked: 2026-06-25 11:11 KST
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 agent enum 보정 완료, 후보 저장 기반 유지 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
 | #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge clean, draft | #27 위에 agent 외 핵심 도메인 FK 제약과 ALTER FK parser/test 추가 |
-| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d1b58a4` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 최신 core lookup index 보강까지 병합 뒤 CI 재통과 |
+| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b9300fd` | `build` pass, merge clean, draft | 최신 #27 base 병합 후 CI 재통과. stacked PR CI 보강과 전체 Flyway migration 정합성 검사 포함 |
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `4148e57` | checks 없음, merge clean, draft | 6/25 기준 resource_relations 조회 API 추가 |
