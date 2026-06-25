@@ -1,0 +1,101 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-local-access-token
+@resourceId = replace-with-resource-id
+@commentId = replace-with-comment-id
+@roomId = replace-with-room-id
+
+### 개인 자료 목록
+GET {{baseUrl}}/api/resources?scope=personal
+Authorization: Bearer {{accessToken}}
+
+### 개인 자료 메타데이터 생성
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "계약서 초안",
+  "kind": "FILE",
+  "visibility": "PERSONAL"
+}
+
+### 프로젝트룸 자료 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/resources
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 자료 메타데이터 생성
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "회의록",
+  "kind": "FILE",
+  "visibility": "ROOM_SHARED",
+  "roomId": "{{roomId}}"
+}
+
+### 자료 상세
+GET {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
+
+### 자료 메타데이터 수정
+PATCH {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "계약서 초안 v2"
+}
+
+### 자료 삭제
+DELETE {{baseUrl}}/api/resources/{{resourceId}}
+Authorization: Bearer {{accessToken}}
+
+### 자료 댓글 목록
+GET {{baseUrl}}/api/resources/{{resourceId}}/comments?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 버전 목록
+GET {{baseUrl}}/api/resources/{{resourceId}}/versions?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 요약
+GET {{baseUrl}}/api/resources/{{resourceId}}/summary
+Authorization: Bearer {{accessToken}}
+
+### 자료 버전 등록
+POST {{baseUrl}}/api/resources/{{resourceId}}/versions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "storageKey": "resources/{{resourceId}}/v1.pdf",
+  "originalName": "계약서.pdf",
+  "mimeType": "application/pdf",
+  "sizeBytes": 1024,
+  "checksum": null
+}
+
+### 자료 댓글 작성
+POST {{baseUrl}}/api/resources/{{resourceId}}/comments
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "parentId": null,
+  "body": "확인했습니다."
+}
+
+### 자료 댓글 수정
+PATCH {{baseUrl}}/api/resource-comments/{{commentId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "body": "확인했습니다. 수정합니다."
+}
+
+### 자료 댓글 삭제
+DELETE {{baseUrl}}/api/resource-comments/{{commentId}}
+Authorization: Bearer {{accessToken}}
