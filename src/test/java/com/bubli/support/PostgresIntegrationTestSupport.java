@@ -30,18 +30,25 @@ public abstract class PostgresIntegrationTestSupport {
 		if (hasExternalDataSource()) {
 			return;
 		}
-		postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-				.withDatabaseName("bubli_test")
-				.withUsername("bubli")
-				.withPassword("bubli1234");
-		postgres.start();
-		registry.add("spring.datasource.url", postgres::getJdbcUrl);
-		registry.add("spring.datasource.username", postgres::getUsername);
-		registry.add("spring.datasource.password", postgres::getPassword);
+		PostgreSQLContainer<?> container = getPostgres();
+		registry.add("spring.datasource.url", container::getJdbcUrl);
+		registry.add("spring.datasource.username", container::getUsername);
+		registry.add("spring.datasource.password", container::getPassword);
 	}
 
 	private static boolean hasExternalDataSource() {
 		return System.getenv("SPRING_DATASOURCE_URL") != null
 				|| System.getProperty("spring.datasource.url") != null;
+	}
+
+	private static PostgreSQLContainer<?> getPostgres() {
+		if (postgres == null) {
+			postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
+					.withDatabaseName("bubli_test")
+					.withUsername("bubli")
+					.withPassword("bubli1234");
+			postgres.start();
+		}
+		return postgres;
 	}
 }

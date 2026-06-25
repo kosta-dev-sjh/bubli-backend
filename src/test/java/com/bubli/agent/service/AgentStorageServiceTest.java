@@ -25,7 +25,7 @@ import com.bubli.agent.type.AiDocumentStatus;
 import com.bubli.agent.type.AiDocumentType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -72,7 +72,7 @@ class AgentStorageServiceTest {
 	AiDocumentRepository aiDocumentRepository;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	AgentJobService agentJobService;
@@ -308,7 +308,7 @@ class AgentStorageServiceTest {
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
 		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test
@@ -366,7 +366,7 @@ class AgentStorageServiceTest {
 		);
 
 		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.REJECTED);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test
@@ -482,7 +482,7 @@ class AgentStorageServiceTest {
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
 		assertThat(result.getItems().getFirst().resourceId()).isEqualTo(resourceId);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test
@@ -506,6 +506,6 @@ class AgentStorageServiceTest {
 
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().status()).isEqualTo(AiDocumentStatus.READY);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 }
