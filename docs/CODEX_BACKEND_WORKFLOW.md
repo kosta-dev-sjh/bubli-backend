@@ -8,7 +8,8 @@
 1. `/Users/maren/EDU/Final Project/AGENTS.md`를 먼저 확인한다.
 2. `docs/00_BACKEND_START_HERE.md`를 확인한다.
 3. `docs/WORK_HANDOFF.md`에서 현재 PR 상태와 다음 작업을 확인한다.
-4. 현재 브랜치와 변경사항을 확인한다.
+4. 열린 PR을 리뷰하거나 병합 판단을 해야 하면 `docs/API_SKELETON_PR_REVIEW_GUIDE.md`를 확인한다.
+5. 현재 브랜치와 변경사항을 확인한다.
 
 ```bash
 git status --short --branch
@@ -133,6 +134,15 @@ CI가 아직 돌고 있거나 실패했다면 완료로 보고하지 않는다.
 - 로컬 검증 결과
 - GitHub Actions CI 결과
 - 다음에 이어서 할 작업
+
+## 팀원에게 PR을 설명할 때
+
+현재 API PR은 완성 기능이 아니라 컴파일되고 테스트되는 기본 API 골격이라고 설명한다.
+Controller, DTO, Service, Repository, Entity, Test, `.http` 예시는 들어갈 수 있다.
+하지만 외부 연동, 복잡한 정책, 화면별 세부 응답, 실제 AI/RAG 실행, WebSocket 실시간 처리는 각 담당자가 이어서 붙일 부분으로 남긴다.
+
+열린 PR이 많을 때는 `docs/API_SKELETON_PR_REVIEW_GUIDE.md`의 순서대로 본다.
+먼저 `develop` 대상이고 CI가 통과한 PR을 리뷰하고, stacked PR은 base 순서대로 확인한다.
 
 ## PR 재검토 순서
 

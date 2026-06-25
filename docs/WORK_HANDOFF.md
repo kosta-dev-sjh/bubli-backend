@@ -18,6 +18,7 @@ Last checked: 2026-06-25 16:40 KST
 | Tauri 로컬 DB 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/09C_DB-Tauri-SQLite.md` |
 | 백엔드 규칙 | `docs/Bubli_백엔드_개발_가이드_2026-06-25.md` |
 | 6/25 기준 보정 계획 | `docs/CURRENT_API_BASELINE_WORK.md` |
+| PR 리뷰 기준 | `docs/API_SKELETON_PR_REVIEW_GUIDE.md` |
 | 현재 API 해시 | `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b` |
 
 ## 현재 작업 모드
@@ -35,6 +36,8 @@ Last checked: 2026-06-25 16:40 KST
 
 현재 핵심 규칙:
 
+- 현재 열린 API PR은 완성 기능이 아니라 컴파일되고 테스트되는 기본 API 골격이다.
+- 팀원은 `docs/API_SKELETON_PR_REVIEW_GUIDE.md`를 먼저 보고 merge 순서와 이어서 구현할 범위를 확인한다.
 - 개발 가이드는 참고 문서가 아니라 ArchUnit/CI 통과 기준이다.
 - API 구현은 최신 `10_API-Design.md`만 보지 않고 최종 기획, `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, 백엔드 가이드를 함께 본다.
 - 다른 도메인의 Repository/Entity 직접 참조를 제거하고 필요한 경우 `*PublicService`를 둔다.

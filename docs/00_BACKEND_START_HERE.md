@@ -34,6 +34,7 @@ Last checked: 2026-06-25 12:16 KST
 | 현재 작업 현황 | `docs/WORK_HANDOFF.md` | 열린 PR, 현재 불일치 후보, 다음 작업 순서 확인 |
 | Codex/Claude 작업 절차 | `docs/CODEX_BACKEND_WORKFLOW.md` | AI에게 작업시킬 때 반복해서 지킬 순서 확인 |
 | 6/25 기준 보정 계획 | `docs/CURRENT_API_BASELINE_WORK.md` | 기존 PR과 현재 코드를 새 기준으로 보정할 작업 순서 |
+| 열린 PR 리뷰 기준 | `docs/API_SKELETON_PR_REVIEW_GUIDE.md` | 현재 PR이 완성 기능인지 기본 API 골격인지, 어떤 순서로 리뷰/병합할지 확인 |
 
 ## 작업 종류별로 볼 문서
 
