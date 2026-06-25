@@ -5,7 +5,7 @@ import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.resource.dto.ResourceResult;
-import com.bubli.resource.service.ResourceService;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 class AiJobCommandServiceTest {
 
 	@Mock
-	ResourceService resourceService;
+	ResourcePublicService resourcePublicService;
 
 	@Mock
 	AgentJobService agentJobService;
@@ -41,7 +41,7 @@ class AiJobCommandServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		UUID jobId = UUID.randomUUID();
-		given(resourceService.getResource(userId, resourceId)).willReturn(new ResourceResult(
+		given(resourcePublicService.getReadableResource(userId, resourceId)).willReturn(new ResourceResult(
 				resourceId,
 				userId,
 				roomId,
