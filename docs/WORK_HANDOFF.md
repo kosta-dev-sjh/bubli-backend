@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 15:26 KST
+Last checked: 2026-06-25 15:33 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -129,6 +129,27 @@ Last checked: 2026-06-25 15:26 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 DRAFT-READY. 전환 가능한 draft PR ready 처리
+
+처리 시각: 2026-06-25 15:33 KST
+
+변경 내용:
+
+- GitHub에서 열린 PR의 draft 여부와 mergeState를 재조회했다.
+- mergeState가 CLEAN이고 로컬 검증/CI 또는 stacked PR checks 없음 사유가 확인된 draft PR을 ready로 전환했다.
+- #53은 최초 조회에서 UNKNOWN으로 보여 보류했지만, 재조회에서 CLEAN으로 확인되어 ready로 전환했다.
+- #39, #47, #62, #64는 아직 draft 상태로 유지했다.
+- #39, #47, #62, #64 PR 본문에 draft 유지 사유와 ready 전환 조건을 추가했다.
+
+검증 결과:
+
+- GitHub PR 재조회 결과: ready 54개, draft 4개
+- 남은 draft PR: #39 DIRTY, #47 BLOCKED, #62 DIRTY, #64 DIRTY
+- #39: 최신 #31 기준 `RoomMemberRepository.java` 충돌 해소 후 ready 전환 가능
+- #47: develop 대상 PR mergeState BLOCKED 원인 해소 후 ready 전환 가능
+- #62: 최신 #27 기준 FK/Flyway 변경 수동 병합과 검증 후 ready 전환 가능
+- #64: 최신 #57 기준 resource upload/storage usage stack 병합과 검증 후 ready 전환 가능
 
 ### 작업 카드 57-2. #57 자료 업로드 정책 검사 최신 #56 기준 정리
 
@@ -3398,77 +3419,79 @@ Last checked: 2026-06-25 15:26 KST
 | PR | 제목 | 브랜치 | base | 확인한 head | CI/상태 | 현재 메모 |
 |---|---|---|---|---|---|---|
 | #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | merged, `build` pass | 2026-06-25 09:35 KST에 `develop` merge 완료 |
-| #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, draft | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
-| #59 | `[feat] 프로젝트룸 이벤트 조회 API 추가` | `feature/project-room-events-api` | `feature/project-room-management-api` | `825da57` | checks 없음, merge clean, draft | #58 위에 `GET /api/project-rooms/{roomId}/events` 누락 보충 API 추가. WebSocket 송신/이벤트 저장 호출은 후속 |
-| #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, draft | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
+| #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, ready | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
+| #59 | `[feat] 프로젝트룸 이벤트 조회 API 추가` | `feature/project-room-events-api` | `feature/project-room-management-api` | `825da57` | checks 없음, merge clean, ready | #58 위에 `GET /api/project-rooms/{roomId}/events` 누락 보충 API 추가. WebSocket 송신/이벤트 저장 호출은 후속 |
+| #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, ready | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | merged, `build` pass | 2026-06-25 10:36 KST에 `develop` merge 완료. V1 migration 변경분 V2 이동 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | merged, `build` pass | 2026-06-25 10:10 KST에 `develop` merge 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `bfd8dba` | `build` pass, merge clean | 최신 develop #82 병합, PublicService 권한 경계 적용, `ScheduleResult`로 Controller Entity 의존 제거 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `89228f8` | checks 없음, merge clean | 최신 #22 base 병합 후 `RoomAccessService` 제거, `ProjectMembershipPublicService` 기준으로 정리 |
-| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `b7cfe6b` | checks 없음, merge clean, draft | 최신 #23 base 병합 후 Google callback Command DTO 기준으로 정리 |
-| #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a5d0ed6` | checks 없음, merge clean, draft | 최신 #24 base 병합 후 Resource 권한 PublicService와 version Command DTO 기준으로 정리 |
-| #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge unknown, draft | #25 base 갱신 후 UNKNOWN. 다음에 최신 #25 기준으로 병합/검증 필요 |
-| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
-| #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge clean, draft | #27 위에 agent 외 핵심 도메인 FK 제약과 ALTER FK parser/test 추가 |
-| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b9300fd` | `build` pass, merge clean, draft | 최신 #27 base 병합 후 CI 재통과. stacked PR CI 보강과 전체 Flyway migration 정합성 검사 포함 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `ad4f1df` | `build` pass, merge clean, draft | 6/25 12:16 API 재갱신 기준과 PR 재검토 상태 갱신 |
+| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `b7cfe6b` | checks 없음, merge clean, ready | 최신 #23 base 병합 후 Google callback Command DTO 기준으로 정리 |
+| #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a5d0ed6` | checks 없음, merge clean, ready | 최신 #24 base 병합 후 Resource 권한 PublicService와 version Command DTO 기준으로 정리 |
+| #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `2fd6295` | checks 없음, merge clean, ready | 최신 #25 base 병합 후 CLEAN. 2026-06-25 15:33 KST에 draft에서 ready로 전환 |
+| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, ready | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
+| #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge dirty, draft | 최신 #27 기준 DIRTY. FK/Flyway 변경 수동 병합과 로컬 검증 후 ready 전환 |
+| #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b9300fd` | `build` pass, merge clean, ready | 최신 #27 base 병합 후 CI 재통과. stacked PR CI 보강과 전체 Flyway migration 정합성 검사 포함 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `문서 브랜치 최신` | `build` pass, merge clean, ready | 6/25 12:16 API 재갱신 기준과 PR 재검토 상태 갱신, draft PR ready 전환 결과 기록 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
-| #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `84c12b4` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
-| #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `74da8e3` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 6/25 기준 agent_jobs 상태 조회 API 추가 |
-| #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `cecc62b` | checks 없음, merge clean, draft | 최신 #32 base 병합 후 PublicService 권한 보정. 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
-| #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `3a9e260` | checks 없음, merge clean, draft | 최신 #33 base 병합 후 CLEAN. 6/25 기준 agent_job_events 조회 API 추가 |
-| #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `e78b394` | checks 없음, merge clean, draft | 최신 #34 base 병합 후 PublicService 권한 보정. 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
-| #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `451d05c` | checks 없음, merge clean, draft | 최신 #35 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 resource ai-document 조회 API 추가 |
-| #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `4a9e7e3` | checks 없음, merge clean, draft | 최신 #36 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
-| #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `cf7cdfd` | `build` pass, merge clean, draft | 최신 #28 base 병합. BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 유지 |
-| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge unknown, draft | 최신 #31 head `84c12b4` 병합 중 `RoomMemberRepository.java` 충돌. merge abort 후 보류 |
-| #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `e2b7e5c` | checks 없음, merge clean, draft | 최신 #37 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 analyze-resource agent job 생성 API 추가 |
-| #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `4088d62` | checks 없음, merge clean, draft | 최신 #40 base 수동 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-requirements agent job 생성 API 추가 |
-| #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `8bdc107` | checks 없음, merge clean, draft | 최신 #41 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-tasks agent job 생성 API 추가 |
-| #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `1145670` | checks 없음, merge clean, draft | 최신 #42 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-wbs agent job 생성 API 추가 |
-| #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `2ac6438` | checks 없음, merge clean, draft | 최신 #43 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-questions agent job 생성 API 추가 |
-| #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `6ef6595` | checks 없음, merge clean, draft | 최신 #44 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 review-contract-documents agent job 생성 API 추가 |
-| #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `b0dec9a` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
-| #60 | `[feat] 에이전트 dispatch 재시도 기반 추가` | `feature/agent-dispatch-retry-foundation` | `feature/agent-job-dispatch-boundary` | `0222389` | checks 없음, merge clean, draft | #53 위에 enqueue 실패 retry count 반영과 retry 후보 조회 경계 추가. 실제 outbox/worker 실행은 후속 |
-| #63 | `[feat] 에이전트 dispatch 재시도 worker 추가` | `feature/agent-dispatch-retry-worker` | `feature/agent-dispatch-retry-foundation` | `065f9f0` | checks 없음, merge clean, draft | #60 위에 retry 가능한 FAILED job 재dispatch worker service 추가. scheduler/Redis/outbox는 후속 |
-| #65 | `[feat] 에이전트 dispatch 재시도 scheduler 추가` | `feature/agent-dispatch-retry-scheduler` | `feature/agent-dispatch-retry-worker` | `037c397` | checks 없음, merge clean, draft | #63 위에 조건부 scheduler를 추가해 retry worker를 주기 호출. Redis/outbox/실제 모델 실행은 후속 |
-| #66 | `[feat] 에이전트 dispatch Redis adapter 추가` | `feature/agent-dispatch-redis-adapter` | `feature/agent-dispatch-retry-scheduler` | `b006662` | checks 없음, merge clean, draft | #65 위에 Redis list enqueue adapter 추가. worker consume, 모델 실행, DB outbox는 후속 |
-| #68 | `[feat] 에이전트 dispatch Redis consumer 경계 추가` | `feature/agent-dispatch-redis-consumer` | `feature/agent-dispatch-redis-adapter` | `6c47fde` | checks 없음, merge clean, draft | #66 위에 Redis list consume 경계 추가. worker loop, 모델 실행, 상태 전이는 후속 |
-| #69 | `[feat] 에이전트 dispatch worker shell 추가` | `feature/agent-dispatch-worker-loop` | `feature/agent-dispatch-redis-consumer` | `5c8f54b` | checks 없음, merge clean, draft | #68 위에 queue message 1건을 RUNNING/STARTED로 전이하는 worker shell 추가. 모델 실행/결과 저장은 후속 |
-| #70 | `[feat] 에이전트 실행 최종 상태 기록 추가` | `feature/agent-dispatch-final-transition` | `feature/agent-dispatch-worker-loop` | `ae29e3b` | checks 없음, merge clean, draft | #69 위에 RUNNING job을 SUCCEEDED/FAILED로 마감하고 event를 저장하는 기록기 추가. 모델 실행/결과 저장/outbox는 후속 |
-| #71 | `[feat] 에이전트 dispatch 실행 port 연결` | `feature/agent-dispatch-execution-port` | `feature/agent-dispatch-final-transition` | `6ee11e5` | checks 없음, merge clean, draft | #70 위에 execution port와 no-op 구현을 추가하고 worker가 결과가 있을 때만 최종 상태 기록기를 호출하도록 연결 |
-| #72 | `[feat] 에이전트 dispatch DB outbox 기반 추가` | `feature/agent-dispatch-db-outbox` | `feature/agent-dispatch-execution-port` | `f9c6ea9` | checks 없음, merge clean, draft | #71 위에 `agent_dispatch_outbox` 운영 테이블 초안과 pending/dispatched/failed 기록 흐름 추가. poller/dead-letter는 후속 |
-| #73 | `[feat] 에이전트 dispatch outbox poller 추가` | `feature/agent-dispatch-outbox-poller` | `feature/agent-dispatch-db-outbox` | `1aee085` | checks 없음, merge clean, draft | #72 위에 PENDING/FAILED outbox 재발행 service와 DEAD_LETTER 전이 추가. scheduler/운영 알림은 후속 |
-| #74 | `[feat] 에이전트 dispatch outbox scheduler 추가` | `feature/agent-dispatch-outbox-scheduler` | `feature/agent-dispatch-outbox-poller` | `661b57f` | checks 없음, merge clean, draft | #73 위에 outbox 발행/재시도 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
-| #78 | `[feat] 에이전트 실행 결과 후보 저장 연결` | `feature/agent-result-suggestion-recorder` | `feature/agent-dispatch-outbox-scheduler` | `4fb184b` | checks 없음, merge clean, draft | #74 위에 실행 성공 outcome의 후보를 `agent_suggestions` DRAFT로 저장하는 내부 경계 추가. 실제 모델/RAG/요약 저장은 후속 |
-| #79 | `[feat] 에이전트 모델 호출 로그 저장 연결` | `feature/agent-model-call-log-recorder` | `feature/agent-result-suggestion-recorder` | `6dab1d0` | checks 없음, merge clean, draft | #78 위에 실행 outcome의 모델 호출 로그를 `agent_model_call_logs`에 저장하는 내부 경계 추가. 실제 모델/RAG 연결은 후속 |
-| #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `c5632d8` | checks 없음, merge clean, draft | 최신 #31 base 병합 후 ResourceService 충돌 해결. 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
-| #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `31d9eb8` | checks 없음, merge clean, draft | 최신 #46 base 병합 후 S3 presigned download URL provider 검증. #46 provider 경계에 구현 추가 |
-| #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `0f48244` | checks 없음, merge clean, draft | 최신 #52 base 병합 후 StorageService/S3 설정 검증. #52 S3 설정 위에 저장/삭제 경계 추가 |
-| #55 | `[feat] 자료 multipart 업로드 API 연결` | `feature/resource-multipart-upload-api` | `feature/s3-storage-service-boundary` | `cb94fa1` | checks 없음, merge clean, draft | #54 최신 base 병합, StoragePublicService 경계 보정, resource/file/version 생성까지 연결 |
-| #56 | `[feat] 자료 업로드 실패 보상 삭제 추가` | `feature/resource-upload-compensation` | `feature/resource-multipart-upload-api` | `6d29e0d` | checks 없음, merge clean, draft | #55 최신 base 병합, DB 저장 실패 시 StoragePublicService.delete 보상 처리 |
-| #57 | `[feat] 자료 업로드 정책 검사 추가` | `feature/resource-upload-policy` | `feature/resource-upload-compensation` | `60b9470` | checks 없음, merge clean, draft | #56 최신 base 병합, 설정 기반 크기/MIME 정책 검사 추가 |
-| #64 | `feat: connect resource upload storage usage` | `feature/resource-upload-storage-usage` | `feature/resource-upload-policy` | `b61b870` | checks 없음, merge clean, draft | #57 위에 #39 storage usage accounting boundary를 병합하고 업로드/삭제 사용량 기록과 해제를 연결 |
-| #67 | `[feat] 자료 삭제 저장소 객체 정리 추가` | `feature/resource-delete-storage-cleanup` | `feature/resource-upload-storage-usage` | `0fac143` | checks 없음, merge clean, draft | #64 위에 자료 삭제 시 연결 storage object best-effort 삭제 추가. 삭제 retry/outbox는 후속 |
-| #75 | `[feat] 자료 삭제 저장소 재시도 기록 추가` | `feature/resource-delete-cleanup-retry` | `feature/resource-delete-storage-cleanup` | `4a563a5` | checks 없음, merge clean, draft | #67 위에 저장소 객체 삭제 실패 retry 요청 기록 기반 추가. 실제 retry worker/scheduler는 후속 |
-| #76 | `[feat] 자료 삭제 저장소 재시도 worker 추가` | `feature/resource-delete-retry-worker` | `feature/resource-delete-cleanup-retry` | `75fb12d` | checks 없음, merge clean, draft | #75 위에 저장소 객체 삭제 retry worker service 추가. scheduler/운영 알림은 후속 |
-| #77 | `[feat] 자료 삭제 저장소 재시도 scheduler 추가` | `feature/resource-delete-retry-scheduler` | `feature/resource-delete-retry-worker` | `b8f9f22` | checks 없음, merge clean, draft | #76 위에 저장소 객체 삭제 retry 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
-| #80 | `[feat] 자료 삭제 dead-letter 조회 기반 추가` | `feature/resource-delete-dead-letter-api` | `feature/resource-delete-retry-scheduler` | `4cfcf40` | checks 없음, merge clean, draft | #77 위에 `DEAD_LETTER` 저장소 삭제 요청 조회 서비스/DTO 추가. 관리자 endpoint/알림/수동 재처리는 후속 |
-| #81 | `[test] 자료 삭제 dead-letter 조회 인덱스 보강` | `feature/resource-delete-dead-letter-index` | `feature/resource-delete-dead-letter-api` | `9f121bf` | checks 없음, merge clean, draft | #80 위에 `resource_storage_delete_requests(status, updated_at)` 인덱스와 Flyway schema 검증 추가 |
+| #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `84c12b4` | checks 없음, merge clean, ready | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
+| #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `74da8e3` | checks 없음, merge clean, ready | 최신 #26 base 병합 후 CLEAN. 6/25 기준 agent_jobs 상태 조회 API 추가 |
+| #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `cecc62b` | checks 없음, merge clean, ready | 최신 #32 base 병합 후 PublicService 권한 보정. 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
+| #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `3a9e260` | checks 없음, merge clean, ready | 최신 #33 base 병합 후 CLEAN. 6/25 기준 agent_job_events 조회 API 추가 |
+| #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `e78b394` | checks 없음, merge clean, ready | 최신 #34 base 병합 후 PublicService 권한 보정. 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
+| #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `451d05c` | checks 없음, merge clean, ready | 최신 #35 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 resource ai-document 조회 API 추가 |
+| #37 | `[feat] 프로젝트룸 AI 문서 목록 조회 API 추가` | `feature/room-ai-documents-api` | `feature/resource-ai-document-api` | `4a9e7e3` | checks 없음, merge clean, ready | 최신 #36 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 project-room ai-documents 목록 조회 API 추가 |
+| #38 | `[test] 엔티티 경계 가드 추가` | `chore/entity-boundary-guards` | `feature/testcontainers-ci-foundation` | `cf7cdfd` | `build` pass, merge clean, ready | 최신 #28 base 병합. BaseTimeEntity, global/entity Java source, local_* JPA entity 금지 테스트 유지 |
+| #39 | `[feat] 저장 용량 조회 API 추가` | `feature/storage-usage-api` | `feature/resource-related-api` | `53e1fb0` | checks 없음, merge dirty, draft | 최신 #31 기준 DIRTY. `RoomMemberRepository.java` 충돌 해소와 로컬 검증 후 ready 전환 |
+| #40 | `[feat] 자료 분석 작업 생성 API 추가` | `feature/analyze-resource-job-api` | `feature/room-ai-documents-api` | `e2b7e5c` | checks 없음, merge clean, ready | 최신 #37 base 병합 후 ResourcePublicService 권한 경계 보정. 6/25 기준 analyze-resource agent job 생성 API 추가 |
+| #41 | `[feat] 요구사항 후보 생성 작업 API 추가` | `feature/generate-requirements-job-api` | `feature/analyze-resource-job-api` | `4088d62` | checks 없음, merge clean, ready | 최신 #40 base 수동 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-requirements agent job 생성 API 추가 |
+| #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `8bdc107` | checks 없음, merge clean, ready | 최신 #41 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-tasks agent job 생성 API 추가 |
+| #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `1145670` | checks 없음, merge clean, ready | 최신 #42 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-wbs agent job 생성 API 추가 |
+| #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `2ac6438` | checks 없음, merge clean, ready | 최신 #43 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-questions agent job 생성 API 추가 |
+| #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `6ef6595` | checks 없음, merge clean, ready | 최신 #44 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 review-contract-documents agent job 생성 API 추가 |
+| #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `b0dec9a` | checks 없음, merge clean, ready | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
+| #60 | `[feat] 에이전트 dispatch 재시도 기반 추가` | `feature/agent-dispatch-retry-foundation` | `feature/agent-job-dispatch-boundary` | `0222389` | checks 없음, merge clean, ready | #53 위에 enqueue 실패 retry count 반영과 retry 후보 조회 경계 추가. 실제 outbox/worker 실행은 후속 |
+| #63 | `[feat] 에이전트 dispatch 재시도 worker 추가` | `feature/agent-dispatch-retry-worker` | `feature/agent-dispatch-retry-foundation` | `065f9f0` | checks 없음, merge clean, ready | #60 위에 retry 가능한 FAILED job 재dispatch worker service 추가. scheduler/Redis/outbox는 후속 |
+| #65 | `[feat] 에이전트 dispatch 재시도 scheduler 추가` | `feature/agent-dispatch-retry-scheduler` | `feature/agent-dispatch-retry-worker` | `037c397` | checks 없음, merge clean, ready | #63 위에 조건부 scheduler를 추가해 retry worker를 주기 호출. Redis/outbox/실제 모델 실행은 후속 |
+| #66 | `[feat] 에이전트 dispatch Redis adapter 추가` | `feature/agent-dispatch-redis-adapter` | `feature/agent-dispatch-retry-scheduler` | `b006662` | checks 없음, merge clean, ready | #65 위에 Redis list enqueue adapter 추가. worker consume, 모델 실행, DB outbox는 후속 |
+| #68 | `[feat] 에이전트 dispatch Redis consumer 경계 추가` | `feature/agent-dispatch-redis-consumer` | `feature/agent-dispatch-redis-adapter` | `6c47fde` | checks 없음, merge clean, ready | #66 위에 Redis list consume 경계 추가. worker loop, 모델 실행, 상태 전이는 후속 |
+| #69 | `[feat] 에이전트 dispatch worker shell 추가` | `feature/agent-dispatch-worker-loop` | `feature/agent-dispatch-redis-consumer` | `5c8f54b` | checks 없음, merge clean, ready | #68 위에 queue message 1건을 RUNNING/STARTED로 전이하는 worker shell 추가. 모델 실행/결과 저장은 후속 |
+| #70 | `[feat] 에이전트 실행 최종 상태 기록 추가` | `feature/agent-dispatch-final-transition` | `feature/agent-dispatch-worker-loop` | `ae29e3b` | checks 없음, merge clean, ready | #69 위에 RUNNING job을 SUCCEEDED/FAILED로 마감하고 event를 저장하는 기록기 추가. 모델 실행/결과 저장/outbox는 후속 |
+| #71 | `[feat] 에이전트 dispatch 실행 port 연결` | `feature/agent-dispatch-execution-port` | `feature/agent-dispatch-final-transition` | `6ee11e5` | checks 없음, merge clean, ready | #70 위에 execution port와 no-op 구현을 추가하고 worker가 결과가 있을 때만 최종 상태 기록기를 호출하도록 연결 |
+| #72 | `[feat] 에이전트 dispatch DB outbox 기반 추가` | `feature/agent-dispatch-db-outbox` | `feature/agent-dispatch-execution-port` | `f9c6ea9` | checks 없음, merge clean, ready | #71 위에 `agent_dispatch_outbox` 운영 테이블 초안과 pending/dispatched/failed 기록 흐름 추가. poller/dead-letter는 후속 |
+| #73 | `[feat] 에이전트 dispatch outbox poller 추가` | `feature/agent-dispatch-outbox-poller` | `feature/agent-dispatch-db-outbox` | `1aee085` | checks 없음, merge clean, ready | #72 위에 PENDING/FAILED outbox 재발행 service와 DEAD_LETTER 전이 추가. scheduler/운영 알림은 후속 |
+| #74 | `[feat] 에이전트 dispatch outbox scheduler 추가` | `feature/agent-dispatch-outbox-scheduler` | `feature/agent-dispatch-outbox-poller` | `661b57f` | checks 없음, merge clean, ready | #73 위에 outbox 발행/재시도 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
+| #78 | `[feat] 에이전트 실행 결과 후보 저장 연결` | `feature/agent-result-suggestion-recorder` | `feature/agent-dispatch-outbox-scheduler` | `4fb184b` | checks 없음, merge clean, ready | #74 위에 실행 성공 outcome의 후보를 `agent_suggestions` DRAFT로 저장하는 내부 경계 추가. 실제 모델/RAG/요약 저장은 후속 |
+| #79 | `[feat] 에이전트 모델 호출 로그 저장 연결` | `feature/agent-model-call-log-recorder` | `feature/agent-result-suggestion-recorder` | `6dab1d0` | checks 없음, merge clean, ready | #78 위에 실행 outcome의 모델 호출 로그를 `agent_model_call_logs`에 저장하는 내부 경계 추가. 실제 모델/RAG 연결은 후속 |
+| #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `c5632d8` | checks 없음, merge clean, ready | 최신 #31 base 병합 후 ResourceService 충돌 해결. 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
+| #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `31d9eb8` | checks 없음, merge clean, ready | 최신 #46 base 병합 후 S3 presigned download URL provider 검증. #46 provider 경계에 구현 추가 |
+| #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `0f48244` | checks 없음, merge clean, ready | 최신 #52 base 병합 후 StorageService/S3 설정 검증. #52 S3 설정 위에 저장/삭제 경계 추가 |
+| #55 | `[feat] 자료 multipart 업로드 API 연결` | `feature/resource-multipart-upload-api` | `feature/s3-storage-service-boundary` | `cb94fa1` | checks 없음, merge clean, ready | #54 최신 base 병합, StoragePublicService 경계 보정, resource/file/version 생성까지 연결 |
+| #56 | `[feat] 자료 업로드 실패 보상 삭제 추가` | `feature/resource-upload-compensation` | `feature/resource-multipart-upload-api` | `6d29e0d` | checks 없음, merge clean, ready | #55 최신 base 병합, DB 저장 실패 시 StoragePublicService.delete 보상 처리 |
+| #57 | `[feat] 자료 업로드 정책 검사 추가` | `feature/resource-upload-policy` | `feature/resource-upload-compensation` | `60b9470` | checks 없음, merge clean, ready | #56 최신 base 병합, 설정 기반 크기/MIME 정책 검사 추가 |
+| #64 | `feat: connect resource upload storage usage` | `feature/resource-upload-storage-usage` | `feature/resource-upload-policy` | `b61b870` | checks 없음, merge dirty, draft | 최신 #57 기준 DIRTY. resource upload/storage usage stack 병합과 로컬 검증 후 ready 전환 |
+| #67 | `[feat] 자료 삭제 저장소 객체 정리 추가` | `feature/resource-delete-storage-cleanup` | `feature/resource-upload-storage-usage` | `0fac143` | checks 없음, merge clean, ready | #64 위에 자료 삭제 시 연결 storage object best-effort 삭제 추가. 삭제 retry/outbox는 후속 |
+| #75 | `[feat] 자료 삭제 저장소 재시도 기록 추가` | `feature/resource-delete-cleanup-retry` | `feature/resource-delete-storage-cleanup` | `4a563a5` | checks 없음, merge clean, ready | #67 위에 저장소 객체 삭제 실패 retry 요청 기록 기반 추가. 실제 retry worker/scheduler는 후속 |
+| #76 | `[feat] 자료 삭제 저장소 재시도 worker 추가` | `feature/resource-delete-retry-worker` | `feature/resource-delete-cleanup-retry` | `75fb12d` | checks 없음, merge clean, ready | #75 위에 저장소 객체 삭제 retry worker service 추가. scheduler/운영 알림은 후속 |
+| #77 | `[feat] 자료 삭제 저장소 재시도 scheduler 추가` | `feature/resource-delete-retry-scheduler` | `feature/resource-delete-retry-worker` | `b8f9f22` | checks 없음, merge clean, ready | #76 위에 저장소 객체 삭제 retry 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
+| #80 | `[feat] 자료 삭제 dead-letter 조회 기반 추가` | `feature/resource-delete-dead-letter-api` | `feature/resource-delete-retry-scheduler` | `4cfcf40` | checks 없음, merge clean, ready | #77 위에 `DEAD_LETTER` 저장소 삭제 요청 조회 서비스/DTO 추가. 관리자 endpoint/알림/수동 재처리는 후속 |
+| #81 | `[test] 자료 삭제 dead-letter 조회 인덱스 보강` | `feature/resource-delete-dead-letter-index` | `feature/resource-delete-dead-letter-api` | `9f121bf` | checks 없음, merge clean, ready | #80 위에 `resource_storage_delete_requests(status, updated_at)` 인덱스와 Flyway schema 검증 추가 |
 | #47 | `[feat] 내 프로필 수정 API 추가` | `feature/user-me-update-api` | `develop` | `2a132a6` | `build` pass, merge blocked, draft | 6/25 기준 PATCH /api/me 추가 |
-| #48 | `[feat] 사용자 설정 API 추가` | `feature/user-preferences-api` | `feature/user-me-update-api` | `bbad8ae` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/preferences 추가 |
-| #49 | `[feat] 사용자 알림 설정 API 추가` | `feature/user-notification-preferences-api` | `feature/user-preferences-api` | `f94239e` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/notification-preferences 추가 |
-| #50 | `[feat] 사용자 개인정보 동의 API 추가` | `feature/user-privacy-consents-api` | `feature/user-notification-preferences-api` | `bb44f55` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/privacy-consents 추가 |
-| #51 | `[feat] 내 프로젝트룸 목록 API 추가` | `feature/user-project-rooms-api` | `feature/user-privacy-consents-api` | `8650257` | checks 없음, merge clean, draft | 6/25 기준 GET /api/me/project-rooms 추가 |
+| #48 | `[feat] 사용자 설정 API 추가` | `feature/user-preferences-api` | `feature/user-me-update-api` | `bbad8ae` | checks 없음, merge clean, ready | 6/25 기준 GET/PATCH /api/me/preferences 추가 |
+| #49 | `[feat] 사용자 알림 설정 API 추가` | `feature/user-notification-preferences-api` | `feature/user-preferences-api` | `f94239e` | checks 없음, merge clean, ready | 6/25 기준 GET/PATCH /api/me/notification-preferences 추가 |
+| #50 | `[feat] 사용자 개인정보 동의 API 추가` | `feature/user-privacy-consents-api` | `feature/user-notification-preferences-api` | `bb44f55` | checks 없음, merge clean, ready | 6/25 기준 GET/PATCH /api/me/privacy-consents 추가 |
+| #51 | `[feat] 내 프로젝트룸 목록 API 추가` | `feature/user-project-rooms-api` | `feature/user-privacy-consents-api` | `8650257` | checks 없음, merge clean, ready | 6/25 기준 GET /api/me/project-rooms 추가 |
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 10:24 KST 기준 draft PR은 #24~#29, #31~#81이다.
-#19, #20, #21, #22, #23, #30은 ready 상태다.
+2026-06-25 15:33 KST 기준 열린 PR은 ready 54개, draft 4개다.
+남은 draft PR은 #39, #47, #62, #64다.
 
 draft PR은 폐기 상태가 아니다.
-stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#81은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+mergeState가 CLEAN이고 로컬 검증/CI 또는 stacked PR checks 없음 사유가 확인된 draft PR은 ready로 전환했다.
+#39, #47, #62, #64는 DIRTY 또는 BLOCKED 상태라 draft로 유지한다.
+각 PR 본문에는 draft 유지 사유와 ready 전환 조건을 추가했다.
+이전 작업 카드에 남은 draft 유지 메모는 당시 기록이며, 현재 상태는 이 섹션과 열린 PR 상태 표를 기준으로 본다.
 
 ## 6/25 기준 재검토 후보
 
@@ -3542,7 +3565,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #67 이후 resource delete stack은 #64 최신 head 기준으로 순차 재검증한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
-5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+5. 남은 draft PR은 #39, #47, #62, #64이며 각각 DIRTY 또는 BLOCKED 해소 뒤 ready 전환한다.
 6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
 7. #19~#81은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
