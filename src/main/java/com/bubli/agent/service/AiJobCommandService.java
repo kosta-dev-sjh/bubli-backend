@@ -62,7 +62,7 @@ public class AiJobCommandService {
 
 	@Transactional
 	public AgentJobResult createGenerateQuestionsJob(UUID userId, UUID roomId) {
-		roomAccessService.validateActiveMember(userId, roomId);
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,

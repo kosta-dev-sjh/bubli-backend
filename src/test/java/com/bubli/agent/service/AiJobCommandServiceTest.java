@@ -223,7 +223,7 @@ class AiJobCommandServiceTest {
 		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isNull();
