@@ -1,8 +1,8 @@
 package com.bubli.resource.service;
 
 import com.bubli.global.response.PageResponse;
-import com.bubli.resource.dto.ResourceStorageDeleteRequestResult;
-import com.bubli.resource.repository.ResourceStorageDeleteRequestRepository;
+import com.bubli.resource.dto.ResourceStorageDeleteRetryRecordResult;
+import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import com.bubli.resource.type.ResourceStorageDeleteStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,15 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class ResourceStorageDeleteRequestQueryService {
+public class ResourceStorageDeleteRetryRecordQueryService {
 
-	private final ResourceStorageDeleteRequestRepository resourceStorageDeleteRequestRepository;
+	private final ResourceStorageDeleteRetryRecordRepository resourceStorageDeleteRetryRecordRepository;
 
 	@Transactional(readOnly = true)
-	public PageResponse<ResourceStorageDeleteRequestResult> getDeadLetterRequests(Pageable pageable) {
-		Page<ResourceStorageDeleteRequestResult> page = resourceStorageDeleteRequestRepository
+	public PageResponse<ResourceStorageDeleteRetryRecordResult> getDeadLetterRequests(Pageable pageable) {
+		Page<ResourceStorageDeleteRetryRecordResult> page = resourceStorageDeleteRetryRecordRepository
 				.findByStatus(ResourceStorageDeleteStatus.DEAD_LETTER, withDefaultSort(pageable))
-				.map(ResourceStorageDeleteRequestResult::from);
+				.map(ResourceStorageDeleteRetryRecordResult::from);
 		return new PageResponse<>(
 				page.getContent(),
 				page.getNumber(),

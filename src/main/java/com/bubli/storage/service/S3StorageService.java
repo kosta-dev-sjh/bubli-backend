@@ -18,7 +18,7 @@ import java.util.HexFormat;
 
 @Component
 @ConditionalOnProperty(name = "storage.type", havingValue = "s3")
-public class S3StorageService implements StorageService {
+public class S3StorageService implements StoragePublicService {
 
 	private final S3Client s3Client;
 	private final String bucket;

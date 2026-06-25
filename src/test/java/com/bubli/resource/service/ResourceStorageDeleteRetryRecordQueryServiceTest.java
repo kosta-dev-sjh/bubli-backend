@@ -1,9 +1,9 @@
 package com.bubli.resource.service;
 
 import com.bubli.global.response.PageResponse;
-import com.bubli.resource.dto.ResourceStorageDeleteRequestResult;
-import com.bubli.resource.entity.ResourceStorageDeleteRequest;
-import com.bubli.resource.repository.ResourceStorageDeleteRequestRepository;
+import com.bubli.resource.dto.ResourceStorageDeleteRetryRecordResult;
+import com.bubli.resource.entity.ResourceStorageDeleteRetryRecord;
+import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import com.bubli.resource.type.ResourceStorageDeleteStatus;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -22,26 +22,26 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ResourceStorageDeleteRequestQueryServiceTest {
+class ResourceStorageDeleteRetryRecordQueryServiceTest {
 
 	@Test
 	void getDeadLetterRequestsReturnsDeadLetterRequestsWithDefaultSort() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		ResourceStorageDeleteRequestQueryService service = new ResourceStorageDeleteRequestQueryService(repository);
-		ResourceStorageDeleteRequest request = deadLetterRequest();
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		ResourceStorageDeleteRetryRecordQueryService service = new ResourceStorageDeleteRetryRecordQueryService(repository);
+		ResourceStorageDeleteRetryRecord record = deadLetterRequest();
 		PageRequest pageable = PageRequest.of(0, 20);
 		when(repository.findByStatus(
 				ResourceStorageDeleteStatus.DEAD_LETTER,
 				PageRequest.of(0, 20, Sort.by("updatedAt").ascending())
-		)).thenReturn(new PageImpl<>(List.of(request), pageable, 1));
+			)).thenReturn(new PageImpl<>(List.of(record), pageable, 1));
 
-		PageResponse<ResourceStorageDeleteRequestResult> result = service.getDeadLetterRequests(pageable);
+		PageResponse<ResourceStorageDeleteRetryRecordResult> result = service.getDeadLetterRequests(pageable);
 
 		assertThat(result.getItems()).hasSize(1);
-		ResourceStorageDeleteRequestResult item = result.getItems().getFirst();
-		assertThat(item.id()).isEqualTo(request.getId());
-		assertThat(item.resourceId()).isEqualTo(request.getResourceId());
-		assertThat(item.fileId()).isEqualTo(request.getFileId());
+		ResourceStorageDeleteRetryRecordResult item = result.getItems().getFirst();
+		assertThat(item.id()).isEqualTo(record.getId());
+		assertThat(item.resourceId()).isEqualTo(record.getResourceId());
+		assertThat(item.fileId()).isEqualTo(record.getFileId());
 		assertThat(item.storageKey()).isEqualTo("storage-key");
 		assertThat(item.status()).isEqualTo(ResourceStorageDeleteStatus.DEAD_LETTER);
 		assertThat(item.retryCount()).isEqualTo(3);
@@ -51,8 +51,8 @@ class ResourceStorageDeleteRequestQueryServiceTest {
 
 	@Test
 	void getDeadLetterRequestsKeepsExplicitSort() {
-		ResourceStorageDeleteRequestRepository repository = mock(ResourceStorageDeleteRequestRepository.class);
-		ResourceStorageDeleteRequestQueryService service = new ResourceStorageDeleteRequestQueryService(repository);
+		ResourceStorageDeleteRetryRecordRepository repository = mock(ResourceStorageDeleteRetryRecordRepository.class);
+		ResourceStorageDeleteRetryRecordQueryService service = new ResourceStorageDeleteRetryRecordQueryService(repository);
 		PageRequest pageable = PageRequest.of(1, 10, Sort.by("createdAt").descending());
 		when(repository.findByStatus(ResourceStorageDeleteStatus.DEAD_LETTER, pageable))
 				.thenReturn(new PageImpl<>(List.of(), pageable, 0));
@@ -67,8 +67,8 @@ class ResourceStorageDeleteRequestQueryServiceTest {
 		assertThat(pageableCaptor.getValue()).isEqualTo(pageable);
 	}
 
-	private ResourceStorageDeleteRequest deadLetterRequest() {
-		ResourceStorageDeleteRequest request = ResourceStorageDeleteRequest.create(
+	private ResourceStorageDeleteRetryRecord deadLetterRequest() {
+		ResourceStorageDeleteRetryRecord record = ResourceStorageDeleteRetryRecord.create(
 				UUID.randomUUID(),
 				UUID.randomUUID(),
 				"storage-key",
@@ -77,11 +77,11 @@ class ResourceStorageDeleteRequestQueryServiceTest {
 		UUID requestId = UUID.randomUUID();
 		Instant createdAt = Instant.parse("2026-06-25T00:00:00Z");
 		Instant updatedAt = Instant.parse("2026-06-25T00:10:00Z");
-		ReflectionTestUtils.setField(request, "id", requestId);
-		ReflectionTestUtils.setField(request, "retryCount", 3);
-		ReflectionTestUtils.setField(request, "createdAt", createdAt);
-		ReflectionTestUtils.setField(request, "updatedAt", updatedAt);
-		request.markDeadLetter(ResourceStorageDeleteRetryWorker.DEAD_LETTER_MESSAGE);
-		return request;
+			ReflectionTestUtils.setField(record, "id", requestId);
+			ReflectionTestUtils.setField(record, "retryCount", 3);
+			ReflectionTestUtils.setField(record, "createdAt", createdAt);
+			ReflectionTestUtils.setField(record, "updatedAt", updatedAt);
+		record.markDeadLetter(ResourceStorageDeleteRetryWorker.DEAD_LETTER_MESSAGE);
+		return record;
 	}
 }
