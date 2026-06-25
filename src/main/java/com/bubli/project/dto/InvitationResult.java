@@ -3,7 +3,7 @@ package com.bubli.project.dto;
 import com.bubli.project.entity.Invitation;
 import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
-import com.bubli.user.entity.User;
+import com.bubli.user.dto.UserResult;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -23,15 +23,15 @@ public record InvitationResult(
 		Instant createdAt,
 		Instant updatedAt
 ) {
-	public static InvitationResult from(Invitation invitation, User invitee) {
+	public static InvitationResult from(Invitation invitation, UserResult invitee) {
 		return new InvitationResult(
 				invitation.getId(),
 				invitation.getRoomId(),
 				invitation.getInviterUserId(),
 				invitation.getInviteeUserId(),
-				invitee == null ? null : invitee.getBubliId(),
-				invitee == null ? null : invitee.getName(),
-				invitee == null ? null : invitee.getAvatarUrl(),
+				invitee == null ? null : invitee.bubliId(),
+				invitee == null ? null : invitee.name(),
+				invitee == null ? null : invitee.avatarUrl(),
 				invitation.getRole(),
 				invitation.getStatus(),
 				invitation.getExpiresAt(),

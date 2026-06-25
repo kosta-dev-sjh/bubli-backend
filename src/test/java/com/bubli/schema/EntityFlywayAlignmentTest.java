@@ -37,6 +37,10 @@ class EntityFlywayAlignmentTest {
 			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+COLUMN\\s+(\\w+)\\s+([^;]+);",
 			Pattern.CASE_INSENSITIVE
 	);
+	private static final Pattern ALTER_TABLE_PATTERN = Pattern.compile(
+			"ALTER\\s+TABLE\\s+(\\w+)\\s+(.*?);",
+			Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+	);
 	private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(
 			"CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(\\w+)\\s+ON\\s+(\\w+)\\s+\\(([^)]+)\\);",
 			Pattern.CASE_INSENSITIVE
@@ -366,6 +370,18 @@ class EntityFlywayAlignmentTest {
 				foreignKeys.add(line.replaceFirst("^CONSTRAINT\\s+\\w+\\s+", ""));
 			}
 			schema.put(tableName, foreignKeys);
+		}
+		Matcher alterMatcher = ALTER_TABLE_PATTERN.matcher(sql);
+		while (alterMatcher.find()) {
+			String tableName = alterMatcher.group(1);
+			for (String rawLine : alterMatcher.group(2).split("\\n")) {
+				String line = rawLine.strip().replaceFirst("[,;]$", "");
+				if (!line.startsWith("ADD CONSTRAINT") || !line.contains(" FOREIGN KEY ")) {
+					continue;
+				}
+				schema.computeIfAbsent(tableName, ignored -> new HashSet<>())
+						.add(line.replaceFirst("^ADD\\s+CONSTRAINT\\s+\\w+\\s+", ""));
+			}
 		}
 		return schema;
 	}

@@ -16,4 +16,7 @@ public record CreateWbsItemRequest(
 		Integer orderNo,
 		WbsStatus status
 ) {
+	public CreateWbsItemCommand toCommand() {
+		return new CreateWbsItemCommand(parentId, title, orderNo, status);
+	}
 }
