@@ -16,8 +16,8 @@ import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.user.entity.User;
-import com.bubli.user.repository.UserRepository;
+import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,8 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +41,7 @@ public class ChatService {
 	private final ChatRoomRepository chatRoomRepository;
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
 	private final ChatMessageRepository chatMessageRepository;
-	private final UserRepository userRepository;
+	private final UserPublicService userPublicService;
 	private final ObjectMapper objectMapper;
 
 	@Transactional(readOnly = true)
@@ -68,8 +66,7 @@ public class ChatService {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
 
-		User targetUser = userRepository.findById(targetUserId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		UserResult targetUser = userPublicService.getUser(targetUserId);
 
 		return chatRoomRepository.findDirectRoomBetween(
 						requesterId,
@@ -103,7 +100,7 @@ public class ChatService {
 			page = chatMessageRepository.findByChatRoomIdOrderByRoomSequenceDesc(chatRoomId, pageable);
 		}
 
-		Map<UUID, User> senders = findUsersById(page.map(ChatMessage::getSenderUserId));
+		Map<UUID, UserResult> senders = userPublicService.getUsers(page.map(ChatMessage::getSenderUserId));
 
 		return new PageResponse<>(
 				page.getContent().stream()
@@ -125,8 +122,7 @@ public class ChatService {
 				.findByChatRoomIdAndClientMessageId(chatRoomId, command.clientMessageId())
 				.orElseGet(() -> createMessage(senderUserId, chatRoomId, command));
 
-		User sender = userRepository.findById(senderUserId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		UserResult sender = userPublicService.getUser(senderUserId);
 		return toResult(message, sender);
 	}
 
@@ -163,10 +159,10 @@ public class ChatService {
 		return chatMessageRepository.save(message);
 	}
 
-	private ChatRoomResult createNewDirectRoom(UUID requesterId, User targetUser) {
-		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(targetUser.getName()));
+	private ChatRoomResult createNewDirectRoom(UUID requesterId, UserResult targetUser) {
+		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(targetUser.name()));
 		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), requesterId));
-		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), targetUser.getId()));
+		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), targetUser.id()));
 		return ChatRoomResult.from(chatRoom);
 	}
 
@@ -181,13 +177,13 @@ public class ChatService {
 		}
 	}
 
-	private ChatMessageResult toResult(ChatMessage message, User sender) {
+	private ChatMessageResult toResult(ChatMessage message, UserResult sender) {
 		return new ChatMessageResult(
 				message.getId(),
 				message.getChatRoomId(),
 				USER_SENDER_TYPE,
 				message.getSenderUserId(),
-				sender == null ? UNKNOWN_USER_NAME : sender.getName(),
+				sender == null ? UNKNOWN_USER_NAME : sender.name(),
 				message.getClientMessageId(),
 				message.getRoomSequence(),
 				message.getMessageType(),
@@ -213,8 +209,4 @@ public class ChatService {
 		}
 	}
 
-	private Map<UUID, User> findUsersById(Page<UUID> userIds) {
-		return userRepository.findAllById(userIds.getContent()).stream()
-				.collect(Collectors.toMap(User::getId, Function.identity()));
-	}
 }
