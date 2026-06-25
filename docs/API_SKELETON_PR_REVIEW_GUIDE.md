@@ -5,6 +5,8 @@ Last checked: 2026-06-25 16:45 KST
 이 문서는 현재 열린 백엔드 PR을 팀원이 어떻게 봐야 하는지 정리한 기준이다.
 현재 PR들은 완성 기능 묶음이 아니라, 팀원이 같은 구조로 이어서 개발할 수 있게 만든 기본 API 골격이다.
 
+PR별 상태를 표로 필터링하려면 `docs/API_SKELETON_PR_MATRIX.csv`를 함께 본다.
+
 ## 현재 PR의 성격
 
 현재 PR에서 말하는 기본 API 골격은 아래 범위다.
@@ -41,9 +43,10 @@ Last checked: 2026-06-25 16:45 KST
 
 1. `develop` 대상이고 CI가 통과한 PR부터 본다.
 2. `base`가 feature branch인 stacked PR은 앞 PR이 들어간 뒤 순서대로 본다.
-3. `WORK_HANDOFF.md`의 열린 PR 표에서 head, base, CI 상태를 확인한다.
-4. PR 본문의 `현재 API 기준`, `최종 API 수정본 수신 시 보정 가능 부분`, `검증 결과`를 먼저 읽는다.
-5. 담당 도메인의 Controller, Service, Test, `.http` 예시만 먼저 확인한다.
+3. `docs/API_SKELETON_PR_MATRIX.csv`에서 `type`, `status`, `review_priority`, `team_action`을 확인한다.
+4. `WORK_HANDOFF.md`의 열린 PR 표에서 head, base, CI 상태를 확인한다.
+5. PR 본문의 `현재 API 기준`, `최종 API 수정본 수신 시 보정 가능 부분`, `검증 결과`를 먼저 읽는다.
+6. 담당 도메인의 Controller, Service, Test, `.http` 예시만 먼저 확인한다.
 
 ## 지금 바로 병합 검토 가능한 PR
 
@@ -53,6 +56,7 @@ Last checked: 2026-06-25 16:45 KST
 |---|---|---|---|
 | #47 | `PATCH /api/me` 기본 API | CI 통과, review required | 팀 리뷰 후 병합 검토 가능 |
 | #83 | time-log 기본 API | CI 통과, review required | 팀 리뷰 후 병합 검토 가능 |
+| #84 | Terraform RDS 백업/삭제 보호 | CI 통과, review required | 인프라 담당자 리뷰 후 병합 검토 가능 |
 | #85 | project room management 기본 API | CI 통과, review required | 팀 리뷰 후 병합 검토 가능 |
 
 `review required`는 충돌이나 테스트 실패가 아니다.
