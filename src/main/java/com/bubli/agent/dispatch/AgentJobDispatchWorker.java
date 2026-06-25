@@ -8,6 +8,7 @@ import com.bubli.agent.type.AgentJobStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +22,7 @@ public class AgentJobDispatchWorker {
 	private final AgentJobEventRepository agentJobEventRepository;
 	private final AgentJobExecutionPort executionPort;
 	private final AgentJobExecutionResultRecorder executionResultRecorder;
+	private final AgentJobExecutionSuggestionRecorder suggestionRecorder;
 
 	@Transactional
 	public boolean processNextQueuedJob() {
@@ -45,10 +47,38 @@ public class AgentJobDispatchWorker {
 
 	private void recordOutcome(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
 		if (outcome.successful()) {
+			if (!recordSuggestions(agentJob, outcome)) {
+				return;
+			}
 			executionResultRecorder.recordSucceeded(agentJob.getId());
 			return;
 		}
 		executionResultRecorder.recordFailed(agentJob.getId(), outcome.errorCode(), outcome.errorMessage());
+	}
+
+	private boolean recordSuggestions(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
+		if (outcome.suggestionDrafts().isEmpty()) {
+			return true;
+		}
+		try {
+			suggestionRecorder.recordSuggestions(agentJob, outcome.suggestionDrafts());
+			return true;
+		} catch (RuntimeException exception) {
+			executionResultRecorder.recordFailed(
+					agentJob.getId(),
+					"AGENT_SUGGESTION_RECORD_FAILED",
+					errorMessage(exception)
+			);
+			return false;
+		}
+	}
+
+	private String errorMessage(RuntimeException exception) {
+		String message = exception.getMessage();
+		if (!StringUtils.hasText(message)) {
+			return exception.getClass().getSimpleName();
+		}
+		return message;
 	}
 
 	private void markStarted(AgentJob agentJob) {
