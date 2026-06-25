@@ -42,6 +42,23 @@ public class ChatRoom {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static ChatRoom createRoom(UUID roomId, String name) {
+		ChatRoom chatRoom = new ChatRoom();
+		chatRoom.roomId = roomId;
+		chatRoom.chatType = ChatType.ROOM;
+		chatRoom.name = name;
+		chatRoom.status = ChatRoomStatus.ACTIVE;
+		return chatRoom;
+	}
+
+	public static ChatRoom createDirect(String name) {
+		ChatRoom chatRoom = new ChatRoom();
+		chatRoom.chatType = ChatType.DIRECT;
+		chatRoom.name = name;
+		chatRoom.status = ChatRoomStatus.ACTIVE;
+		return chatRoom;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

@@ -3,9 +3,9 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
-import com.bubli.resource.dto.CreateResourceVersionRequest;
+import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceVersionResult;
@@ -29,8 +29,8 @@ import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
-import com.bubli.storage.service.StorageService;
-import com.bubli.storage.service.StorageUsageService;
+import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -81,13 +81,13 @@ class ResourceServiceTest {
 	StorageDownloadUrlProvider storageDownloadUrlProvider;
 
 	@Mock
-	StorageService storageService;
+	StoragePublicService storagePublicService;
 
 	@Mock
-	StorageUsageService storageUsageService;
+	StorageUsagePublicService storageUsagePublicService;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	ResourceService resourceService;
@@ -125,7 +125,7 @@ class ResourceServiceTest {
 	void createRoomSharedResourceRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(false);
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(false);
 
 		assertThatThrownBy(() -> resourceService.create(userId, new CreateResourceCommand(
 				"회의록",
@@ -160,7 +160,7 @@ class ResourceServiceTest {
 			ReflectionTestUtils.setField(resource, "id", resourceId);
 			return resource;
 		});
-		given(storageService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
 				.willReturn(new FileUploadResult(
 						"resources/%s/file.pdf".formatted(resourceId),
 						"계약서.pdf",
@@ -195,10 +195,10 @@ class ResourceServiceTest {
 		assertThat(result.status()).isEqualTo(ResourceStatus.READY);
 
 		ArgumentCaptor<String> storageKeyCaptor = ArgumentCaptor.forClass(String.class);
-		verify(storageService).save(storageKeyCaptor.capture(), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class));
+		verify(storagePublicService).save(storageKeyCaptor.capture(), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class));
 		assertThat(storageKeyCaptor.getValue()).startsWith("resources/%s/".formatted(resourceId));
 		assertThat(storageKeyCaptor.getValue()).endsWith(".pdf");
-		verify(storageUsageService).recordPersonalUpload(userId, 3L);
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
 
 		ArgumentCaptor<ResourceFile> fileCaptor = ArgumentCaptor.forClass(ResourceFile.class);
 		verify(resourceFileRepository).save(fileCaptor.capture());
@@ -223,7 +223,7 @@ class ResourceServiceTest {
 			ReflectionTestUtils.setField(resource, "id", resourceId);
 			return resource;
 		});
-		given(storageService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
 				.willReturn(new FileUploadResult(
 						"resources/%s/file.pdf".formatted(resourceId),
 						"계약서.pdf",
@@ -244,9 +244,9 @@ class ResourceServiceTest {
 				new byte[]{1, 2, 3}
 		))).isSameAs(dbFailure);
 
-		verify(storageService).delete("resources/%s/file.pdf".formatted(resourceId));
-		verify(storageUsageService).recordPersonalUpload(userId, 3L);
-		verify(storageUsageService).releasePersonalUsage(userId, 3L);
+		verify(storagePublicService).delete("resources/%s/file.pdf".formatted(resourceId));
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
 	}
 
 	@Test
@@ -255,13 +255,13 @@ class ResourceServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		UUID fileId = UUID.randomUUID();
-		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(true);
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(true);
 		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
 			Resource resource = invocation.getArgument(0);
 			ReflectionTestUtils.setField(resource, "id", resourceId);
 			return resource;
 		});
-		given(storageService.save(any(String.class), eq("회의록.pdf"), eq("application/pdf"), any(byte[].class)))
+		given(storagePublicService.save(any(String.class), eq("회의록.pdf"), eq("application/pdf"), any(byte[].class)))
 				.willReturn(new FileUploadResult(
 						"resources/%s/meeting.pdf".formatted(resourceId),
 						"회의록.pdf",
@@ -286,7 +286,7 @@ class ResourceServiceTest {
 				new byte[]{1, 2, 3}
 		));
 
-		verify(storageUsageService).recordRoomUpload(roomId, 3L);
+		verify(storageUsagePublicService).recordRoomUpload(roomId, 3L);
 	}
 
 	@Test
@@ -294,7 +294,7 @@ class ResourceServiceTest {
 		UUID userId = UUID.randomUUID();
 		BusinessException quotaExceeded = new BusinessException(ErrorCode.STORAGE_400_002);
 		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> invocation.getArgument(0));
-		given(storageUsageService.recordPersonalUpload(userId, 3L)).willThrow(quotaExceeded);
+		given(storageUsagePublicService.recordPersonalUpload(userId, 3L)).willThrow(quotaExceeded);
 
 		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
 				"계약서 원본",
@@ -306,7 +306,7 @@ class ResourceServiceTest {
 				new byte[]{1, 2, 3}
 		))).isSameAs(quotaExceeded);
 
-		verifyNoInteractions(storageService);
+		verifyNoInteractions(storagePublicService);
 	}
 
 	@Test
@@ -395,7 +395,7 @@ class ResourceServiceTest {
 	}
 
 	@Test
-	void deleteResourceMarksResourceDeleted() {
+	void deleteResourceSetsDeletedAtWithoutChangingStatus() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		Resource resource = Resource.create(
@@ -420,8 +420,8 @@ class ResourceServiceTest {
 		resourceService.deleteResource(userId, resourceId);
 
 		assertThat(resource.getDeletedAt()).isNotNull();
-		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.DELETED);
-		verify(storageUsageService).releasePersonalUsage(userId, 3L);
+		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
 	}
 
 	@Test
@@ -550,7 +550,7 @@ class ResourceServiceTest {
 			return version;
 		});
 
-		ResourceVersionResult result = resourceService.createVersion(userId, resourceId, new CreateResourceVersionRequest(
+		ResourceVersionResult result = resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
 				"resources/%s/v3.pdf".formatted(resourceId),
 				"계약서-v3.pdf",
 				"application/pdf",
@@ -662,7 +662,7 @@ class ResourceServiceTest {
 				jobId,
 				"{\"summary\":\"핵심 요약\"}",
 				"{\"items\":[]}",
-				ResourceSummaryStatus.SUCCEEDED,
+				ResourceSummaryStatus.ANALYZED,
 				"prompt-v1",
 				"schema-v1",
 				"gpt-test"
@@ -675,7 +675,7 @@ class ResourceServiceTest {
 
 		assertThat(result.resourceId()).isEqualTo(resourceId);
 		assertThat(result.jobId()).isEqualTo(jobId);
-		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.SUCCEEDED);
+		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.ANALYZED);
 		assertThat(result.summaryJson()).contains("핵심 요약");
 	}
 
@@ -793,7 +793,7 @@ class ResourceServiceTest {
 				ResourceStatus.READY
 		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
-		given(roomAccessService.isActiveMember(userId, roomId)).willReturn(false);
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(false);
 
 		assertThatThrownBy(() -> resourceService.getResource(userId, resourceId))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
