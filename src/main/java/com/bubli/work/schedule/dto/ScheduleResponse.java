@@ -1,6 +1,5 @@
 package com.bubli.work.schedule.dto;
 
-import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.type.ScheduleSyncStatus;
 
 import java.time.Instant;
@@ -22,22 +21,22 @@ public record ScheduleResponse(
 		Instant createdAt,
 		Instant updatedAt
 ) {
-	public static ScheduleResponse from(Schedule schedule) {
+	public static ScheduleResponse from(ScheduleResult schedule) {
 		return new ScheduleResponse(
-				schedule.getId(),
-				schedule.getOwnerUserId(),
-				schedule.getRoomId(),
-				schedule.getTaskId(),
-				schedule.getWbsItemId(),
-				schedule.getGoogleEventId(),
-				schedule.getTitle(),
-				schedule.getStartsAt(),
-				schedule.getEndsAt(),
-				schedule.isAllDay(),
-				schedule.getSyncStatus(),
-				schedule.getLastSyncedAt(),
-				schedule.getCreatedAt(),
-				schedule.getUpdatedAt()
+				schedule.id(),
+				schedule.ownerUserId(),
+				schedule.roomId(),
+				schedule.taskId(),
+				schedule.wbsItemId(),
+				schedule.googleEventId(),
+				schedule.title(),
+				schedule.startsAt(),
+				schedule.endsAt(),
+				schedule.allDay(),
+				schedule.syncStatus(),
+				schedule.lastSyncedAt(),
+				schedule.createdAt(),
+				schedule.updatedAt()
 		);
 	}
 }
