@@ -1,14 +1,16 @@
 # 2026-06-25 최신 기준 백엔드 보정 계획
 
-Last checked: 2026-06-25 12:16 KST
+Last checked: 2026-06-25 18:35 KST
 
 2026-06-25에 최신 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md`가 들어왔다.
 2026-06-25 12:16 KST에 `/Users/maren/Downloads/10_API-Design (1).md`가 새 API 기준으로 다시 반영됐다.
+2026-06-25 18:35 KST에 `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`의 Service 인터페이스화 기준을 현재 백엔드 개발 가이드에 반영했다.
 이 문서는 기존 #19~#81 PR과 현재 백엔드 코드를 새 기준에 맞게 다시 검토하고 보정하는 작업 계획이다.
 
 현재 API 기준 해시:
 
 - `10_API-Design.md`: `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`
+- 백엔드 가이드 다운로드본: `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0`
 
 새 API 재갱신 핵심:
 
@@ -52,16 +54,17 @@ Last checked: 2026-06-25 12:16 KST
 
 ## 추상화 기준 재시작 조건
 
-2026-06-25 18:28 KST에 추상화 기준이 추가됐다.
+2026-06-25 18:35 KST에 다운로드본 백엔드 가이드의 추상화 기준이 현재 6/25 기준 문서에 반영됐다.
 이 기준은 기존 CI/CLEAN 상태를 무효화하지 않는다.
 다만 merge 전에 설계 영향이 있는 PR만 선별 재검토한다.
+다운로드본 중 현재 `09_Data-Model.md`, `10_API-Design.md`와 충돌하는 표현은 덮어쓰지 않고, Service 인터페이스화 기준만 반영했다.
 
 확정 기준:
 
-- 다른 도메인이 호출하는 `*PublicService`는 인터페이스로 둔다.
+- 다른 도메인이 의존하는 `*PublicService`는 인터페이스로 둔다.
 - 구현체는 `*PublicServiceImpl` 이름을 쓴다.
 - 다른 도메인은 구현체가 아니라 `*PublicService` 인터페이스를 주입받는다.
-- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider는 외부 연동 포트로 보고 인터페이스화한다.
+- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider, 외부 API는 외부 연동 포트로 보고 인터페이스화한다.
 - 같은 도메인 Controller만 호출하는 단순 CRUD Service는 구체 클래스로 유지한다.
 - 구현체가 하나뿐이고 외부 연동도 도메인 간 계약도 아닌 helper Service는 구체 클래스로 유지한다.
 

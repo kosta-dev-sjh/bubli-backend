@@ -1,18 +1,20 @@
 # Bubli Backend Start Here
 
-Last checked: 2026-06-25 12:16 KST
+Last checked: 2026-06-25 18:35 KST
 
 이 문서는 백엔드 작업을 시작할 때 가장 먼저 보는 입구다.
 `10_API-Design.md`는 API 계약서일 뿐이고, 서비스 의도와 DB 기준과 코드 규칙은 각각 다른 기준 문서에서 확인한다.
 
 2026-06-25에 최신 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, 백엔드 개발 가이드가 들어왔다.
 2026-06-25 12:16 KST에 `/Users/maren/Downloads/10_API-Design (1).md`가 새 API 기준으로 다시 반영됐다.
+2026-06-25 18:35 KST에 `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`의 Service 인터페이스화 기준이 백엔드 개발 가이드에 반영됐다.
 이제 백엔드 작업은 6/25 문서 묶음과 새 API enum 기준을 함께 본다.
 기존 6/24 기준으로 만든 PR은 버리지 않고, 새 문서와 차이 나는 부분만 보정한다.
 
 현재 API 기준 해시:
 
 - `10_API-Design.md`: `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`
+- 백엔드 가이드 다운로드본: `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0`
 
 이번 API 재갱신에서 특히 봐야 할 점:
 
@@ -65,6 +67,7 @@ Last checked: 2026-06-25 12:16 KST
 | Testcontainers, 테스트 support | 이후 API 확정 뒤 검증을 빠르게 한다 |
 | 6/25 기준 Controller/DTO/API 테스트 | 최신 문서 기준으로 기능 뼈대를 만든다 |
 | `.http` 요청 예시 | 6/25 API 기준으로 프론트와 맞춰본다 |
+| 선별적 인터페이스 경계 점검 | `*PublicService`와 외부 연동 포트는 인터페이스화하고 단순 CRUD Service는 구체 클래스로 유지한다 |
 
 수정본 API가 오기 전에는 아래만 주의한다.
 

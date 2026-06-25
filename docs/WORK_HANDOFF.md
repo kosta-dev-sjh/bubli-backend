@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 18:28 KST
+Last checked: 2026-06-25 18:35 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -21,6 +21,7 @@ Last checked: 2026-06-25 18:28 KST
 | PR 리뷰 기준 | `docs/API_SKELETON_PR_REVIEW_GUIDE.md` |
 | PR 상태표 | `docs/API_SKELETON_PR_MATRIX.csv` |
 | 현재 API 해시 | `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b` |
+| 백엔드 가이드 다운로드본 해시 | `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0` |
 
 ## 현재 작업 모드
 
@@ -28,6 +29,7 @@ Last checked: 2026-06-25 18:28 KST
 
 2026-06-25에 최신 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, 백엔드 개발 가이드가 들어왔다.
 2026-06-25 12:16 KST에 `/Users/maren/Downloads/10_API-Design (1).md`가 새 API 기준으로 다시 반영됐다.
+2026-06-25 18:35 KST에 `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`의 Service 인터페이스화 기준을 현재 백엔드 개발 가이드에 반영했다.
 새 API는 Data Model 기준 enum 목록과 API 전용 상태값 처리 원칙을 추가한다.
 6/24 또는 이전 6/25 기준으로 만든 #19~#81 PR은 닫지 않고, 새 기준과 차이 나는 부분만 후속 보정 PR로 처리한다.
 
@@ -145,6 +147,28 @@ Last checked: 2026-06-25 18:28 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
+
+처리 시각: 2026-06-25 18:35 KST
+
+변경 내용:
+
+- `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`를 확인했다.
+- 다운로드본 SHA-256은 `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0`다.
+- 다운로드본의 Service 인터페이스화 기준을 현재 `docs/Bubli_백엔드_개발_가이드_2026-06-25.md`에 반영했다.
+- `docs/00_BACKEND_START_HERE.md`, `docs/CODEX_BACKEND_WORKFLOW.md`, `docs/CURRENT_API_BASELINE_WORK.md`, `docs/WORK_HANDOFF.md`, `bubli-backend-workflow` 스킬의 관련 기준을 함께 갱신했다.
+
+판단:
+
+- 다운로드본은 추상화 기준은 최신으로 반영한다.
+- 단, 작성일/참고 문서가 6/24 기준인 부분과 현재 `09_Data-Model.md`, `10_API-Design.md`와 충돌하는 표현은 active 가이드에 그대로 덮어쓰지 않는다.
+- 현재 기준은 6/25 API/Data Model을 유지하면서, 다운로드본의 명확해진 Service 인터페이스화 기준을 병합한 버전이다.
+
+다음 작업:
+
+- 코드 보정은 아직 시작하지 않았다.
+- 재시작하면 `ProjectMembershipPublicService` 등 공개 계약부터 인터페이스/구현체 분리 PR로 처리한다.
 
 ### 작업 카드 29-6. 추상화 정책 반영과 PR 재검토 범위 정리
 

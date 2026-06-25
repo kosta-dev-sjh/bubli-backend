@@ -30,6 +30,8 @@ git status --short --branch
 2026-06-25에 들어온 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, `Bubli_백엔드_개발_가이드_2026-06-25.md`를 현재 최신 기준으로 본다.
 2026-06-25 12:16 KST 기준으로 `/Users/maren/Downloads/10_API-Design (1).md`가 canonical `10_API-Design.md`에 다시 반영됐다.
 현재 API 기준 해시는 `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`다.
+2026-06-25 18:35 KST 기준으로 `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`의 Service 인터페이스화 기준을 백엔드 개발 가이드에 반영했다.
+해당 다운로드본 SHA-256은 `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0`다.
 기존 6/24 기준으로 만든 구현과 PR은 버리지 않고, 차이 나는 부분만 보정 작업으로 처리한다.
 
 - 패키지 구조와 도메인 위치 점검
@@ -73,9 +75,9 @@ PR 생성 전 코드 작업이면 아래를 우선 확인한다.
 
 인터페이스로 둔다:
 
-- 다른 도메인이 호출하는 `*PublicService`
-- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider 같은 외부 연동 포트
-- local/dev 구현과 production 구현을 바꿔 끼울 가능성이 있는 서비스
+- 다른 도메인이 의존하는 `*PublicService`
+- Storage, OAuth/OIDC, AI model, agent 실행, agent dispatch, queue, S3/object storage, calendar provider, 외부 API 같은 외부 연동 포트
+- Local 구현과 운영 구현이 나뉘는 경우, 캐시 적용 가능성이 있는 경우, 테스트 대역이 필요한 경우처럼 구현체 교체 가능성이 있는 Service
 
 구체 클래스로 둔다:
 
