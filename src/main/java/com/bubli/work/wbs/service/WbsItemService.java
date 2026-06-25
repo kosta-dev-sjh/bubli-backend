@@ -3,14 +3,12 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
-import com.bubli.work.task.dto.TaskResult;
-import com.bubli.work.task.repository.TaskRepository;
-import com.bubli.work.wbs.dto.CreateWbsItemRequest;
-import com.bubli.work.wbs.dto.ReorderWbsItemRequest;
-import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
-import com.bubli.work.wbs.dto.UpdateWbsItemRequest;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.wbs.dto.CreateWbsItemCommand;
+import com.bubli.work.wbs.dto.ReorderWbsItemCommand;
+import com.bubli.work.wbs.dto.ReorderWbsItemsCommand;
+import com.bubli.work.wbs.dto.UpdateWbsItemCommand;
 import com.bubli.work.wbs.dto.WbsBoardResult;
 import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
@@ -35,8 +33,8 @@ import java.util.stream.Collectors;
 public class WbsItemService {
 
 	private final WbsItemRepository wbsItemRepository;
-	private final TaskRepository taskRepository;
-	private final RoomMemberRepository roomMemberRepository;
+	private final TaskPublicService taskPublicService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<WbsItemResult> getRoomWbsItems(UUID userId, UUID roomId, Pageable pageable) {
@@ -51,53 +49,51 @@ public class WbsItemService {
 				wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId).stream()
 						.map(WbsItemResult::from)
 						.toList(),
-				taskRepository.findByRoomIdOrderByUpdatedAtDesc(roomId).stream()
-						.map(TaskResult::from)
-						.toList()
+				taskPublicService.getRoomTasksForBoard(roomId)
 		);
 	}
 
 	@Transactional
-	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemRequest request) {
+	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command) {
 		checkRoomMember(userId, roomId);
-		checkParent(roomId, request.parentId());
-		int orderNo = request.orderNo() == null
-				? wbsItemRepository.findMaxOrderNo(roomId, request.parentId()) + 1
-				: request.orderNo();
+		checkParent(roomId, command.parentId());
+		int orderNo = command.orderNo() == null
+				? wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1
+				: command.orderNo();
 		WbsItem item = WbsItem.create(
 				roomId,
-				request.parentId(),
-				request.title(),
+				command.parentId(),
+				command.title(),
 				orderNo,
-				request.status()
+				command.status()
 		);
 		return WbsItemResult.from(wbsItemRepository.save(item));
 	}
 
 	@Transactional
-	public WbsItemResult update(UUID userId, UUID itemId, UpdateWbsItemRequest request) {
+	public WbsItemResult update(UUID userId, UUID itemId, UpdateWbsItemCommand command) {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
-		checkParent(item.getRoomId(), request.parentId());
-		if (item.getId().equals(request.parentId())) {
+		checkParent(item.getRoomId(), command.parentId());
+		if (item.getId().equals(command.parentId())) {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
 		item.update(
-				request.title(),
-				request.parentId(),
-				request.orderNo(),
-				request.status()
+				command.title(),
+				command.parentId(),
+				command.orderNo(),
+				command.status()
 		);
 		return WbsItemResult.from(item);
 	}
 
 	@Transactional
-	public List<WbsItemResult> reorder(UUID userId, UUID roomId, ReorderWbsItemsRequest request) {
+	public List<WbsItemResult> reorder(UUID userId, UUID roomId, ReorderWbsItemsCommand command) {
 		checkRoomMember(userId, roomId);
 		List<WbsItem> roomItems = wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId);
 		Map<UUID, WbsItem> roomItemById = roomItems.stream()
 				.collect(Collectors.toMap(WbsItem::getId, Function.identity()));
-		Map<UUID, ReorderWbsItemRequest> requestByItemId = toRequestMap(request.items(), roomItemById);
+		Map<UUID, ReorderWbsItemCommand> requestByItemId = toRequestMap(command.items(), roomItemById);
 		validateReorder(roomItems, requestByItemId, roomItemById);
 
 		List<WbsItem> targets = requestByItemId.keySet().stream()
@@ -122,9 +118,7 @@ public class WbsItemService {
 	public void delete(UUID userId, UUID itemId) {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
-		if (taskRepository.existsByWbsItemId(itemId)) {
-			throw new BusinessException(ErrorCode.COMMON_400_002);
-		}
+		taskPublicService.assertNoTaskLinkedToWbsItem(itemId);
 		if (wbsItemRepository.existsByParentId(itemId)) {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
@@ -147,22 +141,15 @@ public class WbsItemService {
 	}
 
 	private void checkRoomMember(UUID userId, UUID roomId) {
-		boolean activeMember = roomMemberRepository.existsByRoomIdAndUserIdAndStatus(
-				roomId,
-				userId,
-				RoomMemberStatus.ACTIVE
-		);
-		if (!activeMember) {
-			throw new BusinessException(ErrorCode.PROJECT_403_001);
-		}
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 	}
 
-	private Map<UUID, ReorderWbsItemRequest> toRequestMap(
-			List<ReorderWbsItemRequest> requests,
+	private Map<UUID, ReorderWbsItemCommand> toRequestMap(
+			List<ReorderWbsItemCommand> requests,
 			Map<UUID, WbsItem> roomItemById
 	) {
-		Map<UUID, ReorderWbsItemRequest> requestByItemId = new LinkedHashMap<>();
-		for (ReorderWbsItemRequest request : requests) {
+		Map<UUID, ReorderWbsItemCommand> requestByItemId = new LinkedHashMap<>();
+		for (ReorderWbsItemCommand request : requests) {
 			if (!roomItemById.containsKey(request.wbsItemId())) {
 				throw new BusinessException(ErrorCode.WORK_404_002);
 			}
@@ -175,12 +162,12 @@ public class WbsItemService {
 
 	private void validateReorder(
 			List<WbsItem> roomItems,
-			Map<UUID, ReorderWbsItemRequest> requestByItemId,
+			Map<UUID, ReorderWbsItemCommand> requestByItemId,
 			Map<UUID, WbsItem> roomItemById
 	) {
 		Set<String> siblingOrders = new HashSet<>();
 		for (WbsItem item : roomItems) {
-			ReorderWbsItemRequest request = requestByItemId.get(item.getId());
+			ReorderWbsItemCommand request = requestByItemId.get(item.getId());
 			UUID parentId = request == null ? item.getParentId() : request.parentId();
 			Integer orderNo = request == null ? item.getOrderNo() : request.orderNo();
 			if (item.getId().equals(parentId)) {

@@ -22,11 +22,11 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, UUID> {
 			RoomMemberRole role
 	);
 
-	List<RoomMember> findByUserIdAndStatus(UUID userId, RoomMemberStatus status);
-
 	Optional<RoomMember> findByRoomIdAndUserId(UUID roomId, UUID userId);
 
 	Optional<RoomMember> findByRoomIdAndUserIdAndStatus(UUID roomId, UUID userId, RoomMemberStatus status);
+
+	List<RoomMember> findByUserIdAndStatus(UUID userId, RoomMemberStatus status);
 
 	Page<RoomMember> findByRoomIdAndStatus(UUID roomId, RoomMemberStatus status, Pageable pageable);
 }

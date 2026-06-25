@@ -1,10 +1,11 @@
 package com.bubli.work.wbs.service;
 
 import com.bubli.global.error.BusinessException;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
-import com.bubli.work.task.repository.TaskRepository;
+import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.wbs.dto.CreateWbsItemRequest;
 import com.bubli.work.wbs.dto.ReorderWbsItemRequest;
 import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -41,10 +43,10 @@ class WbsItemServiceTest {
 	WbsItemRepository wbsItemRepository;
 
 	@Mock
-	TaskRepository taskRepository;
+	TaskPublicService taskPublicService;
 
 	@Mock
-	RoomMemberRepository roomMemberRepository;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	WbsItemService wbsItemService;
@@ -55,10 +57,8 @@ class WbsItemServiceTest {
 		UUID roomId = UUID.randomUUID();
 		WbsItem item = WbsItem.create(roomId, null, "요구사항 정리", 1, WbsStatus.TODO);
 		Task task = Task.createRoomTask(roomId, userId, null, "계약서 확인", null, TaskStatus.TODO, null);
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId)).willReturn(List.of(item));
-		given(taskRepository.findByRoomIdOrderByUpdatedAtDesc(roomId)).willReturn(List.of(task));
+		given(taskPublicService.getRoomTasksForBoard(roomId)).willReturn(List.of(TaskResult.from(task)));
 
 		WbsBoardResult result = wbsItemService.getWbsBoard(userId, roomId);
 
@@ -73,8 +73,6 @@ class WbsItemServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID itemId = UUID.randomUUID();
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(3);
 		given(wbsItemRepository.save(any(WbsItem.class))).willAnswer(invocation -> {
 			WbsItem item = invocation.getArgument(0);
@@ -87,7 +85,7 @@ class WbsItemServiceTest {
 				"퍼블리싱",
 				null,
 				null
-		));
+		).toCommand());
 
 		assertThat(result.id()).isEqualTo(itemId);
 		assertThat(result.orderNo()).isEqualTo(4);
@@ -98,15 +96,16 @@ class WbsItemServiceTest {
 	void createWbsItemRejectsUserWithoutRoomAccess() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(false);
+		willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 
 		assertThatThrownBy(() -> wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
 				null,
 				"접근 불가",
 				null,
 				null
-		))).isInstanceOf(BusinessException.class);
+		).toCommand())).isInstanceOf(BusinessException.class);
 	}
 
 	@Test
@@ -117,15 +116,13 @@ class WbsItemServiceTest {
 		WbsItem item = WbsItem.create(roomId, null, "기존 작업", 1, WbsStatus.TODO);
 		ReflectionTestUtils.setField(item, "id", itemId);
 		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 
 		WbsItemResult result = wbsItemService.update(userId, itemId, new UpdateWbsItemRequest(
 				null,
 				"수정 작업",
 				2,
 				WbsStatus.IN_PROGRESS
-		));
+		).toCommand());
 
 		assertThat(result.title()).isEqualTo("수정 작업");
 		assertThat(result.orderNo()).isEqualTo(2);
@@ -142,15 +139,13 @@ class WbsItemServiceTest {
 		WbsItem second = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
 		ReflectionTestUtils.setField(first, "id", firstId);
 		ReflectionTestUtils.setField(second, "id", secondId);
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
 				.willReturn(List.of(first, second));
 
 		List<WbsItemResult> results = wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
 				new ReorderWbsItemRequest(firstId, null, 2),
 				new ReorderWbsItemRequest(secondId, null, 1)
-		)));
+		)).toCommand());
 
 		assertThat(results).hasSize(2);
 		assertThat(first.getOrderNo()).isEqualTo(2);
@@ -167,15 +162,13 @@ class WbsItemServiceTest {
 		WbsItem second = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
 		ReflectionTestUtils.setField(first, "id", firstId);
 		ReflectionTestUtils.setField(second, "id", secondId);
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
 		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
 				.willReturn(List.of(first, second));
 
 		assertThatThrownBy(() -> wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
 				new ReorderWbsItemRequest(firstId, null, 1),
 				new ReorderWbsItemRequest(secondId, null, 1)
-		)))).isInstanceOf(BusinessException.class);
+		)).toCommand())).isInstanceOf(BusinessException.class);
 	}
 
 	@Test
@@ -186,9 +179,9 @@ class WbsItemServiceTest {
 		WbsItem item = WbsItem.create(roomId, null, "연결 작업", 1, WbsStatus.TODO);
 		ReflectionTestUtils.setField(item, "id", itemId);
 		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
-		given(taskRepository.existsByWbsItemId(itemId)).willReturn(true);
+		willThrow(new BusinessException(ErrorCode.COMMON_400_002))
+				.given(taskPublicService)
+				.assertNoTaskLinkedToWbsItem(itemId);
 
 		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
 				.isInstanceOf(BusinessException.class);
@@ -203,9 +196,6 @@ class WbsItemServiceTest {
 		WbsItem item = WbsItem.create(roomId, null, "상위 작업", 1, WbsStatus.TODO);
 		ReflectionTestUtils.setField(item, "id", itemId);
 		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
-		given(taskRepository.existsByWbsItemId(itemId)).willReturn(false);
 		given(wbsItemRepository.existsByParentId(itemId)).willReturn(true);
 
 		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
@@ -221,9 +211,6 @@ class WbsItemServiceTest {
 		WbsItem item = WbsItem.create(roomId, null, "삭제 작업", 1, WbsStatus.TODO);
 		ReflectionTestUtils.setField(item, "id", itemId);
 		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
-		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
-				.willReturn(true);
-		given(taskRepository.existsByWbsItemId(itemId)).willReturn(false);
 
 		wbsItemService.delete(userId, itemId);
 

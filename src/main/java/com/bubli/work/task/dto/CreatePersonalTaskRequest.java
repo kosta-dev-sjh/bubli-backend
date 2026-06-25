@@ -15,4 +15,7 @@ public record CreatePersonalTaskRequest(
 		TaskStatus status,
 		Instant dueAt
 ) {
+	public CreatePersonalTaskCommand toCommand() {
+		return new CreatePersonalTaskCommand(title, description, status, dueAt);
+	}
 }
