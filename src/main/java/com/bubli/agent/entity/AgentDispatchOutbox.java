@@ -76,6 +76,13 @@ public class AgentDispatchOutbox {
 		this.dispatchedAt = null;
 	}
 
+	public void markDeadLetter(String errorCode, String errorMessage) {
+		this.status = AgentDispatchOutboxStatus.DEAD_LETTER;
+		this.errorCode = errorCode;
+		this.errorMessage = errorMessage;
+		this.dispatchedAt = null;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
