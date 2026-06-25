@@ -22,7 +22,7 @@
 "48","[feat] 사용자 설정 API 추가","feature/user-me-update-api","feature/user-preferences-api","82a515e","stacked","CLEAN no-checks","after-47","앞 PR #47 이후 리뷰","사용자 설정 기본 API 골격"
 "49","[feat] 사용자 알림 설정 API 추가","feature/user-preferences-api","feature/user-notification-preferences-api","6f53d4e","stacked","CLEAN no-checks","after-48","앞 PR #48 이후 리뷰","사용자 알림 설정 기본 API 골격"
 "50","[feat] 사용자 개인정보 동의 API 추가","feature/user-notification-preferences-api","feature/user-privacy-consents-api","dbfc595","stacked","CLEAN no-checks","after-49","앞 PR #49 이후 리뷰","개인정보 동의 기본 API 골격"
-"51","[feat] 내 프로젝트룸 목록 API 추가","feature/user-privacy-consents-api","feature/user-project-rooms-api","8650257","stacked","UNKNOWN no-checks","needs-refresh","최신 #50 기준 재검증 후 리뷰","내 프로젝트룸 목록 기본 API 골격"
+"51","[feat] 내 프로젝트룸 목록 API 추가","feature/user-privacy-consents-api","feature/user-project-rooms-api","f16f888","stacked","CLEAN no-checks","after-50","앞 PR #50 이후 리뷰","내 프로젝트룸 목록 기본 API 골격"
 "52","[feat] S3 다운로드 URL Provider 추가","feature/resource-download-url-api","feature/s3-download-url-provider","31d9eb8","stacked","CLEAN no-checks","after-46","앞 PR #46 이후 리뷰","S3 다운로드 URL provider 구현 경계"
 "53","[feat] 에이전트 작업 dispatch 경계 추가","feature/review-contract-documents-job-api","feature/agent-job-dispatch-boundary","b0dec9a","stacked","CLEAN no-checks","after-45","앞 PR #45 이후 리뷰","에이전트 dispatch 경계와 in-memory adapter 초안"
 "54","[feat] S3 저장 서비스 경계 추가","feature/s3-download-url-provider","feature/s3-storage-service-boundary","0f48244","stacked","CLEAN no-checks","after-52","앞 PR #52 이후 리뷰","S3 저장/삭제 서비스 경계"
