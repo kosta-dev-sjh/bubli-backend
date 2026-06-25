@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:41 KST
+Last checked: 2026-06-25 13:46 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -72,7 +72,7 @@ Last checked: 2026-06-25 13:41 KST
 - #25 resource summary API, `ResourceSummaryStatus`, 자료 삭제 정책 6/25 기준 보정 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #31 resource related API 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #32 agent job status API 최신 #26 base 병합과 ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
-- #33 agent suggestion list API 로컬 검증 통과. GitHub checks 없음 (base #32에 stacked PR CI workflow 없음)
+- #33 agent suggestion list API 최신 #32 base 병합, PublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #32에 stacked PR CI workflow 없음)
 - #34 agent job events API 로컬 검증 통과. GitHub checks 없음 (base #33에 stacked PR CI workflow 없음)
 - #35 agent suggestion update API 로컬 검증 통과. GitHub checks 없음 (base #34에 stacked PR CI workflow 없음)
 - #36 resource ai-document API 로컬 검증 통과. GitHub checks 없음 (base #35에 stacked PR CI workflow 없음)
@@ -129,6 +129,32 @@ Last checked: 2026-06-25 13:41 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 33-2. #33 에이전트 제안함 조회 API 최신 #32 기준 정리
+
+처리 시각: 2026-06-25 13:46 KST
+
+변경 내용:
+
+- #33 `feature/agent-suggestion-list-api` 브랜치에 최신 #32 `feature/agent-job-status-api` head `74da8e3`를 병합했다.
+- 병합 충돌은 없었다.
+- 오래된 `RoomAccessService` 의존을 `ProjectMembershipPublicService.assertActiveMember`로 보정했다.
+- agent 패키지는 다른 도메인의 Repository/Entity를 직접 참조하지 않는 상태로 확인했다.
+- #33 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #33: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #33: `./gradlew compileTestJava` 통과
+- #33: `./gradlew cleanTest test` 통과
+- #33: `git diff --check` 통과
+- #33: head `cecc62b`, base `feature/agent-job-status-api`, mergeState `CLEAN`
+- #33: GitHub checks 없음. base가 `feature/agent-job-status-api`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #33은 draft PR 상태를 유지한다.
+- #34는 #33 head `cecc62b` 기준으로 다음 agent stack 확인 대상이다.
 
 ### 작업 카드 32-2. #32 에이전트 작업 상태 조회 API 최신 #26 기준 정리
 
@@ -2949,7 +2975,7 @@ Last checked: 2026-06-25 13:41 KST
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `84c12b4` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
 | #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `74da8e3` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 6/25 기준 agent_jobs 상태 조회 API 추가 |
-| #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `a863439` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
+| #33 | `[feat] 에이전트 제안함 조회 API 추가` | `feature/agent-suggestion-list-api` | `feature/agent-job-status-api` | `cecc62b` | checks 없음, merge clean, draft | 최신 #32 base 병합 후 PublicService 권한 보정. 6/25 기준 agent_suggestions 개인/프로젝트룸 조회 API 추가 |
 | #34 | `[feat] 에이전트 작업 이벤트 조회 API 추가` | `feature/agent-job-events-api` | `feature/agent-suggestion-list-api` | `698557a` | checks 없음, merge clean, draft | 6/25 기준 agent_job_events 조회 API 추가 |
 | #35 | `[feat] 에이전트 제안 상태 수정 API 추가` | `feature/agent-suggestion-update-api` | `feature/agent-job-events-api` | `f27b0ce` | checks 없음, merge clean, draft | 6/25 기준 agent_suggestions 상태/내용 수정 API 추가. 확정 업무 데이터 생성은 하지 않음 |
 | #36 | `[feat] 자료 AI 문서 조회 API 추가` | `feature/resource-ai-document-api` | `feature/agent-suggestion-update-api` | `d8bea2b` | checks 없음, merge clean, draft | 6/25 기준 resource ai-document 조회 API 추가 |
@@ -3072,7 +3098,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #33은 #32 최신 head `74da8e3` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #34는 #33 최신 head `cecc62b` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
