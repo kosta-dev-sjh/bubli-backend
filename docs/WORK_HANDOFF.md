@@ -172,6 +172,10 @@ Last checked: 2026-06-25 20:42 KST
 - #92: `git diff --check` 통과
 - #92: GitHub Actions `build` 통과. GitHub상 `BLOCKED`는 review required 상태로 본다.
 - #47 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #48 + #92/#47 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #49 + #92/#47/#48 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #50 + #92/#47/#48/#49 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #51 + #92/#47/#48/#49/#50 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
 - #83 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
 - #85 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
 - #84 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
@@ -182,8 +186,9 @@ Last checked: 2026-06-25 20:42 KST
 1. #92를 develop 기준선 PR로 먼저 리뷰한다.
 2. #92 뒤에는 #47, #83, #85를 팀 리뷰 순서대로 확인한다.
 3. #84는 인프라 담당자 리뷰 뒤 병합한다.
-4. stacked PR은 develop 직접 병합 후보로 바꾸지 않고 부모 base 순서대로 점검한다.
-5. #90은 #36 뒤에 유지한다. CI 미생성은 feature/stack base workflow 제한으로 기록된 예외다.
+4. #47 아래 user stack은 #48 -> #49 -> #50 -> #51 순서로 유지한다. #92/#47 기준 누적 검증은 모두 통과했다.
+5. stacked PR은 develop 직접 병합 후보로 바꾸지 않고 부모 base 순서대로 점검한다.
+6. #90은 #36 뒤에 유지한다. CI 미생성은 feature/stack base workflow 제한으로 기록된 예외다.
 
 ### 작업 카드 AB-SUMMARY. 선별적 인터페이스화 재검토 결과 정리
 
