@@ -59,6 +59,53 @@ public class AgentJob {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	private AgentJob(
+			UUID requestedByUserId,
+			UUID roomId,
+			UUID resourceId,
+			AgentJobType jobType
+	) {
+		this.requestedByUserId = requestedByUserId;
+		this.roomId = roomId;
+		this.resourceId = resourceId;
+		this.jobType = jobType;
+		this.status = AgentJobStatus.PENDING;
+		this.retryCount = 0;
+	}
+
+	public static AgentJob create(
+			UUID requestedByUserId,
+			UUID roomId,
+			UUID resourceId,
+			AgentJobType jobType
+	) {
+		return new AgentJob(requestedByUserId, roomId, resourceId, jobType);
+	}
+
+	public void markRunning() {
+		this.status = AgentJobStatus.RUNNING;
+		if (this.startedAt == null) {
+			this.startedAt = Instant.now();
+		}
+	}
+
+	public void markSucceeded() {
+		this.status = AgentJobStatus.SUCCEEDED;
+		this.finishedAt = Instant.now();
+	}
+
+	public void markFailed(String errorCode, String errorMessage) {
+		this.status = AgentJobStatus.FAILED;
+		this.errorCode = errorCode;
+		this.errorMessage = errorMessage;
+		this.finishedAt = Instant.now();
+	}
+
+	public void cancel() {
+		this.status = AgentJobStatus.CANCELED;
+		this.finishedAt = Instant.now();
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

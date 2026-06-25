@@ -58,6 +58,37 @@ public class AgentSuggestion {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	private AgentSuggestion(
+			UUID userId,
+			UUID roomId,
+			UUID jobId,
+			UUID resourceId,
+			AgentSuggestionType suggestionType,
+			String payloadJson,
+			String evidenceJson
+	) {
+		this.userId = userId;
+		this.roomId = roomId;
+		this.jobId = jobId;
+		this.resourceId = resourceId;
+		this.suggestionType = suggestionType;
+		this.payloadJson = payloadJson;
+		this.evidenceJson = evidenceJson;
+		this.status = AgentSuggestionStatus.DRAFT;
+	}
+
+	public static AgentSuggestion createDraft(
+			UUID userId,
+			UUID roomId,
+			UUID jobId,
+			UUID resourceId,
+			AgentSuggestionType suggestionType,
+			String payloadJson,
+			String evidenceJson
+	) {
+		return new AgentSuggestion(userId, roomId, jobId, resourceId, suggestionType, payloadJson, evidenceJson);
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
