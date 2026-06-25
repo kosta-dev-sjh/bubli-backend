@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 12:46 KST
+Last checked: 2026-06-25 12:54 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -59,7 +59,7 @@ Last checked: 2026-06-25 12:46 KST
 - GitHub Actions CI 통과 (#22, schedule 직접 의존 제거와 ArchUnit 추가 후 2026-06-25 11:37 KST)
 - GitHub Actions CI 통과 (#22, 최신 develop #82 ArchitectureTest 병합과 PublicService/Result DTO 보정 후 2026-06-25 12:42 KST)
 - #23 room access service 최신 #22 base 병합과 PublicService 통합 로컬 검증 통과. GitHub checks 없음 (base #22에 stacked PR CI workflow 없음)
-- #24 Google-only auth foundation 최신 #23 base 병합 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
+- #24 Google-only auth foundation 최신 #23 base 병합과 GoogleCallbackCommand 보정 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
@@ -129,6 +129,33 @@ Last checked: 2026-06-25 12:46 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 24-2. #24 Google-only auth 최신 #23/ArchitectureTest 기준 정리
+
+처리 시각: 2026-06-25 12:54 KST
+
+변경 내용:
+
+- #24 `feature/auth-google-foundation` 브랜치에 최신 #23 `feature/room-access-service`를 병합했다.
+- 충돌은 `AuthController`, `AuthService`에서 발생했고, Google-only endpoint와 develop #82 Request-to-Command 기준을 함께 살리는 방향으로 해결했다.
+- `POST /api/auth/login`, `POST /api/auth/signup` 뼈대는 되살리지 않았다.
+- `POST /api/auth/google/callback`은 `GoogleCallbackRequest`를 `GoogleCallbackCommand`로 변환한 뒤 Service에 넘기도록 보정했다.
+- `docs/API_PRE_FINAL_TASKS.md`의 오래된 signup permitAll 발견 메모를 현재 정리 결과 기준으로 갱신했다.
+- #24 PR 본문을 최신 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #24: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #24: `./gradlew compileTestJava` 통과
+- #24: `./gradlew cleanTest test` 통과
+- #24: `git diff --check` 통과
+- #24: head `b7cfe6b`, base `feature/room-access-service`, mergeState `CLEAN`
+- #24: GitHub checks 없음. base가 `feature/room-access-service`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #24는 draft PR 상태를 유지한다.
+- #25는 #24 base 갱신 뒤 GitHub mergeState가 `UNKNOWN`으로 보이므로 다음 정리 대상이다.
 
 ### 작업 카드 23-2. #23 프로젝트룸 권한 서비스 최신 #22/PublicService 기준 정리
 
@@ -2706,8 +2733,8 @@ Last checked: 2026-06-25 12:46 KST
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | merged, `build` pass | 2026-06-25 10:10 KST에 `develop` merge 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `bfd8dba` | `build` pass, merge clean | 최신 develop #82 병합, PublicService 권한 경계 적용, `ScheduleResult`로 Controller Entity 의존 제거 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `89228f8` | checks 없음, merge clean | 최신 #22 base 병합 후 `RoomAccessService` 제거, `ProjectMembershipPublicService` 기준으로 정리 |
-| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `e292f51` | checks 없음, merge unknown, draft | #23 base 갱신 후 UNKNOWN. 다음에 최신 #23 기준으로 병합/검증 필요 |
-| #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a4186eb` | checks 없음, merge clean, draft | 최신 #24 base 병합 후 CLEAN. 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
+| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `b7cfe6b` | checks 없음, merge clean, draft | 최신 #23 base 병합 후 Google callback Command DTO 기준으로 정리 |
+| #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a4186eb` | checks 없음, merge unknown, draft | #24 base 갱신 후 UNKNOWN. 다음에 최신 #24 기준으로 병합/검증 필요 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 agent enum 보정 완료, 후보 저장 기반 유지 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
 | #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge clean, draft | #27 위에 agent 외 핵심 도메인 FK 제약과 ALTER FK parser/test 추가 |
@@ -2839,8 +2866,8 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #24는 최신 #23 `89228f8` 기준으로 먼저 병합/충돌 정리 후 mergeState와 로컬 검증을 다시 확인한다.
-2. #25는 #24 최신 base 병합 뒤 mergeState와 로컬 검증을 다시 확인한다.
+1. #25는 최신 #24 `b7cfe6b` 기준으로 먼저 병합/충돌 정리 후 mergeState와 로컬 검증을 다시 확인한다.
+2. #26은 #25 최신 base 병합 뒤 mergeState와 로컬 검증을 다시 확인한다.
 3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
