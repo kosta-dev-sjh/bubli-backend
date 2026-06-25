@@ -237,6 +237,13 @@ Agent/resource stack 재정리:
 - #40은 최신 #37을 병합하면서 `ResourcePublicService` 충돌을 해결했다. `getReadableResource(...)`는 interface에 선언하고 구현은 `ResourcePublicServiceImpl`로 옮겼다. head `1a9ffd5` 기준 로컬 검증 4종 통과, GitHub checks 없음.
 - #41 head `40c4947`, #42 head `caf47b0`, #43 head `e559a56`, #44 head `5dcde7c`, #45 head `5de6f51`은 각각 부모 PR 최신 head를 clean merge했고 로컬 검증 4종을 통과했다. 모두 feature/stack base라 GitHub checks는 생성되지 않았다.
 
+Storage/resource upload-delete stack 재정리:
+
+- #46에 #92 공개 계약 보정 커밋을 cherry-pick했다. head `467443d` 기준 로컬 검증 4종 통과, GitHub checks 없음.
+- #52 head `40c1869`, #54 head `fb7fca5`, #55 head `97ca18c`, #56 head `d51630f`, #57 head `6149132`, #64 head `da58a93`, #67 head `d716624`, #75 head `2236540`, #76 head `4b513bc`, #77 head `6b9e3db`, #80 head `18e0c7d`, #81 head `41f9d20`은 각각 부모 PR 최신 head를 clean merge했고 로컬 검증 4종을 통과했다.
+- GitHub 기준 위 PR들은 모두 `CLEAN`이다. base가 feature/stack branch라 checks는 생성되지 않았고, CI-not-created 예외로 로컬 검증 4종을 대체 gate로 삼았다.
+- `StoragePublicService`, `StorageUsagePublicService`는 기존처럼 interface이고, 구현체는 `S3StorageService`, `DisabledStorageService`, `StorageUsageService`로 유지했다.
+
 후속 병합 순서:
 
 1. #29 문서 PR을 먼저 확인한다.
@@ -245,7 +252,8 @@ Agent/resource stack 재정리:
 3. 문서 stack 흐름에서는 #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
 4. #36 뒤에 #90 `ResourcePublicService` + #92 공개 계약 보정 PR을 반영한다.
 5. 그 다음 #37 -> #40 -> #41 -> #42 -> #43 -> #44 -> #45 순서로 agent/resource job stack을 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
-6. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
+6. 자료 다운로드/업로드/삭제 stack은 #46 -> #52 -> #54 -> #55 -> #56 -> #57 -> #64 -> #67 -> #75 -> #76 -> #77 -> #80 -> #81 순서로 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
+7. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
 
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
