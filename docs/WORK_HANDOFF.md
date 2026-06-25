@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:17 KST
+Last checked: 2026-06-25 13:23 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -129,6 +129,34 @@ Last checked: 2026-06-25 13:17 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 28-2. #28 Testcontainers/CI 최신 #27 기준 정리
+
+처리 시각: 2026-06-25 13:23 KST
+
+변경 내용:
+
+- #28 `feature/testcontainers-ci-foundation` 브랜치에 최신 #27 `feature/entity-flyway-alignment` head `a7e7692`를 병합했다.
+- 병합 충돌은 없었고, #27의 V1 develop 복원, V3 core FK/index migration 분리, schema parser 보정을 CI 검증 범위에 포함했다.
+- #28 PR 본문을 최신 로컬 검증 결과와 GitHub Actions CI 결과로 갱신했다.
+
+검증 결과:
+
+- #28: `./gradlew test --tests '*ArchitectureTest' --tests com.bubli.schema.EntityFlywayAlignmentTest` 통과
+- #28: `./gradlew compileTestJava` 통과
+- #28: `./gradlew cleanTest test` 통과
+- #28: `git diff --check` 통과
+- #28: `git diff origin/develop -- src/main/resources/db/migration/V1__init_schema.sql` 차이 없음
+- #28: GitHub Actions `build` 통과
+- #28: run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28146662374`
+- #28: job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28146662374/job/83355160476`
+- #28: duration `1m19s`, head `ee26160`, base `feature/entity-flyway-alignment`, mergeState `CLEAN`
+
+메모:
+
+- #28은 draft PR 상태를 유지한다.
+- #29 문서 PR은 이 결과를 반영한 뒤 다시 CI를 확인한다.
+- #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 재검토한다.
 
 ### 작업 카드 27-2. #27 Entity/Flyway 최신 #26/V1 불변 기준 정리
 
@@ -2945,9 +2973,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #28은 #27 최신 head `a7e7692` 기준으로 다시 병합/충돌 정리 후 GitHub Actions CI를 확인한다.
-2. #29는 #27/#28 재확인 결과를 계속 누적하고 GitHub Actions CI를 확인한다.
-3. #30 이후 downstream PR은 #28 확인 뒤 base 순서대로 재검토한다.
+1. #29는 #28 재확인 결과를 반영한 뒤 GitHub Actions CI를 확인한다.
+2. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 재검토한다.
+3. #31/#39처럼 #25 계열 downstream PR은 #25 head `a5d0ed6` 기준 이후 변경을 다시 확인한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
