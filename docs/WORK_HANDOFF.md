@@ -148,6 +148,32 @@ Last checked: 2026-06-25 18:35 KST
 
 ## 최근 완료 작업
 
+### 작업 카드 AB-3. TaskPublicService 공개 계약 분리
+
+처리 시각: 2026-06-25 18:55 KST
+
+브랜치: `codex/abstraction-boundary-task-public-service`
+
+변경 내용:
+
+- #29 `chore/latest-docs-2026-06-25` 기준으로 `TaskPublicService`를 인터페이스 계약으로 분리했다.
+- 기존 WBS board용 task 조회와 WBS 연결 검사 구현은 `TaskPublicServiceImpl`로 옮겼다.
+- `work.wbs` 도메인은 기존 이름인 `TaskPublicService` 인터페이스를 계속 주입받는다.
+
+검증 결과:
+
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+- GitHub Actions CI 확인 예정
+
+후속 PR stack 반영 순서:
+
+1. #29 문서 PR 뒤에 이 보정 PR을 반영한다.
+2. `TaskPublicService`를 참조하는 WBS/API stack은 이 PR 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
+3. 후속 PR에서 구현체를 직접 주입하는 코드가 생기면 `TaskPublicService` 인터페이스 주입으로 되돌린다.
+
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
 처리 시각: 2026-06-25 18:35 KST
