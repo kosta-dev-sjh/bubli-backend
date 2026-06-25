@@ -438,7 +438,7 @@ class AgentStorageServiceTest {
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
 		assertThat(result.getItems().getFirst().resourceId()).isEqualTo(resourceId);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test
@@ -462,6 +462,6 @@ class AgentStorageServiceTest {
 
 		assertThat(result.getItems()).hasSize(1);
 		assertThat(result.getItems().getFirst().status()).isEqualTo(AiDocumentStatus.READY);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 }
