@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 10:35 KST
+Last checked: 2026-06-25 10:44 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -42,6 +42,7 @@ Last checked: 2026-06-25 10:35 KST
 - GitHub Actions CI 통과 (#20, V1 migration 변경을 V2로 이동 후 2026-06-25 10:34 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
+- GitHub Actions CI 통과 (#22, 최신 develop 병합 후 2026-06-25 10:43 KST)
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
@@ -100,11 +101,35 @@ Last checked: 2026-06-25 10:35 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 10:35 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 10:44 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 22-1. #22 일정 기본 API 최신 develop 병합
+
+처리 시각: 2026-06-25 10:44 KST
+
+변경 내용:
+
+- #22 `feature/schedule-basic-api` 브랜치에 최신 `origin/develop`을 병합했다.
+- #19 프로젝트룸 멤버/초대 API, #20 채팅 기본 API, #21 작업/WBS 기본 API가 develop에 들어온 뒤 생긴 `DIRTY` 상태를 해소했다.
+- 충돌은 `PostgresIntegrationTestSupport` 한 파일에서 발생했고, 외부 datasource가 있으면 Testcontainers datasource를 덮어쓰지 않는 develop 쪽 lazy container 구조로 정리했다.
+- #22 PR 본문을 최신 검증 결과와 mergeState로 갱신했다.
+
+검증 결과:
+
+- #22: `./gradlew compileTestJava` 통과
+- #22: `./gradlew cleanTest test` 통과
+- #22: `git diff --check` 통과
+- #22: head `6b9329a`, base `develop`, mergeState `CLEAN`
+- #22: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28141227031`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28141227031/job/83338819736`
+
+메모:
+
+- 이번 변경은 #22의 merge dirty 상태 해소만 다룬다.
+- #22는 ready PR 상태를 유지한다.
 
 ### 작업 카드 20-3. #20 채팅 Flyway V1 변경분 V2 이동
 
@@ -2344,7 +2369,7 @@ Last checked: 2026-06-25 10:35 KST
 | #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, draft | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
 | #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료. V1 migration 변경분을 V2로 이동 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
-| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
+| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `6b9329a` | `build` pass, merge clean | 최신 develop 병합 후 DIRTY 해소. 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `15f9b7d` | checks 없음, merge clean, draft | 6/25 기준 Google authorize/callback endpoint 보정 완료. 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `36b9b55` | checks 없음, merge clean, draft | 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
