@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 14:58 KST
+Last checked: 2026-06-25 15:04 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -93,7 +93,7 @@ Last checked: 2026-06-25 14:58 KST
 - #51 user project rooms API 로컬 검증 통과. GitHub checks 없음 (base #50에 stacked PR CI workflow 없음)
 - #52 S3 download-url provider 최신 #46 base 병합, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #46에 stacked PR CI workflow 없음)
 - #53 agent job dispatch boundary, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 로컬 검증 통과. GitHub checks 없음 (base #45에 stacked PR CI workflow 없음)
-- #54 S3 storage service boundary 로컬 검증 통과. GitHub checks 없음 (base #52에 stacked PR CI workflow 없음)
+- #54 S3 storage service boundary 최신 #52 base 병합, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #52에 stacked PR CI workflow 없음)
 - #55 resource multipart upload API 로컬 검증 통과. GitHub checks 없음 (base #54에 stacked PR CI workflow 없음)
 - #56 resource upload compensation 로컬 검증 통과. GitHub checks 없음 (base #55에 stacked PR CI workflow 없음)
 - #57 resource upload policy 로컬 검증 통과. GitHub checks 없음 (base #56에 stacked PR CI workflow 없음)
@@ -129,6 +129,33 @@ Last checked: 2026-06-25 14:58 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 54-2. #54 S3 저장 서비스 경계 최신 #52 기준 정리
+
+처리 시각: 2026-06-25 15:04 KST
+
+변경 내용:
+
+- #54 `feature/s3-storage-service-boundary` 브랜치에 최신 #52 `feature/s3-download-url-provider` head `31d9eb8`를 병합했다.
+- 병합 충돌은 없었다.
+- `StorageService`, `S3StorageService`, disabled fallback 경계가 유지되는 상태로 확인했다.
+- S3 객체를 public으로 열지 않고, 후속 upload/download API가 서버 권한 확인 뒤 storage 경계를 호출하는 구조를 유지했다.
+- #54 자체 변경으로 `V1__initial_schema.sql`이나 `PostgresIntegrationTestSupport.java`를 건드리지 않는 상태로 확인했다.
+- #54 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #54: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #54: `./gradlew compileTestJava` 통과
+- #54: `./gradlew cleanTest test` 통과
+- #54: `git diff --check` 통과
+- #54: head `0f48244`, base `feature/s3-download-url-provider`, mergeState `CLEAN`
+- #54: GitHub checks 없음. base가 `feature/s3-download-url-provider`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #54는 draft PR 상태를 유지한다.
+- #55는 #54 head `0f48244` 기준으로 다음 resource multipart upload stack 확인 대상이다.
 
 ### 작업 카드 52-2. #52 S3 다운로드 URL Provider 최신 #46 기준 정리
 
@@ -3333,7 +3360,7 @@ Last checked: 2026-06-25 14:58 KST
 | #79 | `[feat] 에이전트 모델 호출 로그 저장 연결` | `feature/agent-model-call-log-recorder` | `feature/agent-result-suggestion-recorder` | `6dab1d0` | checks 없음, merge clean, draft | #78 위에 실행 outcome의 모델 호출 로그를 `agent_model_call_logs`에 저장하는 내부 경계 추가. 실제 모델/RAG 연결은 후속 |
 | #46 | `[feat] 자료 다운로드 URL API 뼈대 추가` | `feature/resource-download-url-api` | `feature/resource-related-api` | `c5632d8` | checks 없음, merge clean, draft | 최신 #31 base 병합 후 ResourceService 충돌 해결. 6/25 기준 resource download-url API와 StorageDownloadUrlProvider 경계 추가 |
 | #52 | `[feat] S3 다운로드 URL Provider 추가` | `feature/s3-download-url-provider` | `feature/resource-download-url-api` | `31d9eb8` | checks 없음, merge clean, draft | 최신 #46 base 병합 후 S3 presigned download URL provider 검증. #46 provider 경계에 구현 추가 |
-| #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `ae6eed7` | checks 없음, merge clean, draft | #52 S3 설정 위에 StorageService 저장/삭제 경계 추가. 업로드 API endpoint는 후속 PR |
+| #54 | `[feat] S3 저장 서비스 경계 추가` | `feature/s3-storage-service-boundary` | `feature/s3-download-url-provider` | `0f48244` | checks 없음, merge clean, draft | 최신 #52 base 병합 후 StorageService/S3 설정 검증. #52 S3 설정 위에 저장/삭제 경계 추가 |
 | #55 | `[feat] 자료 multipart 업로드 API 연결` | `feature/resource-multipart-upload-api` | `feature/s3-storage-service-boundary` | `c186557` | checks 없음, merge clean, draft | #54 StorageService를 사용해 resource/file/version 생성까지 연결 |
 | #56 | `[feat] 자료 업로드 실패 보상 삭제 추가` | `feature/resource-upload-compensation` | `feature/resource-multipart-upload-api` | `b18efb6` | checks 없음, merge clean, draft | #55 업로드 흐름에서 DB 저장 실패 시 StorageService.delete 보상 처리 |
 | #57 | `[feat] 자료 업로드 정책 검사 추가` | `feature/resource-upload-policy` | `feature/resource-upload-compensation` | `756174e` | checks 없음, merge clean, draft | #56 업로드 흐름에 설정 기반 크기/MIME 정책 검사 추가 |
@@ -3427,7 +3454,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #54는 #52 최신 head `31d9eb8` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #55는 #54 최신 head `0f48244` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
