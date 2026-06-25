@@ -30,6 +30,9 @@ public class ChatRoomMember {
 	@Column(name = "last_read_message_id")
 	private UUID lastReadMessageId;
 
+	@Column(name = "last_read_sequence")
+	private Long lastReadSequence;
+
 	@Column(name = "last_read_at")
 	private Instant lastReadAt;
 
@@ -42,6 +45,20 @@ public class ChatRoomMember {
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	public static ChatRoomMember create(UUID chatRoomId, UUID userId) {
+		ChatRoomMember member = new ChatRoomMember();
+		member.chatRoomId = chatRoomId;
+		member.userId = userId;
+		member.status = ChatMemberStatus.ACTIVE;
+		return member;
+	}
+
+	public void markRead(UUID lastReadMessageId, Long lastReadSequence, Instant lastReadAt) {
+		this.lastReadMessageId = lastReadMessageId;
+		this.lastReadSequence = lastReadSequence;
+		this.lastReadAt = lastReadAt;
+	}
 
 	@PrePersist
 	private void onCreate() {
