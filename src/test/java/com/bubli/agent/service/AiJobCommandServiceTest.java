@@ -4,9 +4,9 @@ import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceResult;
-import com.bubli.resource.service.ResourceService;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -28,10 +28,10 @@ import static org.mockito.Mockito.verify;
 class AiJobCommandServiceTest {
 
 	@Mock
-	ResourceService resourceService;
+	ResourcePublicService resourcePublicService;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Mock
 	AgentJobService agentJobService;
@@ -45,7 +45,7 @@ class AiJobCommandServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		UUID jobId = UUID.randomUUID();
-		given(resourceService.getResource(userId, resourceId)).willReturn(new ResourceResult(
+		given(resourcePublicService.getReadableResource(userId, resourceId)).willReturn(new ResourceResult(
 				resourceId,
 				userId,
 				roomId,
@@ -115,7 +115,7 @@ class AiJobCommandServiceTest {
 		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isNull();
@@ -151,7 +151,7 @@ class AiJobCommandServiceTest {
 		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isNull();
