@@ -25,13 +25,33 @@ public enum ErrorCode {
 
     // PROJECT
     PROJECT_403_001(HttpStatus.FORBIDDEN, "PROJECT_403_001", "프로젝트룸 접근 권한이 없습니다."),
+    PROJECT_403_002(HttpStatus.FORBIDDEN, "PROJECT_403_002", "프로젝트룸 리더만 처리할 수 있습니다."),
     PROJECT_404_001(HttpStatus.NOT_FOUND, "PROJECT_404_001", "프로젝트룸을 찾을 수 없습니다."),
+    PROJECT_404_002(HttpStatus.NOT_FOUND, "PROJECT_404_002", "초대를 찾을 수 없습니다."),
+    PROJECT_409_001(HttpStatus.CONFLICT, "PROJECT_409_001", "이미 프로젝트룸에 참여 중인 사용자입니다."),
+    PROJECT_409_002(HttpStatus.CONFLICT, "PROJECT_409_002", "이미 처리되었거나 만료된 초대입니다."),
+    PROJECT_409_003(HttpStatus.CONFLICT, "PROJECT_409_003", "이미 대기 중인 초대가 있습니다."),
+
+    // WORK
+    WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),
+    WORK_404_001(HttpStatus.NOT_FOUND, "WORK_404_001", "TODO를 찾을 수 없습니다."),
+    WORK_404_002(HttpStatus.NOT_FOUND, "WORK_404_002", "WBS 항목을 찾을 수 없습니다."),
+
+    // CHAT
+    CHAT_403_001(HttpStatus.FORBIDDEN, "CHAT_403_001", "채팅방 접근 권한이 없습니다."),
+    CHAT_404_001(HttpStatus.NOT_FOUND, "CHAT_404_001", "채팅방을 찾을 수 없습니다."),
+    CHAT_404_002(HttpStatus.NOT_FOUND, "CHAT_404_002", "채팅 메시지를 찾을 수 없습니다."),
 
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
     // RESOURCE
     RESOURCE_404_001(HttpStatus.NOT_FOUND, "RESOURCE_404_001", "자료를 찾을 수 없습니다."),
+
+    // SCHEDULE
+    SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),
+    SCHEDULE_403_001(HttpStatus.FORBIDDEN, "SCHEDULE_403_001", "일정 접근 권한이 없습니다."),
+    SCHEDULE_404_001(HttpStatus.NOT_FOUND, "SCHEDULE_404_001", "일정을 찾을 수 없습니다."),
     ;
 
     private final HttpStatus httpStatus;
