@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,6 +33,14 @@ public class ProjectMembershipPublicService {
 				userId,
 				RoomMemberStatus.ACTIVE
 		);
+	}
+
+	@Transactional(readOnly = true)
+	public List<UUID> findActiveRoomIds(UUID userId) {
+		return roomMemberRepository.findByUserIdAndStatus(userId, RoomMemberStatus.ACTIVE)
+				.stream()
+				.map(RoomMember::getRoomId)
+				.toList();
 	}
 
 	@Transactional(readOnly = true)

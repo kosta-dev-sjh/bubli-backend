@@ -19,32 +19,32 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
-class RoomAccessServiceTest {
+class ProjectMembershipPublicServiceTest {
 
 	@Mock
 	RoomMemberRepository roomMemberRepository;
 
 	@InjectMocks
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Test
-	void validateActiveMemberPassesForActiveRoomMember() {
+	void assertActiveMemberPassesForActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
 				.willReturn(true);
 
-		roomAccessService.validateActiveMember(userId, roomId);
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 	}
 
 	@Test
-	void validateActiveMemberRejectsNonMember() {
+	void assertActiveMemberRejectsNonMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		given(roomMemberRepository.existsByRoomIdAndUserIdAndStatus(roomId, userId, RoomMemberStatus.ACTIVE))
 				.willReturn(false);
 
-		assertThatThrownBy(() -> roomAccessService.validateActiveMember(userId, roomId))
+		assertThatThrownBy(() -> projectMembershipPublicService.assertActiveMember(userId, roomId))
 				.isInstanceOf(BusinessException.class);
 	}
 
@@ -59,7 +59,7 @@ class RoomAccessServiceTest {
 						RoomMember.create(secondRoomId, userId, RoomMemberRole.MEMBER)
 				));
 
-		assertThat(roomAccessService.findActiveRoomIds(userId))
+		assertThat(projectMembershipPublicService.findActiveRoomIds(userId))
 				.containsExactly(firstRoomId, secondRoomId);
 	}
 }

@@ -3,8 +3,9 @@ package com.bubli.work.schedule.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
@@ -39,7 +40,7 @@ class ScheduleServiceTest {
 	ScheduleRepository scheduleRepository;
 
 	@Mock
-	RoomAccessService roomAccessService;
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	ScheduleService scheduleService;
@@ -55,7 +56,7 @@ class ScheduleServiceTest {
 			return schedule;
 		});
 
-		Schedule result = scheduleService.create(userId, new CreateScheduleCommand(
+		ScheduleResult result = scheduleService.create(userId, new CreateScheduleCommand(
 				null,
 				null,
 				null,
@@ -65,10 +66,10 @@ class ScheduleServiceTest {
 				false
 		));
 
-		assertThat(result.getOwnerUserId()).isEqualTo(userId);
-		assertThat(result.getRoomId()).isNull();
-		assertThat(result.getTitle()).isEqualTo("개인 포트폴리오 정리");
-		assertThat(result.getStartsAt()).isEqualTo(startsAt);
+		assertThat(result.ownerUserId()).isEqualTo(userId);
+		assertThat(result.roomId()).isNull();
+		assertThat(result.title()).isEqualTo("개인 포트폴리오 정리");
+		assertThat(result.startsAt()).isEqualTo(startsAt);
 
 		ArgumentCaptor<Schedule> scheduleCaptor = ArgumentCaptor.forClass(Schedule.class);
 		verify(scheduleRepository).save(scheduleCaptor.capture());
@@ -80,8 +81,8 @@ class ScheduleServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
-				.given(roomAccessService)
-				.validateActiveMember(userId, roomId);
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 
 		assertThatThrownBy(() -> scheduleService.create(userId, new CreateScheduleCommand(
 				roomId,
@@ -108,13 +109,13 @@ class ScheduleServiceTest {
 				false
 		);
 		PageRequest pageable = PageRequest.of(0, 20);
-		given(roomAccessService.findActiveRoomIds(userId)).willReturn(List.of());
+		given(projectMembershipPublicService.findActiveRoomIds(userId)).willReturn(List.of());
 		given(scheduleRepository.findAll(anyScheduleSpec(), anyPageable()))
 				.willReturn(new org.springframework.data.domain.PageImpl<>(List.of(personalSchedule), pageable, 1));
 
-		PageResponse<Schedule> result = scheduleService.getSchedules(userId, null, null, null, pageable);
+		PageResponse<ScheduleResult> result = scheduleService.getSchedules(userId, null, null, null, pageable);
 
-		assertThat(result.getItems()).containsExactly(personalSchedule);
+		assertThat(result.getItems()).extracting(ScheduleResult::title).containsExactly("개인 일정");
 		assertThat(result.getTotalElements()).isEqualTo(1);
 	}
 

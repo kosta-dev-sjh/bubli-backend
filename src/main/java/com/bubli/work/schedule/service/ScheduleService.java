@@ -3,8 +3,9 @@ package com.bubli.work.schedule.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
@@ -28,20 +29,22 @@ import java.util.UUID;
 public class ScheduleService {
 
 	private final ScheduleRepository scheduleRepository;
-	private final RoomAccessService roomAccessService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
-	public PageResponse<Schedule> getSchedules(UUID userId, UUID roomId, Instant from, Instant to, Pageable pageable) {
+	public PageResponse<ScheduleResult> getSchedules(UUID userId, UUID roomId, Instant from, Instant to, Pageable pageable) {
 		validateRange(from, to);
 		if (roomId != null) {
-			roomAccessService.validateActiveMember(userId, roomId);
+			projectMembershipPublicService.assertActiveMember(userId, roomId);
 		}
 		Page<Schedule> page = scheduleRepository.findAll(
 				visibleScheduleSpec(userId, roomId, from, to),
 				withDefaultSort(pageable)
 		);
 		return new PageResponse<>(
-				page.getContent(),
+				page.getContent().stream()
+						.map(ScheduleResult::from)
+						.toList(),
 				page.getNumber(),
 				page.getSize(),
 				page.getTotalElements(),
@@ -51,10 +54,10 @@ public class ScheduleService {
 	}
 
 	@Transactional
-	public Schedule create(UUID userId, CreateScheduleCommand command) {
+	public ScheduleResult create(UUID userId, CreateScheduleCommand command) {
 		validateRange(command.startsAt(), command.endsAt());
 		if (command.roomId() != null) {
-			roomAccessService.validateActiveMember(userId, command.roomId());
+			projectMembershipPublicService.assertActiveMember(userId, command.roomId());
 		}
 		Schedule schedule = Schedule.create(
 				userId,
@@ -66,11 +69,11 @@ public class ScheduleService {
 				command.endsAt(),
 				command.allDay()
 		);
-		return scheduleRepository.save(schedule);
+		return ScheduleResult.from(scheduleRepository.save(schedule));
 	}
 
 	@Transactional
-	public Schedule update(UUID userId, UUID scheduleId, UpdateScheduleCommand command) {
+	public ScheduleResult update(UUID userId, UUID scheduleId, UpdateScheduleCommand command) {
 		Schedule schedule = getAccessibleSchedule(userId, scheduleId);
 		Instant startsAt = command.startsAt() == null ? schedule.getStartsAt() : command.startsAt();
 		validateRange(startsAt, command.endsAt());
@@ -85,7 +88,7 @@ public class ScheduleService {
 				command.taskId(),
 				command.wbsItemId()
 		);
-		return schedule;
+		return ScheduleResult.from(schedule);
 	}
 
 	@Transactional
@@ -108,7 +111,7 @@ public class ScheduleService {
 			}
 			return;
 		}
-		roomAccessService.validateActiveMember(userId, schedule.getRoomId());
+		projectMembershipPublicService.assertActiveMember(userId, schedule.getRoomId());
 	}
 
 	private void validateRange(Instant startsAt, Instant endsAt) {
@@ -118,7 +121,7 @@ public class ScheduleService {
 	}
 
 	private Specification<Schedule> visibleScheduleSpec(UUID userId, UUID roomId, Instant from, Instant to) {
-		List<UUID> activeRoomIds = roomId == null ? roomAccessService.findActiveRoomIds(userId) : List.of();
+		List<UUID> activeRoomIds = roomId == null ? projectMembershipPublicService.findActiveRoomIds(userId) : List.of();
 		return (root, query, criteriaBuilder) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			if (roomId == null) {
