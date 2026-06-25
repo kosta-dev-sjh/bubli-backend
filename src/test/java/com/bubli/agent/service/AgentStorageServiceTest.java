@@ -322,7 +322,7 @@ class AgentStorageServiceTest {
 		);
 
 		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.REJECTED);
-		verify(roomAccessService).validateActiveMember(userId, roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test

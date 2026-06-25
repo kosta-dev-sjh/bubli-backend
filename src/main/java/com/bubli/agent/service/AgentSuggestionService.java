@@ -91,7 +91,7 @@ public class AgentSuggestionService {
 
 	private void validateSuggestionAccess(UUID userId, AgentSuggestion suggestion) {
 		if (suggestion.getRoomId() != null) {
-			roomAccessService.validateActiveMember(userId, suggestion.getRoomId());
+			projectMembershipPublicService.assertActiveMember(userId, suggestion.getRoomId());
 			return;
 		}
 		if (!suggestion.getUserId().equals(userId)) {
