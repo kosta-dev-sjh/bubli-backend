@@ -25,7 +25,7 @@ class ProjectMembershipPublicServiceTest {
 	RoomMemberRepository roomMemberRepository;
 
 	@InjectMocks
-	ProjectMembershipPublicService projectMembershipPublicService;
+	ProjectMembershipPublicServiceImpl projectMembershipPublicService;
 
 	@Test
 	void assertActiveMemberPassesForActiveRoomMember() {
