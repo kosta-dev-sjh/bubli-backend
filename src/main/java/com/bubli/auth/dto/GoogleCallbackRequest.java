@@ -14,4 +14,7 @@ public record GoogleCallbackRequest(
 		@NotNull(message = "클라이언트 종류는 필수입니다.")
 		ClientType clientType
 ) {
+	public GoogleCallbackCommand toCommand() {
+		return new GoogleCallbackCommand(code, redirectUri, clientType);
+	}
 }

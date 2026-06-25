@@ -22,7 +22,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "resource_storage_delete_requests")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceStorageDeleteRequest {
+public class ResourceStorageDeleteRetryRecord {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
@@ -53,20 +53,20 @@ public class ResourceStorageDeleteRequest {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
-	public static ResourceStorageDeleteRequest create(
+	public static ResourceStorageDeleteRetryRecord create(
 			UUID resourceId,
 			UUID fileId,
 			String storageKey,
 			String lastErrorMessage
 	) {
-		ResourceStorageDeleteRequest request = new ResourceStorageDeleteRequest();
-		request.resourceId = resourceId;
-		request.fileId = fileId;
-		request.storageKey = storageKey;
-		request.status = ResourceStorageDeleteStatus.PENDING;
-		request.retryCount = 0;
-		request.lastErrorMessage = lastErrorMessage;
-		return request;
+		ResourceStorageDeleteRetryRecord record = new ResourceStorageDeleteRetryRecord();
+		record.resourceId = resourceId;
+		record.fileId = fileId;
+		record.storageKey = storageKey;
+		record.status = ResourceStorageDeleteStatus.PENDING;
+		record.retryCount = 0;
+		record.lastErrorMessage = lastErrorMessage;
+		return record;
 	}
 
 	public void markDeleted() {

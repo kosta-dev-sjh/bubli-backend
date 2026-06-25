@@ -3,9 +3,9 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
-import com.bubli.resource.dto.CreateResourceVersionRequest;
+import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceDownloadUrlResult;
 import com.bubli.resource.dto.ResourceRelatedResult;
@@ -30,8 +30,8 @@ import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
-import com.bubli.storage.service.StorageService;
-import com.bubli.storage.service.StorageUsageService;
+import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,10 +61,10 @@ public class ResourceService {
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
 	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
-	private final StorageService storageService;
-	private final StorageUsageService storageUsageService;
 	private final ResourceStorageDeleteRetryRecorder storageDeleteRetryRecorder;
-	private final RoomAccessService roomAccessService;
+	private final StoragePublicService storagePublicService;
+	private final StorageUsagePublicService storageUsagePublicService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
 	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
@@ -195,7 +195,7 @@ public class ResourceService {
 		try {
 			recordStorageUsage(userId, roomId, command);
 			storageUsageRecorded = true;
-			uploaded = storageService.save(
+			uploaded = storagePublicService.save(
 					storageKey(resource.getId(), command.originalName()),
 					command.originalName(),
 					command.mimeType(),
@@ -256,15 +256,15 @@ public class ResourceService {
 	}
 
 	@Transactional
-	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionRequest request) {
+	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
 		getReadableResource(userId, resourceId);
 		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
 				resourceId,
-				request.storageKey(),
-				request.originalName(),
-				request.mimeType(),
-				request.sizeBytes(),
-				request.checksum()
+				command.storageKey(),
+				command.originalName(),
+				command.mimeType(),
+				command.sizeBytes(),
+				command.checksum()
 		));
 		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
 		ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
@@ -349,7 +349,7 @@ public class ResourceService {
 			return;
 		}
 		try {
-			storageService.delete(uploaded.storageKey());
+			storagePublicService.delete(uploaded.storageKey());
 		} catch (RuntimeException deleteException) {
 			cause.addSuppressed(deleteException);
 		}
@@ -358,7 +358,7 @@ public class ResourceService {
 	private void deleteStoredFiles(Iterable<ResourceFile> files) {
 		for (ResourceFile file : files) {
 			try {
-				storageService.delete(file.getStorageKey());
+				storagePublicService.delete(file.getStorageKey());
 			} catch (RuntimeException exception) {
 				log.warn("Failed to delete resource file from storage. resourceId={}, fileId={}, storageKey={}",
 						file.getResourceId(),
@@ -385,10 +385,10 @@ public class ResourceService {
 	private void recordStorageUsage(UUID userId, UUID roomId, UploadResourceCommand command) {
 		long sizeBytes = command.content().length;
 		if (command.visibility() == ResourceVisibility.PERSONAL) {
-			storageUsageService.recordPersonalUpload(userId, sizeBytes);
+			storageUsagePublicService.recordPersonalUpload(userId, sizeBytes);
 			return;
 		}
-		storageUsageService.recordRoomUpload(roomId, sizeBytes);
+		storageUsagePublicService.recordRoomUpload(roomId, sizeBytes);
 	}
 
 	private void releaseRecordedStorageUsage(
@@ -404,10 +404,10 @@ public class ResourceService {
 		long sizeBytes = command.content().length;
 		try {
 			if (command.visibility() == ResourceVisibility.PERSONAL) {
-				storageUsageService.releasePersonalUsage(userId, sizeBytes);
+				storageUsagePublicService.releasePersonalUsage(userId, sizeBytes);
 				return;
 			}
-			storageUsageService.releaseRoomUsage(roomId, sizeBytes);
+			storageUsagePublicService.releaseRoomUsage(roomId, sizeBytes);
 		} catch (RuntimeException releaseException) {
 			cause.addSuppressed(releaseException);
 		}
@@ -418,10 +418,10 @@ public class ResourceService {
 			return;
 		}
 		if (visibility == ResourceVisibility.PERSONAL) {
-			storageUsageService.releasePersonalUsage(userId, sizeBytes);
+			storageUsagePublicService.releasePersonalUsage(userId, sizeBytes);
 			return;
 		}
-		storageUsageService.releaseRoomUsage(roomId, sizeBytes);
+		storageUsagePublicService.releaseRoomUsage(roomId, sizeBytes);
 	}
 
 	private void validateReadable(UUID userId, Resource resource) {
@@ -484,7 +484,7 @@ public class ResourceService {
 	}
 
 	private void validateRoomResourceAccess(UUID userId, UUID roomId) {
-		if (!roomAccessService.isActiveMember(userId, roomId)) {
+		if (!projectMembershipPublicService.isActiveMember(userId, roomId)) {
 			throw new BusinessException(ErrorCode.RESOURCE_403_001);
 		}
 	}
