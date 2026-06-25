@@ -1,0 +1,57 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@scheduleId = paste-schedule-id-here
+@roomId = paste-room-id-here
+
+### 내 일정 목록
+GET {{baseUrl}}/api/schedules?page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 특정 프로젝트룸 일정 목록
+GET {{baseUrl}}/api/schedules?roomId={{roomId}}&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 기간 기준 일정 목록
+GET {{baseUrl}}/api/schedules?from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 개인 일정 생성
+POST {{baseUrl}}/api/schedules
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "개인 포트폴리오 정리",
+  "startsAt": "2026-07-02T01:00:00Z",
+  "endsAt": "2026-07-02T02:00:00Z",
+  "allDay": false
+}
+
+### 프로젝트룸 일정 생성
+POST {{baseUrl}}/api/schedules
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}",
+  "title": "클라이언트 중간 리뷰",
+  "startsAt": "2026-07-03T05:00:00Z",
+  "endsAt": "2026-07-03T06:00:00Z",
+  "allDay": false
+}
+
+### 일정 수정
+PATCH {{baseUrl}}/api/schedules/{{scheduleId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "클라이언트 중간 리뷰 준비",
+  "startsAt": "2026-07-03T04:30:00Z",
+  "endsAt": "2026-07-03T06:00:00Z",
+  "allDay": false
+}
+
+### 일정 삭제
+DELETE {{baseUrl}}/api/schedules/{{scheduleId}}
+Authorization: Bearer {{accessToken}}

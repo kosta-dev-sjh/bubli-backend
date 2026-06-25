@@ -34,7 +34,7 @@
 |------|------|------|
 | Language | Java 21 | |
 | Framework | Spring Boot | EC2 t3.small 단일 서버 |
-| Security | Spring Security, JWT | 이메일 로그인, API 보호 |
+| Security | Spring Security, JWT | Google 로그인, API 보호 |
 | AI | Spring AI (ChatClient, Structured Output, Advisor, Tool Calling) | |
 | AI Model | AWS Bedrock 우선, 직접 API 폴백 | Chat: Claude Haiku 4.5 |
 | Embedding | Amazon Titan Text Embeddings V2 | Vector dimension 1024 |

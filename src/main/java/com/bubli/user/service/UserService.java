@@ -2,7 +2,7 @@ package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.project.service.ProjectRoomService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
 import com.bubli.user.dto.UpdatePrivacyConsentsCommand;
 import com.bubli.user.dto.UpdateUserProfileCommand;
@@ -43,7 +43,7 @@ public class UserService {
 	private final UserPreferenceRepository userPreferenceRepository;
 	private final UserNotificationPreferenceRepository userNotificationPreferenceRepository;
 	private final UserPrivacyConsentRepository userPrivacyConsentRepository;
-	private final ProjectRoomService projectRoomService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public UserResult getMe(UUID userId, String email) {
@@ -75,7 +75,7 @@ public class UserService {
 	@Transactional
 	public UserPreferenceResult updatePreferences(UUID userId, UpdateUserPreferenceCommand command) {
 		if (command.defaultProjectRoomId() != null) {
-			projectRoomService.getProjectRoom(userId, command.defaultProjectRoomId());
+			projectMembershipPublicService.assertActiveMember(userId, command.defaultProjectRoomId());
 		}
 		UserPreference preference = userPreferenceRepository.findByUserId(userId)
 				.orElseGet(() -> UserPreference.create(userId));
