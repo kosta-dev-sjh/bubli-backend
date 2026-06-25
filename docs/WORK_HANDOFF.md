@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 11:05 KST
+Last checked: 2026-06-25 11:11 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -47,6 +47,7 @@ Last checked: 2026-06-25 11:05 KST
 - #24 Google-only auth foundation 최신 #23 base 병합 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
+- #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
 - #25 resource comment API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #25 resource version API 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
@@ -105,11 +106,39 @@ Last checked: 2026-06-25 11:05 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:05 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:11 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 27-1. #27 Entity/Flyway 정합성 검사 최신 base 병합
+
+처리 시각: 2026-06-25 11:11 KST
+
+변경 내용:
+
+- #27 `feature/entity-flyway-alignment` 브랜치에 최신 #26 `feature/agent-storage-foundation`를 병합했다.
+- #26이 최신 #25 base를 받은 뒤 GitHub mergeState가 `UNKNOWN`으로 보이던 downstream 상태를 해소했다.
+- 병합 충돌은 없었다.
+- #20에서 `chat_room_members.last_read_sequence`가 V2 migration으로 이동한 흐름에 맞춰 `EntityFlywayAlignmentTest`가 V1 단일 파일이 아니라 전체 Flyway migration을 읽도록 보정했다.
+- `ALTER TABLE ... ADD COLUMN`으로 추가된 컬럼도 entity/schema 정합성 검사에 포함되도록 parser를 보강했다.
+- #27 PR 본문을 최신 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #27: `./gradlew test --tests com.bubli.schema.EntityFlywayAlignmentTest` 통과
+- #27: `./gradlew compileTestJava` 통과
+- #27: `./gradlew cleanTest test` 통과
+- #27: `git diff --check` 통과
+- #27: head `82d8564`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #27: GitHub checks 없음. base가 `feature/agent-storage-foundation`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- 이번 변경은 #27의 최신 base 병합과 Flyway 정합성 테스트 보정만 다룬다.
+- V1 migration은 다시 수정하지 않았다.
+- #27은 draft PR 상태를 유지한다. ready 전환은 선행 PR merge 순서에 맞춰 별도 판단한다.
 
 ### 작업 카드 26-1. #26 에이전트 저장 기반 최신 base 병합
 
@@ -2475,7 +2504,7 @@ Last checked: 2026-06-25 11:05 KST
 | #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `e292f51` | checks 없음, merge clean, draft | 최신 #23 base 병합 후 CLEAN. Google authorize/callback endpoint 보정 유지, 실제 OAuth 검증은 501 TODO 유지 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a4186eb` | checks 없음, merge clean, draft | 최신 #24 base 병합 후 CLEAN. 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 agent enum 보정 완료, 후보 저장 기반 유지 |
-| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `5d0b7de` | checks 없음, merge clean, draft | agent 핵심 테이블 컬럼 집합/타입, enum baseline, FK, core lookup index 검증 보강. `agent_model_call_logs` 정합성 확인 완료 |
+| #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
 | #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge clean, draft | #27 위에 agent 외 핵심 도메인 FK 제약과 ALTER FK parser/test 추가 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `d1b58a4` | `build` pass, merge clean, draft | stacked PR CI 보강 완료. #27 최신 core lookup index 보강까지 병합 뒤 CI 재통과 |
 | #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
