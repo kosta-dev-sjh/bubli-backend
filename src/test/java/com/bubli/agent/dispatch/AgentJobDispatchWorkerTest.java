@@ -36,13 +36,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		when(queueConsumer.poll()).thenReturn(Optional.empty());
 
@@ -54,7 +57,8 @@ class AgentJobDispatchWorkerTest {
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 	}
 
@@ -66,13 +70,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJobQueueMessage message = message(jobId);
@@ -99,7 +106,7 @@ class AgentJobDispatchWorkerTest {
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_TYPE);
 		assertThat(eventCaptor.getValue().getMessage())
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_MESSAGE);
-		verifyNoInteractions(executionResultRecorder, suggestionRecorder);
+		verifyNoInteractions(executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
 	}
 
 	@Test
@@ -110,13 +117,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJobQueueMessage message = message(jobId);
@@ -136,7 +146,7 @@ class AgentJobDispatchWorkerTest {
 		assertThat(processed).isTrue();
 		verify(executionResultRecorder).recordSucceeded(jobId);
 		verify(executionResultRecorder, never()).recordFailed(any(), any(), any());
-		verifyNoInteractions(suggestionRecorder);
+		verifyNoInteractions(suggestionRecorder, modelCallLogRecorder);
 	}
 
 	@Test
@@ -147,13 +157,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJobQueueMessage message = message(jobId);
@@ -179,6 +192,7 @@ class AgentJobDispatchWorkerTest {
 		assertThat(processed).isTrue();
 		verify(suggestionRecorder).recordSuggestions(agentJob, List.of(draft));
 		verify(executionResultRecorder).recordSucceeded(jobId);
+		verifyNoInteractions(modelCallLogRecorder);
 	}
 
 	@Test
@@ -189,13 +203,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJobQueueMessage message = message(jobId);
@@ -228,6 +245,92 @@ class AgentJobDispatchWorkerTest {
 				"AGENT_SUGGESTION_RECORD_FAILED",
 				"suggestion write failed"
 		);
+		verifyNoInteractions(modelCallLogRecorder);
+	}
+
+	@Test
+	void processNextQueuedJobRecordsModelCallLogsBeforeSucceededOutcome() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
+		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder,
+				suggestionRecorder,
+				modelCallLogRecorder
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		AgentJobExecutionModelCallLog modelCallLog = modelCallLog();
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message))
+				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithModelCallLogs(List.of(modelCallLog))));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		verify(modelCallLogRecorder).recordModelCallLogs(jobId, List.of(modelCallLog));
+		verify(executionResultRecorder).recordSucceeded(jobId);
+		verifyNoInteractions(suggestionRecorder);
+	}
+
+	@Test
+	void processNextQueuedJobKeepsOutcomeWhenModelCallLogRecordingFails() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
+		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder,
+				suggestionRecorder,
+				modelCallLogRecorder
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		AgentJobExecutionModelCallLog modelCallLog = modelCallLog();
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message))
+				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithModelCallLogs(List.of(modelCallLog))));
+		doThrow(new IllegalStateException("log failed"))
+				.when(modelCallLogRecorder)
+				.recordModelCallLogs(jobId, List.of(modelCallLog));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		verify(executionResultRecorder).recordSucceeded(jobId);
 	}
 
 	@Test
@@ -238,13 +341,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJobQueueMessage message = message(jobId);
@@ -265,7 +371,7 @@ class AgentJobDispatchWorkerTest {
 		assertThat(processed).isTrue();
 		verify(executionResultRecorder, never()).recordSucceeded(any());
 		verify(executionResultRecorder).recordFailed(jobId, "MODEL_TIMEOUT", "모델 응답 시간이 초과되었습니다.");
-		verifyNoInteractions(suggestionRecorder);
+		verifyNoInteractions(suggestionRecorder, modelCallLogRecorder);
 	}
 
 	@Test
@@ -276,13 +382,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
@@ -293,7 +402,7 @@ class AgentJobDispatchWorkerTest {
 		assertThat(processed).isFalse();
 		verify(agentJobRepository).findById(jobId);
 		verify(agentJobEventRepository, never()).save(any());
-		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder);
+		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
 	}
 
 	@Test
@@ -304,13 +413,16 @@ class AgentJobDispatchWorkerTest {
 		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
 		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
 		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
 		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
 				queueConsumer,
 				agentJobRepository,
 				agentJobEventRepository,
 				executionPort,
 				executionResultRecorder,
-				suggestionRecorder
+				suggestionRecorder,
+				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = AgentJob.create(
@@ -328,7 +440,7 @@ class AgentJobDispatchWorkerTest {
 
 		assertThat(processed).isFalse();
 		verify(agentJobEventRepository, never()).save(any());
-		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder);
+		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
 	}
 
 	private AgentJobQueueMessage message(UUID jobId) {
@@ -339,6 +451,18 @@ class AgentJobDispatchWorkerTest {
 				UUID.randomUUID(),
 				AgentJobType.ANALYZE_RESOURCE,
 				Instant.now()
+		);
+	}
+
+	private AgentJobExecutionModelCallLog modelCallLog() {
+		return new AgentJobExecutionModelCallLog(
+				"analyze-resource-v1",
+				"agent-output-v1",
+				"gpt-test",
+				1500L,
+				120,
+				80,
+				null
 		);
 	}
 }

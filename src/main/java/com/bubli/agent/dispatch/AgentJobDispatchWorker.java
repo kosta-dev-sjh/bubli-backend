@@ -6,11 +6,13 @@ import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AgentJobDispatchWorker {
 
@@ -23,6 +25,7 @@ public class AgentJobDispatchWorker {
 	private final AgentJobExecutionPort executionPort;
 	private final AgentJobExecutionResultRecorder executionResultRecorder;
 	private final AgentJobExecutionSuggestionRecorder suggestionRecorder;
+	private final AgentJobExecutionModelCallLogRecorder modelCallLogRecorder;
 
 	@Transactional
 	public boolean processNextQueuedJob() {
@@ -46,6 +49,7 @@ public class AgentJobDispatchWorker {
 	}
 
 	private void recordOutcome(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
+		recordModelCallLogs(agentJob, outcome);
 		if (outcome.successful()) {
 			if (!recordSuggestions(agentJob, outcome)) {
 				return;
@@ -54,6 +58,17 @@ public class AgentJobDispatchWorker {
 			return;
 		}
 		executionResultRecorder.recordFailed(agentJob.getId(), outcome.errorCode(), outcome.errorMessage());
+	}
+
+	private void recordModelCallLogs(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
+		if (outcome.modelCallLogs().isEmpty()) {
+			return;
+		}
+		try {
+			modelCallLogRecorder.recordModelCallLogs(agentJob.getId(), outcome.modelCallLogs());
+		} catch (RuntimeException exception) {
+			log.warn("Failed to record agent model call logs. jobId={}", agentJob.getId(), exception);
+		}
 	}
 
 	private boolean recordSuggestions(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
