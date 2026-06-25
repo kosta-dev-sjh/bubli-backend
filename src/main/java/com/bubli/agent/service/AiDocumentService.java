@@ -8,7 +8,7 @@ import com.bubli.agent.type.AiDocumentStatus;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
-import com.bubli.project.service.RoomAccessService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class AiDocumentService {
 
 	private final AiDocumentRepository aiDocumentRepository;
-	private final RoomAccessService roomAccessService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional
 	public AiDocumentResult create(CreateAiDocumentCommand command) {
@@ -51,7 +51,7 @@ public class AiDocumentService {
 			AiDocumentStatus status,
 			Pageable pageable
 	) {
-		roomAccessService.validateActiveMember(userId, roomId);
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		Page<AiDocumentResult> page = findRoomAiDocuments(roomId, status, withDefaultSort(pageable))
 				.map(AiDocumentResult::from);
 		return new PageResponse<>(
