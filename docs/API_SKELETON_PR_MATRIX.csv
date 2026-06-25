@@ -3,7 +3,7 @@
 "28","[chore] stacked PR 테스트 검증 보강","feature/entity-flyway-alignment","feature/testcontainers-ci-foundation","ee26160","stacked-ci","CI PASS CLEAN","after-base","앞 PR 정리 후 리뷰","Testcontainers와 stacked PR CI 기반"
 "29","[chore] 2026-06-25 최신 기준 문서 반영","feature/testcontainers-ci-foundation","chore/latest-docs-2026-06-25","402cbe4","docs-guide","CI PASS CLEAN","high","팀원 리뷰 기준 문서로 먼저 확인","최신 기준 문서와 PR 리뷰 기준"
 "30","[feat] 타이머 작업시간 기본 API 추가","feature/work-task-wbs-api","feature/time-log-basic-api","f162377","stacked","CLEAN no-checks","replaced-by-83","develop 대상 #83 우선 리뷰","타이머 작업시간 기본 API 골격"
-"31","[feat] 자료 관련 문서 조회 API 추가","feature/resource-basic-foundation","feature/resource-related-api","84c12b4","stacked","DIRTY","hold","충돌 해소 전 병합 보류","자료 관련 문서 조회 기본 API 골격"
+"31","[feat] 자료 관련 문서 조회 API 추가","feature/resource-basic-foundation","feature/resource-related-api","3bf14f5","stacked","CLEAN no-checks","after-25","앞 PR #25 이후 리뷰","자료 관련 문서 조회 기본 API 골격"
 "33","[feat] 에이전트 제안함 조회 API 추가","feature/agent-job-status-api","feature/agent-suggestion-list-api","cecc62b","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","에이전트 제안함 조회 기본 API 골격"
 "34","[feat] 에이전트 작업 이벤트 조회 API 추가","feature/agent-suggestion-list-api","feature/agent-job-events-api","3a9e260","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","에이전트 작업 이벤트 조회 기본 API 골격"
 "35","[feat] 에이전트 제안 상태 수정 API 추가","feature/agent-job-events-api","feature/agent-suggestion-update-api","e78b394","stacked","CLEAN no-checks","after-base","base 순서대로 리뷰","에이전트 제안 상태 수정 기본 API 골격"
