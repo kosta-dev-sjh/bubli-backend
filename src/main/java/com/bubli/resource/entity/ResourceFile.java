@@ -41,6 +41,18 @@ public class ResourceFile {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static ResourceFile create(UUID resourceId, String storageKey, String originalName,
+			String mimeType, Long sizeBytes, String checksum) {
+		ResourceFile file = new ResourceFile();
+		file.resourceId = resourceId;
+		file.storageKey = storageKey;
+		file.originalName = originalName;
+		file.mimeType = mimeType;
+		file.sizeBytes = sizeBytes;
+		file.checksum = checksum;
+		return file;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
