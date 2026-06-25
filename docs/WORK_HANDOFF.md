@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 13:09 KST
+Last checked: 2026-06-25 13:17 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -62,7 +62,7 @@ Last checked: 2026-06-25 13:09 KST
 - #24 Google-only auth foundation 최신 #23 base 병합과 GoogleCallbackCommand 보정 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합과 Resource PublicService/Command 보정 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #26 agent storage foundation 최신 #25 base 병합과 ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
-- #27 entity/flyway alignment 최신 #26 base 병합과 V2 migration 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
+- #27 entity/flyway alignment 최신 #26 base 병합, V1 develop 복원, V3 migration 분리, 정합성 테스트 보정 로컬 검증 통과. GitHub checks 없음 (base #26에 stacked PR CI workflow 없음)
 - #28 testcontainers/CI foundation 최신 #27 base 병합 로컬 검증과 GitHub Actions `build` 통과
 - #31 resource related API 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
 - #39 storage usage API 최신 #31 base 병합 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
@@ -129,6 +129,33 @@ Last checked: 2026-06-25 13:09 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 27-2. #27 Entity/Flyway 최신 #26/V1 불변 기준 정리
+
+처리 시각: 2026-06-25 13:17 KST
+
+변경 내용:
+
+- #27 `feature/entity-flyway-alignment` 브랜치에 최신 #26 `feature/agent-storage-foundation` head `2fd6295`를 병합했다.
+- 기존 #27 커밋에 남아 있던 `V1__init_schema.sql` FK/인덱스 변경을 제거하고, `origin/develop` 기준과 diff 0으로 복원했다.
+- agent 핵심 FK와 core lookup index는 `V3__core_domain_fks_and_lookup_indexes.sql` 새 migration으로 분리했다.
+- `EntityFlywayAlignmentTest`가 `ALTER TABLE ... ADD CONSTRAINT` 형태의 FK도 전체 migration 기준으로 읽도록 보정했다.
+- #27 PR 본문을 V1 복원, V3 분리, 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #27: `./gradlew test --tests com.bubli.schema.EntityFlywayAlignmentTest --tests '*ArchitectureTest'` 통과
+- #27: `./gradlew compileTestJava` 통과
+- #27: `./gradlew cleanTest test` 통과
+- #27: `git diff --check` 통과
+- #27: `git diff origin/develop -- src/main/resources/db/migration/V1__init_schema.sql` 차이 없음
+- #27: head `a7e7692`, base `feature/agent-storage-foundation`, mergeState `CLEAN`
+- #27: GitHub checks 없음. base가 `feature/agent-storage-foundation`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #27은 draft PR 상태를 유지한다.
+- #28은 #27 head `a7e7692` 기준으로 다음 확인 대상이다.
 
 ### 작업 카드 26-2. #26 에이전트 저장 기반 최신 #25/ArchitectureTest 기준 정리
 
@@ -2918,9 +2945,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #27은 #26 최신 head `2fd6295` 기준으로 다시 병합/충돌 정리 후 mergeState와 로컬 검증을 확인한다.
-2. #28은 #27 최신 base 확인 뒤 GitHub Actions CI를 다시 확인한다.
-3. #29는 #26/#27/#28 재확인 결과를 계속 누적하고 GitHub Actions CI를 확인한다.
+1. #28은 #27 최신 head `a7e7692` 기준으로 다시 병합/충돌 정리 후 GitHub Actions CI를 확인한다.
+2. #29는 #27/#28 재확인 결과를 계속 누적하고 GitHub Actions CI를 확인한다.
+3. #30 이후 downstream PR은 #28 확인 뒤 base 순서대로 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 5. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
 6. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
