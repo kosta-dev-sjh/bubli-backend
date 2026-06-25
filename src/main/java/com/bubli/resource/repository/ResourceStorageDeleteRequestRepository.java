@@ -15,4 +15,9 @@ public interface ResourceStorageDeleteRequestRepository extends JpaRepository<Re
 			Collection<ResourceStorageDeleteStatus> statuses,
 			Pageable pageable
 	);
+
+	Page<ResourceStorageDeleteRequest> findByStatus(
+			ResourceStorageDeleteStatus status,
+			Pageable pageable
+	);
 }
