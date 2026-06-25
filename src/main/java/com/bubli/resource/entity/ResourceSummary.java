@@ -56,6 +56,20 @@ public class ResourceSummary {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static ResourceSummary create(UUID resourceId, UUID jobId, String summaryJson, String checklistJson,
+			ResourceSummaryStatus status, String promptVersion, String schemaVersion, String modelName) {
+		ResourceSummary summary = new ResourceSummary();
+		summary.resourceId = resourceId;
+		summary.jobId = jobId;
+		summary.summaryJson = summaryJson;
+		summary.checklistJson = checklistJson;
+		summary.status = status;
+		summary.promptVersion = promptVersion;
+		summary.schemaVersion = schemaVersion;
+		summary.modelName = modelName;
+		return summary;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

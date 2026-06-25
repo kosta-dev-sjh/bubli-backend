@@ -8,7 +8,7 @@ import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
-import com.bubli.resource.service.ResourceService;
+import com.bubli.resource.service.ResourcePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -23,7 +23,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AiDocumentController {
 
-	private final ResourceService resourceService;
+	private final ResourcePublicService resourcePublicService;
 	private final AiDocumentService aiDocumentService;
 
 	@GetMapping("/api/project-rooms/{roomId}/ai-documents")
@@ -43,7 +43,7 @@ public class AiDocumentController {
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID resourceId
 	) {
-		resourceService.getResource(authUser.userId(), resourceId);
+		resourcePublicService.assertReadable(authUser.userId(), resourceId);
 		return ApiResponse.success(AiDocumentResponse.from(
 				aiDocumentService.getByResourceId(resourceId)
 		));

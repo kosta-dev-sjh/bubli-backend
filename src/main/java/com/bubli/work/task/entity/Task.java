@@ -51,6 +51,52 @@ public class Task {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static Task createPersonal(UUID ownerUserId, String title, String description,
+			TaskStatus status, Instant dueAt) {
+		Task task = new Task();
+		task.ownerUserId = ownerUserId;
+		task.title = title;
+		task.description = description;
+		task.status = status == null ? TaskStatus.TODO : status;
+		task.dueAt = dueAt;
+		return task;
+	}
+
+	public static Task createRoomTask(UUID roomId, UUID assigneeUserId, UUID wbsItemId,
+			String title, String description, TaskStatus status, Instant dueAt) {
+		Task task = new Task();
+		task.roomId = roomId;
+		task.assigneeUserId = assigneeUserId;
+		task.wbsItemId = wbsItemId;
+		task.title = title;
+		task.description = description;
+		task.status = status == null ? TaskStatus.TODO : status;
+		task.dueAt = dueAt;
+		return task;
+	}
+
+	public void update(String title, String description, UUID assigneeUserId,
+			UUID wbsItemId, TaskStatus status, Instant dueAt) {
+		if (title != null) {
+			this.title = title;
+		}
+		if (description != null) {
+			this.description = description;
+		}
+		if (assigneeUserId != null) {
+			this.assigneeUserId = assigneeUserId;
+		}
+		if (wbsItemId != null) {
+			this.wbsItemId = wbsItemId;
+		}
+		if (status != null) {
+			this.status = status;
+		}
+		if (dueAt != null) {
+			this.dueAt = dueAt;
+		}
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
