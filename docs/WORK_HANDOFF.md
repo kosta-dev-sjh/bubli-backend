@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 20:42 KST
+Last checked: 2026-06-25 21:27 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -125,6 +125,8 @@ Last checked: 2026-06-25 20:42 KST
 - #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
 - #59 project room events API 로컬 검증 통과. GitHub checks 없음 (base #58에 stacked PR CI workflow 없음)
 - #61 project room event recording 로컬 검증 통과. GitHub checks 없음 (base #59에 stacked PR CI workflow 없음)
+- #59 project room events API에 #92 PublicService 공개 계약 기준과 ArchitectureTest를 반영했다. 로컬 검증 4종 통과. GitHub checks 없음 (base feature branch)
+- #61 project room event recording에 최신 #59 parent를 병합했다. 로컬 검증 4종 통과. GitHub checks 없음 (base feature branch)
 - #60 agent dispatch retry foundation 로컬 검증 통과. GitHub checks 없음 (base #53에 stacked PR CI workflow 없음)
 - #63 agent dispatch retry worker 로컬 검증 통과. GitHub checks 없음 (base #60에 stacked PR CI workflow 없음)
 - #65 agent dispatch retry scheduler 로컬 검증 통과. GitHub checks 없음 (base #63에 stacked PR CI workflow 없음)
@@ -149,6 +151,47 @@ Last checked: 2026-06-25 20:42 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 59-61. 프로젝트룸 이벤트 stack #92 기준 보정
+
+처리 시각: 2026-06-25 21:27 KST
+
+브랜치:
+
+- #59 `feature/project-room-events-api`
+- #61 `feature/project-room-event-recording`
+- 문서 기록 `codex/abstraction-boundary-review-summary`
+
+변경 내용:
+
+- #59에 #92 PublicService interface 기준을 cherry-pick했다.
+- #59는 오래된 stack이라 `TaskPublicService`, `WbsItemPublicService` 관련 클래스가 아직 없었다. 이 브랜치에서는 사용하지 않는 해당 공개 계약 파일을 제거하고, 실제 필요한 `ProjectMembershipPublicService`, `UserPublicService`만 유지했다.
+- #59의 `ProjectRoomMemberService`, `ProjectRoomEventService`가 user 도메인의 Repository/Entity를 직접 참조하지 않게 `UserPublicService`와 `UserResult`로 보정했다.
+- #59의 `AuthService` public method가 Controller `*Request` DTO를 직접 받지 않게 `AuthLoginCommand`, `RefreshTokenCommand`를 추가했다.
+- #59에 #82 ArchitectureTest 기준을 반영하고, 단위 테스트도 PublicService 경계 기준으로 보정했다.
+- #61은 최신 #59 parent를 충돌 없이 병합했다.
+- #85 develop 재구성 PR은 별도 develop 병합 후보로 유지한다. #59에 #85를 직접 병합하려는 시도는 변경 범위가 커서 보류했고, stacked PR은 기존 부모 base 순서로만 정리했다.
+
+검증 결과:
+
+- #59 head `7a26905`, base `feature/project-room-management-api`, mergeState `CLEAN`
+- #59: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #59: `./gradlew compileTestJava` 통과
+- #59: `./gradlew cleanTest test` 통과
+- #59: `git diff --check` 통과
+- #59: GitHub checks 없음. base가 feature branch라 현재 workflow 조건상 check run이 생성되지 않았다.
+- #61 head `1d44e7d`, base `feature/project-room-events-api`, mergeState `CLEAN`
+- #61: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #61: `./gradlew compileTestJava` 통과
+- #61: `./gradlew cleanTest test` 통과
+- #61: `git diff --check` 통과
+- #61: GitHub checks 없음. base가 feature branch라 현재 workflow 조건상 check run이 생성되지 않았다.
+
+후속:
+
+1. 프로젝트룸 흐름은 develop 대상 #85를 먼저 리뷰한 뒤, #59 -> #61 순서로 stack을 유지한다.
+2. #59/#61은 CI 미생성 예외로 기록하고 로컬 검증 4종을 gate로 삼는다.
+3. #85가 develop에 들어가면 #59 순수 변경분을 develop 기준으로 재구성할지 다시 판단한다.
 
 ### 작업 카드 92-1. #92 기준선과 develop 직접 PR 재검증
 
