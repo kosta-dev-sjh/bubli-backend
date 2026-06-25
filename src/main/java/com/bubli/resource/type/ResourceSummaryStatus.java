@@ -1,8 +1,9 @@
 package com.bubli.resource.type;
 
 public enum ResourceSummaryStatus {
-	PENDING,
-	SUCCEEDED,
+	READY,
+	ANALYZING,
+	ANALYZED,
 	FAILED
 
 }
