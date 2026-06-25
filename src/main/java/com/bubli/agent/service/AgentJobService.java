@@ -4,11 +4,12 @@ import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -32,7 +33,7 @@ public class AgentJobService {
 	public AgentJobResult getRequestedJob(UUID requestedByUserId, UUID jobId) {
 		return agentJobRepository.findByIdAndRequestedByUserId(jobId, requestedByUserId)
 				.map(AgentJobResult::from)
-				.orElseThrow(NoSuchElementException::new);
+				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
 	}
 
 	@Transactional
@@ -58,6 +59,6 @@ public class AgentJobService {
 
 	private AgentJob getJob(UUID jobId) {
 		return agentJobRepository.findById(jobId)
-				.orElseThrow(NoSuchElementException::new);
+				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
 	}
 }
