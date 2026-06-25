@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 18:35 KST
+Last checked: 2026-06-25 20:42 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -10,7 +10,7 @@ Last checked: 2026-06-25 18:35 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `chore/latest-docs-2026-06-25` |
+| 현재 확인 브랜치 | `codex/abstraction-boundary-review-summary` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -143,11 +143,46 @@ Last checked: 2026-06-25 18:35 KST
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
 - #92 develop 대상 공개 계약 인터페이스화 보정 PR 로컬 검증과 GitHub Actions `build` 통과. GitHub상 `BLOCKED`는 review required 상태로 본다.
+- #92를 기준선으로 둔 뒤 #47, #83, #85, #84를 각각 #92 위에 병합 시뮬레이션했다. 네 PR 모두 충돌 없이 병합되고 로컬 검증 4종이 통과했다.
 - 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:27 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 92-1. #92 기준선과 develop 직접 PR 재검증
+
+처리 시각: 2026-06-25 20:42 KST
+
+브랜치: `codex/abstraction-boundary-review-summary`
+
+변경 내용:
+
+- `git fetch origin --prune`으로 `origin/develop` 최신 head `7cea055`를 확인했다.
+- #92 `codex/develop-public-service-contracts`는 `origin/develop`을 포함한 단일 code-only 보정 PR이다.
+- #92 head `4e0886a`에서 공개 계약 4개가 interface가 되고 구현체가 `*PublicServiceImpl`로 분리된 것을 확인했다.
+- #47, #83, #85, #84는 #92가 먼저 들어간 상태를 기준으로 각각 임시 worktree에서 병합 시뮬레이션했다.
+- stacked PR은 develop에 직접 얹지 않고 기존 부모 base 순서대로 유지한다. #92 이후 빠른 develop 병합 후보는 #47, #83, #85, #84이며, 나머지는 `docs/API_SKELETON_PR_MATRIX.csv`의 base 순서를 따른다.
+
+검증 결과:
+
+- #92: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #92: `./gradlew compileTestJava` 통과
+- #92: `./gradlew cleanTest test` 통과
+- #92: `git diff --check` 통과
+- #92: GitHub Actions `build` 통과. GitHub상 `BLOCKED`는 review required 상태로 본다.
+- #47 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #83 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #85 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #84 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+
+후속 병합 순서:
+
+1. #92를 develop 기준선 PR로 먼저 리뷰한다.
+2. #92 뒤에는 #47, #83, #85를 팀 리뷰 순서대로 확인한다.
+3. #84는 인프라 담당자 리뷰 뒤 병합한다.
+4. stacked PR은 develop 직접 병합 후보로 바꾸지 않고 부모 base 순서대로 점검한다.
+5. #90은 #36 뒤에 유지한다. CI 미생성은 feature/stack base workflow 제한으로 기록된 예외다.
 
 ### 작업 카드 AB-SUMMARY. 선별적 인터페이스화 재검토 결과 정리
 
@@ -193,6 +228,7 @@ CI 재확인:
 
 1. #29 문서 PR을 먼저 확인한다.
 2. develop 대상 빠른 병합 흐름에서는 #92를 먼저 리뷰한다. #92는 #86~#89의 code-only 보정을 `develop` 위에 다시 구성한 PR이다.
+   #92 뒤에 #47, #83, #85, #84를 각각 다시 확인했으며 모두 clean merge와 로컬 검증 4종을 통과했다.
 3. 문서 stack 흐름에서는 #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
 4. #36 뒤에 #90 `ResourcePublicService` 보정 PR을 반영한다.
 5. #37, #40~#45 agent/resource stack은 #90 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
