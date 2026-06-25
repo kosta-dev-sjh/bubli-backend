@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 10:17 KST
+Last checked: 2026-06-25 10:24 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -78,6 +78,7 @@ Last checked: 2026-06-25 10:17 KST
 - #76 resource delete retry worker 로컬 검증 통과. GitHub checks 없음 (base #75에 stacked PR CI workflow 없음)
 - #77 resource delete retry scheduler 로컬 검증 통과. GitHub checks 없음 (base #76에 stacked PR CI workflow 없음)
 - #80 resource delete dead-letter query foundation 로컬 검증 통과. GitHub checks 없음 (base #77에 stacked PR CI workflow 없음)
+- #81 resource delete dead-letter lookup index 로컬 검증 통과. GitHub checks 없음 (base #80에 stacked PR CI workflow 없음)
 - #58 project room management API 로컬 검증 통과. GitHub checks 없음 (base #19에 stacked PR CI workflow 없음)
 - #59 project room events API 로컬 검증 통과. GitHub checks 없음 (base #58에 stacked PR CI workflow 없음)
 - #61 project room event recording 로컬 검증 통과. GitHub checks 없음 (base #59에 stacked PR CI workflow 없음)
@@ -98,11 +99,37 @@ Last checked: 2026-06-25 10:17 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#80 상태 재확인 완료 (2026-06-25 10:17 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 10:24 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 81. #81 자료 삭제 dead-letter 조회 인덱스 보강
+
+처리 시각: 2026-06-25 10:24 KST
+
+변경 내용:
+
+- #81 `feature/resource-delete-dead-letter-index`를 #80 `feature/resource-delete-dead-letter-api` 위의 draft stacked PR로 생성했다.
+- #80의 `DEAD_LETTER` 상태 조회와 기본 `updatedAt ASC` 정렬에 맞춰 `resource_storage_delete_requests(status, updated_at)` 인덱스를 추가했다.
+- `ResourceStorageDeleteRequest` Entity metadata와 Flyway V1 스키마의 인덱스 이름을 맞췄다.
+- Flyway 스키마에 해당 인덱스가 남아있는지 검증하는 테스트를 추가했다.
+
+검증 결과:
+
+- #81: `./gradlew test --tests com.bubli.resource.ResourceStorageDeleteRequestSchemaTest --tests com.bubli.resource.service.ResourceStorageDeleteRequestQueryServiceTest` 통과
+- #81: `./gradlew compileTestJava` 통과
+- #81: `./gradlew cleanTest test` 통과
+- #81: `git diff --check` 통과
+- #81: head `9f121bf`, base `feature/resource-delete-dead-letter-api`, mergeState `CLEAN`
+- #81: GitHub checks 없음. base #80에는 #28의 `feature/**` stacked PR CI 보강이 아직 포함되지 않았다.
+
+메모:
+
+- 이번 변경은 resource 저장소 삭제 dead-letter 조회를 위한 DB 인덱스만 다룬다.
+- 운영 조회 endpoint, 관리자 권한, 재처리/무시 API가 확정되면 인덱스 컬럼 순서나 추가 조건 컬럼은 보정될 수 있다.
+- #24~#29, #31~#81 draft PR은 앞선 base PR merge와 CI 기준 정리가 끝나면 ready PR로 전환한다.
 
 ### 작업 카드 80. #80 자료 삭제 dead-letter 조회 기반
 
@@ -2341,6 +2368,7 @@ Last checked: 2026-06-25 10:17 KST
 | #76 | `[feat] 자료 삭제 저장소 재시도 worker 추가` | `feature/resource-delete-retry-worker` | `feature/resource-delete-cleanup-retry` | `75fb12d` | checks 없음, merge clean, draft | #75 위에 저장소 객체 삭제 retry worker service 추가. scheduler/운영 알림은 후속 |
 | #77 | `[feat] 자료 삭제 저장소 재시도 scheduler 추가` | `feature/resource-delete-retry-scheduler` | `feature/resource-delete-retry-worker` | `b8f9f22` | checks 없음, merge clean, draft | #76 위에 저장소 객체 삭제 retry 조건부 scheduler 추가. 운영 알림/관리 조회 API는 후속 |
 | #80 | `[feat] 자료 삭제 dead-letter 조회 기반 추가` | `feature/resource-delete-dead-letter-api` | `feature/resource-delete-retry-scheduler` | `4cfcf40` | checks 없음, merge clean, draft | #77 위에 `DEAD_LETTER` 저장소 삭제 요청 조회 서비스/DTO 추가. 관리자 endpoint/알림/수동 재처리는 후속 |
+| #81 | `[test] 자료 삭제 dead-letter 조회 인덱스 보강` | `feature/resource-delete-dead-letter-index` | `feature/resource-delete-dead-letter-api` | `9f121bf` | checks 없음, merge clean, draft | #80 위에 `resource_storage_delete_requests(status, updated_at)` 인덱스와 Flyway schema 검증 추가 |
 | #47 | `[feat] 내 프로필 수정 API 추가` | `feature/user-me-update-api` | `develop` | `2a132a6` | `build` pass, merge blocked, draft | 6/25 기준 PATCH /api/me 추가 |
 | #48 | `[feat] 사용자 설정 API 추가` | `feature/user-preferences-api` | `feature/user-me-update-api` | `bbad8ae` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/preferences 추가 |
 | #49 | `[feat] 사용자 알림 설정 API 추가` | `feature/user-notification-preferences-api` | `feature/user-preferences-api` | `f94239e` | checks 없음, merge clean, draft | 6/25 기준 GET/PATCH /api/me/notification-preferences 추가 |
@@ -2349,12 +2377,12 @@ Last checked: 2026-06-25 10:17 KST
 
 ## Draft PR 후속 전환 메모
 
-2026-06-25 10:17 KST 기준 draft PR은 #24~#29, #31~#80이다.
+2026-06-25 10:24 KST 기준 draft PR은 #24~#29, #31~#81이다.
 #19, #20, #21, #22, #23, #30은 ready 상태다.
 
 draft PR은 폐기 상태가 아니다.
 stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태를 확인한 뒤 ready PR로 전환한다.
-특히 #24~#29와 #31~#80은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
+특히 #24~#29와 #31~#81은 앞선 base PR merge 순서에 영향을 받으므로, 지금 바로 ready로 바꾸지 않고 handoff에 추적한다.
 
 ## 6/25 기준 재검토 후보
 
@@ -2367,7 +2395,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 | 일정 | personal/room 일정, Google Calendar 범위 | #22 일정 CRUD는 기본선으로 둔다. Google Calendar 직접 쓰기는 섞지 않고 `google_event_id`/sync 상태만 별도 검토한다 |
 | 인증 | Google-only auth, `GET /api/auth/google/authorize`, `POST /api/auth/google/callback`, refresh/logout | #24에서 endpoint surface와 `.http` 예시 보정 완료. 실제 OAuth 연동은 후속 구현 |
 | 사용자 | `GET /api/me`, `PATCH /api/me`, 사용자별 설정 API | #47에서 `PATCH /api/me` 보정 완료. #48에서 `GET/PATCH /api/me/preferences` 보정 완료. #49에서 `GET/PATCH /api/me/notification-preferences` 보정 완료. #50에서 `GET/PATCH /api/me/privacy-consents` 보정 완료. #51에서 `GET /api/me/project-rooms` 보정 완료 |
-| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가. #77에서 삭제 retry 조건부 scheduler 추가. #80에서 dead-letter 조회 서비스/DTO 기반 추가 |
+| 자료 | `resources`, `resource_files`, `resource_versions`, `resource_comments`, `resource_summaries`, `resource_relations`, `ai_documents` | #25에서 metadata patch/delete, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료. #31에서 resource_relations 조회 API 추가. #46에서 download-url API 뼈대와 Provider 경계 추가. #52에서 S3 presigned download URL Provider 추가. #54에서 S3 저장/삭제 StorageService 경계 추가. #55에서 multipart upload와 resource_files/resource_versions v1 생성 연결. #56에서 업로드 후 DB 저장 실패 시 보상 삭제 추가. #57에서 설정 기반 크기/MIME 정책 검사 추가. #64에서 업로드/삭제 저장공간 사용량 기록과 해제 연결. #67에서 삭제 시 storage object best-effort 정리 추가. #75에서 삭제 실패 retry 요청 기록 기반 추가. #76에서 삭제 retry worker service 추가. #77에서 삭제 retry 조건부 scheduler 추가. #80에서 dead-letter 조회 서비스/DTO 기반 추가. #81에서 dead-letter 조회용 `(status, updated_at)` 인덱스 추가 |
 | 에이전트 | 후보는 `agent_suggestions`, AI 문서는 `ai_documents`, 확정 저장은 각 도메인 Service | #26에서 enum을 6/25 후보 타입과 agent job 흐름에 맞게 확장 완료. #32~#37에서 job 상태, suggestion 목록/수정, job event, resource/project-room ai-document 조회 API 추가. #40~#45에서 job 생성 API 추가. #53에서 dispatch port 경계, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가. #60에서 dispatch 실패 retry count 반영과 retry 후보 조회 경계 추가. #63에서 retry 가능한 FAILED job 재dispatch worker service 추가. #65에서 retry worker 조건부 scheduler 추가. #66에서 Redis enqueue adapter 추가. #68에서 Redis consume 경계 추가. #69에서 RUNNING/STARTED worker shell 추가. #70에서 RUNNING job의 SUCCEEDED/FAILED 최종 전이 event 기록기 추가. #71에서 execution port와 worker-result recorder 연결 shell 추가. #72에서 dispatch DB outbox 운영 테이블 초안과 상태 기록 흐름 추가. #73에서 PENDING/FAILED outbox 재발행 service와 DEAD_LETTER 전이 추가. #74에서 outbox 발행/재시도 조건부 scheduler 추가. #78에서 실행 성공 outcome의 후보를 `agent_suggestions` DRAFT로 저장하는 내부 경계 추가. #79에서 실행 outcome의 모델 호출 로그를 `agent_model_call_logs`에 저장하는 내부 경계 추가 |
 | Tauri SQLite | `local_*`는 서버 JPA 엔티티가 아님 | 서버 코드에 local table 엔티티가 생기지 않았는지 확인 |
 
@@ -2431,9 +2459,9 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
 6. #28은 #27 최신 core lookup index 보강 base 병합 뒤 GitHub Actions CI `build`가 통과했다.
 7. #29는 #28 최신 base 병합 뒤 GitHub Actions CI를 다시 확인한다.
-8. draft PR #24~#29, #31~#80은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
-9. 다음 추천 작업은 남은 FK/인덱스 세부 정책 검증 보강, agent 실제 모델 adapter/RAG 연결 전 경계 정리, 또는 6/25 API `.http` 예시 정리다.
-10. #19~#80은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
+8. draft PR #24~#29, #31~#81은 앞선 base PR merge와 검증 상태가 정리되면 ready PR로 전환한다.
+9. 다음 추천 작업은 agent 실제 모델 adapter/RAG 연결 전 경계 정리, 6/25 API `.http` 예시 정리, 또는 남은 FK/인덱스 세부 정책 검토다.
+10. #19~#81은 6/25 기준으로 계속 재검토하고 차이만 보정한다.
 
 ## 6/25 기준 가능한 작업
 
