@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 14:41 KST
+Last checked: 2026-06-25 14:46 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -84,7 +84,7 @@ Last checked: 2026-06-25 14:41 KST
 - #42 generate-tasks job API 최신 #41 base 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #41에 stacked PR CI workflow 없음)
 - #43 generate-wbs job API 최신 #42 base 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #42에 stacked PR CI workflow 없음)
 - #44 generate-questions job API 최신 #43 base 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #43에 stacked PR CI workflow 없음)
-- #45 review-contract-documents job API 로컬 검증 통과. GitHub checks 없음 (base #44에 stacked PR CI workflow 없음)
+- #45 review-contract-documents job API 최신 #44 base 병합, ProjectMembershipPublicService 권한 보정, ArchitectureTest 로컬 검증 통과. GitHub checks 없음 (base #44에 stacked PR CI workflow 없음)
 - #46 resource download-url API 로컬 검증 통과. GitHub checks 없음 (base #31에 stacked PR CI workflow 없음)
 - #47 user profile update API 로컬 검증 통과. GitHub Actions `build` 통과
 - #48 user preferences API 로컬 검증 통과. GitHub checks 없음 (base #47에 stacked PR CI workflow 없음)
@@ -129,6 +129,34 @@ Last checked: 2026-06-25 14:41 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 45-2. #45 계약서 문서 검토 작업 API 최신 #44 기준 정리
+
+처리 시각: 2026-06-25 14:46 KST
+
+변경 내용:
+
+- #45 `feature/review-contract-documents-job-api` 브랜치에 최신 #44 `feature/generate-questions-job-api` head `2ac6438`를 병합했다.
+- 병합 충돌은 없었다.
+- review-contract-documents 흐름의 오래된 `RoomAccessService` 호출 흔적을 `ProjectMembershipPublicService.assertActiveMember`로 보정했다.
+- agent 패키지는 다른 도메인의 Repository/Entity/일반 Service를 직접 참조하지 않는 상태로 확인했다.
+- 계약서 문서 검토 작업은 `agent_jobs` PENDING 생성까지만 처리하며, 확정 업무 데이터 저장은 하지 않는 상태로 확인했다.
+- `PostgresIntegrationTestSupport.java`와 `V1__initial_schema.sql`은 develop 대비 diff가 없는 상태로 확인했다.
+- #45 PR 본문을 최신 로컬 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #45: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #45: `./gradlew compileTestJava` 통과
+- #45: `./gradlew cleanTest test` 통과
+- #45: `git diff --check` 통과
+- #45: head `6ef6595`, base `feature/generate-questions-job-api`, mergeState `CLEAN`
+- #45: GitHub checks 없음. base가 `feature/generate-questions-job-api`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #45는 draft PR 상태를 유지한다.
+- #46은 기존 resource download-url stack 기준으로 다음 재검토 대상이다.
 
 ### 작업 카드 44-2. #44 확인 질문 후보 생성 작업 API 최신 #43 기준 정리
 
@@ -3233,7 +3261,7 @@ Last checked: 2026-06-25 14:41 KST
 | #42 | `[feat] TODO 후보 생성 작업 API 추가` | `feature/generate-tasks-job-api` | `feature/generate-requirements-job-api` | `8bdc107` | checks 없음, merge clean, draft | 최신 #41 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-tasks agent job 생성 API 추가 |
 | #43 | `[feat] WBS 후보 생성 작업 API 추가` | `feature/generate-wbs-job-api` | `feature/generate-tasks-job-api` | `1145670` | checks 없음, merge clean, draft | 최신 #42 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-wbs agent job 생성 API 추가 |
 | #44 | `[feat] 확인 질문 후보 생성 작업 API 추가` | `feature/generate-questions-job-api` | `feature/generate-wbs-job-api` | `2ac6438` | checks 없음, merge clean, draft | 최신 #43 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 generate-questions agent job 생성 API 추가 |
-| #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `8fefcee` | checks 없음, merge clean, draft | 6/25 기준 review-contract-documents agent job 생성 API 추가 |
+| #45 | `[feat] 계약서 문서 검토 작업 API 추가` | `feature/review-contract-documents-job-api` | `feature/generate-questions-job-api` | `6ef6595` | checks 없음, merge clean, draft | 최신 #44 base 병합 후 ProjectMembershipPublicService 권한 보정. 6/25 기준 review-contract-documents agent job 생성 API 추가 |
 | #53 | `[feat] 에이전트 작업 dispatch 경계 추가` | `feature/agent-job-dispatch-boundary` | `feature/review-contract-documents-job-api` | `b0dec9a` | checks 없음, merge clean, draft | AgentJob 생성 후 AFTER_COMMIT dispatch port, in-memory queue adapter 초안, enqueue 성공/실패 event 저장 추가 |
 | #60 | `[feat] 에이전트 dispatch 재시도 기반 추가` | `feature/agent-dispatch-retry-foundation` | `feature/agent-job-dispatch-boundary` | `0222389` | checks 없음, merge clean, draft | #53 위에 enqueue 실패 retry count 반영과 retry 후보 조회 경계 추가. 실제 outbox/worker 실행은 후속 |
 | #63 | `[feat] 에이전트 dispatch 재시도 worker 추가` | `feature/agent-dispatch-retry-worker` | `feature/agent-dispatch-retry-foundation` | `065f9f0` | checks 없음, merge clean, draft | #60 위에 retry 가능한 FAILED job 재dispatch worker service 추가. scheduler/Redis/outbox는 후속 |
@@ -3344,7 +3372,7 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #45는 #44 최신 head `2ac6438` 기준으로 병합/충돌 정리 후 로컬 검증을 확인한다.
+1. #46은 resource download-url stack 기준으로 최신 base 병합/충돌 정리 후 로컬 검증을 확인한다.
 2. #39는 `RoomMemberRepository.java` 충돌 보류 상태다. 재개 시 #31/#39 양쪽 메서드를 보존하는 수동 병합이 필요하다.
 3. #30 이후 downstream PR은 #28 head `ee26160` 이후 base 순서대로 계속 재검토한다.
 4. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
