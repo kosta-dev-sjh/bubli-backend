@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 12:21 KST
+Last checked: 2026-06-25 12:46 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -57,7 +57,8 @@ Last checked: 2026-06-25 12:21 KST
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
 - GitHub Actions CI 통과 (#22, 최신 develop 병합 후 2026-06-25 10:43 KST)
 - GitHub Actions CI 통과 (#22, schedule 직접 의존 제거와 ArchUnit 추가 후 2026-06-25 11:37 KST)
-- #23 room access service 최신 #22 base 병합 로컬 검증 통과. GitHub checks 없음 (base #22에 stacked PR CI workflow 없음)
+- GitHub Actions CI 통과 (#22, 최신 develop #82 ArchitectureTest 병합과 PublicService/Result DTO 보정 후 2026-06-25 12:42 KST)
+- #23 room access service 최신 #22 base 병합과 PublicService 통합 로컬 검증 통과. GitHub checks 없음 (base #22에 stacked PR CI workflow 없음)
 - #24 Google-only auth foundation 최신 #23 base 병합 로컬 검증 통과. GitHub checks 없음 (base #23에 stacked PR CI workflow 없음)
 - #25 resource basic foundation 최신 #24 base 병합 로컬 검증 통과. GitHub checks 없음 (base #24에 stacked PR CI workflow 없음)
 - #26 agent storage foundation 최신 #25 base 병합 로컬 검증 통과. GitHub checks 없음 (base #25에 stacked PR CI workflow 없음)
@@ -128,6 +129,59 @@ Last checked: 2026-06-25 12:21 KST
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 23-2. #23 프로젝트룸 권한 서비스 최신 #22/PublicService 기준 정리
+
+처리 시각: 2026-06-25 12:46 KST
+
+변경 내용:
+
+- #23 `feature/room-access-service` 브랜치에 최신 #22 `feature/schedule-basic-api`를 병합했다.
+- 충돌은 `ScheduleService`, `ScheduleServiceTest`에서 발생했고, 최신 #22의 `ProjectMembershipPublicService`와 `ScheduleResult` 흐름을 기준으로 해결했다.
+- 기존 `RoomAccessService` 방향은 제거하고 develop #82의 공개 서비스 기준인 `ProjectMembershipPublicService`로 통일했다.
+- `ProjectRoomService` 상세 조회 권한 검사를 `ProjectMembershipPublicService.assertActiveMember`로 위임했다.
+- #23 PR 본문을 최신 검증 결과와 stacked PR checks 없음 사유로 갱신했다.
+
+검증 결과:
+
+- #23: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #23: `./gradlew compileTestJava` 통과
+- #23: `./gradlew cleanTest test` 통과
+- #23: `git diff --check` 통과
+- #23: head `89228f8`, base `feature/schedule-basic-api`, mergeState `CLEAN`
+- #23: GitHub checks 없음. base가 `feature/schedule-basic-api`인 stacked PR이라 check run이 보고되지 않음
+
+메모:
+
+- #23은 ready PR 상태를 유지한다.
+- #24는 #23 base 갱신 뒤 GitHub mergeState가 `UNKNOWN`으로 보이므로 다음 정리 대상이다.
+
+### 작업 카드 22-3. #22 일정 API 최신 develop ArchitectureTest 기준 보정
+
+처리 시각: 2026-06-25 12:42 KST
+
+변경 내용:
+
+- #22 `feature/schedule-basic-api` 브랜치에 최신 `origin/develop`의 #82 공개 서비스/ArchitectureTest 변경을 병합했다.
+- `build.gradle`의 ArchUnit 중복 의존성은 develop 기준 `1.4.1`만 남기고 정리했다.
+- schedule 도메인의 project 권한 검사는 `RoomAccessService` 대신 `ProjectMembershipPublicService` 공개 서비스로 통일했다.
+- `ScheduleController`가 `Schedule` Entity를 직접 알지 않도록 `ScheduleResult`를 추가하고 Service -> Result DTO -> Response DTO 흐름으로 보정했다.
+- #22 PR 본문을 12:16 API 재갱신 해시, PublicService 기준, 최신 CI 결과로 갱신했다.
+
+검증 결과:
+
+- #22: `./gradlew test --tests '*ArchitectureTest'` 통과
+- #22: `./gradlew test --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.project.service.ProjectMembershipPublicServiceTest --tests com.bubli.work.schedule.controller.ScheduleControllerIntegrationTest` 통과
+- #22: `./gradlew compileTestJava` 통과
+- #22: `./gradlew cleanTest test` 통과
+- #22: `git diff --check` 통과
+- #22: head `bfd8dba`, base `develop`, mergeState `CLEAN`
+- #22: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28145245994`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28145245994/job/83350969502`
+
+메모:
+
+- #19, #20, #21은 이미 `develop`에 merge된 상태다.
+- #22는 ready PR 상태를 유지한다.
 
 ### 작업 카드 40. 2026-06-25 API enum 기준 재갱신
 
@@ -2644,21 +2698,21 @@ Last checked: 2026-06-25 12:21 KST
 
 | PR | 제목 | 브랜치 | base | 확인한 head | CI/상태 | 현재 메모 |
 |---|---|---|---|---|---|---|
-| #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | `build` pass, merge blocked | 6/25 기준 초대 취소, 멤버 역할 변경, 멤버 삭제/나가기 보정 완료 |
+| #19 | `[feat] 프로젝트룸 멤버 초대 API 추가` | `feature/project-room-members-invitations` | `develop` | `5cba6ce` | merged, `build` pass | 2026-06-25 09:35 KST에 `develop` merge 완료 |
 | #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, draft | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
 | #59 | `[feat] 프로젝트룸 이벤트 조회 API 추가` | `feature/project-room-events-api` | `feature/project-room-management-api` | `825da57` | checks 없음, merge clean, draft | #58 위에 `GET /api/project-rooms/{roomId}/events` 누락 보충 API 추가. WebSocket 송신/이벤트 저장 호출은 후속 |
 | #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, draft | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
-| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료. V1 migration 변경분을 V2로 이동 완료 |
-| #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
-| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `47b3c07` | `build` pass, merge clean | schedule의 project entity/repository 직접 참조 제거, `RoomAccessService` 경유, ArchUnit 테스트 추가. `PostgresIntegrationTestSupport.java`는 develop 코드와 동일 유지 |
-| #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `0773a41` | checks 없음, merge unknown | #22에 `RoomAccessService`가 들어간 뒤 base가 갱신되어 중복/차이 정리 필요 |
-| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `e292f51` | checks 없음, merge clean, draft | 최신 #23 base 병합 후 CLEAN. Google authorize/callback endpoint 보정 유지, 실제 OAuth 검증은 501 TODO 유지 |
+| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | merged, `build` pass | 2026-06-25 10:36 KST에 `develop` merge 완료. V1 migration 변경분 V2 이동 완료 |
+| #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | merged, `build` pass | 2026-06-25 10:10 KST에 `develop` merge 완료. time-log API는 #30으로 분리 |
+| #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `bfd8dba` | `build` pass, merge clean | 최신 develop #82 병합, PublicService 권한 경계 적용, `ScheduleResult`로 Controller Entity 의존 제거 |
+| #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `89228f8` | checks 없음, merge clean | 최신 #22 base 병합 후 `RoomAccessService` 제거, `ProjectMembershipPublicService` 기준으로 정리 |
+| #24 | `[chore] Google-only 인증 기반 정리` | `feature/auth-google-foundation` | `feature/room-access-service` | `e292f51` | checks 없음, merge unknown, draft | #23 base 갱신 후 UNKNOWN. 다음에 최신 #23 기준으로 병합/검증 필요 |
 | #25 | `[feat] 자료 기본 저장 조회 API 추가` | `feature/resource-basic-foundation` | `feature/auth-google-foundation` | `a4186eb` | checks 없음, merge clean, draft | 최신 #24 base 병합 후 CLEAN. 6/25 기준 자료 메타데이터 수정/삭제, resource_comments, resource_versions, resource_summaries 조회 API, ResourceSummaryStatus, 삭제 정책 보정 완료 |
 | #26 | `[feat] 에이전트 저장 기반 추가` | `feature/agent-storage-foundation` | `feature/resource-basic-foundation` | `fbe7e69` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 agent enum 보정 완료, 후보 저장 기반 유지 |
 | #27 | `[chore] Entity Flyway 정합성 검사 추가` | `feature/entity-flyway-alignment` | `feature/agent-storage-foundation` | `82d8564` | checks 없음, merge clean, draft | 최신 #26 base 병합 후 CLEAN. 전체 Flyway migration 기준 entity/schema 정합성 검사로 보정, agent/core lookup 검증 유지 |
 | #62 | `[test] 핵심 도메인 FK 정합성 보강` | `feature/core-domain-fk-alignment` | `feature/entity-flyway-alignment` | `6f553a5` | checks 없음, merge clean, draft | #27 위에 agent 외 핵심 도메인 FK 제약과 ALTER FK parser/test 추가 |
 | #28 | `[chore] stacked PR 테스트 검증 보강` | `feature/testcontainers-ci-foundation` | `feature/entity-flyway-alignment` | `b9300fd` | `build` pass, merge clean, draft | 최신 #27 base 병합 후 CI 재통과. stacked PR CI 보강과 전체 Flyway migration 정합성 검사 포함 |
-| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | latest pushed | `build` pass, merge clean, draft | 6/25 기준 문서와 워크플로 기준 반영, PR 재검토 상태 갱신 |
+| #29 | `[chore] 2026-06-25 최신 기준 문서 반영` | `chore/latest-docs-2026-06-25` | `feature/testcontainers-ci-foundation` | `ad4f1df` | `build` pass, merge clean, draft | 6/25 12:16 API 재갱신 기준과 PR 재검토 상태 갱신 |
 | #30 | `[feat] 타이머 작업시간 기본 API 추가` | `feature/time-log-basic-api` | `feature/work-task-wbs-api` | `f162377` | checks 없음, merge clean | 6/25 기준 time_logs start/pause/resume/stop/heartbeat 기본 API 추가 |
 | #31 | `[feat] 자료 관련 문서 조회 API 추가` | `feature/resource-related-api` | `feature/resource-basic-foundation` | `2153b2c` | checks 없음, merge clean, draft | 최신 #25 base 병합 후 CLEAN. 6/25 기준 resource_relations 조회 API 유지 |
 | #32 | `[feat] 에이전트 작업 상태 조회 API 추가` | `feature/agent-job-status-api` | `feature/agent-storage-foundation` | `d667612` | checks 없음, merge clean, draft | 6/25 기준 agent_jobs 상태 조회 API 추가 |
@@ -2785,8 +2839,8 @@ stacked base가 정리되고 각 PR의 로컬 검증과 GitHub Actions CI 상태
 
 ## 다음 작업 우선순위
 
-1. #23은 최신 #22 `47b3c07` 기준으로 먼저 중복/차이를 정리한 뒤 mergeState와 로컬 검증을 다시 확인한다.
-2. #24는 #22, #23 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
+1. #24는 최신 #23 `89228f8` 기준으로 먼저 병합/충돌 정리 후 mergeState와 로컬 검증을 다시 확인한다.
+2. #25는 #24 최신 base 병합 뒤 mergeState와 로컬 검증을 다시 확인한다.
 3. #25는 #22, #23, #24 merge 후 `develop` 기준으로 GitHub Actions CI를 재확인한다.
 4. #26은 #25 최신 base 병합 후 mergeState `CLEAN`으로 정리됐다.
 5. #27은 #26 최신 base 병합 후 mergeState `CLEAN`으로 정리됐고, core lookup index 검증까지 보강했다.
