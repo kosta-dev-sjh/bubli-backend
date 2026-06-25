@@ -2,9 +2,7 @@ package com.bubli.storage.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.project.entity.RoomMember;
-import com.bubli.project.repository.RoomMemberRepository;
-import com.bubli.project.type.RoomMemberStatus;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.storage.dto.StorageUsageResult;
 import com.bubli.storage.dto.StorageUsageSummaryResult;
 import com.bubli.storage.entity.StorageUsage;
@@ -21,10 +19,10 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class StorageUsageService {
+public class StorageUsageService implements StorageUsagePublicService {
 
 	private final StorageUsageRepository storageUsageRepository;
-	private final RoomMemberRepository roomMemberRepository;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Value("${storage.default-personal-limit-bytes:1073741824}")
 	private long defaultPersonalLimitBytes = 1_073_741_824L;
@@ -39,9 +37,7 @@ public class StorageUsageService {
 				.map(StorageUsageResult::from)
 				.ifPresent(usages::add);
 
-		List<UUID> activeRoomIds = roomMemberRepository.findByUserIdAndStatus(userId, RoomMemberStatus.ACTIVE).stream()
-				.map(RoomMember::getRoomId)
-				.toList();
+		List<UUID> activeRoomIds = projectMembershipPublicService.findActiveRoomIds(userId);
 		if (!activeRoomIds.isEmpty()) {
 			storageUsageRepository.findByRoomIdInAndStorageScope(activeRoomIds, StorageScope.ROOM).stream()
 					.map(StorageUsageResult::from)
