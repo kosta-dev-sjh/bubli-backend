@@ -142,6 +142,7 @@ Last checked: 2026-06-25 18:35 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
+- #92 develop 대상 공개 계약 인터페이스화 보정 PR 로컬 검증과 GitHub Actions `build` 통과. GitHub상 `BLOCKED`는 review required 상태로 본다.
 - 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 11:27 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
@@ -158,6 +159,7 @@ Last checked: 2026-06-25 18:35 KST
 
 - 2026-06-25 18:35 KST 확정 기준으로 열린 PR stack 중 `*PublicService`와 외부 연동 포트 영향을 받는 대상만 선별 재검토했다.
 - 구체 클래스였던 공개 계약 5개는 별도 보정 PR로 분리했다.
+- #86~#89의 코드 보정은 GitHub Actions가 실제로 도는 `develop` 대상 #92에도 다시 구성해 CI 통과까지 확인했다.
 - 이미 인터페이스 포트인 Storage/Agent 경계와 아직 외부 client 구현이 없는 OAuth/OIDC 경계는 추가 코드 PR 없이 확인 완료로 분류했다.
 
 보정 PR:
@@ -169,6 +171,7 @@ Last checked: 2026-06-25 18:35 KST
 | #88 | `TaskPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
 | #89 | `WbsItemPublicService` | `chore/latest-docs-2026-06-25` | `CLEAN` | 통과 | base filter로 checks 없음 |
 | #90 | `ResourcePublicService` | `feature/resource-ai-document-api` | `CLEAN` | 통과 | base workflow가 `develop`, `main`만 받아 checks 없음 |
+| #92 | `ProjectMembershipPublicService`, `UserPublicService`, `TaskPublicService`, `WbsItemPublicService` develop 재구성 | `develop` | `BLOCKED` | 통과 | `build` 통과. `BLOCKED`는 review required |
 
 확인 후 추가 보정이 필요 없던 대상:
 
@@ -180,10 +183,11 @@ Last checked: 2026-06-25 18:35 KST
 후속 병합 순서:
 
 1. #29 문서 PR을 먼저 확인한다.
-2. #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
-3. #36 뒤에 #90 `ResourcePublicService` 보정 PR을 반영한다.
-4. #37, #40~#45 agent/resource stack은 #90 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
-5. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
+2. develop 대상 빠른 병합 흐름에서는 #92를 먼저 리뷰한다. #92는 #86~#89의 code-only 보정을 `develop` 위에 다시 구성한 PR이다.
+3. 문서 stack 흐름에서는 #29 뒤에 #86~#89 공개 계약 보정 PR을 반영한다.
+4. #36 뒤에 #90 `ResourcePublicService` 보정 PR을 반영한다.
+5. #37, #40~#45 agent/resource stack은 #90 반영 뒤 최신 base를 병합하거나 필요한 최소 충돌만 해결한다.
+6. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
 
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
