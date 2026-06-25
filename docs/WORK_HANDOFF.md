@@ -175,6 +175,7 @@ Last checked: 2026-06-25 20:42 KST
 - #83 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
 - #85 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
 - #84 + #92 기준선: clean merge, `./gradlew test --tests '*ArchitectureTest'`, `./gradlew compileTestJava`, `./gradlew cleanTest test`, `git diff --check` 모두 통과
+- #91 문서 기록 PR: `git diff --check` 통과, CSV 파싱 확인 통과, GitHub checks 없음. base가 `chore/latest-docs-2026-06-25`인 문서 stack이라 현재 workflow 조건상 check run이 생성되지 않았다.
 
 후속 병합 순서:
 
