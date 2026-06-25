@@ -244,6 +244,12 @@ Storage/resource upload-delete stack 재정리:
 - GitHub 기준 위 PR들은 모두 `CLEAN`이다. base가 feature/stack branch라 checks는 생성되지 않았고, CI-not-created 예외로 로컬 검증 4종을 대체 gate로 삼았다.
 - `StoragePublicService`, `StorageUsagePublicService`는 기존처럼 interface이고, 구현체는 `S3StorageService`, `DisabledStorageService`, `StorageUsageService`로 유지했다.
 
+Agent dispatch/execution stack 재정리:
+
+- #53 head `e6adc11`, #60 head `3f6ec3f`, #63 head `fd29e25`, #65 head `276ea5d`, #66 head `e38002a`, #68 head `63a4cdb`, #69 head `9a94908`, #70 head `669a707`, #71 head `373c7f0`, #72 head `de1c4b2`, #73 head `1064e37`, #74 head `5800613`, #78 head `01a0d13`, #79 head `2e59e8d`은 각각 부모 PR 최신 head를 clean merge했고 로컬 검증 4종을 통과했다.
+- GitHub 기준 위 PR들은 모두 `CLEAN`이다. base가 feature/stack branch라 checks는 생성되지 않았고, CI-not-created 예외로 로컬 검증 4종을 대체 gate로 삼았다.
+- agent dispatch, queue, execution 경계는 기존처럼 `AgentJobDispatchPort`, `AgentJobExecutionPort`, `AgentJobQueueConsumerPort` 같은 interface port를 유지했다.
+
 후속 병합 순서:
 
 1. #29 문서 PR을 먼저 확인한다.
@@ -253,7 +259,8 @@ Storage/resource upload-delete stack 재정리:
 4. #36 뒤에 #90 `ResourcePublicService` + #92 공개 계약 보정 PR을 반영한다.
 5. 그 다음 #37 -> #40 -> #41 -> #42 -> #43 -> #44 -> #45 순서로 agent/resource job stack을 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
 6. 자료 다운로드/업로드/삭제 stack은 #46 -> #52 -> #54 -> #55 -> #56 -> #57 -> #64 -> #67 -> #75 -> #76 -> #77 -> #80 -> #81 순서로 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
-7. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
+7. agent dispatch/execution stack은 #53 -> #60 -> #63 -> #65 -> #66 -> #68 -> #69 -> #70 -> #71 -> #72 -> #73 -> #74 -> #78 -> #79 순서로 본다. 현재 각 PR은 최신 부모 head 기준 `CLEAN`이다.
+8. 후속 PR에서 `*PublicServiceImpl` 구현체를 직접 주입하는 코드가 생기면 `*PublicService` 인터페이스 주입으로 되돌린다.
 
 ### 작업 카드 29-7. 다운로드본 백엔드 가이드 추상화 기준 반영
 
