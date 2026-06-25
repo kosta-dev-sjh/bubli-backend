@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-06-25 10:24 KST
+Last checked: 2026-06-25 10:35 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -39,6 +39,7 @@ Last checked: 2026-06-25 10:24 KST
 - GitHub Actions CI 통과 (#29, 2026-06-25 00:26 KST)
 - GitHub Actions CI 통과 (#19, 2026-06-25 00:55 KST)
 - GitHub Actions CI 통과 (#20, 2026-06-25 07:16 KST)
+- GitHub Actions CI 통과 (#20, V1 migration 변경을 V2로 이동 후 2026-06-25 10:34 KST)
 - GitHub Actions CI 통과 (#21, 2026-06-25 01:06 KST)
 - GitHub Actions CI 통과 (#21, WBS board/reorder 보정 후 2026-06-25 01:50 KST)
 - #30 time-log 기본 API 로컬 검증 통과. GitHub checks 없음 (base #21에 stacked PR CI workflow 없음)
@@ -99,11 +100,37 @@ Last checked: 2026-06-25 10:24 KST
 - #27 core lookup index와 index 검증 보강. 로컬 검증 통과. GitHub checks 없음
 - #62 core domain FK alignment 로컬 검증 통과. GitHub checks 없음 (base #27에 stacked PR CI workflow 없음)
 - #28에 #27 최신 core lookup index 보강 변경을 병합한 뒤 로컬 검증과 GitHub Actions `build` 통과
-- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 10:24 KST)
+- 열린 PR #19~#81 상태 재확인 완료 (2026-06-25 10:35 KST)
 - 엔티티 44개, Repository 4개, Controller 4개, Service 5개 확인
 - 6/25 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 작업 카드 20-3. #20 채팅 Flyway V1 변경분 V2 이동
+
+처리 시각: 2026-06-25 10:35 KST
+
+변경 내용:
+
+- #20 `feature/chat-basic-api` 브랜치에 남아 있던 Flyway V1 수정 이력을 정리했다.
+- `chat_room_members.last_read_sequence` 컬럼 추가를 `V1__init_schema.sql`에서 제거하고 기존 #20의 `V2__chat_message_client_id_scope.sql`에 합쳤다.
+- `origin/develop` 기준 migration diff는 V1 없이 V2만 남는 것을 확인했다.
+- 새 PR은 만들지 않고 기존 #20 PR 브랜치를 갱신했다.
+
+검증 결과:
+
+- #20: `./gradlew test --tests com.bubli.chat.service.ChatServiceTest --tests com.bubli.chat.controller.ChatControllerIntegrationTest` 통과
+- #20: `./gradlew compileTestJava` 통과
+- #20: `./gradlew cleanTest test` 통과
+- #20: `git diff --check` 통과
+- #20: `git diff origin/develop -- src/main/resources/db/migration/V1__init_schema.sql src/main/resources/db/migration/V2__chat_message_client_id_scope.sql` 확인. V1 diff 없음, V2만 변경
+- #20: head `ccca41e`, base `develop`, mergeState `BLOCKED`
+- #20: GitHub Actions `build` 통과, run `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28140937961`, job `https://github.com/kosta-dev-sjh/bubli-backend/actions/runs/28140937961/job/83337938457`
+
+메모:
+
+- 이번 변경은 정현님 채팅 기본 API PR에서 요청받은 Flyway V1 수정 이력 정리만 다룬다.
+- #20은 ready PR 상태를 유지한다.
 
 ### 작업 카드 81. #81 자료 삭제 dead-letter 조회 인덱스 보강
 
@@ -2315,7 +2342,7 @@ Last checked: 2026-06-25 10:24 KST
 | #58 | `[feat] 프로젝트룸 수정 결제 종료 API 추가` | `feature/project-room-management-api` | `feature/project-room-members-invitations` | `e471787` | checks 없음, merge clean, draft | #19 위에 프로젝트룸 수정, 계약/입금 수정, 종료 API 추가. `description`은 DB 컬럼 부재로 보류 |
 | #59 | `[feat] 프로젝트룸 이벤트 조회 API 추가` | `feature/project-room-events-api` | `feature/project-room-management-api` | `825da57` | checks 없음, merge clean, draft | #58 위에 `GET /api/project-rooms/{roomId}/events` 누락 보충 API 추가. WebSocket 송신/이벤트 저장 호출은 후속 |
 | #61 | `[feat] 프로젝트룸 변경 이벤트 저장 추가` | `feature/project-room-event-recording` | `feature/project-room-events-api` | `04a065d` | checks 없음, merge clean, draft | #59 위에 프로젝트룸 수정/결제 수정/종료 시 `project_room_events` 저장 추가. STOMP 송신은 후속 |
-| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `5f0729a` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료 |
+| #20 | `[feat] 채팅 기본 API 추가` | `feature/chat-basic-api` | `develop` | `ccca41e` | `build` pass, merge blocked | 6/25 기준 direct room 생성/기존 방 조회, lastReadSequence 기반 읽음 처리, 방 단위 clientMessageId 중복 기준 보정 완료. V1 migration 변경분을 V2로 이동 완료 |
 | #21 | `[feat] 작업 WBS 기본 API 추가` | `feature/work-task-wbs-api` | `develop` | `5f232da` | `build` pass, merge blocked | 6/25 기준 dashboard tasks, WBS board, WBS reorder 보정 완료. time-log API는 #30으로 분리 |
 | #22 | `[feat] 일정 기본 API 추가` | `feature/schedule-basic-api` | `develop` | `3e2a7bf` | `build` pass, merge blocked | 일정 CRUD는 6/25 기본 API와 대체로 맞음. Google Calendar는 외부 캘린더 표시/동기화 범위로 별도 확인 |
 | #23 | `[feat] 프로젝트룸 권한 검사 서비스 분리` | `feature/room-access-service` | `feature/schedule-basic-api` | `5aa677a` | checks 없음, merge clean | workflow 보강 전 stacked PR이라 GitHub check 없음. `room_members.status=ACTIVE`, `PROJECT_LEADER` 기준은 코드 재확인 완료 |
