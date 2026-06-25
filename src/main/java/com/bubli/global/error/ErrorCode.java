@@ -32,6 +32,11 @@ public enum ErrorCode {
     PROJECT_409_002(HttpStatus.CONFLICT, "PROJECT_409_002", "이미 처리되었거나 만료된 초대입니다."),
     PROJECT_409_003(HttpStatus.CONFLICT, "PROJECT_409_003", "이미 대기 중인 초대가 있습니다."),
 
+    // WORK
+    WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),
+    WORK_404_001(HttpStatus.NOT_FOUND, "WORK_404_001", "TODO를 찾을 수 없습니다."),
+    WORK_404_002(HttpStatus.NOT_FOUND, "WORK_404_002", "WBS 항목을 찾을 수 없습니다."),
+
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
