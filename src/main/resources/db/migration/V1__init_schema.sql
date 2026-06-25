@@ -159,6 +159,9 @@ CREATE TABLE resource_storage_delete_requests (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE INDEX idx_resource_storage_delete_requests_status_updated_at
+    ON resource_storage_delete_requests (status, updated_at);
+
 CREATE TABLE resource_versions (
     id UUID PRIMARY KEY,
     resource_id UUID NOT NULL,

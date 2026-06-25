@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -20,7 +21,13 @@ import java.util.UUID;
 
 @Getter
 @Entity
-@Table(name = "resource_storage_delete_requests")
+@Table(
+		name = "resource_storage_delete_requests",
+		indexes = @Index(
+				name = "idx_resource_storage_delete_requests_status_updated_at",
+				columnList = "status, updated_at"
+		)
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ResourceStorageDeleteRequest {
 
