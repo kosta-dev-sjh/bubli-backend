@@ -22,7 +22,16 @@ public record CreateResourceVersionRequest(
 		@Positive(message = "파일 크기는 1 이상이어야 합니다.")
 		Long sizeBytes,
 
-		@Size(max = 128, message = "체크섬은 128자 이하여야 합니다.")
-		String checksum
+	@Size(max = 128, message = "체크섬은 128자 이하여야 합니다.")
+	String checksum
 ) {
+	public CreateResourceVersionCommand toCommand() {
+		return new CreateResourceVersionCommand(
+				storageKey,
+				originalName,
+				mimeType,
+				sizeBytes,
+				checksum
+		);
+	}
 }
