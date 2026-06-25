@@ -10,4 +10,9 @@ public record ReorderWbsItemsRequest(
 		@NotEmpty(message = "WBS 순서 변경 항목은 필수입니다.")
 		List<ReorderWbsItemRequest> items
 ) {
+	public ReorderWbsItemsCommand toCommand() {
+		return new ReorderWbsItemsCommand(items.stream()
+				.map(ReorderWbsItemRequest::toCommand)
+				.toList());
+	}
 }

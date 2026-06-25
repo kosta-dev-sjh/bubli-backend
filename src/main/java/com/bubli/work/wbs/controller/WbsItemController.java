@@ -55,7 +55,7 @@ public class WbsItemController {
 			@PathVariable UUID roomId,
 			@Valid @RequestBody CreateWbsItemRequest request
 	) {
-		return ApiResponse.success(WbsItemResponse.from(wbsItemService.create(authUser.userId(), roomId, request)));
+		return ApiResponse.success(WbsItemResponse.from(wbsItemService.create(authUser.userId(), roomId, request.toCommand())));
 	}
 
 	@PatchMapping("/api/project-rooms/{roomId}/wbs-items/reorder")
@@ -64,7 +64,7 @@ public class WbsItemController {
 			@PathVariable UUID roomId,
 			@Valid @RequestBody ReorderWbsItemsRequest request
 	) {
-		return ApiResponse.success(wbsItemService.reorder(authUser.userId(), roomId, request).stream()
+		return ApiResponse.success(wbsItemService.reorder(authUser.userId(), roomId, request.toCommand()).stream()
 				.map(WbsItemResponse::from)
 				.toList());
 	}
@@ -75,7 +75,7 @@ public class WbsItemController {
 			@PathVariable UUID wbsItemId,
 			@Valid @RequestBody UpdateWbsItemRequest request
 	) {
-		return ApiResponse.success(WbsItemResponse.from(wbsItemService.update(authUser.userId(), wbsItemId, request)));
+		return ApiResponse.success(WbsItemResponse.from(wbsItemService.update(authUser.userId(), wbsItemId, request.toCommand())));
 	}
 
 	@DeleteMapping("/api/wbs-items/{wbsItemId}")
