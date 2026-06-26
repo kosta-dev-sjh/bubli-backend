@@ -3,11 +3,11 @@ package com.bubli.storage.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.storage.dto.FileUploadResult;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnMissingBean(StoragePublicService.class)
+@ConditionalOnProperty(name = "storage.type", havingValue = "local", matchIfMissing = true)
 public class DisabledStorageService implements StoragePublicService {
 
 	@Override
