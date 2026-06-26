@@ -1,11 +1,17 @@
 package com.bubli.support;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @SpringBootTest(properties = {
 		"spring.profiles.active=test",
@@ -23,7 +29,24 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 public abstract class PostgresIntegrationTestSupport {
 
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
 	private static PostgreSQLContainer<?> postgres;
+
+	@BeforeEach
+	void cleanDatabase() {
+		List<String> tables = jdbcTemplate.queryForList(
+				"SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != 'flyway_schema_history'",
+				String.class
+		);
+		if (!tables.isEmpty()) {
+			String sql = "TRUNCATE TABLE " + tables.stream()
+					.map(t -> "\"" + t + "\"")
+					.collect(Collectors.joining(", ")) + " CASCADE";
+			jdbcTemplate.execute(sql);
+		}
+	}
 
 	@DynamicPropertySource
 	static void registerDataSource(DynamicPropertyRegistry registry) {

@@ -13,6 +13,7 @@ import com.bubli.global.security.JwtTokenProvider;
 import com.bubli.support.PostgresIntegrationTestSupport;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,15 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 	@BeforeEach
 	void setUp() {
+		cleanup();
+	}
+
+	@AfterEach
+	void tearDown() {
+		cleanup();
+	}
+
+	private void cleanup() {
 		chatRoomMemberRepository.deleteAll();
 		chatMessageRepository.deleteAll();
 		chatRoomRepository.deleteAll();
