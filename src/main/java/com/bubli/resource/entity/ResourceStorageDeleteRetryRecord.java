@@ -69,6 +69,22 @@ public class ResourceStorageDeleteRetryRecord {
 		return record;
 	}
 
+	public void markDeleted() {
+		this.status = ResourceStorageDeleteStatus.DELETED;
+		this.lastErrorMessage = null;
+	}
+
+	public void markFailed(String errorMessage) {
+		this.status = ResourceStorageDeleteStatus.FAILED;
+		this.retryCount++;
+		this.lastErrorMessage = errorMessage;
+	}
+
+	public void markDeadLetter(String errorMessage) {
+		this.status = ResourceStorageDeleteStatus.DEAD_LETTER;
+		this.lastErrorMessage = errorMessage;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
