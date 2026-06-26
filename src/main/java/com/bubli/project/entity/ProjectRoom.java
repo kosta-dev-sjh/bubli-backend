@@ -72,6 +72,34 @@ public class ProjectRoom {
 		return projectRoom;
 	}
 
+	public void updateBasicInfo(String name, String clientName, ProjectRoomStatus status, Instant closedAt) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (clientName != null) {
+			this.clientName = clientName;
+		}
+		if (status != null) {
+			this.status = status;
+			this.closedAt = status == ProjectRoomStatus.CLOSED ? closedAt : null;
+		}
+	}
+
+	public void updatePayment(BigDecimal contractAmount, PaymentStatus paymentStatus, LocalDate paymentDueDate,
+			LocalDate paidAt) {
+		this.contractAmount = contractAmount;
+		this.paymentStatus = paymentStatus == null ? PaymentStatus.NOT_RECORDED : paymentStatus;
+		this.paymentDueDate = paymentDueDate;
+		this.paidAt = paidAt;
+	}
+
+	public void close(Instant closedAt) {
+		this.status = ProjectRoomStatus.CLOSED;
+		if (this.closedAt == null) {
+			this.closedAt = closedAt;
+		}
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

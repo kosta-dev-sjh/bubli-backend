@@ -42,6 +42,9 @@ public enum ErrorCode {
     CHAT_404_001(HttpStatus.NOT_FOUND, "CHAT_404_001", "채팅방을 찾을 수 없습니다."),
     CHAT_404_002(HttpStatus.NOT_FOUND, "CHAT_404_002", "채팅 메시지를 찾을 수 없습니다."),
 
+    // PERSONAL
+    PERSONAL_404_001(HttpStatus.NOT_FOUND, "PERSONAL_404_001", "타이머 기록을 찾을 수 없습니다."),
+
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
@@ -52,6 +55,12 @@ public enum ErrorCode {
     RESOURCE_404_002(HttpStatus.NOT_FOUND, "RESOURCE_404_002", "자료 댓글을 찾을 수 없습니다."),
     RESOURCE_404_003(HttpStatus.NOT_FOUND, "RESOURCE_404_003", "자료 파일을 찾을 수 없습니다."),
     RESOURCE_404_004(HttpStatus.NOT_FOUND, "RESOURCE_404_004", "자료 요약을 찾을 수 없습니다."),
+    RESOURCE_501_001(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_001", "자료 저장소 URL 발급이 아직 연결되지 않았습니다."),
+    RESOURCE_501_002(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_002", "자료 저장소 저장/삭제가 아직 연결되지 않았습니다."),
+
+    // STORAGE
+    STORAGE_400_001(HttpStatus.BAD_REQUEST, "STORAGE_400_001", "저장 용량 요청 값이 올바르지 않습니다."),
+    STORAGE_400_002(HttpStatus.BAD_REQUEST, "STORAGE_400_002", "저장 용량 한도를 초과했습니다."),
 
     // AGENT
     AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "에이전트 작업을 찾을 수 없습니다."),

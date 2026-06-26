@@ -9,20 +9,28 @@ import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceVersionResult;
+import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceRelation;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
+import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
+import com.bubli.resource.storage.StorageDownloadUrl;
+import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.storage.dto.FileUploadResult;
+import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +42,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,7 +53,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ResourceServiceTest {
@@ -58,10 +70,25 @@ class ResourceServiceTest {
 	ResourceFileRepository resourceFileRepository;
 
 	@Mock
+	ResourceRelationRepository resourceRelationRepository;
+
+	@Mock
 	ResourceSummaryRepository resourceSummaryRepository;
 
 	@Mock
 	ResourceVersionRepository resourceVersionRepository;
+
+	@Mock
+	StorageDownloadUrlProvider storageDownloadUrlProvider;
+
+	@Mock
+	StoragePublicService storagePublicService;
+
+	@Mock
+	StorageUsagePublicService storageUsagePublicService;
+
+	@Mock
+	ResourceStorageDeleteRetryRecorder storageDeleteRetryRecorder;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -122,6 +149,200 @@ class ResourceServiceTest {
 				ResourceKind.FILE,
 				ResourceVisibility.ROOM_SHARED,
 				null
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+	}
+
+	@Test
+	void uploadPersonalResourceStoresFileAndCreatesFirstVersion() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		UUID versionId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file.pdf".formatted(resourceId),
+						"계약서.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(0);
+		given(resourceVersionRepository.save(any(ResourceVersion.class))).willAnswer(invocation -> {
+			ResourceVersion version = invocation.getArgument(0);
+			ReflectionTestUtils.setField(version, "id", versionId);
+			return version;
+		});
+
+		ResourceResult result = resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		));
+
+		assertThat(result.id()).isEqualTo(resourceId);
+		assertThat(result.title()).isEqualTo("계약서 원본");
+		assertThat(result.status()).isEqualTo(ResourceStatus.READY);
+
+		ArgumentCaptor<String> storageKeyCaptor = ArgumentCaptor.forClass(String.class);
+		verify(storagePublicService).save(storageKeyCaptor.capture(), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class));
+		assertThat(storageKeyCaptor.getValue()).startsWith("resources/%s/".formatted(resourceId));
+		assertThat(storageKeyCaptor.getValue()).endsWith(".pdf");
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+
+		ArgumentCaptor<ResourceFile> fileCaptor = ArgumentCaptor.forClass(ResourceFile.class);
+		verify(resourceFileRepository).save(fileCaptor.capture());
+		assertThat(fileCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(fileCaptor.getValue().getStorageKey()).isEqualTo("resources/%s/file.pdf".formatted(resourceId));
+		assertThat(fileCaptor.getValue().getChecksum()).isEqualTo("checksum");
+
+		ArgumentCaptor<ResourceVersion> versionCaptor = ArgumentCaptor.forClass(ResourceVersion.class);
+		verify(resourceVersionRepository).save(versionCaptor.capture());
+		assertThat(versionCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(versionCaptor.getValue().getFileId()).isEqualTo(fileId);
+		assertThat(versionCaptor.getValue().getVersionNo()).isEqualTo(1);
+		assertThat(versionCaptor.getValue().getCreatedBy()).isEqualTo(userId);
+	}
+
+	@Test
+	void uploadDeletesStoredObjectWhenMetadataSaveFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file.pdf".formatted(resourceId),
+						"계약서.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		RuntimeException dbFailure = new IllegalStateException("metadata save failed");
+		given(resourceFileRepository.save(any(ResourceFile.class))).willThrow(dbFailure);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(dbFailure);
+
+		verify(storagePublicService).delete("resources/%s/file.pdf".formatted(resourceId));
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+	}
+
+	@Test
+	void uploadRoomSharedResourceRecordsRoomStorageUsage() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(true);
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storagePublicService.save(any(String.class), eq("회의록.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/meeting.pdf".formatted(resourceId),
+						"회의록.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(0);
+
+		resourceService.upload(userId, new UploadResourceCommand(
+				"회의록 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.ROOM_SHARED,
+				roomId,
+				"회의록.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		));
+
+		verify(storageUsagePublicService).recordRoomUpload(roomId, 3L);
+	}
+
+	@Test
+	void uploadDoesNotStoreFileWhenStorageQuotaExceeded() {
+		UUID userId = UUID.randomUUID();
+		BusinessException quotaExceeded = new BusinessException(ErrorCode.STORAGE_400_002);
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(storageUsagePublicService.recordPersonalUpload(userId, 3L)).willThrow(quotaExceeded);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(quotaExceeded);
+
+		verifyNoInteractions(storagePublicService);
+	}
+
+	@Test
+	void uploadRejectsFileLargerThanConfiguredLimit() {
+		UUID userId = UUID.randomUUID();
+		ReflectionTestUtils.setField(resourceService, "maxUploadSizeBytes", 2L);
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+	}
+
+	@Test
+	void uploadRejectsMimeTypeOutsideConfiguredAllowList() {
+		UUID userId = UUID.randomUUID();
+		ReflectionTestUtils.setField(resourceService, "allowedMimeTypes", "application/pdf,image/png");
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"텍스트 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"memo.txt",
+				"text/plain",
+				new byte[]{1, 2, 3}
 		))).isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
 	}
@@ -189,12 +410,57 @@ class ResourceServiceTest {
 				ResourceVisibility.PERSONAL,
 				ResourceStatus.READY
 		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				3L,
+				null
+		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
 		resourceService.deleteResource(userId, resourceId);
 
 		assertThat(resource.getDeletedAt()).isNotNull();
 		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
+		verify(storagePublicService).delete("resources/%s/file.pdf".formatted(resourceId));
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+	}
+
+	@Test
+	void deleteResourceStillMarksDeletedWhenStoredObjectDeleteFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"삭제할 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				3L,
+				null
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
+		doThrow(new IllegalStateException("storage unavailable"))
+				.when(storagePublicService)
+				.delete("resources/%s/file.pdf".formatted(resourceId));
+
+		resourceService.deleteResource(userId, resourceId);
+
+		assertThat(resource.getDeletedAt()).isNotNull();
+		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
+		verify(storageDeleteRetryRecorder).recordFailedDelete(eq(file), any(IllegalStateException.class));
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
 	}
 
 	@Test
@@ -375,6 +641,49 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void getResourceDownloadUrlRequiresReadableResourceAndIssuesUrlForLatestVersion() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Instant expiresAt = Instant.now().plusSeconds(600);
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"다운로드 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/v2.pdf".formatted(resourceId),
+				"계약서-v2.pdf",
+				"application/pdf",
+				4096L,
+				null
+		);
+		ReflectionTestUtils.setField(file, "id", fileId);
+		ResourceVersion version = ResourceVersion.create(resourceId, 2, fileId, userId);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId))
+				.willReturn(Optional.of(version));
+		given(resourceFileRepository.findById(fileId)).willReturn(Optional.of(file));
+		given(storageDownloadUrlProvider.issueDownloadUrl(
+				"resources/%s/v2.pdf".formatted(resourceId),
+				"계약서-v2.pdf"
+		)).willReturn(new StorageDownloadUrl("https://storage.example/download", expiresAt));
+
+		var result = resourceService.getResourceDownloadUrl(userId, resourceId);
+
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.fileId()).isEqualTo(fileId);
+		assertThat(result.versionNo()).isEqualTo(2);
+		assertThat(result.downloadUrl()).isEqualTo("https://storage.example/download");
+		assertThat(result.expiresAt()).isEqualTo(expiresAt);
+		assertThat(result.originalName()).isEqualTo("계약서-v2.pdf");
+	}
+
+	@Test
 	void getResourceSummaryRequiresReadableResourceAndReturnsLatestSummary() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -407,6 +716,86 @@ class ResourceServiceTest {
 		assertThat(result.jobId()).isEqualTo(jobId);
 		assertThat(result.status()).isEqualTo(ResourceSummaryStatus.ANALYZED);
 		assertThat(result.summaryJson()).contains("핵심 요약");
+	}
+
+	@Test
+	void getRelatedResourcesRequiresReadableResourcesAndReturnsRelatedMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID relatedResourceId = UUID.randomUUID();
+		UUID relationId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"기준 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		Resource relatedResource = Resource.create(
+				userId,
+				null,
+				"관련 자료",
+				ResourceKind.MEMO,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ReflectionTestUtils.setField(relatedResource, "id", relatedResourceId);
+		ResourceRelation relation = ResourceRelation.create(
+				resourceId,
+				relatedResourceId,
+				"같은 계약서 묶음",
+				new BigDecimal("0.87654")
+		);
+		ReflectionTestUtils.setField(relation, "id", relationId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRelationRepository.findByResourceId(eq(resourceId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(relation), pageable, 1));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(relatedResourceId)).willReturn(Optional.of(relatedResource));
+
+		var result = resourceService.getRelatedResources(userId, resourceId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(relationId);
+		assertThat(result.getItems().getFirst().reason()).isEqualTo("같은 계약서 묶음");
+		assertThat(result.getItems().getFirst().score()).isEqualByComparingTo("0.87654");
+		assertThat(result.getItems().getFirst().relatedResource().id()).isEqualTo(relatedResourceId);
+		assertThat(result.getItems().getFirst().relatedResource().title()).isEqualTo("관련 자료");
+	}
+
+	@Test
+	void getRelatedResourcesRejectsUnreadableRelatedResource() {
+		UUID userId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID relatedResourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"기준 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		Resource otherUserResource = Resource.create(
+				otherUserId,
+				null,
+				"다른 사용자 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceRelation relation = ResourceRelation.create(resourceId, relatedResourceId, null, null);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRelationRepository.findByResourceId(eq(resourceId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(relation), pageable, 1));
+		given(resourceRepository.findByIdAndDeletedAtIsNull(relatedResourceId)).willReturn(Optional.of(otherUserResource));
+
+		assertThatThrownBy(() -> resourceService.getRelatedResources(userId, resourceId, pageable))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_403_001));
 	}
 
 	@Test

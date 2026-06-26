@@ -1,27 +1,13 @@
 # Bubli Backend Start Here
 
-Last checked: 2026-06-25 18:35 KST
+Last checked: 2026-06-24 20:33:25 KST
 
 이 문서는 백엔드 작업을 시작할 때 가장 먼저 보는 입구다.
 `10_API-Design.md`는 API 계약서일 뿐이고, 서비스 의도와 DB 기준과 코드 규칙은 각각 다른 기준 문서에서 확인한다.
 
-2026-06-25에 최신 `09_Data-Model.md`, `09C_DB-Tauri-SQLite.md`, `10_API-Design.md`, 백엔드 개발 가이드가 들어왔다.
-2026-06-25 12:16 KST에 `/Users/maren/Downloads/10_API-Design (1).md`가 새 API 기준으로 다시 반영됐다.
-2026-06-25 18:35 KST에 `/Users/maren/Downloads/Bubli_백엔드_개발_가이드_2026-06-25 (1).md`의 Service 인터페이스화 기준이 백엔드 개발 가이드에 반영됐다.
-이제 백엔드 작업은 6/25 문서 묶음과 새 API enum 기준을 함께 본다.
-기존 6/24 기준으로 만든 PR은 버리지 않고, 새 문서와 차이 나는 부분만 보정한다.
-
-현재 API 기준 해시:
-
-- `10_API-Design.md`: `13d0453f574dbd60cb598a3502b9be680640f897ce9429ec6ba10cf9c5ce336b`
-- 백엔드 가이드 다운로드본: `0a241ef20cb96847705a51fc5a70fc126df472af09b5eb00b0ac384e697b0fa0`
-
-이번 API 재갱신에서 특히 봐야 할 점:
-
-- 상태값 enum은 `09_Data-Model.md`의 데이터 딕셔너리를 기준으로 맞춘다.
-- API 전용 상태값은 DB enum과 섞지 않는다.
-- API 전용 상태값이 꼭 필요하면 `Api` 접두사를 붙이고 응답 생성 시에만 계산한다.
-- 상태 row가 없어서 판단할 수 없는 값은 별도 enum을 만들지 않고 `null` 또는 필드 생략으로 표현한다.
+현재 API 명세서는 최종 수정본이 아닐 수 있다.
+그래도 작업을 멈추지 않는다.
+현재 `10_API-Design.md`를 작업 기준선으로 삼아 백엔드 뼈대와 기본 API를 구현하고, 수정본이 오면 차이 보정 작업을 한다.
 
 ## 기준 문서 지도
 
@@ -29,31 +15,28 @@ Last checked: 2026-06-25 18:35 KST
 |---|---|---|
 | 전체 작업 규칙 | `/Users/maren/EDU/Final Project/AGENTS.md` | Bubli 전체 방향, 금지사항, 최신 문서 찾는 법 |
 | 서비스 의도와 기능 방향 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/Bubli_최종기획_완성본_v15_DB회의반영_2026-06-24.md` | 왜 이 기능이 있는지, 사용자가 어떤 흐름으로 쓰는지 확인 |
-| DB 전체 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/09_Data-Model.md` | 서버 DB, 상태값, 데이터 딕셔너리, 관계 기준 확인 |
-| Tauri 로컬 DB 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/09C_DB-Tauri-SQLite.md` | 로컬 SQLite와 서버 DB의 책임 경계 확인 |
+| DB 테이블, 컬럼, 관계 | `/Users/maren/EDU/Final Project/04_개발_작업공간/DB_팀검토_2026-06-23/Bubli_DB_검토보드/09_데이터딕셔너리_회의반영_2026-06-24.html` | 엔티티, FK/UK, NULL, 상태값 기준 확인 |
 | API 계약 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` | 엔드포인트, 요청/응답, 프론트와 맞출 API 기준 확인 |
-| 백엔드 구현 규칙 | `docs/Bubli_백엔드_개발_가이드_2026-06-25.md` | 패키지 구조, 계층 책임, 권한 검사, 테스트 기준 확인 |
+| 백엔드 구현 규칙 | `docs/Bubli_백엔드_개발_가이드_2026-06-24.md` | 패키지 구조, 계층 책임, 권한 검사, 테스트 기준 확인 |
 | 현재 작업 현황 | `docs/WORK_HANDOFF.md` | 열린 PR, 현재 불일치 후보, 다음 작업 순서 확인 |
 | Codex/Claude 작업 절차 | `docs/CODEX_BACKEND_WORKFLOW.md` | AI에게 작업시킬 때 반복해서 지킬 순서 확인 |
-| 6/25 기준 보정 계획 | `docs/CURRENT_API_BASELINE_WORK.md` | 기존 PR과 현재 코드를 새 기준으로 보정할 작업 순서 |
-| 열린 PR 리뷰 기준 | `docs/API_SKELETON_PR_REVIEW_GUIDE.md` | 현재 PR이 완성 기능인지 기본 API 골격인지, 어떤 순서로 리뷰/병합할지 확인 |
-| 열린 PR 상태표 | `docs/API_SKELETON_PR_MATRIX.csv` | PR별 base/head/status/team_action을 CSV로 확인 |
+| 현재 API 기준 작업 계획 | `docs/CURRENT_API_BASELINE_WORK.md` | 수정본 API가 오기 전까지 실제로 구현할 작업 순서 |
 
 ## 작업 종류별로 볼 문서
 
 | 작업 종류 | 먼저 볼 문서 |
 |---|---|
-| 새 API 구현 | 최종 기획문서 -> `09_Data-Model.md` -> `10_API-Design.md` -> 백엔드 개발 가이드 -> 현재 작업 계획 |
+| 새 API 구현 | 최종 기획문서 -> 데이터 딕셔너리 -> `10_API-Design.md` -> 백엔드 개발 가이드 -> 현재 API 기준 작업 계획 |
 | 기존 PR 검토 | `WORK_HANDOFF.md` -> `10_API-Design.md` 관련 섹션 -> 실제 컨트롤러/서비스 코드 |
-| 엔티티나 마이그레이션 수정 | `09_Data-Model.md` -> 백엔드 개발 가이드 -> 기존 엔티티 패턴 |
+| 엔티티나 마이그레이션 수정 | 데이터 딕셔너리 -> 백엔드 개발 가이드 -> 기존 엔티티 패턴 |
 | 패키지 구조 수정 | 백엔드 개발 가이드 -> 기존 패키지 구조 |
 | 테스트 보강 | 백엔드 개발 가이드 -> 기존 테스트 코드 -> `.http` 예시 |
-| AI/RAG 작업 | 최종 기획문서의 에이전트 흐름 -> `09_Data-Model.md`의 `ai_documents`, `agent_jobs`, `agent_suggestions` 계열 -> API Design의 AI 섹션 |
+| AI/RAG 작업 | 최종 기획문서의 에이전트 흐름 -> 데이터 딕셔너리의 `ai_documents`, `agent_jobs`, `agent_suggestions` 계열 -> API Design의 AI 섹션 |
 
-## 6/25 최신 기준 작업 모드
+## 현재 API 기준 작업 모드
 
-작업 기준은 2026-06-25 문서 묶음과 2026-06-25 12:16 KST API 재갱신본이다.
-기존 #19~#28 PR은 닫지 않고, 새 기준과 맞지 않는 부분만 후속 보정 PR로 처리한다.
+API 명세서가 아직 덜 수정된 상태라도 아래 작업은 진행한다.
+작업 기준은 현재 `10_API-Design.md`다.
 
 | 진행 작업 | 이유 |
 |---|---|
@@ -65,29 +48,28 @@ Last checked: 2026-06-25 18:35 KST
 | 공통 응답, 공통 에러, Validation | API 모양이 바뀌어도 재사용된다 |
 | 권한 검사 서비스 | 프로젝트룸 멤버 권한은 여러 기능의 공통 기반이다 |
 | Testcontainers, 테스트 support | 이후 API 확정 뒤 검증을 빠르게 한다 |
-| 6/25 기준 Controller/DTO/API 테스트 | 최신 문서 기준으로 기능 뼈대를 만든다 |
-| `.http` 요청 예시 | 6/25 API 기준으로 프론트와 맞춰본다 |
-| 선별적 인터페이스 경계 점검 | `*PublicService`와 외부 연동 포트는 인터페이스화하고 단순 CRUD Service는 구체 클래스로 유지한다 |
+| 현재 API 기준 Controller/DTO/API 테스트 | 최종 수정본이 오기 전까지 기능 뼈대를 만든다 |
+| `.http` 요청 예시 | 현재 API 기준으로 프론트와 맞춰본다 |
 
 수정본 API가 오기 전에는 아래만 주의한다.
 
 | 주의할 점 | 이유 |
 |---|---|
-| 여러 기능을 한 브랜치에 섞지 않기 | 나중에 기준 문서가 바뀌면 보정하기 어렵다 |
-| 6/24 문서를 기준으로 새 작업하지 않기 | 최신 기준이 6/25 문서로 바뀌었다 |
+| 여러 기능을 한 브랜치에 섞지 않기 | 나중에 API 수정본이 오면 보정하기 어렵다 |
+| 현재 API를 최종 확정이라고 쓰지 않기 | 지금은 작업 기준선이다 |
 | 기획/DB와 충돌하는 API는 `WORK_HANDOFF.md`에 남기기 | 무리하게 구현하면 나중에 더 크게 고친다 |
 | 에이전트/RAG payload를 과하게 확정하지 않기 | 구조 변경 가능성이 높다 |
 | WebSocket payload를 과하게 확정하지 않기 | 채팅/이벤트 범위 변경 가능성이 있다 |
 
-## 새 기준 문서가 다시 왔을 때
+## API 명세서 완성본이 왔을 때
 
 사용자가 "API 명세서가 왔다", "API 명세 완성본이다", "이 파일이 최종 API다"라고 말하면 아래 순서로 전환한다.
 
-1. 새 기준 파일의 위치와 파일명을 확인한다.
-2. 기존 6/25 기준 문서와 비교한다.
-3. 새 파일이 기준이면 `docs/00_BACKEND_START_HERE.md`, `docs/WORK_HANDOFF.md`, `docs/CODEX_BACKEND_WORKFLOW.md`, `docs/Bubli_백엔드_개발_가이드_2026-06-25.md`의 기준 경로를 갱신한다.
+1. 새 API 명세 파일의 위치와 파일명을 확인한다.
+2. 기존 기준 문서와 비교한다.
+3. 새 파일이 기준이면 `docs/00_BACKEND_START_HERE.md`, `docs/WORK_HANDOFF.md`, `docs/CODEX_BACKEND_WORKFLOW.md`, `docs/Bubli_백엔드_개발_가이드_2026-06-24.md`의 API 기준 경로를 갱신한다.
 4. `/Users/maren/.codex/skills/bubli-backend-workflow/SKILL.md`의 API 기준 경로도 갱신한다.
-5. `docs/WORK_HANDOFF.md`의 PR 재검토 후보를 새 기준으로 다시 정리한다.
+5. `docs/WORK_HANDOFF.md`의 PR 재검토 후보를 새 API 기준으로 다시 정리한다.
 6. 기존 구현을 버리지 말고 차이 나는 부분만 보정한다.
 
 ## 고정 원칙

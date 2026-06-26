@@ -24,4 +24,13 @@ public class UserPrivacyConsentId implements Serializable {
 	@Column(name = "consent_type", nullable = false)
 	@Enumerated(EnumType.STRING)
 	private ConsentType consentType;
+
+	private UserPrivacyConsentId(UUID userId, ConsentType consentType) {
+		this.userId = userId;
+		this.consentType = consentType;
+	}
+
+	public static UserPrivacyConsentId of(UUID userId, ConsentType consentType) {
+		return new UserPrivacyConsentId(userId, consentType);
+	}
 }
