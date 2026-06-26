@@ -53,8 +53,8 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		chatMessageRepository.deleteAll();
 		chatRoomMemberRepository.deleteAll();
+		chatMessageRepository.deleteAll();
 		chatRoomRepository.deleteAll();
 		userRepository.deleteAll();
 	}
