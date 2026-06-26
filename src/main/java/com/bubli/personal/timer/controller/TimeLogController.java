@@ -28,9 +28,9 @@ public class TimeLogController {
 			@CurrentUser AuthUser authUser,
 			@Valid @RequestBody StartTimeLogRequest request
 	) {
-		return ApiResponse.success(TimeLogResponse.from(
+		return ApiResponse.success(
 				timeLogService.start(StartTimeLogCommand.of(authUser.userId(), request))
-		));
+		);
 	}
 
 	@PatchMapping("/api/time-logs/{timeLogId}/pause")
@@ -38,7 +38,7 @@ public class TimeLogController {
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID timeLogId
 	) {
-		return ApiResponse.success(TimeLogResponse.from(timeLogService.pause(authUser.userId(), timeLogId)));
+		return ApiResponse.success(timeLogService.pause(authUser.userId(), timeLogId));
 	}
 
 	@PatchMapping("/api/time-logs/{timeLogId}/resume")
@@ -46,7 +46,7 @@ public class TimeLogController {
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID timeLogId
 	) {
-		return ApiResponse.success(TimeLogResponse.from(timeLogService.resume(authUser.userId(), timeLogId)));
+		return ApiResponse.success(timeLogService.resume(authUser.userId(), timeLogId));
 	}
 
 	@PatchMapping("/api/time-logs/{timeLogId}/stop")
@@ -54,7 +54,7 @@ public class TimeLogController {
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID timeLogId
 	) {
-		return ApiResponse.success(TimeLogResponse.from(timeLogService.stop(authUser.userId(), timeLogId)));
+		return ApiResponse.success(timeLogService.stop(authUser.userId(), timeLogId));
 	}
 
 	@PatchMapping("/api/time-logs/{timeLogId}/heartbeat")
@@ -62,6 +62,6 @@ public class TimeLogController {
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID timeLogId
 	) {
-		return ApiResponse.success(TimeLogResponse.from(timeLogService.heartbeat(authUser.userId(), timeLogId)));
+		return ApiResponse.success(timeLogService.heartbeat(authUser.userId(), timeLogId));
 	}
 }
