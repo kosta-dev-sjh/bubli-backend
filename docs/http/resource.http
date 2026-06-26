@@ -19,6 +19,30 @@ Content-Type: application/json
   "visibility": "PERSONAL"
 }
 
+### 개인 자료 파일 업로드
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=uploadBoundary
+
+--uploadBoundary
+Content-Disposition: form-data; name="title"
+
+계약서 원본
+--uploadBoundary
+Content-Disposition: form-data; name="kind"
+
+FILE
+--uploadBoundary
+Content-Disposition: form-data; name="visibility"
+
+PERSONAL
+--uploadBoundary
+Content-Disposition: form-data; name="file"; filename="contract.pdf"
+Content-Type: application/pdf
+
+< ./sample-files/contract.pdf
+--uploadBoundary--
+
 ### 프로젝트룸 자료 목록
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/resources
 Authorization: Bearer {{accessToken}}
@@ -34,6 +58,34 @@ Content-Type: application/json
   "visibility": "ROOM_SHARED",
   "roomId": "{{roomId}}"
 }
+
+### 프로젝트룸 자료 파일 업로드
+POST {{baseUrl}}/api/resources
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=uploadBoundary
+
+--uploadBoundary
+Content-Disposition: form-data; name="title"
+
+회의록 원본
+--uploadBoundary
+Content-Disposition: form-data; name="kind"
+
+FILE
+--uploadBoundary
+Content-Disposition: form-data; name="visibility"
+
+ROOM_SHARED
+--uploadBoundary
+Content-Disposition: form-data; name="roomId"
+
+{{roomId}}
+--uploadBoundary
+Content-Disposition: form-data; name="file"; filename="meeting.pdf"
+Content-Type: application/pdf
+
+< ./sample-files/meeting.pdf
+--uploadBoundary--
 
 ### 자료 상세
 GET {{baseUrl}}/api/resources/{{resourceId}}

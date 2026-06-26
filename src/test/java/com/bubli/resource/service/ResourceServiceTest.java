@@ -9,6 +9,7 @@ import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceVersionResult;
+import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
@@ -27,6 +28,8 @@ import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.storage.dto.FileUploadResult;
+import com.bubli.storage.service.StoragePublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -74,6 +77,9 @@ class ResourceServiceTest {
 
 	@Mock
 	StorageDownloadUrlProvider storageDownloadUrlProvider;
+
+	@Mock
+	StoragePublicService storagePublicService;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -136,6 +142,70 @@ class ResourceServiceTest {
 				null
 		))).isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+	}
+
+	@Test
+	void uploadPersonalResourceStoresFileAndCreatesFirstVersion() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		UUID versionId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file.pdf".formatted(resourceId),
+						"계약서.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(0);
+		given(resourceVersionRepository.save(any(ResourceVersion.class))).willAnswer(invocation -> {
+			ResourceVersion version = invocation.getArgument(0);
+			ReflectionTestUtils.setField(version, "id", versionId);
+			return version;
+		});
+
+		ResourceResult result = resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		));
+
+		assertThat(result.id()).isEqualTo(resourceId);
+		assertThat(result.title()).isEqualTo("계약서 원본");
+		assertThat(result.status()).isEqualTo(ResourceStatus.READY);
+
+		ArgumentCaptor<String> storageKeyCaptor = ArgumentCaptor.forClass(String.class);
+		verify(storagePublicService).save(storageKeyCaptor.capture(), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class));
+		assertThat(storageKeyCaptor.getValue()).startsWith("resources/%s/".formatted(resourceId));
+		assertThat(storageKeyCaptor.getValue()).endsWith(".pdf");
+
+		ArgumentCaptor<ResourceFile> fileCaptor = ArgumentCaptor.forClass(ResourceFile.class);
+		verify(resourceFileRepository).save(fileCaptor.capture());
+		assertThat(fileCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(fileCaptor.getValue().getStorageKey()).isEqualTo("resources/%s/file.pdf".formatted(resourceId));
+		assertThat(fileCaptor.getValue().getChecksum()).isEqualTo("checksum");
+
+		ArgumentCaptor<ResourceVersion> versionCaptor = ArgumentCaptor.forClass(ResourceVersion.class);
+		verify(resourceVersionRepository).save(versionCaptor.capture());
+		assertThat(versionCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(versionCaptor.getValue().getFileId()).isEqualTo(fileId);
+		assertThat(versionCaptor.getValue().getVersionNo()).isEqualTo(1);
+		assertThat(versionCaptor.getValue().getCreatedBy()).isEqualTo(userId);
 	}
 
 	@Test

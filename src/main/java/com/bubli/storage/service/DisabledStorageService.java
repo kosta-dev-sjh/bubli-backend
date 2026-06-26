@@ -7,8 +7,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnMissingBean(StorageService.class)
-public class DisabledStorageService implements StorageService {
+@ConditionalOnMissingBean(StoragePublicService.class)
+public class DisabledStorageService implements StoragePublicService {
 
 	@Override
 	public FileUploadResult save(String storageKey, String originalName, String mimeType, byte[] content) {
