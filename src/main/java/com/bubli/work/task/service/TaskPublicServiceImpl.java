@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,6 +22,14 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 	@Transactional(readOnly = true)
 	public List<TaskResult> getRoomTasksForBoard(UUID roomId) {
 		return taskRepository.findByRoomIdOrderByUpdatedAtDesc(roomId).stream()
+				.map(TaskResult::from)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<TaskResult> getDueBetweenTasks(UUID userId, Instant from, Instant to) {
+		return taskRepository.findDueBetweenForUser(userId, from, to).stream()
 				.map(TaskResult::from)
 				.toList();
 	}
