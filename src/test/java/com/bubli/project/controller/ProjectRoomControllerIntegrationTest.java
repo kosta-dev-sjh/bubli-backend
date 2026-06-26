@@ -158,6 +158,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.items[0].name").value("자료 정리 프로젝트"))
 				.andExpect(jsonPath("$.data.totalElements").value(1))
 				.andExpect(jsonPath("$.error").value(nullValue()));
+    }
+
+    @Test
 	void projectLeaderCanUpdateProjectRoom() throws Exception {
 		User leader = createUser("google-sub-room-update-leader", "미연");
 		ProjectRoom room = saveRoom(leader.getId(), "기존 프로젝트룸");
