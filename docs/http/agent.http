@@ -1,7 +1,95 @@
 @baseUrl = http://localhost:8080
 @accessToken = replace-with-local-access-token
 @agentJobId = replace-with-agent-job-id
+@suggestionId = replace-with-agent-suggestion-id
+@resourceId = replace-with-resource-id
+@roomId = replace-with-room-id
+
+### 자료 분석 작업 생성
+POST {{baseUrl}}/api/ai/analyze-resource
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "resourceId": "{{resourceId}}"
+}
+
+### 요구사항 후보 생성 작업 생성
+POST {{baseUrl}}/api/ai/generate-requirements
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
+### TODO 후보 생성 작업 생성
+POST {{baseUrl}}/api/ai/generate-tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
+### WBS 후보 생성 작업 생성
+POST {{baseUrl}}/api/ai/generate-wbs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
+### 확인 질문 후보 생성 작업 생성
+POST {{baseUrl}}/api/ai/generate-questions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
+### 계약서 문서 검토 작업 생성
+POST {{baseUrl}}/api/ai/review-contract-documents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
 
 ### 에이전트 작업 상태 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
+
+### 에이전트 작업 이벤트 조회
+GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}/events?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 자료 AI 문서 분석 상태 조회
+GET {{baseUrl}}/api/resources/{{resourceId}}/ai-document
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 AI 문서 분석 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/ai-documents?status=READY&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 개인 에이전트 제안함
+GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 에이전트 제안함
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 에이전트 제안 상태/내용 수정
+PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "status": "HELD",
+  "payloadJson": "{\"title\":\"시안 정리\",\"memo\":\"우선순위 재검토\"}",
+  "evidenceJson": "{\"source\":\"resource\"}"
+}
