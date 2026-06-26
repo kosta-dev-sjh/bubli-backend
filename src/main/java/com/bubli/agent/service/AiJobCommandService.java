@@ -69,4 +69,14 @@ public class AiJobCommandService {
 				AgentJobType.GENERATE_QUESTIONS
 		));
 	}
+
+	@Transactional
+	public AgentJobResult createReviewContractDocumentsJob(UUID userId, UUID roomId) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.REVIEW_CONTRACT_DOCUMENTS
+		));
+	}
 }
