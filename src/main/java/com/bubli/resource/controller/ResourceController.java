@@ -1,5 +1,7 @@
 package com.bubli.resource.controller;
 
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
@@ -9,6 +11,9 @@ import com.bubli.resource.dto.CreateResourceRequest;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResponse;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceDownloadUrlResponse;
+import com.bubli.resource.dto.ResourceRelatedResponse;
+import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResponse;
@@ -16,11 +21,15 @@ import com.bubli.resource.dto.ResourceVersionResponse;
 import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.dto.UpdateResourceCommentRequest;
 import com.bubli.resource.dto.UpdateResourceRequest;
+import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.service.ResourceService;
+import com.bubli.resource.type.ResourceKind;
+import com.bubli.resource.type.ResourceVisibility;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -28,8 +37,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.UUID;
 
 @RestController
@@ -56,12 +68,32 @@ public class ResourceController {
 		return ApiResponse.success(mapPage(resourceService.getRoomResources(authUser.userId(), roomId, pageable)));
 	}
 
-	@PostMapping("/api/resources")
+	@PostMapping(value = "/api/resources", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse<ResourceResponse> createResource(
 			@CurrentUser AuthUser authUser,
 			@Valid @RequestBody CreateResourceRequest request
 	) {
 		return ApiResponse.success(ResourceResponse.from(resourceService.create(authUser.userId(), request.toCommand())));
+	}
+
+	@PostMapping(value = "/api/resources", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ApiResponse<ResourceResponse> uploadResource(
+			@CurrentUser AuthUser authUser,
+			@RequestParam String title,
+			@RequestParam ResourceKind kind,
+			@RequestParam ResourceVisibility visibility,
+			@RequestParam(required = false) UUID roomId,
+			@RequestPart("file") MultipartFile file
+	) {
+		return ApiResponse.success(ResourceResponse.from(resourceService.upload(authUser.userId(), new UploadResourceCommand(
+				title == null ? null : title.trim(),
+				kind,
+				visibility,
+				roomId,
+				originalName(file),
+				mimeType(file),
+				fileBytes(file)
+		))));
 	}
 
 	@GetMapping("/api/resources/{resourceId}")
@@ -115,6 +147,27 @@ public class ResourceController {
 	) {
 		return ApiResponse.success(ResourceSummaryResponse.from(
 				resourceService.getResourceSummary(authUser.userId(), resourceId)
+		));
+	}
+
+	@GetMapping("/api/resources/{resourceId}/related")
+	public ApiResponse<PageResponse<ResourceRelatedResponse>> getRelatedResources(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapRelatedPage(
+				resourceService.getRelatedResources(authUser.userId(), resourceId, pageable)
+		));
+	}
+
+	@GetMapping("/api/resources/{resourceId}/download-url")
+	public ApiResponse<ResourceDownloadUrlResponse> getResourceDownloadUrl(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		return ApiResponse.success(ResourceDownloadUrlResponse.from(
+				resourceService.getResourceDownloadUrl(authUser.userId(), resourceId)
 		));
 	}
 
@@ -206,5 +259,43 @@ public class ResourceController {
 				page.getTotalPages(),
 				page.isHasNext()
 		);
+	}
+
+	private PageResponse<ResourceRelatedResponse> mapRelatedPage(PageResponse<ResourceRelatedResult> page) {
+		return new PageResponse<>(
+				page.getItems().stream()
+						.map(ResourceRelatedResponse::from)
+						.toList(),
+				page.getPage(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.isHasNext()
+		);
+	}
+
+	private String originalName(MultipartFile file) {
+		if (file == null || file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()) {
+			return "uploaded-file";
+		}
+		return file.getOriginalFilename().trim();
+	}
+
+	private String mimeType(MultipartFile file) {
+		if (file == null || file.getContentType() == null || file.getContentType().isBlank()) {
+			return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+		}
+		return file.getContentType();
+	}
+
+	private byte[] fileBytes(MultipartFile file) {
+		if (file == null || file.isEmpty()) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		try {
+			return file.getBytes();
+		} catch (IOException e) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
 	}
 }

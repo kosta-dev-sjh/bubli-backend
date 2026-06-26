@@ -115,7 +115,7 @@ void getProjectRoomRequiresActiveRoomMember() {
 		assertThat(result.id()).isEqualTo(roomId);
 		assertThat(result.name()).isEqualTo("앱 UI 개선");
 	}
-
+    
 	@Test
 	void updateProjectRoomRequiresProjectLeader() {
 		UUID userId = UUID.randomUUID();
@@ -229,4 +229,10 @@ void getProjectRoomRequiresActiveRoomMember() {
 		assertThat(result.closedAt()).isNotNull();
 		assertThat(projectRoom.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
 	}
+
+    private void givenProjectAccessDenied(UUID userId, UUID roomId) {
+		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
+    }
 }
