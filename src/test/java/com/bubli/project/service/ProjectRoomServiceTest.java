@@ -84,7 +84,9 @@ class ProjectRoomServiceTest {
 	void getProjectRoomRequiresActiveRoomMember() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		givenProjectAccessDenied(userId, roomId);
+		willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 
 		assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
 				.isInstanceOf(BusinessException.class);
@@ -226,11 +228,5 @@ class ProjectRoomServiceTest {
 		assertThat(result.status()).isEqualTo(ProjectRoomStatus.CLOSED);
 		assertThat(result.closedAt()).isNotNull();
 		assertThat(projectRoom.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
-	}
-
-	private void givenProjectAccessDenied(UUID userId, UUID roomId) {
-		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
-				.given(projectMembershipPublicService)
-				.assertActiveMember(userId, roomId);
 	}
 }
