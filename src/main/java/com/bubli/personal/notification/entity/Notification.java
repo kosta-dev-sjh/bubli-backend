@@ -52,4 +52,13 @@ public class Notification {
 		this.createdAt = Instant.now();
 	}
 
+	public void markAsRead() {
+		this.status = NotificationStatus.READ;
+		this.readAt = Instant.now();
+	}
+
+	public void markAsArchived() {
+		this.status = NotificationStatus.ARCHIVED;
+	}
+
 }
