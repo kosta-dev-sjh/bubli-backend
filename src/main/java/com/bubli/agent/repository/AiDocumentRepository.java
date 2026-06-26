@@ -15,5 +15,7 @@ public interface AiDocumentRepository extends JpaRepository<AiDocument, UUID> {
 
 	boolean existsByResourceId(UUID resourceId);
 
+	Page<AiDocument> findByRoomId(UUID roomId, Pageable pageable);
+
 	Page<AiDocument> findByRoomIdAndStatus(UUID roomId, AiDocumentStatus status, Pageable pageable);
 }

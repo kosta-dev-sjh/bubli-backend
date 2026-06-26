@@ -417,4 +417,51 @@ class AgentStorageServiceTest {
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_003));
 	}
+
+	@Test
+	void getRoomAiDocumentsRequiresActiveRoomMemberAndReturnsAllWhenStatusIsNull() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				resourceId,
+				roomId,
+				AiDocumentType.REQUIREMENT,
+				BigDecimal.valueOf(0.8200)
+		);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(aiDocumentRepository.findByRoomId(eq(roomId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(aiDocument), pageable, 1));
+
+		var result = aiDocumentService.getRoomAiDocuments(userId, roomId, null, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
+		assertThat(result.getItems().getFirst().resourceId()).isEqualTo(resourceId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+	}
+
+	@Test
+	void getRoomAiDocumentsCanFilterByStatus() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				UUID.randomUUID(),
+				roomId,
+				AiDocumentType.CONTRACT,
+				BigDecimal.valueOf(0.9100)
+		);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(aiDocumentRepository.findByRoomIdAndStatus(
+				eq(roomId),
+				eq(AiDocumentStatus.READY),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(aiDocument), pageable, 1));
+
+		var result = aiDocumentService.getRoomAiDocuments(userId, roomId, AiDocumentStatus.READY, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AiDocumentStatus.READY);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+	}
 }
