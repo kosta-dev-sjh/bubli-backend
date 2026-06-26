@@ -43,8 +43,7 @@ public class JwtTokenProvider {
     public AuthUser getAuthUser(String token) {
         Claims claims = parseClaims(token);
         return new AuthUser(
-                UUID.fromString(claims.getSubject()),
-                claims.get("email", String.class)
+                UUID.fromString(claims.getSubject())
         );
     }
 
@@ -62,7 +61,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(authUser.userId().toString())
-                .claim("email", authUser.email())
+                .id(UUID.randomUUID().toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(secretKey)

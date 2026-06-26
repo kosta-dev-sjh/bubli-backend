@@ -4,7 +4,6 @@ import java.util.UUID;
 
 public record MeResponse(
 		UUID id,
-		String email,
 		String bubliId,
 		String name,
 		String avatarUrl,
@@ -14,7 +13,6 @@ public record MeResponse(
 	public static MeResponse from(UserResult result) {
 		return new MeResponse(
 				result.id(),
-				result.email(),
 				result.bubliId(),
 				result.name(),
 				result.avatarUrl(),

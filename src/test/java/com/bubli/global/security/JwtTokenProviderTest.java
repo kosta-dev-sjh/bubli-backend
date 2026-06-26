@@ -17,12 +17,11 @@ class JwtTokenProviderTest {
         ReflectionTestUtils.setField(tokenProvider, "refreshTokenExpireMs", 1_209_600_000L);
         tokenProvider.init();
 
-        AuthUser authUser = new AuthUser(UUID.randomUUID(), "user@example.com");
+        AuthUser authUser = new AuthUser(UUID.randomUUID());
         String token = tokenProvider.createAccessToken(authUser);
 
         AuthUser parsed = tokenProvider.getAuthUser(token);
 
         assertThat(parsed.userId()).isEqualTo(authUser.userId());
-        assertThat(parsed.email()).isEqualTo(authUser.email());
     }
 }

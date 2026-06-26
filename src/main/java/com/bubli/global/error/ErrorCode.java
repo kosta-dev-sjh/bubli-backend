@@ -20,6 +20,10 @@ public enum ErrorCode {
     AUTH_401_001(HttpStatus.UNAUTHORIZED, "AUTH_401_001", "인증이 필요합니다."),
     AUTH_401_002(HttpStatus.UNAUTHORIZED, "AUTH_401_002", "토큰이 유효하지 않습니다."),
     AUTH_401_003(HttpStatus.UNAUTHORIZED, "AUTH_401_003", "토큰이 만료되었습니다."),
+    AUTH_401_004(HttpStatus.UNAUTHORIZED, "AUTH_401_004", "Google OAuth code 검증에 실패했습니다."),
+    AUTH_401_005(HttpStatus.UNAUTHORIZED, "AUTH_401_005", "Google 계정 식별값을 확인할 수 없습니다."),
+    AUTH_401_006(HttpStatus.UNAUTHORIZED, "AUTH_401_006", "refresh token이 유효하지 않습니다."),
+    AUTH_401_007(HttpStatus.UNAUTHORIZED, "AUTH_401_007", "refresh token이 만료되었습니다."),
     AUTH_403_001(HttpStatus.FORBIDDEN, "AUTH_403_001", "접근 권한이 없습니다."),
     AUTH_501_001(HttpStatus.NOT_IMPLEMENTED, "AUTH_501_001", "인증 API 구현이 아직 연결되지 않았습니다."),
 

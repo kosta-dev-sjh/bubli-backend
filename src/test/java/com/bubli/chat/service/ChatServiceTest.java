@@ -267,7 +267,6 @@ class ChatServiceTest {
 	private UserResult user(UUID userId, String name) {
 		return new UserResult(
 				userId,
-				null,
 				"user-" + userId,
 				name,
 				null,

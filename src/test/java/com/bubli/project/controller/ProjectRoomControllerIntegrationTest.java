@@ -84,8 +84,10 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").value(user.getId().toString()))
-				.andExpect(jsonPath("$.data.email").value("junghyun@example.com"))
+				.andExpect(jsonPath("$.data.bubliId").value("me"))
 				.andExpect(jsonPath("$.data.name").value("정현"))
+				.andExpect(jsonPath("$.data.locale").value("ko"))
+				.andExpect(jsonPath("$.data.timezone").value("Asia/Seoul"))
 				.andExpect(jsonPath("$.error").value(nullValue()));
 	}
 
@@ -590,7 +592,7 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 		));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId, String ignored) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

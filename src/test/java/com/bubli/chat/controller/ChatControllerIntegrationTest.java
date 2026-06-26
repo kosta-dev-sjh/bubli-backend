@@ -215,6 +215,6 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	private String bearerToken(User user) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(user.getId(), user.getBubliId()));
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(user.getId()));
 	}
 }

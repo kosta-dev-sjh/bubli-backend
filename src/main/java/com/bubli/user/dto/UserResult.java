@@ -6,17 +6,15 @@ import java.util.UUID;
 
 public record UserResult(
 		UUID id,
-		String email,
 		String bubliId,
 		String name,
 		String avatarUrl,
 		String locale,
 		String timezone
 ) {
-	public static UserResult from(User user, String email) {
+	public static UserResult from(User user) {
 		return new UserResult(
 				user.getId(),
-				email,
 				user.getBubliId(),
 				user.getName(),
 				user.getAvatarUrl(),
