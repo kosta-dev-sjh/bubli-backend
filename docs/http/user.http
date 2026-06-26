@@ -1,0 +1,18 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-local-access-token
+
+### 내 프로필 조회
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{accessToken}}
+
+### 내 프로필 수정
+PATCH {{baseUrl}}/api/me
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "마렌",
+  "avatarUrl": "https://cdn.example/avatar.png",
+  "locale": "ko-KR",
+  "timezone": "Asia/Seoul"
+}
