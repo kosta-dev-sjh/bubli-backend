@@ -48,4 +48,14 @@ public class AiJobCommandController {
 				aiJobCommandService.createGenerateTasksJob(authUser.userId(), request.roomId())
 		));
 	}
+
+	@PostMapping("/api/ai/generate-wbs")
+	public ApiResponse<AgentJobResponse> generateWbs(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody CreateRoomAgentJobRequest request
+	) {
+		return ApiResponse.success(AgentJobResponse.from(
+				aiJobCommandService.createGenerateWbsJob(authUser.userId(), request.roomId())
+		));
+	}
 }

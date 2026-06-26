@@ -157,4 +157,40 @@ class AiJobCommandServiceTest {
 		assertThat(commandCaptor.getValue().resourceId()).isNull();
 		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.GENERATE_TASKS);
 	}
+
+	@Test
+	void createGenerateWbsJobChecksRoomAccessThenCreatesPendingAgentJob() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(agentJobService.create(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new AgentJobResult(
+						jobId,
+						userId,
+						roomId,
+						null,
+						AgentJobType.GENERATE_WBS,
+						AgentJobStatus.PENDING,
+						0,
+						null,
+						null,
+						null,
+						null,
+						Instant.now(),
+						Instant.now()
+				));
+
+		AgentJobResult result = aiJobCommandService.createGenerateWbsJob(userId, roomId);
+
+		assertThat(result.id()).isEqualTo(jobId);
+		assertThat(result.jobType()).isEqualTo(AgentJobType.GENERATE_WBS);
+		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
+
+		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+		assertThat(commandCaptor.getValue().resourceId()).isNull();
+		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.GENERATE_WBS);
+	}
 }

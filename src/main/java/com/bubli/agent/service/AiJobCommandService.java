@@ -49,4 +49,14 @@ public class AiJobCommandService {
 				AgentJobType.GENERATE_TASKS
 		));
 	}
+
+	@Transactional
+	public AgentJobResult createGenerateWbsJob(UUID userId, UUID roomId) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.GENERATE_WBS
+		));
+	}
 }
