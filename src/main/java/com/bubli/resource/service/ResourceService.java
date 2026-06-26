@@ -7,44 +7,70 @@ import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceDownloadUrlResult;
+import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
+import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceFile;
+import com.bubli.resource.entity.ResourceRelation;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
+import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
+import com.bubli.resource.storage.StorageDownloadUrl;
+import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.storage.dto.FileUploadResult;
+import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ResourceService {
 
 	private static final String PERSONAL_SCOPE = "personal";
+	private static final long DEFAULT_MAX_UPLOAD_SIZE_BYTES = 104_857_600L;
 
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
 	private final ResourceFileRepository resourceFileRepository;
+	private final ResourceRelationRepository resourceRelationRepository;
 	private final ResourceSummaryRepository resourceSummaryRepository;
 	private final ResourceVersionRepository resourceVersionRepository;
+	private final StorageDownloadUrlProvider storageDownloadUrlProvider;
+	private final ResourceStorageDeleteRetryRecorder storageDeleteRetryRecorder;
+	private final StoragePublicService storagePublicService;
+	private final StorageUsagePublicService storageUsagePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Value("${storage.max-upload-size-bytes:104857600}")
+	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
+
+	@Value("${storage.allowed-mime-types:}")
+	private String allowedMimeTypes = "";
 
 	@Transactional(readOnly = true)
 	public PageResponse<ResourceResult> getPersonalResources(UUID userId, String scope, Pageable pageable) {
@@ -105,6 +131,38 @@ public class ResourceService {
 		return ResourceSummaryResult.from(summary);
 	}
 
+	@Transactional(readOnly = true)
+	public PageResponse<ResourceRelatedResult> getRelatedResources(UUID userId, UUID resourceId, Pageable pageable) {
+		getReadableResource(userId, resourceId);
+		Page<ResourceRelatedResult> page = resourceRelationRepository
+				.findByResourceId(resourceId, withRelationDefaultSort(pageable))
+				.map(relation -> toRelatedResult(userId, relation));
+		return toRelatedPageResponse(page);
+	}
+
+	@Transactional(readOnly = true)
+	public ResourceDownloadUrlResult getResourceDownloadUrl(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		ResourceVersion version = resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		ResourceFile file = resourceFileRepository.findById(version.getFileId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		StorageDownloadUrl downloadUrl = storageDownloadUrlProvider.issueDownloadUrl(
+				file.getStorageKey(),
+				file.getOriginalName()
+		);
+		return new ResourceDownloadUrlResult(
+				resourceId,
+				file.getId(),
+				version.getVersionNo(),
+				downloadUrl.url(),
+				downloadUrl.expiresAt(),
+				file.getOriginalName(),
+				file.getMimeType(),
+				file.getSizeBytes()
+		);
+	}
+
 	@Transactional
 	public ResourceResult create(UUID userId, CreateResourceCommand command) {
 		validateCreateCommand(userId, command);
@@ -121,6 +179,52 @@ public class ResourceService {
 	}
 
 	@Transactional
+	public ResourceResult upload(UUID userId, UploadResourceCommand command) {
+		validateUploadCommand(userId, command);
+		UUID roomId = command.visibility() == ResourceVisibility.ROOM_SHARED ? command.roomId() : null;
+		Resource resource = resourceRepository.save(Resource.create(
+				userId,
+				roomId,
+				command.title(),
+				command.kind(),
+				command.visibility(),
+				ResourceStatus.READY
+		));
+		FileUploadResult uploaded = null;
+		boolean storageUsageRecorded = false;
+		try {
+			recordStorageUsage(userId, roomId, command);
+			storageUsageRecorded = true;
+			uploaded = storagePublicService.save(
+					storageKey(resource.getId(), command.originalName()),
+					command.originalName(),
+					command.mimeType(),
+					command.content()
+			);
+			ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+					resource.getId(),
+					uploaded.storageKey(),
+					uploaded.originalName(),
+					uploaded.mimeType(),
+					uploaded.sizeBytes(),
+					uploaded.checksum()
+			));
+			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
+			resourceVersionRepository.save(ResourceVersion.create(
+					resource.getId(),
+					nextVersionNo,
+					file.getId(),
+					userId
+			));
+		} catch (RuntimeException e) {
+			deleteUploadedObject(uploaded, e);
+			releaseRecordedStorageUsage(storageUsageRecorded, userId, roomId, command, e);
+			throw e;
+		}
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
 	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
 		Resource resource = getReadableResource(userId, resourceId);
 		if (title != null && title.isBlank()) {
@@ -133,7 +237,13 @@ public class ResourceService {
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
+		var files = resourceFileRepository.findByResourceId(resourceId);
+		long usedBytes = files.stream()
+				.mapToLong(ResourceFile::getSizeBytes)
+				.sum();
 		resource.markDeleted(Instant.now());
+		deleteStoredFiles(files);
+		releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), usedBytes);
 	}
 
 	@Transactional
@@ -185,6 +295,10 @@ public class ResourceService {
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
+		if (command == null || !StringUtils.hasText(command.title())
+				|| command.kind() == null || command.visibility() == null) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
 		if (command.visibility() == ResourceVisibility.PERSONAL) {
 			if (command.roomId() != null) {
 				throw new BusinessException(ErrorCode.RESOURCE_400_001);
@@ -199,6 +313,115 @@ public class ResourceService {
 			return;
 		}
 		throw new BusinessException(ErrorCode.RESOURCE_400_001);
+	}
+
+	private void validateUploadCommand(UUID userId, UploadResourceCommand command) {
+		if (command == null || command.content() == null || command.content().length == 0
+				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		if (command.content().length > maxUploadSizeBytes || !isAllowedMimeType(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		validateCreateCommand(userId, command.toCreateResourceCommand());
+	}
+
+	private boolean isAllowedMimeType(String mimeType) {
+		if (!StringUtils.hasText(allowedMimeTypes)) {
+			return true;
+		}
+		for (String allowedMimeType : allowedMimeTypes.split(",")) {
+			if (mimeType.equalsIgnoreCase(allowedMimeType.trim())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private String storageKey(UUID resourceId, String originalName) {
+		String extension = StringUtils.getFilenameExtension(originalName);
+		String suffix = StringUtils.hasText(extension) ? "." + extension : "";
+		return "resources/%s/%s%s".formatted(resourceId, UUID.randomUUID(), suffix);
+	}
+
+	private void deleteUploadedObject(FileUploadResult uploaded, RuntimeException cause) {
+		if (uploaded == null || !StringUtils.hasText(uploaded.storageKey())) {
+			return;
+		}
+		try {
+			storagePublicService.delete(uploaded.storageKey());
+		} catch (RuntimeException deleteException) {
+			cause.addSuppressed(deleteException);
+		}
+	}
+
+	private void deleteStoredFiles(Iterable<ResourceFile> files) {
+		for (ResourceFile file : files) {
+			try {
+				storagePublicService.delete(file.getStorageKey());
+			} catch (RuntimeException exception) {
+				log.warn("Failed to delete resource file from storage. resourceId={}, fileId={}, storageKey={}",
+						file.getResourceId(),
+						file.getId(),
+						file.getStorageKey(),
+						exception);
+				recordStorageDeleteRetry(file, exception);
+			}
+		}
+	}
+
+	private void recordStorageDeleteRetry(ResourceFile file, RuntimeException cause) {
+		try {
+			storageDeleteRetryRecorder.recordFailedDelete(file, cause);
+		} catch (RuntimeException recorderException) {
+			log.warn("Failed to record resource storage delete retry. resourceId={}, fileId={}, storageKey={}",
+					file.getResourceId(),
+					file.getId(),
+					file.getStorageKey(),
+					recorderException);
+		}
+	}
+
+	private void recordStorageUsage(UUID userId, UUID roomId, UploadResourceCommand command) {
+		long sizeBytes = command.content().length;
+		if (command.visibility() == ResourceVisibility.PERSONAL) {
+			storageUsagePublicService.recordPersonalUpload(userId, sizeBytes);
+			return;
+		}
+		storageUsagePublicService.recordRoomUpload(roomId, sizeBytes);
+	}
+
+	private void releaseRecordedStorageUsage(
+			boolean storageUsageRecorded,
+			UUID userId,
+			UUID roomId,
+			UploadResourceCommand command,
+			RuntimeException cause
+	) {
+		if (!storageUsageRecorded) {
+			return;
+		}
+		long sizeBytes = command.content().length;
+		try {
+			if (command.visibility() == ResourceVisibility.PERSONAL) {
+				storageUsagePublicService.releasePersonalUsage(userId, sizeBytes);
+				return;
+			}
+			storageUsagePublicService.releaseRoomUsage(roomId, sizeBytes);
+		} catch (RuntimeException releaseException) {
+			cause.addSuppressed(releaseException);
+		}
+	}
+
+	private void releaseStorageUsage(UUID userId, UUID roomId, ResourceVisibility visibility, long sizeBytes) {
+		if (sizeBytes <= 0) {
+			return;
+		}
+		if (visibility == ResourceVisibility.PERSONAL) {
+			storageUsagePublicService.releasePersonalUsage(userId, sizeBytes);
+			return;
+		}
+		storageUsagePublicService.releaseRoomUsage(roomId, sizeBytes);
 	}
 
 	private void validateReadable(UUID userId, Resource resource) {
@@ -231,6 +454,11 @@ public class ResourceService {
 		ResourceFile file = resourceFileRepository.findById(version.getFileId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
 		return ResourceVersionResult.from(version, file);
+	}
+
+	private ResourceRelatedResult toRelatedResult(UUID userId, ResourceRelation relation) {
+		Resource relatedResource = getReadableResource(userId, relation.getRelatedResourceId());
+		return ResourceRelatedResult.from(relation, relatedResource);
 	}
 
 	private void validateParentComment(UUID resourceId, UUID parentId) {
@@ -294,6 +522,17 @@ public class ResourceService {
 		);
 	}
 
+	private PageResponse<ResourceRelatedResult> toRelatedPageResponse(Page<ResourceRelatedResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
 	private Pageable withDefaultSort(Pageable pageable) {
 		if (pageable.getSort().isSorted()) {
 			return pageable;
@@ -324,6 +563,19 @@ public class ResourceService {
 				pageable.getPageNumber(),
 				pageable.getPageSize(),
 				Sort.by("versionNo").descending().and(Sort.by("id").descending())
+		);
+	}
+
+	private Pageable withRelationDefaultSort(Pageable pageable) {
+		if (pageable.getSort().isSorted()) {
+			return pageable;
+		}
+		return PageRequest.of(
+				pageable.getPageNumber(),
+				pageable.getPageSize(),
+				Sort.by("score").descending()
+						.and(Sort.by("createdAt").descending())
+						.and(Sort.by("id").descending())
 		);
 	}
 }

@@ -147,6 +147,21 @@ CREATE TABLE resource_files (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE resource_storage_delete_requests (
+    id UUID PRIMARY KEY,
+    resource_id UUID NOT NULL,
+    file_id UUID,
+    storage_key VARCHAR(500) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    last_error_message VARCHAR(1000),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX idx_resource_storage_delete_requests_status_updated_at
+    ON resource_storage_delete_requests (status, updated_at);
+
 CREATE TABLE resource_versions (
     id UUID PRIMARY KEY,
     resource_id UUID NOT NULL,
