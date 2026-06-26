@@ -9,6 +9,8 @@ import com.bubli.resource.dto.CreateResourceRequest;
 import com.bubli.resource.dto.CreateResourceVersionRequest;
 import com.bubli.resource.dto.ResourceCommentResponse;
 import com.bubli.resource.dto.ResourceCommentResult;
+import com.bubli.resource.dto.ResourceRelatedResponse;
+import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResponse;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResponse;
@@ -118,6 +120,17 @@ public class ResourceController {
 		));
 	}
 
+	@GetMapping("/api/resources/{resourceId}/related")
+	public ApiResponse<PageResponse<ResourceRelatedResponse>> getRelatedResources(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		return ApiResponse.success(mapRelatedPage(
+				resourceService.getRelatedResources(authUser.userId(), resourceId, pageable)
+		));
+	}
+
 	@PostMapping("/api/resources/{resourceId}/versions")
 	public ApiResponse<ResourceVersionResponse> createResourceVersion(
 			@CurrentUser AuthUser authUser,
@@ -199,6 +212,19 @@ public class ResourceController {
 		return new PageResponse<>(
 				page.getItems().stream()
 						.map(ResourceVersionResponse::from)
+						.toList(),
+				page.getPage(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.isHasNext()
+		);
+	}
+
+	private PageResponse<ResourceRelatedResponse> mapRelatedPage(PageResponse<ResourceRelatedResult> page) {
+		return new PageResponse<>(
+				page.getItems().stream()
+						.map(ResourceRelatedResponse::from)
 						.toList(),
 				page.getPage(),
 				page.getSize(),
