@@ -1,6 +1,7 @@
 @baseUrl = http://localhost:8080
 @accessToken = replace-with-local-access-token
 @agentJobId = replace-with-agent-job-id
+@suggestionId = replace-with-agent-suggestion-id
 @roomId = replace-with-room-id
 
 ### 에이전트 작업 상태 조회
@@ -18,3 +19,14 @@ Authorization: Bearer {{accessToken}}
 ### 프로젝트룸 에이전트 제안함
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT&page=0&size=20
 Authorization: Bearer {{accessToken}}
+
+### 에이전트 제안 상태/내용 수정
+PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "status": "HELD",
+  "payloadJson": "{\"title\":\"시안 정리\",\"memo\":\"우선순위 재검토\"}",
+  "evidenceJson": "{\"source\":\"resource\"}"
+}

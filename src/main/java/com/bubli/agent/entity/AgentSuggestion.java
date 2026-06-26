@@ -89,6 +89,18 @@ public class AgentSuggestion {
 		return new AgentSuggestion(userId, roomId, jobId, resourceId, suggestionType, payloadJson, evidenceJson);
 	}
 
+	public void update(AgentSuggestionStatus status, String payloadJson, String evidenceJson) {
+		if (status != null) {
+			this.status = status;
+		}
+		if (payloadJson != null) {
+			this.payloadJson = payloadJson;
+		}
+		if (evidenceJson != null) {
+			this.evidenceJson = evidenceJson;
+		}
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

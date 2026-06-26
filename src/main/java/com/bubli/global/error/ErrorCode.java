@@ -54,7 +54,9 @@ public enum ErrorCode {
     RESOURCE_404_004(HttpStatus.NOT_FOUND, "RESOURCE_404_004", "자료 요약을 찾을 수 없습니다."),
 
     // AGENT
+    AGENT_400_001(HttpStatus.BAD_REQUEST, "AGENT_400_001", "에이전트 제안 요청 값이 올바르지 않습니다."),
     AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "에이전트 작업을 찾을 수 없습니다."),
+    AGENT_404_002(HttpStatus.NOT_FOUND, "AGENT_404_002", "에이전트 제안을 찾을 수 없습니다."),
 
     // SCHEDULE
     SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),
