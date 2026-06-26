@@ -28,6 +28,33 @@ Content-Type: application/json
 GET {{baseUrl}}/api/project-rooms/{{roomId}}
 Authorization: Bearer {{accessToken}}
 
+### 프로젝트룸 기본 정보 수정
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "브랜드 사이트 리뉴얼",
+  "clientName": "블루클라이언트",
+  "status": "ACTIVE"
+}
+
+### 프로젝트룸 계약/입금 정보 수정
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}/payment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "contractAmount": 2300000,
+  "paymentStatus": "PAID",
+  "paymentDueDate": "2026-07-20",
+  "paidAt": "2026-07-18"
+}
+
+### 프로젝트룸 종료
+DELETE {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+
 ### 프로젝트룸 멤버 목록
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/members?page=0&size=20
 Authorization: Bearer {{accessToken}}

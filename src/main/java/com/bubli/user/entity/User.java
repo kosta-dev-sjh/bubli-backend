@@ -64,6 +64,21 @@ public class User {
 		return user;
 	}
 
+	public void updateProfile(String name, String avatarUrl, String locale, String timezone) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (avatarUrl != null) {
+			this.avatarUrl = avatarUrl;
+		}
+		if (locale != null) {
+			this.locale = locale;
+		}
+		if (timezone != null) {
+			this.timezone = timezone;
+		}
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

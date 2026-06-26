@@ -7,11 +7,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ResourceVersionRepository extends JpaRepository<ResourceVersion, UUID> {
 
 	Page<ResourceVersion> findByResourceId(UUID resourceId, Pageable pageable);
+
+	Optional<ResourceVersion> findFirstByResourceIdOrderByVersionNoDescIdDesc(UUID resourceId);
 
 	@Query("""
 			select coalesce(max(version.versionNo), 0)

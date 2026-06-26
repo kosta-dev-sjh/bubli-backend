@@ -26,17 +26,35 @@ public class UserPreference {
 	@Column(length = 30)
 	private String theme;
 
-	@Column(name = "font_scale")
-	private Double fontScale;
+	@Column(name = "default_home_type", length = 30)
+	private String defaultHomeType;
 
-	@Column(name = "default_room_id")
-	private UUID defaultRoomId;
+	@Column(name = "default_project_room_id")
+	private UUID defaultProjectRoomId;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	public static UserPreference create(UUID userId) {
+		UserPreference preference = new UserPreference();
+		preference.userId = userId;
+		return preference;
+	}
+
+	public void update(String theme, String defaultHomeType, UUID defaultProjectRoomId) {
+		if (theme != null) {
+			this.theme = theme;
+		}
+		if (defaultHomeType != null) {
+			this.defaultHomeType = defaultHomeType;
+		}
+		if (defaultProjectRoomId != null) {
+			this.defaultProjectRoomId = defaultProjectRoomId;
+		}
+	}
 
 	@PrePersist
 	private void onCreate() {
