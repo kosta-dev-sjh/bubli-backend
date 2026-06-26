@@ -3,6 +3,7 @@ package com.bubli.agent.service;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.service.ResourcePublicService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class AiJobCommandService {
 
 	private final ResourcePublicService resourcePublicService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final AgentJobService agentJobService;
 
 	@Transactional
@@ -25,6 +27,16 @@ public class AiJobCommandService {
 				resource.roomId(),
 				resource.id(),
 				AgentJobType.ANALYZE_RESOURCE
+		));
+	}
+
+	@Transactional
+	public AgentJobResult createGenerateRequirementsJob(UUID userId, UUID roomId) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.GENERATE_REQUIREMENTS
 		));
 	}
 }

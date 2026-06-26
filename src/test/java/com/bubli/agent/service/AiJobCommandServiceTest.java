@@ -4,6 +4,7 @@ import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
@@ -28,6 +29,9 @@ class AiJobCommandServiceTest {
 
 	@Mock
 	ResourcePublicService resourcePublicService;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Mock
 	AgentJobService agentJobService;
@@ -80,5 +84,41 @@ class AiJobCommandServiceTest {
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isEqualTo(resourceId);
 		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.ANALYZE_RESOURCE);
+	}
+
+	@Test
+	void createGenerateRequirementsJobChecksRoomAccessThenCreatesPendingAgentJob() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(agentJobService.create(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new AgentJobResult(
+						jobId,
+						userId,
+						roomId,
+						null,
+						AgentJobType.GENERATE_REQUIREMENTS,
+						AgentJobStatus.PENDING,
+						0,
+						null,
+						null,
+						null,
+						null,
+						Instant.now(),
+						Instant.now()
+				));
+
+		AgentJobResult result = aiJobCommandService.createGenerateRequirementsJob(userId, roomId);
+
+		assertThat(result.id()).isEqualTo(jobId);
+		assertThat(result.jobType()).isEqualTo(AgentJobType.GENERATE_REQUIREMENTS);
+		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
+
+		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+		assertThat(commandCaptor.getValue().resourceId()).isNull();
+		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.GENERATE_REQUIREMENTS);
 	}
 }
