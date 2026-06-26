@@ -42,6 +42,9 @@ public enum ErrorCode {
     CHAT_404_001(HttpStatus.NOT_FOUND, "CHAT_404_001", "채팅방을 찾을 수 없습니다."),
     CHAT_404_002(HttpStatus.NOT_FOUND, "CHAT_404_002", "채팅 메시지를 찾을 수 없습니다."),
 
+    // PERSONAL
+    PERSONAL_404_001(HttpStatus.NOT_FOUND, "PERSONAL_404_001", "타이머 기록을 찾을 수 없습니다."),
+
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
 
