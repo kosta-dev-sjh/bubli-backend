@@ -81,16 +81,16 @@ class ProjectRoomServiceTest {
 	}
 
 	@Test
-void getProjectRoomRequiresActiveRoomMember() {
-    UUID userId = UUID.randomUUID();
-    UUID roomId = UUID.randomUUID();
-    willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
-            .given(projectMembershipPublicService)
-            .assertActiveMember(userId, roomId);
+	void getProjectRoomRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+				.given(projectMembershipPublicService)
+				.assertActiveMember(userId, roomId);
 
-    assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
-            .isInstanceOf(BusinessException.class);
-}
+		assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
+				.isInstanceOf(BusinessException.class);
+	}
 
 	@Test
 	void getProjectRoomReturnsRoomForActiveMember() {
@@ -115,7 +115,7 @@ void getProjectRoomRequiresActiveRoomMember() {
 		assertThat(result.id()).isEqualTo(roomId);
 		assertThat(result.name()).isEqualTo("앱 UI 개선");
 	}
-    
+
 	@Test
 	void updateProjectRoomRequiresProjectLeader() {
 		UUID userId = UUID.randomUUID();
@@ -229,10 +229,4 @@ void getProjectRoomRequiresActiveRoomMember() {
 		assertThat(result.closedAt()).isNotNull();
 		assertThat(projectRoom.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
 	}
-
-    private void givenProjectAccessDenied(UUID userId, UUID roomId) {
-		org.mockito.BDDMockito.willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
-				.given(projectMembershipPublicService)
-				.assertActiveMember(userId, roomId);
-    }
 }
