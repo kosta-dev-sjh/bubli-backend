@@ -242,6 +242,19 @@ CREATE TABLE agent_job_events (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE agent_dispatch_outbox (
+    id UUID PRIMARY KEY,
+    job_id UUID NOT NULL UNIQUE,
+    payload_json JSONB NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    error_code VARCHAR(80),
+    error_message TEXT,
+    dispatched_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE agent_model_call_logs (
     id UUID PRIMARY KEY,
     job_id UUID NOT NULL,
@@ -508,4 +521,3 @@ CREATE TABLE widget_daily_summaries (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT uk_widget_daily_summaries_rollup UNIQUE (user_id, device_id, summary_date, bubble_setting_id)
 );
-

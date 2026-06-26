@@ -1,6 +1,7 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dispatch.AgentJobDispatchEvent;
+import com.bubli.agent.dispatch.AgentJobDispatchOutboxRecorder;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.AgentSuggestionResult;
 import com.bubli.agent.dto.AiDocumentResult;
@@ -62,6 +63,9 @@ class AgentStorageServiceTest {
 	ApplicationEventPublisher eventPublisher;
 
 	@Mock
+	AgentJobDispatchOutboxRecorder dispatchOutboxRecorder;
+
+	@Mock
 	AgentSuggestionRepository agentSuggestionRepository;
 
 	@Mock
@@ -114,6 +118,7 @@ class AgentStorageServiceTest {
 		assertThat(eventCaptor.getValue().command().roomId()).isEqualTo(roomId);
 		assertThat(eventCaptor.getValue().command().resourceId()).isEqualTo(resourceId);
 		assertThat(eventCaptor.getValue().command().jobType()).isEqualTo(AgentJobType.ANALYZE_RESOURCE);
+		verify(dispatchOutboxRecorder).recordPending(eventCaptor.getValue().command());
 	}
 
 	@Test
