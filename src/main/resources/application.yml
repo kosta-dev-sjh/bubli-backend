@@ -31,6 +31,16 @@ management:
     health:
       show-details: when-authorized
 
+springdoc:
+  default-produces-media-type: application/json
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    disable-swagger-default-url: true
+  api-docs:
+    path: /v3/api-docs
+
 logging:
   level:
     root: INFO
