@@ -1,0 +1,45 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-room-id-here
+@timeLogId = paste-time-log-id-here
+@idempotencyKey = paste-unique-timer-key-here
+
+### 일반 타이머 시작
+POST {{baseUrl}}/api/time-logs/start
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": null,
+  "timerType": "GENERAL",
+  "idempotencyKey": "{{idempotencyKey}}",
+  "recoveredFromTimeLogId": null
+}
+
+### 프로젝트룸 작업 타이머 시작
+POST {{baseUrl}}/api/time-logs/start
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}",
+  "timerType": "WORK",
+  "idempotencyKey": "{{idempotencyKey}}",
+  "recoveredFromTimeLogId": null
+}
+
+### 타이머 일시정지
+PATCH {{baseUrl}}/api/time-logs/{{timeLogId}}/pause
+Authorization: Bearer {{accessToken}}
+
+### 타이머 재개
+PATCH {{baseUrl}}/api/time-logs/{{timeLogId}}/resume
+Authorization: Bearer {{accessToken}}
+
+### 타이머 종료
+PATCH {{baseUrl}}/api/time-logs/{{timeLogId}}/stop
+Authorization: Bearer {{accessToken}}
+
+### 타이머 heartbeat
+PATCH {{baseUrl}}/api/time-logs/{{timeLogId}}/heartbeat
+Authorization: Bearer {{accessToken}}

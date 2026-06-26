@@ -158,6 +158,104 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.items[0].name").value("자료 정리 프로젝트"))
 				.andExpect(jsonPath("$.data.totalElements").value(1))
 				.andExpect(jsonPath("$.error").value(nullValue()));
+	void projectLeaderCanUpdateProjectRoom() throws Exception {
+		User leader = createUser("google-sub-room-update-leader", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "기존 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}", room.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "name": "변경된 프로젝트룸",
+								  "clientName": "새 클라이언트",
+								  "status": "ACTIVE"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.name").value("변경된 프로젝트룸"))
+				.andExpect(jsonPath("$.data.clientName").value("새 클라이언트"))
+				.andExpect(jsonPath("$.data.status").value("ACTIVE"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		ProjectRoom updated = projectRoomRepository.findById(room.getId()).orElseThrow();
+		assertThat(updated.getName()).isEqualTo("변경된 프로젝트룸");
+		assertThat(updated.getClientName()).isEqualTo("새 클라이언트");
+	}
+
+	@Test
+	void ordinaryMemberCannotUpdateProjectRoom() throws Exception {
+		User leader = createUser("google-sub-room-update-deny-leader", "미연");
+		User member = createUser("google-sub-room-update-deny-member", "정현");
+		ProjectRoom room = saveRoom(leader.getId(), "수정 거절 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		roomMemberRepository.save(RoomMember.createMember(room.getId(), member.getId()));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}", room.getId())
+						.header(AUTHORIZATION, bearerToken(member.getId(), "junghyun@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "name": "권한 없는 변경"
+								}
+								"""))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_403_002"));
+	}
+
+	@Test
+	void projectLeaderCanUpdateProjectRoomPayment() throws Exception {
+		User leader = createUser("google-sub-payment-leader", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "입금 관리 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}/payment", room.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "contractAmount": 2300000,
+								  "paymentStatus": "PAID",
+								  "paymentDueDate": "2026-07-20",
+								  "paidAt": "2026-07-18"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.contractAmount").value(2300000))
+				.andExpect(jsonPath("$.data.paymentStatus").value("PAID"))
+				.andExpect(jsonPath("$.data.paymentDueDate").value("2026-07-20"))
+				.andExpect(jsonPath("$.data.paidAt").value("2026-07-18"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		ProjectRoom updated = projectRoomRepository.findById(room.getId()).orElseThrow();
+		assertThat(updated.getContractAmount()).isEqualByComparingTo(BigDecimal.valueOf(2_300_000));
+		assertThat(updated.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+	}
+
+	@Test
+	void projectLeaderCanCloseProjectRoom() throws Exception {
+		User leader = createUser("google-sub-room-close-leader", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "종료할 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(delete("/api/project-rooms/{roomId}", room.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.status").value("CLOSED"))
+				.andExpect(jsonPath("$.data.closedAt").isNotEmpty())
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		ProjectRoom closed = projectRoomRepository.findById(room.getId()).orElseThrow();
+		assertThat(closed.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
+		assertThat(closed.getClosedAt()).isNotNull();
 	}
 
 	@Test
