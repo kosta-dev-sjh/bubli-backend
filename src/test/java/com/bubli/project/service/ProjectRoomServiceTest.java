@@ -80,14 +80,16 @@ class ProjectRoomServiceTest {
 	}
 
 	@Test
-	void getProjectRoomRequiresActiveRoomMember() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		givenProjectAccessDenied(userId, roomId);
+void getProjectRoomRequiresActiveRoomMember() {
+    UUID userId = UUID.randomUUID();
+    UUID roomId = UUID.randomUUID();
+    willThrow(new BusinessException(ErrorCode.PROJECT_403_001))
+            .given(projectMembershipPublicService)
+            .assertActiveMember(userId, roomId);
 
-		assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
-				.isInstanceOf(BusinessException.class);
-	}
+    assertThatThrownBy(() -> projectRoomService.getProjectRoom(userId, roomId))
+            .isInstanceOf(BusinessException.class);
+}
 
 	@Test
 	void getProjectRoomReturnsRoomForActiveMember() {
