@@ -15,4 +15,9 @@ public interface ResourceStorageDeleteRetryRecordRepository extends JpaRepositor
 			Collection<ResourceStorageDeleteStatus> statuses,
 			Pageable pageable
 	);
+
+	Page<ResourceStorageDeleteRetryRecord> findByStatus(
+			ResourceStorageDeleteStatus status,
+			Pageable pageable
+	);
 }
