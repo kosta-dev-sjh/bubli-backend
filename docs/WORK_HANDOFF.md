@@ -3611,6 +3611,34 @@ PR 재검토 분류:
 - 이번 작업은 문서/자동화 기준 갱신이며 Java 코드는 수정하지 않는다.
 - 백엔드 PR: https://github.com/kosta-dev-sjh/bubli-backend/pull/29
 
+### 작업 카드 9-1. 엔티티 경계 가드 테스트
+
+처리 시각: 2026-06-25 03:34 KST
+
+변경 내용:
+
+- `chore/entity-boundary-guards`를 #28 `feature/testcontainers-ci-foundation` 위의 새 브랜치로 만들었다.
+- `EntityBoundaryGuardTest`를 추가했다.
+- 서버 코드에 `BaseTimeEntity.java`가 생기면 테스트가 실패하도록 했다.
+- `global/entity` 아래 Java 소스가 생기면 테스트가 실패하도록 했다.
+- 서버 JPA Entity가 Tauri 로컬 SQLite용 `local_*` 테이블에 매핑되면 테스트가 실패하도록 했다.
+- 빈 로컬 디렉터리는 Git 추적 대상이 아니라 위반으로 보지 않고, 실제 Java 소스만 검사한다.
+
+검증 결과:
+
+- 최초 `./gradlew cleanTest test`는 빈 `global/entity` 디렉터리를 위반으로 오탐해 1회 실패했다.
+- 테스트 기준을 실제 Java 소스 기준으로 보정했다.
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+- GitHub Actions CI 통과: #38 `build` pass, 1m17s
+
+메모:
+
+- 이번 PR은 금지된 엔티티 경계를 테스트로 고정하는 작업만 다룬다.
+- 애플리케이션 코드, Entity, Flyway, Gradle, PR 템플릿, README, SETUP은 건드리지 않았다.
+- `global/config`, `global/error`, `global/response`, `global/security` 같은 공통 코드 패키지는 허용한다.
+
 ### 작업 카드 9. Testcontainers/CI 테스트 기반 보강
 
 처리 시각: 2026-06-24 21:47:05 KST
