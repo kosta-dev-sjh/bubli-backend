@@ -141,6 +141,26 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	}
 
 	@Test
+	void getMyProjectRoomsReturnsOnlyRoomsWithActiveMembership() throws Exception {
+		User user = createUser("google-sub-my-room-list", "마렌");
+		User otherUser = createUser("google-sub-my-room-other", "소민");
+		ProjectRoom activeRoom = saveRoom(user.getId(), "자료 정리 프로젝트");
+		ProjectRoom otherRoom = saveRoom(otherUser.getId(), "다른 팀 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(activeRoom.getId(), user.getId()));
+		roomMemberRepository.save(RoomMember.createLeader(otherRoom.getId(), otherUser.getId()));
+
+		mockMvc.perform(get("/api/me/project-rooms")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "maren@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(activeRoom.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].name").value("자료 정리 프로젝트"))
+				.andExpect(jsonPath("$.data.totalElements").value(1))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+    }
+
+    @Test
 	void projectLeaderCanUpdateProjectRoom() throws Exception {
 		User leader = createUser("google-sub-room-update-leader", "미연");
 		ProjectRoom room = saveRoom(leader.getId(), "기존 프로젝트룸");
