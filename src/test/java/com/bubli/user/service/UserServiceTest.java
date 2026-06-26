@@ -1,6 +1,7 @@
 package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.user.dto.UpdateUserProfileCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
@@ -48,5 +49,27 @@ class UserServiceTest {
 
 		assertThatThrownBy(() -> userService.getMe(userId, "user@example.com"))
 				.isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void updateMeChangesProvidedProfileFields() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "ko-KR", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+		UserResult result = userService.updateMe(userId, "user@example.com", new UpdateUserProfileCommand(
+				"마렌",
+				"https://cdn.example/avatar.png",
+				"ja-JP",
+				"Asia/Tokyo"
+		));
+
+		assertThat(result.id()).isEqualTo(userId);
+		assertThat(result.email()).isEqualTo("user@example.com");
+		assertThat(result.name()).isEqualTo("마렌");
+		assertThat(result.avatarUrl()).isEqualTo("https://cdn.example/avatar.png");
+		assertThat(result.locale()).isEqualTo("ja-JP");
+		assertThat(result.timezone()).isEqualTo("Asia/Tokyo");
 	}
 }

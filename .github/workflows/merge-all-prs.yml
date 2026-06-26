@@ -1,0 +1,67 @@
+name: Merge All Open PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '테스트 실행 (실제 머지 안 함)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  merge-all:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+      - name: Merge all open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          echo "📋 오픈 PR 목록 조회 중..."
+
+          PR_NUMBERS=$(gh pr list \
+            --repo "$REPO" \
+            --state open \
+            --limit 100 \
+            --json number,title \
+            --jq 'sort_by(.number) | .[].number')
+
+          if [ -z "$PR_NUMBERS" ]; then
+            echo "✅ 머지할 PR이 없습니다."
+            exit 0
+          fi
+
+          echo "총 $(echo "$PR_NUMBERS" | wc -l)개 PR 발견"
+          echo "---"
+
+          for NUMBER in $PR_NUMBERS; do
+            TITLE=$(gh pr view "$NUMBER" --repo "$REPO" --json title --jq '.title')
+            echo "🔄 #$NUMBER - $TITLE"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  (dry-run) 스킵"
+              continue
+            fi
+
+            gh pr merge "$NUMBER" \
+              --repo "$REPO" \
+              --squash \
+              --delete-branch \
+              --subject "$TITLE" \
+              && echo "  ✅ 머지 완료" \
+              || echo "  ❌ 머지 실패 (conflict 또는 보호 규칙)"
+
+            sleep 1
+          done
+
+          echo "---"
+          echo "🎉 완료"
