@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+
+storage:
+  type: local
+  local:
+    base-path: ./build/test-storage
+
+agent:
+  dispatch:
+    adapter: in-memory
