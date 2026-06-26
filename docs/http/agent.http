@@ -1,0 +1,7 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-local-access-token
+@agentJobId = replace-with-agent-job-id
+
+### 에이전트 작업 상태 조회
+GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
+Authorization: Bearer {{accessToken}}
