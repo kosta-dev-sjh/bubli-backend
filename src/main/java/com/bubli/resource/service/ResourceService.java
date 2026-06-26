@@ -33,6 +33,7 @@ import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StoragePublicService;
 import com.bubli.storage.service.StorageUsagePublicService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,6 +47,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ResourceService {
 
@@ -234,10 +236,12 @@ public class ResourceService {
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
-		long usedBytes = resourceFileRepository.findByResourceId(resourceId).stream()
+		var files = resourceFileRepository.findByResourceId(resourceId);
+		long usedBytes = files.stream()
 				.mapToLong(ResourceFile::getSizeBytes)
 				.sum();
 		resource.markDeleted(Instant.now());
+		deleteStoredFiles(files);
 		releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), usedBytes);
 	}
 
@@ -347,6 +351,20 @@ public class ResourceService {
 			storagePublicService.delete(uploaded.storageKey());
 		} catch (RuntimeException deleteException) {
 			cause.addSuppressed(deleteException);
+		}
+	}
+
+	private void deleteStoredFiles(Iterable<ResourceFile> files) {
+		for (ResourceFile file : files) {
+			try {
+				storagePublicService.delete(file.getStorageKey());
+			} catch (RuntimeException exception) {
+				log.warn("Failed to delete resource file from storage. resourceId={}, fileId={}, storageKey={}",
+						file.getResourceId(),
+						file.getId(),
+						file.getStorageKey(),
+						exception);
+			}
 		}
 	}
 
