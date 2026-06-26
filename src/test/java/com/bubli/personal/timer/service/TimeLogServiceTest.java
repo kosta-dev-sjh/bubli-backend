@@ -2,7 +2,7 @@ package com.bubli.personal.timer.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.personal.timer.dto.StartTimeLogCommand;
-import com.bubli.personal.timer.dto.TimeLogResult;
+import com.bubli.personal.timer.dto.TimeLogResponse;
 import com.bubli.personal.timer.entity.TimeLog;
 import com.bubli.personal.timer.repository.TimeLogRepository;
 import com.bubli.personal.timer.type.TimeLogStatus;
@@ -50,7 +50,7 @@ class TimeLogServiceTest {
 			return timeLog;
 		});
 
-		TimeLogResult result = timeLogService.start(new StartTimeLogCommand(
+		TimeLogResponse result = timeLogService.start(new StartTimeLogCommand(
 				userId,
 				null,
 				TimerType.GENERAL,
@@ -73,7 +73,7 @@ class TimeLogServiceTest {
 		ReflectionTestUtils.setField(existing, "id", timeLogId);
 		given(timeLogRepository.findByIdempotencyKey("timer-key-2")).willReturn(Optional.of(existing));
 
-		TimeLogResult result = timeLogService.start(new StartTimeLogCommand(
+		TimeLogResponse result = timeLogService.start(new StartTimeLogCommand(
 				userId,
 				null,
 				TimerType.GENERAL,
@@ -111,16 +111,16 @@ class TimeLogServiceTest {
 		TimeLog timeLog = TimeLog.start(userId, null, TimerType.GENERAL, "timer-key-4", null, Instant.now());
 		ReflectionTestUtils.setField(timeLog, "id", timeLogId);
 		ReflectionTestUtils.setField(timeLog, "lastStartedAt", Instant.now().minusSeconds(5));
-		given(timeLogRepository.findById(timeLogId)).willReturn(Optional.of(timeLog));
+		given(timeLogRepository.findByIdAndUserId(timeLogId, userId)).willReturn(Optional.of(timeLog));
 
-		TimeLogResult paused = timeLogService.pause(userId, timeLogId);
+		TimeLogResponse paused = timeLogService.pause(userId, timeLogId);
 		assertThat(paused.status()).isEqualTo(TimeLogStatus.PAUSED);
 		assertThat(paused.durationSeconds()).isGreaterThanOrEqualTo(5);
 
-		TimeLogResult resumed = timeLogService.resume(userId, timeLogId);
+		TimeLogResponse resumed = timeLogService.resume(userId, timeLogId);
 		assertThat(resumed.status()).isEqualTo(TimeLogStatus.RUNNING);
 
-		TimeLogResult stopped = timeLogService.stop(userId, timeLogId);
+		TimeLogResponse stopped = timeLogService.stop(userId, timeLogId);
 		assertThat(stopped.status()).isEqualTo(TimeLogStatus.ENDED);
 		assertThat(stopped.endedAt()).isNotNull();
 	}
@@ -132,7 +132,7 @@ class TimeLogServiceTest {
 		TimeLog timeLog = TimeLog.start(userId, null, TimerType.GENERAL, "timer-key-5", null, Instant.now());
 		ReflectionTestUtils.setField(timeLog, "id", timeLogId);
 		timeLog.pause(Instant.now());
-		given(timeLogRepository.findById(timeLogId)).willReturn(Optional.of(timeLog));
+		given(timeLogRepository.findByIdAndUserId(timeLogId, userId)).willReturn(Optional.of(timeLog));
 
 		assertThatThrownBy(() -> timeLogService.heartbeat(userId, timeLogId))
 				.isInstanceOf(BusinessException.class);
