@@ -20,21 +20,27 @@ import com.bubli.agent.type.AiDocumentStatus;
 import com.bubli.agent.type.AiDocumentType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -49,6 +55,9 @@ class AgentStorageServiceTest {
 
 	@Mock
 	AiDocumentRepository aiDocumentRepository;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	AgentJobService agentJobService;
@@ -164,6 +173,65 @@ class AgentStorageServiceTest {
 		assertThat(result.resourceId()).isEqualTo(resourceId);
 		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.DRAFT);
 		assertThat(result.payloadJson()).contains("시안 정리");
+	}
+
+	@Test
+	void getPersonalSuggestionsReturnsUserSuggestionsByStatus() {
+		UUID userId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				"{\"source\":\"resource\"}"
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentSuggestionRepository.findByUserIdAndStatus(
+				eq(userId),
+				eq(AgentSuggestionStatus.DRAFT),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(suggestion), pageable, 1));
+
+		var result = agentSuggestionService.getPersonalSuggestions(userId, AgentSuggestionStatus.DRAFT, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
+		assertThat(result.getItems().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.TODO);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AgentSuggestionStatus.DRAFT);
+	}
+
+	@Test
+	void getRoomSuggestionsRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				roomId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.QUESTION,
+				"{\"question\":\"확인할까요?\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentSuggestionRepository.findByRoomIdAndStatus(
+				eq(roomId),
+				eq(AgentSuggestionStatus.DRAFT),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(suggestion), pageable, 1));
+
+		var result = agentSuggestionService.getRoomSuggestions(userId, roomId, AgentSuggestionStatus.DRAFT, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
+		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 
 	@Test

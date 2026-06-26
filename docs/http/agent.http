@@ -1,7 +1,16 @@
 @baseUrl = http://localhost:8080
 @accessToken = replace-with-local-access-token
 @agentJobId = replace-with-agent-job-id
+@roomId = replace-with-room-id
 
 ### 에이전트 작업 상태 조회
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
+Authorization: Bearer {{accessToken}}
+
+### 개인 에이전트 제안함
+GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 에이전트 제안함
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT&page=0&size=20
 Authorization: Bearer {{accessToken}}
