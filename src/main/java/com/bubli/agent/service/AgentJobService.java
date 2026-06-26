@@ -7,6 +7,7 @@ import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
@@ -58,6 +59,14 @@ public class AgentJobService {
 		return toEventPageResponse(page);
 	}
 
+	@Transactional(readOnly = true)
+	public PageResponse<AgentJobResult> getRetryableFailedJobs(int maxRetryCount, Pageable pageable) {
+		Page<AgentJobResult> page = agentJobRepository
+				.findByStatusAndRetryCountLessThan(AgentJobStatus.FAILED, maxRetryCount, pageable)
+				.map(AgentJobResult::from);
+		return toJobPageResponse(page);
+	}
+
 	@Transactional
 	public AgentJobResult markRunning(UUID jobId) {
 		AgentJob agentJob = getJob(jobId);
@@ -85,6 +94,17 @@ public class AgentJobService {
 	}
 
 	private PageResponse<AgentJobEventResult> toEventPageResponse(Page<AgentJobEventResult> page) {
+		return new PageResponse<>(
+				page.getContent(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
+	private PageResponse<AgentJobResult> toJobPageResponse(Page<AgentJobResult> page) {
 		return new PageResponse<>(
 				page.getContent(),
 				page.getNumber(),

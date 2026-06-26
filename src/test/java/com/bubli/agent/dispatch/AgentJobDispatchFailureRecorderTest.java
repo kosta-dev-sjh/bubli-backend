@@ -53,6 +53,7 @@ class AgentJobDispatchFailureRecorderTest {
 		assertThat(agentJob.getErrorCode())
 				.isEqualTo(AgentJobDispatchFailureRecorder.ENQUEUE_FAILURE_ERROR_CODE);
 		assertThat(agentJob.getErrorMessage()).isEqualTo("queue unavailable");
+		assertThat(agentJob.getRetryCount()).isEqualTo(1);
 		assertThat(agentJob.getFinishedAt()).isNotNull();
 		ArgumentCaptor<AgentJobEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobEvent.class);
 		verify(agentJobEventRepository).save(eventCaptor.capture());

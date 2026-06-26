@@ -16,4 +16,6 @@ public interface AgentJobRepository extends JpaRepository<AgentJob, UUID> {
 	Page<AgentJob> findByRequestedByUserIdAndStatus(UUID requestedByUserId, AgentJobStatus status, Pageable pageable);
 
 	Page<AgentJob> findByRoomIdAndStatus(UUID roomId, AgentJobStatus status, Pageable pageable);
+
+	Page<AgentJob> findByStatusAndRetryCountLessThan(AgentJobStatus status, int retryCount, Pageable pageable);
 }

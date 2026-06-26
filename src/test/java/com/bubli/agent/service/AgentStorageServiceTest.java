@@ -193,6 +193,32 @@ class AgentStorageServiceTest {
 	}
 
 	@Test
+	void getRetryableFailedJobsReturnsFailedJobsBelowRetryLimit() {
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		agentJob.markDispatchFailed("AGENT_DISPATCH_ENQUEUE_FAILED", "queue unavailable");
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentJobRepository.findByStatusAndRetryCountLessThan(
+				eq(AgentJobStatus.FAILED),
+				eq(3),
+				eq(pageable)
+		)).willReturn(new PageImpl<>(List.of(agentJob), pageable, 1));
+
+		var result = agentJobService.getRetryableFailedJobs(3, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(jobId);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AgentJobStatus.FAILED);
+		assertThat(result.getItems().getFirst().retryCount()).isEqualTo(1);
+	}
+
+	@Test
 	void createDraftSuggestionStoresCandidateAsDraft() {
 		UUID suggestionId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
