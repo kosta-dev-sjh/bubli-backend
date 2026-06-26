@@ -34,18 +34,18 @@ public class LocalFileStorage implements FileStorage {
     }
 
     @Override
-    public InputStream open(String storagePath) {
+    public InputStream open(String storageKey) {
         try {
-            return Files.newInputStream(resolveSafely(storagePath));
+            return Files.newInputStream(resolveSafely(storageKey));
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.RESOURCE_500_001);
         }
     }
 
     @Override
-    public void delete(String storagePath) {
+    public void delete(String storageKey) {
         try {
-            Files.deleteIfExists(resolveSafely(storagePath));
+            Files.deleteIfExists(resolveSafely(storageKey));
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.RESOURCE_500_001);
         }

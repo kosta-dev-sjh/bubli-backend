@@ -26,7 +26,8 @@ import java.util.UUID;
 @Table(
         name = "resource_summaries",
         indexes = {
-                @Index(name = "idx_resource_summaries_resource", columnList = "resource_id")
+                @Index(name = "idx_resource_summaries_resource", columnList = "resource_id"),
+                @Index(name = "idx_resource_summaries_job", columnList = "job_id")
         }
 )
 @Getter
@@ -40,6 +41,9 @@ public class ResourceSummary extends BaseTimeEntity {
     @Column(name = "resource_id", nullable = false)
     private UUID resourceId;
 
+    @Column(name = "job_id")
+    private UUID jobId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private AnalysisStatus status;
@@ -48,14 +52,50 @@ public class ResourceSummary extends BaseTimeEntity {
     @Column(name = "summary_json", columnDefinition = "jsonb")
     private Map<String, Object> summaryJson;
 
-    private ResourceSummary(UUID resourceId, AnalysisStatus status, Map<String, Object> summaryJson) {
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "checklist_json", columnDefinition = "jsonb")
+    private Map<String, Object> checklistJson;
+
+    @Column(name = "prompt_version", length = 50)
+    private String promptVersion;
+
+    @Column(name = "schema_version", length = 50)
+    private String schemaVersion;
+
+    @Column(name = "model_name", length = 100)
+    private String modelName;
+
+    private ResourceSummary(
+            UUID resourceId,
+            UUID jobId,
+            AnalysisStatus status,
+            Map<String, Object> summaryJson,
+            Map<String, Object> checklistJson,
+            String promptVersion,
+            String schemaVersion,
+            String modelName
+    ) {
         this.resourceId = require(resourceId, "resourceId");
+        this.jobId = jobId;
         this.status = require(status, "status");
         this.summaryJson = immutableJsonMap(summaryJson);
+        this.checklistJson = immutableJsonMap(checklistJson);
+        this.promptVersion = promptVersion;
+        this.schemaVersion = schemaVersion;
+        this.modelName = modelName;
     }
 
-    public static ResourceSummary analyzed(UUID resourceId, Map<String, Object> summaryJson) {
-        return new ResourceSummary(resourceId, AnalysisStatus.ANALYZED, summaryJson);
+    public static ResourceSummary analyzed(UUID resourceId, UUID jobId, Map<String, Object> summaryJson) {
+        return new ResourceSummary(
+                resourceId,
+                jobId,
+                AnalysisStatus.ANALYZED,
+                summaryJson,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private static <T> T require(T value, String field) {

@@ -74,6 +74,7 @@ public class AnalyzeResourceJobService {
 
             resourceSummaryRepository.save(ResourceSummary.analyzed(
                     resource.getId(),
+                    job.getId(),
                     summaryJson(resourceFile, extracted)
             ));
 
@@ -110,7 +111,7 @@ public class AnalyzeResourceJobService {
     }
 
     private ExtractedText extract(ResourceFile resourceFile) {
-        try (InputStream inputStream = fileStorage.open(resourceFile.getStoragePath())) {
+        try (InputStream inputStream = fileStorage.open(resourceFile.getStorageKey())) {
             if (resourceFile.getMimeType().startsWith("application/pdf")) {
                 return extractPdf(inputStream);
             }

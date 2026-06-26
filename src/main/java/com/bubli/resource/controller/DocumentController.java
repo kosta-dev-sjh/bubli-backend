@@ -25,17 +25,17 @@ public class DocumentController {
     private final DocumentUploadService documentUploadService;
 
     @PostMapping(
-            value = "/api/project-rooms/{projectRoomId}/contract-documents",
+            value = "/api/project-rooms/{roomId}/contract-documents",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ResponseEntity<ApiResponse<ContractDocumentUploadResponse>> uploadContractDocument(
-            @PathVariable UUID projectRoomId,
+            @PathVariable UUID roomId,
             @RequestParam DocumentType documentType,
             @RequestParam MultipartFile file,
             @CurrentUser AuthUser currentUser
     ) {
         ContractDocumentUploadResponse response = documentUploadService.uploadContractDocument(
-                projectRoomId,
+                roomId,
                 currentUser.userId(),
                 documentType,
                 file

@@ -27,10 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_resources_room_status
 CREATE TABLE IF NOT EXISTS resource_files (
     id UUID PRIMARY KEY,
     resource_id UUID NOT NULL,
+    storage_key VARCHAR(1000) NOT NULL,
     original_name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(100) NOT NULL,
     size_bytes BIGINT NOT NULL,
-    storage_path VARCHAR(1000) NOT NULL,
     checksum VARCHAR(64),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
@@ -44,6 +44,26 @@ CREATE INDEX IF NOT EXISTS idx_resource_files_resource
     ON resource_files (resource_id);
 CREATE INDEX IF NOT EXISTS idx_resource_files_checksum
     ON resource_files (checksum);
+
+ALTER TABLE resource_files
+    ADD COLUMN IF NOT EXISTS storage_key VARCHAR(1000);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'resource_files'
+          AND column_name = 'storage_path'
+    ) THEN
+        EXECUTE 'UPDATE resource_files SET storage_key = storage_path WHERE storage_key IS NULL';
+    END IF;
+END $$;
+ALTER TABLE resource_files
+    ALTER COLUMN storage_key SET NOT NULL;
+ALTER TABLE resource_files
+    DROP COLUMN IF EXISTS storage_path;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_resource_files_storage_key
+    ON resource_files (storage_key);
 
 CREATE TABLE IF NOT EXISTS resource_versions (
     id UUID PRIMARY KEY,
@@ -71,8 +91,13 @@ CREATE INDEX IF NOT EXISTS idx_resource_versions_file
 CREATE TABLE IF NOT EXISTS resource_summaries (
     id UUID PRIMARY KEY,
     resource_id UUID NOT NULL,
+    job_id UUID,
     status VARCHAR(20) NOT NULL,
     summary_json JSONB,
+    checklist_json JSONB,
+    prompt_version VARCHAR(50),
+    schema_version VARCHAR(50),
+    model_name VARCHAR(100),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT fk_resource_summaries_resource
@@ -83,6 +108,15 @@ CREATE TABLE IF NOT EXISTS resource_summaries (
 
 CREATE INDEX IF NOT EXISTS idx_resource_summaries_resource
     ON resource_summaries (resource_id);
+CREATE INDEX IF NOT EXISTS idx_resource_summaries_job
+    ON resource_summaries (job_id);
+
+ALTER TABLE resource_summaries
+    ADD COLUMN IF NOT EXISTS job_id UUID,
+    ADD COLUMN IF NOT EXISTS checklist_json JSONB,
+    ADD COLUMN IF NOT EXISTS prompt_version VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS schema_version VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS model_name VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS ai_documents (
     id UUID PRIMARY KEY,
@@ -149,6 +183,22 @@ CREATE INDEX IF NOT EXISTS idx_agent_jobs_resource
 CREATE INDEX IF NOT EXISTS idx_agent_jobs_requested_by
     ON agent_jobs (requested_by_user_id, created_at DESC);
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'resource_summaries'
+          AND constraint_name = 'fk_resource_summaries_job'
+    ) THEN
+        ALTER TABLE resource_summaries
+            ADD CONSTRAINT fk_resource_summaries_job
+                FOREIGN KEY (job_id) REFERENCES agent_jobs (id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+ALTER TABLE agent_suggestions
+    DROP CONSTRAINT IF EXISTS fk_agent_suggestions_request;
 ALTER TABLE agent_suggestions
     DROP CONSTRAINT IF EXISTS ck_agent_suggestions_type;
 ALTER TABLE agent_suggestions
@@ -160,3 +210,81 @@ ALTER TABLE agent_suggestions
 ALTER TABLE agent_suggestions
     ADD CONSTRAINT ck_agent_suggestions_status
         CHECK (status IN ('DRAFT', 'APPROVED', 'HELD', 'REJECTED'));
+ALTER TABLE agent_suggestions
+    DROP CONSTRAINT IF EXISTS ck_agent_suggestions_confidence;
+
+DROP INDEX IF EXISTS idx_agent_suggestions_request;
+DROP INDEX IF EXISTS idx_agent_suggestions_source_document;
+
+ALTER TABLE agent_suggestions
+    ADD COLUMN IF NOT EXISTS user_id UUID,
+    ADD COLUMN IF NOT EXISTS room_id UUID,
+    ADD COLUMN IF NOT EXISTS job_id UUID,
+    ADD COLUMN IF NOT EXISTS resource_id UUID,
+    ADD COLUMN IF NOT EXISTS payload_json JSONB,
+    ADD COLUMN IF NOT EXISTS evidence_json JSONB;
+
+UPDATE agent_suggestions
+SET room_id = COALESCE(room_id, project_room_id),
+    resource_id = COALESCE(resource_id, source_document_id),
+    job_id = COALESCE(job_id, agent_request_id),
+    payload_json = COALESCE(payload_json, content_json),
+    evidence_json = COALESCE(evidence_json, original_content_json)
+WHERE room_id IS NULL
+   OR resource_id IS NULL
+   OR job_id IS NULL
+   OR payload_json IS NULL
+   OR evidence_json IS NULL;
+
+ALTER TABLE agent_suggestions
+    ALTER COLUMN user_id SET NOT NULL,
+    ALTER COLUMN payload_json SET NOT NULL,
+    ALTER COLUMN agent_request_id DROP NOT NULL,
+    ALTER COLUMN project_room_id DROP NOT NULL,
+    ALTER COLUMN title DROP NOT NULL,
+    ALTER COLUMN original_content_json DROP NOT NULL,
+    ALTER COLUMN content_json DROP NOT NULL;
+
+ALTER TABLE agent_suggestions
+    DROP COLUMN IF EXISTS agent_request_id,
+    DROP COLUMN IF EXISTS project_room_id,
+    DROP COLUMN IF EXISTS source_document_id,
+    DROP COLUMN IF EXISTS title,
+    DROP COLUMN IF EXISTS original_content_json,
+    DROP COLUMN IF EXISTS content_json,
+    DROP COLUMN IF EXISTS confidence,
+    DROP COLUMN IF EXISTS row_version;
+
+CREATE INDEX IF NOT EXISTS idx_agent_suggestions_user_status
+    ON agent_suggestions (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_agent_suggestions_room_status
+    ON agent_suggestions (room_id, status);
+CREATE INDEX IF NOT EXISTS idx_agent_suggestions_job
+    ON agent_suggestions (job_id);
+CREATE INDEX IF NOT EXISTS idx_agent_suggestions_resource
+    ON agent_suggestions (resource_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'agent_suggestions'
+          AND constraint_name = 'fk_agent_suggestions_job'
+    ) THEN
+        ALTER TABLE agent_suggestions
+            ADD CONSTRAINT fk_agent_suggestions_job
+                FOREIGN KEY (job_id) REFERENCES agent_jobs (id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'agent_suggestions'
+          AND constraint_name = 'fk_agent_suggestions_resource'
+    ) THEN
+        ALTER TABLE agent_suggestions
+            ADD CONSTRAINT fk_agent_suggestions_resource
+                FOREIGN KEY (resource_id) REFERENCES resources (id) ON DELETE SET NULL;
+    END IF;
+END $$;

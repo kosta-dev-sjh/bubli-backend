@@ -3,6 +3,7 @@ package com.bubli.agent.service;
 import com.bubli.agent.dto.AgentJobResponse;
 import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.repository.AiDocumentRepository;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class AgentJobQueryService {
 
     private final AgentJobRepository agentJobRepository;
+    private final AgentSuggestionRepository agentSuggestionRepository;
     private final ResourceSummaryRepository resourceSummaryRepository;
     private final AiDocumentRepository aiDocumentRepository;
 
@@ -39,6 +41,11 @@ public class AgentJobQueryService {
                 .map(com.bubli.resource.entity.AiDocument::getId)
                 .orElse(null);
 
-        return AgentJobResponse.of(job, List.of(), resourceSummaryId, aiDocumentId);
+        List<UUID> suggestionIds = agentSuggestionRepository.findAllByJobIdOrderByCreatedAtAsc(job.getId())
+                .stream()
+                .map(com.bubli.agent.entity.AgentSuggestion::getId)
+                .toList();
+
+        return AgentJobResponse.of(job, suggestionIds, resourceSummaryId, aiDocumentId);
     }
 }

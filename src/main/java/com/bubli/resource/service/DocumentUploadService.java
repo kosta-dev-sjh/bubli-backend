@@ -42,27 +42,27 @@ public class DocumentUploadService {
 
     @Transactional
     public ContractDocumentUploadResponse uploadContractDocument(
-            UUID projectRoomId,
+            UUID roomId,
             UUID ownerId,
             DocumentType documentType,
             MultipartFile file
     ) {
         //필수 항목
-        require(projectRoomId, "projectRoomId");
+        require(roomId, "roomId");
         require(ownerId, "ownerId");
         require(documentType, "documentType");
         requireContractDocumentType(documentType);  //계약서/요구사항과같은 내용이 아닌지 확인
 
         DocumentFileInspector.InspectedDocument inspected = fileInspector.inspect(file);
-        rejectDuplicate(projectRoomId, inspected.checksum());
+        rejectDuplicate(roomId, inspected.checksum());
 
-        String storageKey = storageKey(projectRoomId, inspected.fileType().name().toLowerCase());
-        String storagePath = store(file, storageKey);
-        registerRollbackCleanup(storagePath);
+        String storageKey = storageKey(roomId, inspected.fileType().name().toLowerCase());
+        String storedStorageKey = store(file, storageKey);
+        registerRollbackCleanup(storedStorageKey);
 
         Resource resource = resourceRepository.saveAndFlush(Resource.roomFile(
                 ownerId,
-                projectRoomId,
+                roomId,
                 inspected.fileName()
         ));
 
@@ -71,7 +71,7 @@ public class DocumentUploadService {
                 inspected.fileName(),
                 mimeType(inspected.fileType()),
                 file.getSize(),
-                storagePath,
+                storedStorageKey,
                 inspected.checksum()
         ));
 
@@ -85,7 +85,7 @@ public class DocumentUploadService {
 
         AgentJob job = agentJobRepository.save(AgentJob.pending(
                 ownerId,
-                projectRoomId,
+                roomId,
                 resource.getId(),
                 AgentJobType.ANALYZE_RESOURCE
         ));
@@ -93,8 +93,8 @@ public class DocumentUploadService {
         return ContractDocumentUploadResponse.of(resource, job);
     }
 
-    private void rejectDuplicate(UUID projectRoomId, String checksum) {
-        if (resourceFileRepository.existsActiveRoomFileByChecksum(projectRoomId, checksum)) {
+    private void rejectDuplicate(UUID roomId, String checksum) {
+        if (resourceFileRepository.existsActiveRoomFileByChecksum(roomId, checksum)) {
             throw new BusinessException(ErrorCode.RESOURCE_409_001);
         }
     }
@@ -107,7 +107,7 @@ public class DocumentUploadService {
         }
     }
 
-    private void registerRollbackCleanup(String storagePath) {
+    private void registerRollbackCleanup(String storageKey) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -116,20 +116,20 @@ public class DocumentUploadService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     try {
-                        fileStorage.delete(storagePath);
+                        fileStorage.delete(storageKey);
                     } catch (RuntimeException e) {
-                        log.error("Failed to delete uploaded resource file after transaction rollback. storagePath={}",
-                                storagePath, e);
+                        log.error("Failed to delete uploaded resource file after transaction rollback. storageKey={}",
+                                storageKey, e);
                     }
                 }
             }
         });
     }
 
-    private String storageKey(UUID projectRoomId, String extension) {
+    private String storageKey(UUID roomId, String extension) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         return "resources/%s/%d/%02d/%s.%s".formatted(
-                projectRoomId,
+                roomId,
                 today.getYear(),
                 today.getMonthValue(),
                 UUID.randomUUID(),

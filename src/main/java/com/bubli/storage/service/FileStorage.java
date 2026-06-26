@@ -6,7 +6,7 @@ public interface FileStorage {
 
     String store(String key, InputStream inputStream);
 
-    InputStream open(String storagePath);
+    InputStream open(String storageKey);
 
-    void delete(String storagePath);
+    void delete(String storageKey);
 }

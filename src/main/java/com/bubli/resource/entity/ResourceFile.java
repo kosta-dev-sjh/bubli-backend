@@ -42,8 +42,8 @@ public class ResourceFile extends BaseTimeEntity {
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    @Column(name = "storage_path", nullable = false, length = 1000)
-    private String storagePath;
+    @Column(name = "storage_key", nullable = false, length = 1000)
+    private String storageKey;
 
     @Column(name = "checksum", length = 64)
     private String checksum;
@@ -53,7 +53,7 @@ public class ResourceFile extends BaseTimeEntity {
             String originalName,
             String mimeType,
             long sizeBytes,
-            String storagePath,
+            String storageKey,
             String checksum
     ) {
         this.resourceId = require(resourceId, "resourceId");
@@ -63,7 +63,7 @@ public class ResourceFile extends BaseTimeEntity {
             throw new IllegalArgumentException("sizeBytes must not be negative.");
         }
         this.sizeBytes = sizeBytes;
-        this.storagePath = requireText(storagePath, "storagePath");
+        this.storageKey = requireText(storageKey, "storageKey");
         this.checksum = checksum;
     }
 
@@ -72,10 +72,10 @@ public class ResourceFile extends BaseTimeEntity {
             String originalName,
             String mimeType,
             long sizeBytes,
-            String storagePath,
+            String storageKey,
             String checksum
     ) {
-        return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storagePath, checksum);
+        return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
     }
 
     private static <T> T require(T value, String field) {

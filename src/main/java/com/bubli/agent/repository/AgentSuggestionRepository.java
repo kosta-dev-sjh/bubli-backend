@@ -10,15 +10,15 @@ import java.util.UUID;
 
 public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion, UUID> {
 
-    List<AgentSuggestion> findAllByProjectRoomIdAndStatusOrderByCreatedAtDesc(
-            UUID projectRoomId,
+    List<AgentSuggestion> findAllByRoomIdAndStatusOrderByCreatedAtDesc(
+            UUID roomId,
             AgentSuggestionStatus status
     );
 
-    List<AgentSuggestion> findAllByAgentRequestIdOrderByCreatedAtAsc(UUID agentRequestId);
+    List<AgentSuggestion> findAllByJobIdOrderByCreatedAtAsc(UUID jobId);
 
-    List<AgentSuggestion> findAllByProjectRoomIdAndSuggestionTypeAndStatus(
-            UUID projectRoomId,
+    List<AgentSuggestion> findAllByRoomIdAndSuggestionTypeAndStatus(
+            UUID roomId,
             AgentSuggestionType suggestionType,
             AgentSuggestionStatus status
     );

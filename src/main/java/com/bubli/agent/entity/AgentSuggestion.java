@@ -3,31 +3,24 @@ package com.bubli.agent.entity;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.entity.BaseTimeEntity;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,9 +28,10 @@ import java.util.UUID;
 @Table(
         name = "agent_suggestions",
         indexes = {
-                @Index(name = "idx_agent_suggestions_room_status", columnList = "project_room_id,status"),
-                @Index(name = "idx_agent_suggestions_request", columnList = "agent_request_id"),
-                @Index(name = "idx_agent_suggestions_source_document", columnList = "source_document_id")
+                @Index(name = "idx_agent_suggestions_user_status", columnList = "user_id,status"),
+                @Index(name = "idx_agent_suggestions_room_status", columnList = "room_id,status"),
+                @Index(name = "idx_agent_suggestions_job", columnList = "job_id"),
+                @Index(name = "idx_agent_suggestions_resource", columnList = "resource_id")
         }
 )
 @Getter
@@ -48,36 +42,33 @@ public class AgentSuggestion extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "agent_request_id", nullable = false)
-    private UUID agentRequestId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
-    @Column(name = "project_room_id", nullable = false)
-    private UUID projectRoomId;
+    @Column(name = "room_id")
+    private UUID roomId;
 
-    @Column(name = "source_document_id")
-    private UUID sourceDocumentId;
+    @Column(name = "job_id")
+    private UUID jobId;
+
+    @Column(name = "resource_id")
+    private UUID resourceId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "suggestion_type", nullable = false, length = 40)
     private AgentSuggestionType suggestionType;
 
-    @Column(name = "title", nullable = false, length = 500)
-    private String title;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload_json", nullable = false, columnDefinition = "jsonb")
+    private Map<String, Object> payloadJson;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "original_content_json", nullable = false, columnDefinition = "jsonb")
-    private Map<String, Object> originalContentJson;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "content_json", nullable = false, columnDefinition = "jsonb")
-    private Map<String, Object> contentJson;
+    @Column(name = "evidence_json", columnDefinition = "jsonb")
+    private Map<String, Object> evidenceJson;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private AgentSuggestionStatus status;
-
-    @Column(name = "confidence", precision = 5, scale = 4)
-    private BigDecimal confidence;
 
     @Column(name = "reviewed_by")
     private UUID reviewedBy;
@@ -85,78 +76,43 @@ public class AgentSuggestion extends BaseTimeEntity {
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
 
-    @Version
-    @Column(name = "row_version", nullable = false)
-    private long rowVersion;
-
-    @OneToMany(
-            mappedBy = "suggestion",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true,
-            fetch = FetchType.LAZY
-    )
-    private final List<SuggestionEvidence> evidences = new ArrayList<>();
-
     private AgentSuggestion(
-            UUID agentRequestId,
-            UUID projectRoomId,
-            UUID sourceDocumentId,
+            UUID userId,
+            UUID roomId,
+            UUID jobId,
+            UUID resourceId,
             AgentSuggestionType suggestionType,
-            String title,
-            Map<String, Object> contentJson,
-            BigDecimal confidence
+            Map<String, Object> payloadJson,
+            Map<String, Object> evidenceJson
     ) {
-        this.agentRequestId = require(agentRequestId, "agentRequestId");
-        this.projectRoomId = require(projectRoomId, "projectRoomId");
-        this.sourceDocumentId = sourceDocumentId;
+        this.userId = require(userId, "userId");
+        this.roomId = roomId;
+        this.jobId = jobId;
+        this.resourceId = resourceId;
         this.suggestionType = require(suggestionType, "suggestionType");
-        this.title = requireText(title, "title");
-        this.originalContentJson = immutableJsonMap(require(contentJson, "contentJson"));
-        this.contentJson = immutableJsonMap(contentJson);
-        this.confidence = validateConfidence(confidence);
+        this.payloadJson = immutableJsonMap(require(payloadJson, "payloadJson"));
+        this.evidenceJson = immutableJsonMap(evidenceJson);
         this.status = AgentSuggestionStatus.DRAFT;
     }
 
-    public static AgentSuggestion pending(
-            UUID agentRequestId,
-            UUID projectRoomId,
-            UUID sourceDocumentId,
+    public static AgentSuggestion draft(
+            UUID userId,
+            UUID roomId,
+            UUID jobId,
+            UUID resourceId,
             AgentSuggestionType suggestionType,
-            String title,
-            Map<String, Object> contentJson,
-            BigDecimal confidence
+            Map<String, Object> payloadJson,
+            Map<String, Object> evidenceJson
     ) {
         return new AgentSuggestion(
-                agentRequestId,
-                projectRoomId,
-                sourceDocumentId,
+                userId,
+                roomId,
+                jobId,
+                resourceId,
                 suggestionType,
-                title,
-                contentJson,
-                confidence
+                payloadJson,
+                evidenceJson
         );
-    }
-
-    public SuggestionEvidence addEvidence(
-            UUID documentId,
-            UUID chunkId,
-            String fileName,
-            Integer pageNumber,
-            String evidenceText,
-            BigDecimal similarityScore
-    ) {
-        ensureDraft();
-        SuggestionEvidence evidence = SuggestionEvidence.create(
-                this,
-                documentId,
-                chunkId,
-                fileName,
-                pageNumber,
-                evidenceText,
-                similarityScore
-        );
-        evidences.add(evidence);
-        return evidence;
     }
 
     public void approve(UUID reviewerId) {
@@ -171,15 +127,11 @@ public class AgentSuggestion extends BaseTimeEntity {
         review(AgentSuggestionStatus.REJECTED, reviewerId);
     }
 
-    public void modify(UUID reviewerId, Map<String, Object> modifiedContentJson) {
+    public void modify(UUID reviewerId, Map<String, Object> modifiedPayloadJson) {
         ensureDraft();
-        contentJson = immutableJsonMap(require(modifiedContentJson, "modifiedContentJson"));
+        payloadJson = immutableJsonMap(require(modifiedPayloadJson, "modifiedPayloadJson"));
         reviewedBy = require(reviewerId, "reviewerId");
         reviewedAt = Instant.now();
-    }
-
-    public List<SuggestionEvidence> getEvidences() {
-        return Collections.unmodifiableList(evidences);
     }
 
     private void review(AgentSuggestionStatus nextStatus, UUID reviewerId) {
@@ -191,35 +143,21 @@ public class AgentSuggestion extends BaseTimeEntity {
 
     private void ensureDraft() {
         if (status != AgentSuggestionStatus.DRAFT) {
-            throw new IllegalStateException("검토가 끝난 제안은 다시 변경할 수 없습니다.");
+            throw new IllegalStateException("Only DRAFT suggestions can be changed.");
         }
-    }
-
-    private static BigDecimal validateConfidence(BigDecimal confidence) {
-        if (confidence == null) {
-            return null;
-        }
-        if (confidence.compareTo(BigDecimal.ZERO) < 0 || confidence.compareTo(BigDecimal.ONE) > 0) {
-            throw new IllegalArgumentException("confidence는 0과 1 사이여야 합니다.");
-        }
-        return confidence;
     }
 
     private static <T> T require(T value, String field) {
         if (value == null) {
-            throw new IllegalArgumentException(field + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(field + "는 필수입니다.");
+            throw new IllegalArgumentException(field + " is required.");
         }
         return value;
     }
 
     private static Map<String, Object> immutableJsonMap(Map<String, Object> value) {
+        if (value == null) {
+            return null;
+        }
         return Collections.unmodifiableMap(new LinkedHashMap<>(value));
     }
 }
