@@ -6,8 +6,8 @@ import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.resource.repository.AiDocumentRepository;
-import com.bubli.resource.repository.ResourceSummaryRepository;
+import com.bubli.resource.dto.ResourceAnalysisArtifacts;
+import com.bubli.resource.service.ResourceAnalysisPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,31 +21,22 @@ public class AgentJobQueryService {
 
     private final AgentJobRepository agentJobRepository;
     private final AgentSuggestionRepository agentSuggestionRepository;
-    private final ResourceSummaryRepository resourceSummaryRepository;
-    private final AiDocumentRepository aiDocumentRepository;
+    private final ResourceAnalysisPublicService resourceAnalysisService;
 
     @Transactional(readOnly = true)
     public AgentJobResponse getJob(UUID jobId) {
         AgentJob job = agentJobRepository.findById(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
 
-        UUID resourceSummaryId = job.getResourceId() == null
-                ? null
-                : resourceSummaryRepository.findTopByResourceIdOrderByCreatedAtDesc(job.getResourceId())
-                .map(com.bubli.resource.entity.ResourceSummary::getId)
-                .orElse(null);
-
-        UUID aiDocumentId = job.getResourceId() == null
-                ? null
-                : aiDocumentRepository.findByResourceId(job.getResourceId())
-                .map(com.bubli.resource.entity.AiDocument::getId)
-                .orElse(null);
+        ResourceAnalysisArtifacts artifacts = job.getResourceId() == null
+                ? new ResourceAnalysisArtifacts(null, null)
+                : resourceAnalysisService.findArtifacts(job.getResourceId());
 
         List<UUID> suggestionIds = agentSuggestionRepository.findAllByJobIdOrderByCreatedAtAsc(job.getId())
                 .stream()
                 .map(com.bubli.agent.entity.AgentSuggestion::getId)
                 .toList();
 
-        return AgentJobResponse.of(job, suggestionIds, resourceSummaryId, aiDocumentId);
+        return AgentJobResponse.of(job, suggestionIds, artifacts.resourceSummaryId(), artifacts.aiDocumentId());
     }
 }

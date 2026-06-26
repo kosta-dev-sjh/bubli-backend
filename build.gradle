@@ -90,6 +90,8 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+
 }
 
 // QueryDSL Q-class 생성 위치 (gitignore 대상)

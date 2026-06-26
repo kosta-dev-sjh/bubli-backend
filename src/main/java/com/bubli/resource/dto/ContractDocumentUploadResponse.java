@@ -1,6 +1,6 @@
 package com.bubli.resource.dto;
 
-import com.bubli.agent.entity.AgentJob;
+import com.bubli.agent.dto.AgentJobTicket;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.resource.entity.Resource;
 
@@ -12,11 +12,11 @@ public record ContractDocumentUploadResponse(
         AgentJobStatus status
 ) {
 
-    public static ContractDocumentUploadResponse of(Resource resource, AgentJob job) {
+    public static ContractDocumentUploadResponse of(Resource resource, AgentJobTicket job) {
         return new ContractDocumentUploadResponse(
                 resource.getId(),
-                job.getId(),
-                job.getStatus()
+                job.jobId(),
+                job.status()
         );
     }
 }

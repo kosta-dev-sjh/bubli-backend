@@ -34,6 +34,7 @@ public enum ErrorCode {
     RESOURCE_500_001(HttpStatus.INTERNAL_SERVER_ERROR, "RESOURCE_500_001", "문서 원본 저장에 실패했습니다."),
     // AGENT
     AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "Agent job not found."),
+    AGENT_404_002(HttpStatus.NOT_FOUND, "AGENT_404_002", "Agent suggestion not found."),
     ;
 
     private final HttpStatus httpStatus;

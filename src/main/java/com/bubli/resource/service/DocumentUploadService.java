@@ -1,8 +1,7 @@
 package com.bubli.resource.service;
 
-import com.bubli.agent.entity.AgentJob;
-import com.bubli.agent.repository.AgentJobRepository;
-import com.bubli.agent.type.AgentJobType;
+import com.bubli.agent.dto.AgentJobTicket;
+import com.bubli.agent.service.AgentJobPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.dto.ContractDocumentUploadResponse;
@@ -14,7 +13,7 @@ import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.DocumentFileType;
 import com.bubli.resource.type.DocumentType;
-import com.bubli.storage.service.FileStorage;
+import com.bubli.storage.service.StoragePublicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,8 +35,8 @@ public class DocumentUploadService {
     private final ResourceRepository resourceRepository;
     private final ResourceFileRepository resourceFileRepository;
     private final ResourceVersionRepository resourceVersionRepository;
-    private final AgentJobRepository agentJobRepository;
-    private final FileStorage fileStorage;
+    private final AgentJobPublicService agentJobService;
+    private final StoragePublicService storageService;
     private final DocumentFileInspector fileInspector;
 
     @Transactional
@@ -47,11 +46,10 @@ public class DocumentUploadService {
             DocumentType documentType,
             MultipartFile file
     ) {
-        //필수 항목
         require(roomId, "roomId");
         require(ownerId, "ownerId");
         require(documentType, "documentType");
-        requireContractDocumentType(documentType);  //계약서/요구사항과같은 내용이 아닌지 확인
+        requireContractDocumentType(documentType);
 
         DocumentFileInspector.InspectedDocument inspected = fileInspector.inspect(file);
         rejectDuplicate(roomId, inspected.checksum());
@@ -83,12 +81,11 @@ public class DocumentUploadService {
 
         resource.startAnalysis();
 
-        AgentJob job = agentJobRepository.save(AgentJob.pending(
+        AgentJobTicket job = agentJobService.createAnalyzeResourceJob(
                 ownerId,
                 roomId,
-                resource.getId(),
-                AgentJobType.ANALYZE_RESOURCE
-        ));
+                resource.getId()
+        );
 
         return ContractDocumentUploadResponse.of(resource, job);
     }
@@ -101,7 +98,7 @@ public class DocumentUploadService {
 
     private String store(MultipartFile file, String storageKey) {
         try {
-            return fileStorage.store(storageKey, file.getInputStream());
+            return storageService.store(storageKey, file.getInputStream());
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.RESOURCE_500_001);
         }
@@ -116,7 +113,7 @@ public class DocumentUploadService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     try {
-                        fileStorage.delete(storageKey);
+                        storageService.delete(storageKey);
                     } catch (RuntimeException e) {
                         log.error("Failed to delete uploaded resource file after transaction rollback. storageKey={}",
                                 storageKey, e);

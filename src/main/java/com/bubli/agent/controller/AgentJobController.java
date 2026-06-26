@@ -2,12 +2,15 @@ package com.bubli.agent.controller;
 
 import com.bubli.agent.dto.AgentJobResponse;
 import com.bubli.agent.dto.AnalyzeResourceRequest;
+import com.bubli.agent.dto.SearchResourceRequest;
+import com.bubli.agent.dto.SearchResourceResponse;
 import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.service.AgentJobCommandService;
 import com.bubli.agent.service.AgentJobQueryService;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,6 +30,7 @@ public class AgentJobController {
 
     private final AgentJobCommandService agentJobCommandService;
     private final AgentJobQueryService agentJobQueryService;
+    private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 
     @PostMapping("/api/ai/analyze-resource")
     public ResponseEntity<ApiResponse<AgentJobResponse>> analyzeResource(
@@ -45,5 +49,22 @@ public class AgentJobController {
     @GetMapping("/api/agent-jobs/{jobId}")
     public ResponseEntity<ApiResponse<AgentJobResponse>> getJob(@PathVariable UUID jobId) {
         return ResponseEntity.ok(ApiResponse.success(agentJobQueryService.getJob(jobId)));
+    }
+
+    @PostMapping("/api/ai/search-resource")
+    public ResponseEntity<ApiResponse<SearchResourceResponse>> searchResource(
+            @Valid @RequestBody SearchResourceRequest request,
+            @CurrentUser AuthUser currentUser
+    ) {
+        SearchResourceResponse response = SearchResourceResponse.of(
+                resourceSemanticSearchService.search(
+                        currentUser.userId(),
+                        request.scope(),
+                        request.roomId(),
+                        request.query(),
+                        request.topK()
+                )
+        );
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

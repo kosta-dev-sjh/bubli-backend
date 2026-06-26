@@ -10,6 +10,10 @@ import java.util.UUID;
 
 public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion, UUID> {
 
+    List<AgentSuggestion> findAllByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    List<AgentSuggestion> findAllByRoomIdOrderByCreatedAtDesc(UUID roomId);
+
     List<AgentSuggestion> findAllByRoomIdAndStatusOrderByCreatedAtDesc(
             UUID roomId,
             AgentSuggestionStatus status
