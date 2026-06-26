@@ -63,7 +63,10 @@ public enum ErrorCode {
     STORAGE_400_002(HttpStatus.BAD_REQUEST, "STORAGE_400_002", "저장 용량 한도를 초과했습니다."),
 
     // AGENT
+    AGENT_400_001(HttpStatus.BAD_REQUEST, "AGENT_400_001", "에이전트 제안 요청 값이 올바르지 않습니다."),
     AGENT_404_001(HttpStatus.NOT_FOUND, "AGENT_404_001", "에이전트 작업을 찾을 수 없습니다."),
+    AGENT_404_002(HttpStatus.NOT_FOUND, "AGENT_404_002", "에이전트 제안을 찾을 수 없습니다."),
+    AGENT_404_003(HttpStatus.NOT_FOUND, "AGENT_404_003", "AI 문서를 찾을 수 없습니다."),
 
     // SCHEDULE
     SCHEDULE_400_001(HttpStatus.BAD_REQUEST, "SCHEDULE_400_001", "일정 시간이 올바르지 않습니다."),

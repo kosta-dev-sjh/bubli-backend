@@ -1,14 +1,19 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.dispatch.AgentJobDispatchEvent;
+import com.bubli.agent.dispatch.AgentJobDispatchOutboxRecorder;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.AgentSuggestionResult;
 import com.bubli.agent.dto.AiDocumentResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.dto.CreateAgentSuggestionCommand;
 import com.bubli.agent.dto.CreateAiDocumentCommand;
+import com.bubli.agent.dto.UpdateAgentSuggestionCommand;
 import com.bubli.agent.entity.AgentJob;
+import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.entity.AiDocument;
+import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.repository.AiDocumentRepository;
@@ -20,21 +25,28 @@ import com.bubli.agent.type.AiDocumentStatus;
 import com.bubli.agent.type.AiDocumentType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -45,10 +57,22 @@ class AgentStorageServiceTest {
 	AgentJobRepository agentJobRepository;
 
 	@Mock
+	AgentJobEventRepository agentJobEventRepository;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
+
+	@Mock
+	AgentJobDispatchOutboxRecorder dispatchOutboxRecorder;
+
+	@Mock
 	AgentSuggestionRepository agentSuggestionRepository;
 
 	@Mock
 	AiDocumentRepository aiDocumentRepository;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	AgentJobService agentJobService;
@@ -86,6 +110,15 @@ class AgentStorageServiceTest {
 		verify(agentJobRepository).save(jobCaptor.capture());
 		assertThat(jobCaptor.getValue().getResourceId()).isEqualTo(resourceId);
 		assertThat(jobCaptor.getValue().getRoomId()).isEqualTo(roomId);
+
+		ArgumentCaptor<AgentJobDispatchEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobDispatchEvent.class);
+		verify(eventPublisher).publishEvent(eventCaptor.capture());
+		assertThat(eventCaptor.getValue().command().jobId()).isEqualTo(jobId);
+		assertThat(eventCaptor.getValue().command().requestedByUserId()).isEqualTo(userId);
+		assertThat(eventCaptor.getValue().command().roomId()).isEqualTo(roomId);
+		assertThat(eventCaptor.getValue().command().resourceId()).isEqualTo(resourceId);
+		assertThat(eventCaptor.getValue().command().jobType()).isEqualTo(AgentJobType.ANALYZE_RESOURCE);
+		verify(dispatchOutboxRecorder).recordPending(eventCaptor.getValue().command());
 	}
 
 	@Test
@@ -138,6 +171,59 @@ class AgentStorageServiceTest {
 	}
 
 	@Test
+	void getRequestedJobEventsReturnsEventsAfterRequesterCheck() {
+		UUID userId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		UUID eventId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				userId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		AgentJobEvent event = AgentJobEvent.create(jobId, "STARTED", "분석을 시작했습니다.");
+		ReflectionTestUtils.setField(event, "id", eventId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentJobRepository.findByIdAndRequestedByUserId(jobId, userId)).willReturn(Optional.of(agentJob));
+		given(agentJobEventRepository.findByJobId(eq(jobId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(event), pageable, 1));
+
+		var result = agentJobService.getRequestedJobEvents(userId, jobId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(eventId);
+		assertThat(result.getItems().getFirst().eventType()).isEqualTo("STARTED");
+		assertThat(result.getItems().getFirst().message()).isEqualTo("분석을 시작했습니다.");
+	}
+
+	@Test
+	void getRetryableFailedJobsReturnsFailedJobsBelowRetryLimit() {
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		agentJob.markDispatchFailed("AGENT_DISPATCH_ENQUEUE_FAILED", "queue unavailable");
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentJobRepository.findByStatusAndRetryCountLessThan(
+				eq(AgentJobStatus.FAILED),
+				eq(3),
+				eq(pageable)
+		)).willReturn(new PageImpl<>(List.of(agentJob), pageable, 1));
+
+		var result = agentJobService.getRetryableFailedJobs(3, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(jobId);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AgentJobStatus.FAILED);
+		assertThat(result.getItems().getFirst().retryCount()).isEqualTo(1);
+	}
+
+	@Test
 	void createDraftSuggestionStoresCandidateAsDraft() {
 		UUID suggestionId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
@@ -167,6 +253,158 @@ class AgentStorageServiceTest {
 	}
 
 	@Test
+	void getPersonalSuggestionsReturnsUserSuggestionsByStatus() {
+		UUID userId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				"{\"source\":\"resource\"}"
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentSuggestionRepository.findByUserIdAndStatus(
+				eq(userId),
+				eq(AgentSuggestionStatus.DRAFT),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(suggestion), pageable, 1));
+
+		var result = agentSuggestionService.getPersonalSuggestions(userId, AgentSuggestionStatus.DRAFT, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
+		assertThat(result.getItems().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.TODO);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AgentSuggestionStatus.DRAFT);
+	}
+
+	@Test
+	void getRoomSuggestionsRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				roomId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.QUESTION,
+				"{\"question\":\"확인할까요?\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentSuggestionRepository.findByRoomIdAndStatus(
+				eq(roomId),
+				eq(AgentSuggestionStatus.DRAFT),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(suggestion), pageable, 1));
+
+		var result = agentSuggestionService.getRoomSuggestions(userId, roomId, AgentSuggestionStatus.DRAFT, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(suggestionId);
+		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+	}
+
+	@Test
+	void updatePersonalSuggestionChangesCandidateOnly() {
+		UUID userId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				userId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				"{\"source\":\"resource\"}"
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		AgentSuggestionResult result = agentSuggestionService.updateSuggestion(
+				userId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(
+						AgentSuggestionStatus.HELD,
+						"{\"title\":\"시안 정리\",\"memo\":\"우선순위 재검토\"}",
+						null
+				)
+		);
+
+		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.HELD);
+		assertThat(result.payloadJson()).contains("우선순위 재검토");
+		assertThat(result.evidenceJson()).contains("resource");
+	}
+
+	@Test
+	void updateRoomSuggestionRequiresActiveRoomMember() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				UUID.randomUUID(),
+				roomId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.QUESTION,
+				"{\"question\":\"확인할까요?\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		AgentSuggestionResult result = agentSuggestionService.updateSuggestion(
+				userId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(AgentSuggestionStatus.REJECTED, null, null)
+		);
+
+		assertThat(result.status()).isEqualTo(AgentSuggestionStatus.REJECTED);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+	}
+
+	@Test
+	void updatePersonalSuggestionThrowsNotFoundForOtherUser() {
+		UUID ownerId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID suggestionId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+				ownerId,
+				null,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentSuggestionType.TODO,
+				"{\"title\":\"시안 정리\"}",
+				null
+		);
+		ReflectionTestUtils.setField(suggestion, "id", suggestionId);
+		given(agentSuggestionRepository.findById(suggestionId)).willReturn(Optional.of(suggestion));
+
+		assertThatThrownBy(() -> agentSuggestionService.updateSuggestion(
+				otherUserId,
+				suggestionId,
+				new UpdateAgentSuggestionCommand(AgentSuggestionStatus.APPROVED, null, null)
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_002));
+	}
+
+	@Test
+	void updateSuggestionRejectsEmptyPatch() {
+		assertThatThrownBy(() -> agentSuggestionService.updateSuggestion(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				new UpdateAgentSuggestionCommand(null, null, null)
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+	}
+
+	@Test
 	void createAiDocumentStoresReadyDocumentClassification() {
 		UUID aiDocumentId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -189,5 +427,85 @@ class AgentStorageServiceTest {
 		assertThat(result.roomId()).isEqualTo(roomId);
 		assertThat(result.status()).isEqualTo(AiDocumentStatus.READY);
 		assertThat(result.detectedConfidence()).isEqualByComparingTo("0.875");
+	}
+
+	@Test
+	void getAiDocumentByResourceIdReturnsDocumentStatus() {
+		UUID aiDocumentId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				resourceId,
+				roomId,
+				AiDocumentType.CONTRACT,
+				BigDecimal.valueOf(0.9500)
+		);
+		ReflectionTestUtils.setField(aiDocument, "id", aiDocumentId);
+		given(aiDocumentRepository.findByResourceId(resourceId)).willReturn(Optional.of(aiDocument));
+
+		AiDocumentResult result = aiDocumentService.getByResourceId(resourceId);
+
+		assertThat(result.id()).isEqualTo(aiDocumentId);
+		assertThat(result.resourceId()).isEqualTo(resourceId);
+		assertThat(result.roomId()).isEqualTo(roomId);
+		assertThat(result.documentType()).isEqualTo(AiDocumentType.CONTRACT);
+		assertThat(result.status()).isEqualTo(AiDocumentStatus.READY);
+	}
+
+	@Test
+	void getAiDocumentByResourceIdThrowsWhenMissing() {
+		UUID resourceId = UUID.randomUUID();
+		given(aiDocumentRepository.findByResourceId(resourceId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> aiDocumentService.getByResourceId(resourceId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_003));
+	}
+
+	@Test
+	void getRoomAiDocumentsRequiresActiveRoomMemberAndReturnsAllWhenStatusIsNull() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				resourceId,
+				roomId,
+				AiDocumentType.REQUIREMENT,
+				BigDecimal.valueOf(0.8200)
+		);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(aiDocumentRepository.findByRoomId(eq(roomId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(aiDocument), pageable, 1));
+
+		var result = aiDocumentService.getRoomAiDocuments(userId, roomId, null, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().roomId()).isEqualTo(roomId);
+		assertThat(result.getItems().getFirst().resourceId()).isEqualTo(resourceId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+	}
+
+	@Test
+	void getRoomAiDocumentsCanFilterByStatus() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		AiDocument aiDocument = AiDocument.create(
+				UUID.randomUUID(),
+				roomId,
+				AiDocumentType.CONTRACT,
+				BigDecimal.valueOf(0.9100)
+		);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(aiDocumentRepository.findByRoomIdAndStatus(
+				eq(roomId),
+				eq(AiDocumentStatus.READY),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(aiDocument), pageable, 1));
+
+		var result = aiDocumentService.getRoomAiDocuments(userId, roomId, AiDocumentStatus.READY, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().status()).isEqualTo(AiDocumentStatus.READY);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 }

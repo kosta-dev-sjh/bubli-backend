@@ -47,6 +47,28 @@ public class AgentModelCallLog {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static AgentModelCallLog create(
+			UUID jobId,
+			String promptVersion,
+			String schemaVersion,
+			String modelName,
+			Long latencyMs,
+			Integer inputTokens,
+			Integer outputTokens,
+			String errorCode
+	) {
+		AgentModelCallLog log = new AgentModelCallLog();
+		log.jobId = jobId;
+		log.promptVersion = promptVersion;
+		log.schemaVersion = schemaVersion;
+		log.modelName = modelName;
+		log.latencyMs = latencyMs;
+		log.inputTokens = inputTokens;
+		log.outputTokens = outputTokens;
+		log.errorCode = errorCode;
+		return log;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
