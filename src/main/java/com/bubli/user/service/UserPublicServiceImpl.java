@@ -2,6 +2,7 @@ package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
@@ -20,13 +21,30 @@ import java.util.stream.Collectors;
 public class UserPublicServiceImpl implements UserPublicService {
 
 	private final UserRepository userRepository;
+	private final BubliIdGenerator bubliIdGenerator;
 
 	@Override
 	@Transactional(readOnly = true)
 	public UserResult getUser(UUID userId) {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
-		return toPublicResult(user);
+		return UserResult.from(user);
+	}
+
+	@Override
+	@Transactional
+	public UserResult upsertGoogleUser(UpsertGoogleUserCommand command) {
+		User user = userRepository.findByGoogleSub(command.googleSub())
+				.orElseGet(() -> userRepository.save(User.createGoogleUser(
+						command.googleSub(),
+						generateBubliId(command),
+						resolveName(command),
+						command.avatarUrl(),
+						command.locale(),
+						command.timezone()
+		)));
+		user.updateProfile(resolveName(command), command.avatarUrl(), command.locale(), command.timezone());
+		return UserResult.from(user);
 	}
 
 	@Override
@@ -46,6 +64,27 @@ public class UserPublicServiceImpl implements UserPublicService {
 	}
 
 	private UserResult toPublicResult(User user) {
-		return UserResult.from(user, null);
+		return UserResult.from(user);
+	}
+
+	private String generateBubliId(UpsertGoogleUserCommand command) {
+		for (int attempt = 0; attempt < bubliIdGenerator.maxAttempts(); attempt++) {
+			String candidate = bubliIdGenerator.generate(command.googleSub(), attempt);
+			if (!userRepository.existsByBubliId(candidate)) {
+				return candidate;
+			}
+		}
+		throw new BusinessException(ErrorCode.COMMON_500_001);
+	}
+
+	private String resolveName(UpsertGoogleUserCommand command) {
+		if (hasText(command.name())) {
+			return command.name();
+		}
+		return "Bubli User";
+	}
+
+	private boolean hasText(String value) {
+		return value != null && !value.isBlank();
 	}
 }

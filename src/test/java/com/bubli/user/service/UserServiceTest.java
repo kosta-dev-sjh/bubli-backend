@@ -65,10 +65,9 @@ class UserServiceTest {
 		ReflectionTestUtils.setField(user, "id", userId);
 		given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
-		UserResult result = userService.getMe(userId, "user@example.com");
+		UserResult result = userService.getMe(userId);
 
 		assertThat(result.id()).isEqualTo(userId);
-		assertThat(result.email()).isEqualTo("user@example.com");
 		assertThat(result.name()).isEqualTo("정현");
 	}
 
@@ -77,7 +76,7 @@ class UserServiceTest {
 		UUID userId = UUID.randomUUID();
 		given(userRepository.findById(userId)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> userService.getMe(userId, "user@example.com"))
+		assertThatThrownBy(() -> userService.getMe(userId))
 				.isInstanceOf(BusinessException.class);
 	}
 
@@ -88,7 +87,7 @@ class UserServiceTest {
 		ReflectionTestUtils.setField(user, "id", userId);
 		given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
-		UserResult result = userService.updateMe(userId, "user@example.com", new UpdateUserProfileCommand(
+		UserResult result = userService.updateMe(userId, new UpdateUserProfileCommand(
 				"마렌",
 				"https://cdn.example/avatar.png",
 				"ja-JP",
@@ -96,7 +95,6 @@ class UserServiceTest {
 		));
 
 		assertThat(result.id()).isEqualTo(userId);
-		assertThat(result.email()).isEqualTo("user@example.com");
 		assertThat(result.name()).isEqualTo("마렌");
 		assertThat(result.avatarUrl()).isEqualTo("https://cdn.example/avatar.png");
 		assertThat(result.locale()).isEqualTo("ja-JP");

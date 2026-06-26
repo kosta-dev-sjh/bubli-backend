@@ -234,6 +234,6 @@ class ProjectRoomMemberServiceTest {
 	}
 
 	private UserResult userResult(User user) {
-		return UserResult.from(user, null);
+		return UserResult.from(user);
 	}
 }

@@ -27,7 +27,7 @@ public class MeController {
 
 	@GetMapping("/api/me")
 	public ApiResponse<MeResponse> getMe(@CurrentUser AuthUser authUser) {
-		return ApiResponse.success(MeResponse.from(userService.getMe(authUser.userId(), authUser.email())));
+		return ApiResponse.success(MeResponse.from(userService.getMe(authUser.userId())));
 	}
 
 	@PatchMapping("/api/me")
@@ -37,7 +37,6 @@ public class MeController {
 	) {
 		return ApiResponse.success(MeResponse.from(userService.updateMe(
 				authUser.userId(),
-				authUser.email(),
 				request.toCommand()
 		)));
 	}

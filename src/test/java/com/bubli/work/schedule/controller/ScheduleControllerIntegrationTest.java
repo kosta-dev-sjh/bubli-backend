@@ -207,7 +207,7 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId, String ignored) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

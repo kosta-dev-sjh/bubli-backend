@@ -46,14 +46,14 @@ public class UserService {
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
-	public UserResult getMe(UUID userId, String email) {
+	public UserResult getMe(UUID userId) {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
-		return UserResult.from(user, email);
+		return UserResult.from(user);
 	}
 
 	@Transactional
-	public UserResult updateMe(UUID userId, String email, UpdateUserProfileCommand command) {
+	public UserResult updateMe(UUID userId, UpdateUserProfileCommand command) {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
 		user.updateProfile(
@@ -62,7 +62,7 @@ public class UserService {
 				command.locale(),
 				command.timezone()
 		);
-		return UserResult.from(user, email);
+		return UserResult.from(user);
 	}
 
 	@Transactional(readOnly = true)

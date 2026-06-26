@@ -51,6 +51,33 @@ public class UserSession {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static UserSession create(UUID userId, String refreshTokenHash, ClientType clientType, Instant expiresAt) {
+		UserSession session = new UserSession();
+		session.userId = userId;
+		session.refreshToken = refreshTokenHash;
+		session.clientType = clientType;
+		session.status = SessionStatus.ACTIVE;
+		session.expiresAt = expiresAt;
+		return session;
+	}
+
+	public void rotate(String refreshTokenHash, Instant expiresAt) {
+		this.refreshToken = refreshTokenHash;
+		this.status = SessionStatus.ACTIVE;
+		this.expiresAt = expiresAt;
+		this.lastUsedAt = Instant.now();
+		this.revokedAt = null;
+	}
+
+	public void revoke() {
+		this.status = SessionStatus.REVOKED;
+		this.revokedAt = Instant.now();
+	}
+
+	public boolean isActiveAt(Instant now) {
+		return status == SessionStatus.ACTIVE && expiresAt.isAfter(now);
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
