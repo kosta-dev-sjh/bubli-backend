@@ -43,7 +43,7 @@ class DashboardControllerIntegrationTest extends PostgresIntegrationTestSupport 
 		User user = createUser("google-sub-dashboard-work", "정현");
 
 		mockMvc.perform(get("/api/dashboard/work")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.todayTasks", hasSize(0)))
@@ -71,7 +71,7 @@ class DashboardControllerIntegrationTest extends PostgresIntegrationTestSupport 
 		));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

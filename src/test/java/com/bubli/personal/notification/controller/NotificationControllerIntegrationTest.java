@@ -57,7 +57,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		UUID notifId = saveNotification(user.getId(), "새 메시지가 도착했습니다");
 
 		mockMvc.perform(get("/api/notifications")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
@@ -73,7 +73,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		UUID notifId = saveNotification(user.getId(), "읽음 처리 테스트");
 
 		mockMvc.perform(patch("/api/notifications/{id}/read", notifId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -89,7 +89,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		UUID notifId = saveNotification(user.getId(), "보관 처리 테스트");
 
 		mockMvc.perform(patch("/api/notifications/{id}/archive", notifId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junhwa@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -106,7 +106,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		UUID notifId = saveNotification(owner.getId(), "다른 사람 알림");
 
 		mockMvc.perform(patch("/api/notifications/{id}/read", notifId)
-						.header(AUTHORIZATION, bearerToken(other.getId(), "minseo@example.com")))
+						.header(AUTHORIZATION, bearerToken(other.getId())))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -133,7 +133,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		return id;
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

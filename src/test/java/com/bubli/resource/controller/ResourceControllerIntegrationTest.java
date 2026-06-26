@@ -66,7 +66,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 						.param("title", "테스트 문서")
 						.param("kind", "FILE")
 						.param("visibility", "PERSONAL")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").isNotEmpty())
@@ -88,7 +88,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		saveResource(other.getId(), "다른 사람 메모", ResourceKind.MEMO, ResourceVisibility.PERSONAL);
 
 		mockMvc.perform(get("/api/resources")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
@@ -103,7 +103,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		Resource resource = saveResource(user.getId(), "상세 조회 자료", ResourceKind.MEMO, ResourceVisibility.PERSONAL);
 
 		mockMvc.perform(get("/api/resources/{resourceId}", resource.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").value(resource.getId().toString()))
@@ -118,7 +118,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		Resource resource = saveResource(user.getId(), "기존 제목", ResourceKind.MEMO, ResourceVisibility.PERSONAL);
 
 		mockMvc.perform(patch("/api/resources/{resourceId}", resource.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "minseo@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -138,7 +138,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		Resource resource = saveResource(user.getId(), "삭제할 자료", ResourceKind.MEMO, ResourceVisibility.PERSONAL);
 
 		mockMvc.perform(delete("/api/resources/{resourceId}", resource.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "seohyeon@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -154,7 +154,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		Resource resource = saveResource(owner.getId(), "개인 자료", ResourceKind.MEMO, ResourceVisibility.PERSONAL);
 
 		mockMvc.perform(get("/api/resources/{resourceId}", resource.getId())
-						.header(AUTHORIZATION, bearerToken(other.getId(), "minjun@example.com")))
+						.header(AUTHORIZATION, bearerToken(other.getId())))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -176,7 +176,7 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		return resourceRepository.save(Resource.create(ownerId, null, title, kind, visibility, ResourceStatus.READY));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

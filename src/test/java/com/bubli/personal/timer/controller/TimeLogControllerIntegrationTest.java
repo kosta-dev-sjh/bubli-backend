@@ -55,7 +55,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		User user = createUser("google-sub-timelog-start", "정현");
 
 		mockMvc.perform(post("/api/time-logs/start")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -82,7 +82,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		UUID timeLogId = startTimeLog(user, "key-pause-001");
 
 		mockMvc.perform(patch("/api/time-logs/{timeLogId}/pause", timeLogId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").value(timeLogId.toString()))
@@ -99,11 +99,11 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		UUID timeLogId = startTimeLog(user, "key-resume-001");
 
 		mockMvc.perform(patch("/api/time-logs/{timeLogId}/pause", timeLogId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junhwa@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk());
 
 		mockMvc.perform(patch("/api/time-logs/{timeLogId}/resume", timeLogId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junhwa@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").value(timeLogId.toString()))
@@ -117,7 +117,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		UUID timeLogId = startTimeLog(user, "key-stop-001");
 
 		mockMvc.perform(patch("/api/time-logs/{timeLogId}/stop", timeLogId)
-						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.id").value(timeLogId.toString()))
@@ -134,7 +134,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		startTimeLog(user, "key-conflict-001");
 
 		mockMvc.perform(post("/api/time-logs/start")
-						.header(AUTHORIZATION, bearerToken(user.getId(), "minseo@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -155,7 +155,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		UUID timeLogId = startTimeLog(owner, "key-owner-001");
 
 		mockMvc.perform(patch("/api/time-logs/{timeLogId}/pause", timeLogId)
-						.header(AUTHORIZATION, bearerToken(other.getId(), "seohyeon@example.com")))
+						.header(AUTHORIZATION, bearerToken(other.getId())))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -175,7 +175,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 	private UUID startTimeLog(User user, String idempotencyKey) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/time-logs/start")
-						.header(AUTHORIZATION, bearerToken(user.getId(), user.getBubliId() + "@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -189,7 +189,7 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		return UUID.fromString(body.replaceAll("(?s).*\"id\":\"([^\"]+)\".*", "$1"));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }

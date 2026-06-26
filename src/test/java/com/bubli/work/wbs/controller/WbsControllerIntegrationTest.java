@@ -73,7 +73,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		wbsItemRepository.save(WbsItem.create(room.getId(), null, "UI 구현", 2, WbsStatus.TODO));
 
 		mockMvc.perform(get("/api/project-rooms/{roomId}/wbs-items", room.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.items", hasSize(2)))
@@ -90,7 +90,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
 
 		mockMvc.perform(post("/api/project-rooms/{roomId}/wbs-items", room.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -118,7 +118,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		WbsItem item = wbsItemRepository.save(WbsItem.create(room.getId(), null, "기존 항목", 1, WbsStatus.TODO));
 
 		mockMvc.perform(patch("/api/wbs-items/{wbsItemId}", item.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "junhwa@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -142,7 +142,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		WbsItem item = wbsItemRepository.save(WbsItem.create(room.getId(), null, "삭제할 항목", 1, WbsStatus.TODO));
 
 		mockMvc.perform(delete("/api/wbs-items/{wbsItemId}", item.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com")))
+						.header(AUTHORIZATION, bearerToken(user.getId())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -160,7 +160,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		WbsItem item2 = wbsItemRepository.save(WbsItem.create(room.getId(), null, "두 번째 항목", 2, WbsStatus.TODO));
 
 		mockMvc.perform(patch("/api/project-rooms/{roomId}/wbs-items/reorder", room.getId())
-						.header(AUTHORIZATION, bearerToken(user.getId(), "minseo@example.com"))
+						.header(AUTHORIZATION, bearerToken(user.getId()))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -187,7 +187,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
 
 		mockMvc.perform(get("/api/project-rooms/{roomId}/wbs-items", room.getId())
-						.header(AUTHORIZATION, bearerToken(outsider.getId(), "outsider@example.com")))
+						.header(AUTHORIZATION, bearerToken(outsider.getId())))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.data").value(nullValue()))
@@ -218,7 +218,7 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		));
 	}
 
-	private String bearerToken(UUID userId, String email) {
-		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId, email));
+	private String bearerToken(UUID userId) {
+		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
 	}
 }
