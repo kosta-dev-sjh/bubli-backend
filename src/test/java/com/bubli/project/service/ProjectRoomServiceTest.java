@@ -229,5 +229,4 @@ class ProjectRoomServiceTest {
 		assertThat(result.closedAt()).isNotNull();
 		assertThat(projectRoom.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
 	}
-
 }
