@@ -240,7 +240,7 @@ class EntityFlywayAlignmentTest {
 		));
 		assertForeignKeys(schema, "user_preferences", Set.of(
 				"FOREIGN KEY (user_id) REFERENCES users(id)",
-				"FOREIGN KEY (default_room_id) REFERENCES project_rooms(id)"
+				"FOREIGN KEY (default_project_room_id) REFERENCES project_rooms(id)"
 		));
 		assertForeignKeys(schema, "user_notification_preferences", Set.of(
 				"FOREIGN KEY (user_id) REFERENCES users(id)"

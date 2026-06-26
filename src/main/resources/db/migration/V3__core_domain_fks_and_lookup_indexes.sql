@@ -1,6 +1,6 @@
 ALTER TABLE user_sessions ADD CONSTRAINT fk_user_sessions_user FOREIGN KEY (user_id) REFERENCES users(id);
 ALTER TABLE user_preferences ADD CONSTRAINT fk_user_preferences_user FOREIGN KEY (user_id) REFERENCES users(id);
-ALTER TABLE user_preferences ADD CONSTRAINT fk_user_preferences_default_room FOREIGN KEY (default_room_id) REFERENCES project_rooms(id);
+ALTER TABLE user_preferences ADD CONSTRAINT fk_user_preferences_default_project_room FOREIGN KEY (default_project_room_id) REFERENCES project_rooms(id);
 ALTER TABLE user_notification_preferences ADD CONSTRAINT fk_user_notification_preferences_user FOREIGN KEY (user_id) REFERENCES users(id);
 ALTER TABLE user_privacy_consents ADD CONSTRAINT fk_user_privacy_consents_user FOREIGN KEY (user_id) REFERENCES users(id);
 ALTER TABLE friend_requests ADD CONSTRAINT fk_friend_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id);
