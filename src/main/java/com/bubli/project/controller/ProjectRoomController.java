@@ -5,10 +5,12 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.project.dto.CreateProjectRoomRequest;
+import com.bubli.project.dto.ProjectRoomEventResponse;
 import com.bubli.project.dto.ProjectRoomResponse;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.dto.UpdateProjectRoomPaymentRequest;
 import com.bubli.project.dto.UpdateProjectRoomRequest;
+import com.bubli.project.service.ProjectRoomEventService;
 import com.bubli.project.service.ProjectRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class ProjectRoomController {
 
 	private final ProjectRoomService projectRoomService;
+	private final ProjectRoomEventService projectRoomEventService;
 
 	@GetMapping("/api/project-rooms")
 	public ApiResponse<PageResponse<ProjectRoomResponse>> getProjectRooms(
@@ -93,6 +97,22 @@ public class ProjectRoomController {
 	) {
 		return ApiResponse.success(ProjectRoomResponse.from(projectRoomService.closeProjectRoom(authUser.userId(), roomId)));
 	}
+
+	@GetMapping("/api/project-rooms/{roomId}/events")
+	public ApiResponse<PageResponse<ProjectRoomEventResponse>> getProjectRoomEvents(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@RequestParam(required = false) Long afterSequence,
+			@RequestParam(required = false) Integer limit
+	) {
+		return ApiResponse.success(projectRoomEventService.getEvents(
+				authUser.userId(),
+				roomId,
+				afterSequence,
+				limit
+		));
+	}
+
 
 	private PageResponse<ProjectRoomResponse> mapPage(PageResponse<ProjectRoomResult> page) {
 		return new PageResponse<>(

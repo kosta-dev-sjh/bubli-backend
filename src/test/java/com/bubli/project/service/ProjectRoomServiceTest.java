@@ -44,6 +44,9 @@ class ProjectRoomServiceTest {
 	RoomMemberRepository roomMemberRepository;
 
 	@Mock
+	ProjectRoomEventRecorder projectRoomEventRecorder;
+
+	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
@@ -162,6 +165,7 @@ class ProjectRoomServiceTest {
 		assertThat(result.clientName()).isEqualTo("새 클라이언트");
 		assertThat(result.status()).isEqualTo(ProjectRoomStatus.ACTIVE);
 		assertThat(projectRoom.getName()).isEqualTo("새 프로젝트");
+		verify(projectRoomEventRecorder).recordRoomUpdated(userId, projectRoom);
 	}
 
 	@Test
@@ -200,6 +204,7 @@ class ProjectRoomServiceTest {
 		assertThat(result.paymentStatus()).isEqualTo(PaymentStatus.PAID);
 		assertThat(result.paymentDueDate()).isEqualTo(LocalDate.parse("2026-07-20"));
 		assertThat(result.paidAt()).isEqualTo(LocalDate.parse("2026-07-18"));
+		verify(projectRoomEventRecorder).recordPaymentUpdated(userId, projectRoom);
 	}
 
 	@Test
@@ -228,5 +233,6 @@ class ProjectRoomServiceTest {
 		assertThat(result.status()).isEqualTo(ProjectRoomStatus.CLOSED);
 		assertThat(result.closedAt()).isNotNull();
 		assertThat(projectRoom.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
+		verify(projectRoomEventRecorder).recordRoomClosed(userId, projectRoom);
 	}
 }

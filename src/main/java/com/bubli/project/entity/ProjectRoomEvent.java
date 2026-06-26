@@ -44,6 +44,24 @@ public class ProjectRoomEvent {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static ProjectRoomEvent create(
+			UUID roomId,
+			Long sequence,
+			String eventType,
+			UUID actorUserId,
+			String payloadJson,
+			Instant occurredAt
+	) {
+		ProjectRoomEvent event = new ProjectRoomEvent();
+		event.roomId = roomId;
+		event.sequence = sequence;
+		event.eventType = eventType;
+		event.actorUserId = actorUserId;
+		event.payloadJson = payloadJson;
+		event.occurredAt = occurredAt == null ? Instant.now() : occurredAt;
+		return event;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();

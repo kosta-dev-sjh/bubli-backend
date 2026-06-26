@@ -4,8 +4,10 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
 import com.bubli.project.entity.Invitation;
 import com.bubli.project.entity.ProjectRoom;
+import com.bubli.project.entity.ProjectRoomEvent;
 import com.bubli.project.entity.RoomMember;
 import com.bubli.project.repository.InvitationRepository;
+import com.bubli.project.repository.ProjectRoomEventRepository;
 import com.bubli.project.repository.ProjectRoomRepository;
 import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.InvitationStatus;
@@ -24,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -60,8 +63,12 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	@Autowired
 	InvitationRepository invitationRepository;
 
+	@Autowired
+	ProjectRoomEventRepository projectRoomEventRepository;
+
 	@BeforeEach
 	void setUp() {
+		projectRoomEventRepository.deleteAll();
 		invitationRepository.deleteAll();
 		roomMemberRepository.deleteAll();
 		projectRoomRepository.deleteAll();
@@ -158,9 +165,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.items[0].name").value("자료 정리 프로젝트"))
 				.andExpect(jsonPath("$.data.totalElements").value(1))
 				.andExpect(jsonPath("$.error").value(nullValue()));
-    }
+	}
 
-    @Test
+	@Test
 	void projectLeaderCanUpdateProjectRoom() throws Exception {
 		User leader = createUser("google-sub-room-update-leader", "미연");
 		ProjectRoom room = saveRoom(leader.getId(), "기존 프로젝트룸");
@@ -259,6 +266,65 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 		ProjectRoom closed = projectRoomRepository.findById(room.getId()).orElseThrow();
 		assertThat(closed.getStatus()).isEqualTo(ProjectRoomStatus.CLOSED);
 		assertThat(closed.getClosedAt()).isNotNull();
+	}
+
+	@Test
+	void activeRoomMemberCanGetProjectRoomEventsAfterSequence() throws Exception {
+		User leader = createUser("google-sub-events-leader", "미연");
+		User member = createUser("google-sub-events-member", "정현");
+		ProjectRoom room = saveRoom(leader.getId(), "이벤트 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		roomMemberRepository.save(RoomMember.createMember(room.getId(), member.getId()));
+		projectRoomEventRepository.save(ProjectRoomEvent.create(
+				room.getId(),
+				1L,
+				"ROOM_UPDATED",
+				leader.getId(),
+				"""
+				{"name":"이전 이름"}
+				""",
+				Instant.parse("2026-06-25T00:00:00Z")
+		));
+		ProjectRoomEvent event = projectRoomEventRepository.save(ProjectRoomEvent.create(
+				room.getId(),
+				2L,
+				"RESOURCE_UPLOADED",
+				leader.getId(),
+				"""
+				{"resourceId":"resource-1","title":"요구사항.pdf"}
+				""",
+				Instant.parse("2026-06-25T00:01:00Z")
+		));
+
+		mockMvc.perform(get("/api/project-rooms/{roomId}/events?afterSequence=1&limit=100", room.getId())
+						.header(AUTHORIZATION, bearerToken(member.getId(), "junghyun@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].eventId").value(event.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].eventType").value("RESOURCE_UPLOADED"))
+				.andExpect(jsonPath("$.data.items[0].roomId").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].sequence").value(2))
+				.andExpect(jsonPath("$.data.items[0].actor.type").value("USER"))
+				.andExpect(jsonPath("$.data.items[0].actor.id").value(leader.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].actor.name").value("미연"))
+				.andExpect(jsonPath("$.data.items[0].payload.title").value("요구사항.pdf"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void projectRoomEventsRejectUserWithoutActiveMembership() throws Exception {
+		User outsider = createUser("google-sub-events-outsider", "민서");
+		User leader = createUser("google-sub-events-owner", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "이벤트 접근 거절 프로젝트룸");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(get("/api/project-rooms/{roomId}/events", room.getId())
+						.header(AUTHORIZATION, bearerToken(outsider.getId(), "minseo@example.com")))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_403_001"));
 	}
 
 	@Test
