@@ -32,8 +32,8 @@ CREATE TABLE user_preferences (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL UNIQUE,
     theme VARCHAR(30),
-    font_scale DOUBLE PRECISION,
-    default_room_id UUID,
+    default_home_type VARCHAR(30),
+    default_project_room_id UUID,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
