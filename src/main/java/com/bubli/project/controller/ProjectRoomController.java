@@ -43,6 +43,15 @@ public class ProjectRoomController {
 		return ApiResponse.success(response);
 	}
 
+	@GetMapping("/api/me/project-rooms")
+	public ApiResponse<PageResponse<ProjectRoomResponse>> getMyProjectRooms(
+			@CurrentUser AuthUser authUser,
+			@PageableDefault(size = 20) Pageable pageable
+	) {
+		PageResponse<ProjectRoomResponse> response = mapPage(projectRoomService.getProjectRooms(authUser.userId(), pageable));
+		return ApiResponse.success(response);
+	}
+
 	@PostMapping("/api/project-rooms")
 	public ApiResponse<ProjectRoomResponse> createProjectRoom(
 			@CurrentUser AuthUser authUser,
@@ -103,6 +112,7 @@ public class ProjectRoomController {
 				limit
 		));
 	}
+
 
 	private PageResponse<ProjectRoomResponse> mapPage(PageResponse<ProjectRoomResult> page) {
 		return new PageResponse<>(

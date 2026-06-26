@@ -6,7 +6,4 @@ public record RefreshTokenCommand(
 		String refreshToken,
 		ClientType clientType
 ) {
-	public static RefreshTokenCommand from(RefreshTokenRequest request) {
-		return new RefreshTokenCommand(request.refreshToken(), request.clientType());
-	}
 }

@@ -35,13 +35,14 @@ public class ProjectRoomMemberService {
 	private final RoomMemberRepository roomMemberRepository;
 	private final InvitationRepository invitationRepository;
 	private final UserPublicService userPublicService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomMemberResult> getMembers(UUID requesterId, UUID roomId, Pageable pageable) {
-		checkActiveMember(requesterId, roomId);
+		projectMembershipPublicService.assertActiveMember(requesterId, roomId);
 
 		Page<RoomMember> page = roomMemberRepository.findByRoomIdAndStatus(roomId, RoomMemberStatus.ACTIVE, pageable);
-		Map<UUID, UserResult> users = findUsersById(page.map(RoomMember::getUserId));
+		Map<UUID, UserResult> users = userPublicService.getUsers(page.map(RoomMember::getUserId));
 
 		return new PageResponse<>(
 				page.getContent().stream()
@@ -57,7 +58,7 @@ public class ProjectRoomMemberService {
 
 	@Transactional
 	public InvitationResult createInvitation(UUID inviterUserId, UUID roomId, CreateInvitationCommand command) {
-		checkProjectLeader(inviterUserId, roomId);
+		projectMembershipPublicService.assertProjectLeader(inviterUserId, roomId);
 
 		UserResult invitee = userPublicService.getUser(command.inviteeUserId());
 
@@ -89,10 +90,10 @@ public class ProjectRoomMemberService {
 
 	@Transactional(readOnly = true)
 	public PageResponse<InvitationResult> getInvitations(UUID requesterId, UUID roomId, Pageable pageable) {
-		checkProjectLeader(requesterId, roomId);
+		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 
 		Page<Invitation> page = invitationRepository.findByRoomId(roomId, pageable);
-		Map<UUID, UserResult> invitees = findUsersById(page.map(Invitation::getInviteeUserId));
+		Map<UUID, UserResult> invitees = userPublicService.getUsers(page.map(Invitation::getInviteeUserId));
 
 		return new PageResponse<>(
 				page.getContent().stream()
@@ -144,7 +145,7 @@ public class ProjectRoomMemberService {
 	public InvitationResult cancelInvitation(UUID requesterId, UUID invitationId) {
 		Invitation invitation = invitationRepository.findById(invitationId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
-		checkProjectLeader(requesterId, invitation.getRoomId());
+		projectMembershipPublicService.assertProjectLeader(requesterId, invitation.getRoomId());
 
 		if (!invitation.isPending()) {
 			throw new BusinessException(ErrorCode.PROJECT_409_002);
@@ -157,7 +158,7 @@ public class ProjectRoomMemberService {
 
 	@Transactional
 	public ProjectRoomMemberResult updateMemberRole(UUID requesterId, UUID roomId, UUID memberUserId, RoomMemberRole role) {
-		checkProjectLeader(requesterId, roomId);
+		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 
 		RoomMember member = roomMemberRepository.findByRoomIdAndUserIdAndStatus(
 				roomId,
@@ -183,34 +184,7 @@ public class ProjectRoomMemberService {
 			return;
 		}
 
-		checkProjectLeader(requesterId, roomId);
+		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 		member.remove();
-	}
-
-	private void checkActiveMember(UUID userId, UUID roomId) {
-		boolean activeMember = roomMemberRepository.existsByRoomIdAndUserIdAndStatus(
-				roomId,
-				userId,
-				RoomMemberStatus.ACTIVE
-		);
-		if (!activeMember) {
-			throw new BusinessException(ErrorCode.PROJECT_403_001);
-		}
-	}
-
-	private void checkProjectLeader(UUID userId, UUID roomId) {
-		RoomMember member = roomMemberRepository.findByRoomIdAndUserIdAndStatus(
-				roomId,
-				userId,
-				RoomMemberStatus.ACTIVE
-		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
-
-		if (member.getRole() != RoomMemberRole.PROJECT_LEADER) {
-			throw new BusinessException(ErrorCode.PROJECT_403_002);
-		}
-	}
-
-	private Map<UUID, UserResult> findUsersById(Page<UUID> userIds) {
-		return userPublicService.getUsers(userIds);
 	}
 }
