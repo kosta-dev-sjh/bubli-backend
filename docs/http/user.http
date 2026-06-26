@@ -16,3 +16,78 @@ Content-Type: application/json
   "locale": "ko-KR",
   "timezone": "Asia/Seoul"
 }
+
+### 내가 참여 중인 프로젝트룸 목록
+GET {{baseUrl}}/api/me/project-rooms?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 내 사용자 설정 조회
+GET {{baseUrl}}/api/me/preferences
+Authorization: Bearer {{accessToken}}
+
+### 내 사용자 설정 수정
+PATCH {{baseUrl}}/api/me/preferences
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "theme": "LIGHT",
+  "defaultHomeType": "PROJECT_ROOM",
+  "defaultProjectRoomId": "replace-with-room-id"
+}
+
+### 내 알림 설정 조회
+GET {{baseUrl}}/api/me/notification-preferences
+Authorization: Bearer {{accessToken}}
+
+### 내 알림 설정 수정
+PATCH {{baseUrl}}/api/me/notification-preferences
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "notificationType": "MESSAGE",
+      "enabled": true
+    },
+    {
+      "notificationType": "COMMENT",
+      "enabled": true
+    },
+    {
+      "notificationType": "RESOURCE",
+      "enabled": true
+    },
+    {
+      "notificationType": "AGENT",
+      "enabled": true
+    },
+    {
+      "notificationType": "STORAGE",
+      "enabled": false
+    }
+  ]
+}
+
+### 내 개인정보 동의 상태 조회
+GET {{baseUrl}}/api/me/privacy-consents
+Authorization: Bearer {{accessToken}}
+
+### 내 개인정보 동의 상태 수정
+PATCH {{baseUrl}}/api/me/privacy-consents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "consentType": "ACTIVITY_CONTEXT",
+      "enabled": true
+    },
+    {
+      "consentType": "MANAGED_FOLDER",
+      "enabled": false
+    }
+  ]
+}
