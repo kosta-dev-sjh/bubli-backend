@@ -1,10 +1,10 @@
 package com.bubli.agent.dispatch;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnMissingBean(AgentJobDispatchPort.class)
+@ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "noop", matchIfMissing = true)
 public class NoopAgentJobDispatchPort implements AgentJobDispatchPort {
 
 	@Override
