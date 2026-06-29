@@ -79,4 +79,23 @@ public class AiJobCommandService {
 				AgentJobType.REVIEW_CONTRACT_DOCUMENTS
 		));
 	}
+
+	@Transactional
+	public AgentJobResult createDailySummaryJob(UUID userId) {
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				null,
+				null,
+				AgentJobType.DAILY_SUMMARY
+		));
+	}
+
+	@Transactional
+	public AgentJobResult createDraftDocumentJob(UUID userId, UUID roomId) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		return agentJobService.create(userId, new CreateAgentJobCommand(
+				roomId,
+				null,
+				AgentJobType.DRAFT_DOCUMENT
+		));
+	}
 }

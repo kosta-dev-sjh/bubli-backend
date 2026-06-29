@@ -7,6 +7,10 @@ import java.util.Map;
 
 public record AgentSuggestionUpdateRequest(
         @NotNull AgentSuggestionReviewAction action,
+        Map<String, Object> editedContent,
         Map<String, Object> payloadJson
 ) {
+    public Map<String, Object> effectiveEditedContent() {
+        return editedContent != null ? editedContent : payloadJson;
+    }
 }

@@ -4,6 +4,7 @@ import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AgentSuggestionQueryServiceTest {
@@ -25,12 +27,26 @@ class AgentSuggestionQueryServiceTest {
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
         when(repository.findAllByUserIdOrderByCreatedAtDesc(userId)).thenReturn(List.of(task, reviewItem));
 
-        var responses = new AgentSuggestionQueryService(repository)
+        var responses = new AgentSuggestionQueryService(repository, mock(ProjectMembershipPublicService.class))
                 .findMine(userId, AgentSuggestionStatus.DRAFT, AgentSuggestionType.TASK);
 
         assertThat(responses).hasSize(1);
         assertThat(responses.get(0).suggestionType()).isEqualTo(AgentSuggestionType.TASK);
         assertThat(responses.get(0).status()).isEqualTo(AgentSuggestionStatus.DRAFT);
+    }
+
+    @Test
+    void verifiesRoomMembershipBeforeFindingRoomSuggestions() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
+        when(repository.findAllByRoomIdOrderByCreatedAtDesc(roomId)).thenReturn(List.of());
+
+        new AgentSuggestionQueryService(repository, membershipService)
+                .findRoomSuggestions(userId, roomId, null, null);
+
+        verify(membershipService).assertActiveMember(userId, roomId);
     }
 
     private AgentSuggestion suggestion(UUID userId, AgentSuggestionType type) {

@@ -75,18 +75,18 @@ public class ResourceAnalysisPublicService {
 
             ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
-
+            //파일 추출
             ExtractedDocument extracted = extract(resourceFile);
             if (extracted.text().isBlank()) {
                 throw new IllegalArgumentException("Extracted text is empty.");
             }
-
+            //파일+agent job+ summary
             resourceSummaryRepository.save(ResourceSummary.analyzed(
                     resource.getId(),
                     jobId,
                     summaryJson(resourceFile, extracted)
             ));
-
+            //멱등성 보장을 위해 이미있으면 저장 안하고 없으면 생성
             UUID analyzedResourceId = resource.getId();
             UUID roomId = resource.getRoomId();
             aiDocumentRepository.findByResourceId(analyzedResourceId)
@@ -96,7 +96,7 @@ public class ResourceAnalysisPublicService {
                             detectDocumentType(resourceFile, extracted.text()),
                             new BigDecimal("0.5000")
                     )));
-
+            //임베딩
             resourceEmbeddingIndexService.index(resource, resourceFile, extracted.pages());
             resource.markAnalyzed();
         } catch (RuntimeException e) {
@@ -108,6 +108,7 @@ public class ResourceAnalysisPublicService {
     }
 
     private ExtractedDocument extract(ResourceFile resourceFile) {
+        //파일 종류별로
         try (InputStream inputStream = storageService.open(resourceFile.getStorageKey())) {
             if (resourceFile.getMimeType().startsWith("application/pdf")) {
                 return extractPdf(inputStream);
@@ -121,12 +122,13 @@ public class ResourceAnalysisPublicService {
             throw new IllegalArgumentException("Failed to extract resource text.", e);
         }
     }
-
+    //PDF
     private ExtractedDocument extractPdf(InputStream inputStream) throws IOException {
         byte[] bytes = inputStream.readAllBytes();
         try (PDDocument document = Loader.loadPDF(bytes)) {
             List<TextChunker.TextPage> pages = new ArrayList<>();
             int pageCount = document.getNumberOfPages();
+            //page별로 문서 나눔
             for (int pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
                 PDFTextStripper stripper = new PDFTextStripper();
                 stripper.setStartPage(pageNumber);

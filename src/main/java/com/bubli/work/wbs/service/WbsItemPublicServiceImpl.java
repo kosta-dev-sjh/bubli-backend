@@ -2,6 +2,9 @@ package com.bubli.work.wbs.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.wbs.dto.CreateWbsItemCommand;
+import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,7 @@ import java.util.UUID;
 public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 
 	private final WbsItemRepository wbsItemRepository;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -27,5 +31,23 @@ public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 		if (!roomId.equals(wbsItem.getRoomId())) {
 			throw new BusinessException(ErrorCode.WORK_403_001);
 		}
+	}
+
+	@Override
+	@Transactional
+	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		assertRoomWbsItem(roomId, command.parentId());
+		int orderNo = command.orderNo() == null
+				? wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1
+				: command.orderNo();
+		WbsItem item = WbsItem.create(
+				roomId,
+				command.parentId(),
+				command.title(),
+				orderNo,
+				command.status()
+		);
+		return WbsItemResult.from(wbsItemRepository.save(item));
 	}
 }

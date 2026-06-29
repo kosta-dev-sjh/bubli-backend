@@ -198,6 +198,53 @@ class AgentStorageServiceTest {
 	}
 
 	@Test
+	void getAccessibleJobEventsAllowsRoomMember() {
+		UUID requesterId = UUID.randomUUID();
+		UUID roomMemberId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		UUID eventId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				requesterId,
+				roomId,
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		AgentJobEvent event = AgentJobEvent.create(jobId, "QUEUED", "Job queued.");
+		ReflectionTestUtils.setField(event, "id", eventId);
+		PageRequest pageable = PageRequest.of(0, 20);
+		given(agentJobRepository.findById(jobId)).willReturn(Optional.of(agentJob));
+		given(agentJobEventRepository.findByJobId(eq(jobId), any(Pageable.class)))
+				.willReturn(new PageImpl<>(List.of(event), pageable, 1));
+
+		var result = agentJobService.getAccessibleJobEvents(roomMemberId, jobId, pageable);
+
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().getFirst().id()).isEqualTo(eventId);
+		verify(projectMembershipPublicService).assertActiveMember(roomMemberId, roomId);
+	}
+
+	@Test
+	void getAccessibleJobEventsRejectsPrivateJobForNonRequester() {
+		UUID requesterId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = AgentJob.create(
+				requesterId,
+				null,
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		given(agentJobRepository.findById(jobId)).willReturn(Optional.of(agentJob));
+
+		assertThatThrownBy(() -> agentJobService.getAccessibleJobEvents(otherUserId, jobId, PageRequest.of(0, 20)))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_404_001));
+	}
+
+	@Test
 	void getRetryableFailedJobsReturnsFailedJobsBelowRetryLimit() {
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = AgentJob.create(
