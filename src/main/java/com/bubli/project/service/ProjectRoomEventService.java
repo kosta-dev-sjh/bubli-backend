@@ -2,7 +2,7 @@ package com.bubli.project.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
-import com.bubli.global.response.PageResponse;
+import com.bubli.global.response.SequenceListResponse;
 import com.bubli.project.dto.ProjectRoomEventActorResponse;
 import com.bubli.project.dto.ProjectRoomEventResponse;
 import com.bubli.project.entity.ProjectRoomEvent;
@@ -33,7 +33,7 @@ public class ProjectRoomEventService {
 	private final ObjectMapper objectMapper;
 
 	@Transactional(readOnly = true)
-	public PageResponse<ProjectRoomEventResponse> getEvents(
+	public SequenceListResponse<ProjectRoomEventResponse> getEvents(
 			UUID userId,
 			UUID roomId,
 			Long afterSequence,
@@ -48,15 +48,20 @@ public class ProjectRoomEventService {
 				normalizedAfterSequence,
 				PageRequest.of(0, normalizedLimit)
 		);
+		long latestSequence = projectRoomEventRepository.findTopByRoomIdOrderBySequenceDesc(roomId)
+				.map(ProjectRoomEvent::getSequence)
+				.orElse(0L);
+		Long lastReceivedSequence = page.getContent().stream()
+				.map(ProjectRoomEvent::getSequence)
+				.reduce((ignored, sequence) -> sequence)
+				.orElse(null);
 
-		return new PageResponse<>(
+		return new SequenceListResponse<>(
 				page.getContent().stream()
 						.map(this::toResponse)
 						.toList(),
-				page.getNumber(),
-				page.getSize(),
-				page.getTotalElements(),
-				page.getTotalPages(),
+				lastReceivedSequence,
+				latestSequence,
 				page.hasNext()
 		);
 	}
