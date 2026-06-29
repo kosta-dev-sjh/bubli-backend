@@ -1,0 +1,38 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@targetBubliId = paste-target-bubli-id-here
+@friendRequestId = paste-friend-request-id-here
+@friendUserId = paste-friend-user-id-here
+
+### 내 친구 목록
+GET {{baseUrl}}/api/friends
+Authorization: Bearer {{accessToken}}
+
+### bubliId로 사용자 검색
+GET {{baseUrl}}/api/friends/search?bubliId={{targetBubliId}}
+Authorization: Bearer {{accessToken}}
+
+### 친구 요청 보내기
+POST {{baseUrl}}/api/friend-requests
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "bubliId": "{{targetBubliId}}"
+}
+
+### 보낸/받은 친구 요청 목록 (PENDING)
+GET {{baseUrl}}/api/friend-requests
+Authorization: Bearer {{accessToken}}
+
+### 친구 요청 수락
+PATCH {{baseUrl}}/api/friend-requests/{{friendRequestId}}/accept
+Authorization: Bearer {{accessToken}}
+
+### 친구 요청 거절
+PATCH {{baseUrl}}/api/friend-requests/{{friendRequestId}}/reject
+Authorization: Bearer {{accessToken}}
+
+### 친구 삭제
+DELETE {{baseUrl}}/api/friends/{{friendUserId}}
+Authorization: Bearer {{accessToken}}

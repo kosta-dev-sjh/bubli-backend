@@ -10,4 +10,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	Optional<User> findByGoogleSub(String googleSub);
 
 	boolean existsByBubliId(String bubliId);
+
+	Optional<User> findByBubliId(String bubliId);
 }

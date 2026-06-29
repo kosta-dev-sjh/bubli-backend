@@ -53,6 +53,11 @@ public enum ErrorCode {
 
     // USER
     USER_404_001(HttpStatus.NOT_FOUND, "USER_404_001", "사용자를 찾을 수 없습니다."),
+    USER_404_002(HttpStatus.NOT_FOUND, "USER_404_002", "친구 요청을 찾을 수 없습니다."),
+    USER_400_001(HttpStatus.BAD_REQUEST, "USER_400_001", "본인에게 친구 요청을 보낼 수 없습니다."),
+    USER_409_001(HttpStatus.CONFLICT, "USER_409_001", "이미 대기 중인 친구 요청이 있습니다."),
+    USER_409_002(HttpStatus.CONFLICT, "USER_409_002", "이미 친구인 사용자입니다."),
+    USER_409_003(HttpStatus.CONFLICT, "USER_409_003", "이미 처리된 친구 요청입니다."),
 
     // RESOURCE
     RESOURCE_400_001(HttpStatus.BAD_REQUEST, "RESOURCE_400_001", "자료 요청 값이 올바르지 않습니다."),
