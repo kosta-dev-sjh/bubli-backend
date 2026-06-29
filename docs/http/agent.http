@@ -3,9 +3,11 @@
 @agentJobId = replace-with-agent-job-id
 @suggestionId = replace-with-agent-suggestion-id
 @resourceId = replace-with-resource-id
+@relatedResourceId = replace-with-related-resource-id
 @roomId = replace-with-room-id
+@summaryDate = 2026-07-01
 
-### 자료 분석 작업 생성
+### Create resource analysis job
 POST {{baseUrl}}/api/ai/analyze-resource
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -14,7 +16,7 @@ Content-Type: application/json
   "resourceId": "{{resourceId}}"
 }
 
-### 요구사항 후보 생성 작업 생성
+### Create requirements generation job
 POST {{baseUrl}}/api/ai/generate-requirements
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -23,7 +25,7 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
-### TODO 후보 생성 작업 생성
+### Create task generation job
 POST {{baseUrl}}/api/ai/generate-tasks
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -32,7 +34,7 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
-### WBS 후보 생성 작업 생성
+### Create WBS generation job
 POST {{baseUrl}}/api/ai/generate-wbs
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -41,7 +43,7 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
-### 확인 질문 후보 생성 작업 생성
+### Create clarification question generation job
 POST {{baseUrl}}/api/ai/generate-questions
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -50,7 +52,7 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
-### 계약서 문서 검토 작업 생성
+### Create contract document review job
 POST {{baseUrl}}/api/ai/review-contract-documents
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
@@ -59,37 +61,115 @@ Content-Type: application/json
   "roomId": "{{roomId}}"
 }
 
-### 에이전트 작업 상태 조회
+### Create daily summary job
+POST {{baseUrl}}/api/ai/summarize-day
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "summaryDate": "{{summaryDate}}"
+}
+
+### Create document draft job
+POST {{baseUrl}}/api/ai/draft-document
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}",
+  "documentType": "MEETING_NOTE",
+  "sourceResourceIds": [
+    "{{resourceId}}",
+    "{{relatedResourceId}}"
+  ],
+  "instruction": "Draft a concise meeting note with decisions and action items."
+}
+
+### Search personal resources
+POST {{baseUrl}}/api/ai/search-resource
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "scope": "PERSONAL",
+  "query": "meeting decisions",
+  "topK": 5
+}
+
+### Search room-shared resources
+POST {{baseUrl}}/api/ai/search-resource
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "scope": "ROOM_SHARED",
+  "roomId": "{{roomId}}",
+  "query": "project requirements",
+  "topK": 5
+}
+
+### Get agent job status
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}
 Authorization: Bearer {{accessToken}}
 
-### 에이전트 작업 이벤트 조회
+### Get agent job events
 GET {{baseUrl}}/api/agent-jobs/{{agentJobId}}/events?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
-### 자료 AI 문서 분석 상태 조회
+### Get resource AI document
 GET {{baseUrl}}/api/resources/{{resourceId}}/ai-document
 Authorization: Bearer {{accessToken}}
 
-### 프로젝트룸 AI 문서 분석 목록
+### List room AI documents
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/ai-documents?status=READY&page=0&size=20
 Authorization: Bearer {{accessToken}}
 
-### 개인 에이전트 제안함
-GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&page=0&size=20
+### List related resources
+GET {{baseUrl}}/api/resources/{{resourceId}}/related
 Authorization: Bearer {{accessToken}}
 
-### 프로젝트룸 에이전트 제안함
-GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT&page=0&size=20
+### List daily summaries
+GET {{baseUrl}}/api/daily-summaries?from={{summaryDate}}&to={{summaryDate}}
 Authorization: Bearer {{accessToken}}
 
-### 에이전트 제안 상태/내용 수정
+### List personal agent suggestions
+GET {{baseUrl}}/api/agent/suggestions?status=DRAFT&suggestionType=DAILY_SUMMARY
+Authorization: Bearer {{accessToken}}
+
+### List room agent suggestions
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT
+Authorization: Bearer {{accessToken}}
+
+### Edit agent suggestion before applying it
 PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "status": "HELD",
-  "payloadJson": "{\"title\":\"시안 정리\",\"memo\":\"우선순위 재검토\"}",
-  "evidenceJson": "{\"source\":\"resource\"}"
+  "action": "EDIT",
+  "editedContent": {
+    "title": "Edited suggestion title",
+    "memo": "Edited content to apply after approval."
+  }
 }
+
+### Approve and apply agent suggestion
+PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "action": "APPROVE"
+}
+
+### List generated tasks
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/tasks?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### List generated WBS items
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### List generated schedules
+GET {{baseUrl}}/api/schedules?roomId={{roomId}}&page=0&size=20
+Authorization: Bearer {{accessToken}}

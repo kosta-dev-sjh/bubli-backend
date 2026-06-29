@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,7 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
         payload.put("roomId", value(message.roomId()));
         payload.put("resourceId", value(message.resourceId()));
         payload.put("source", MODEL_NAME);
+        payload.putAll(enrichPayload(message));
 
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("jobId", value(message.jobId()));
@@ -118,6 +120,31 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
         };
     }
 
+    private Map<String, Object> enrichPayload(AgentJobQueueMessage message) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        Map<String, Object> requestPayload = message.requestPayload() == null ? Map.of() : message.requestPayload();
+        if (message.jobType() == AgentJobType.DAILY_SUMMARY) {
+            String summaryDate = text(requestPayload.get("summaryDate"));
+            if (summaryDate == null) {
+                summaryDate = LocalDate.now().toString();
+            }
+            payload.put("summaryDate", summaryDate);
+            payload.put("summaryJson", json(Map.of(
+                    "summaryDate", summaryDate,
+                    "summary", "Local deterministic daily summary.",
+                    "items", List.of()
+            )));
+            return payload;
+        }
+        if (message.jobType() == AgentJobType.DRAFT_DOCUMENT) {
+            payload.put("documentType", defaultText(requestPayload.get("documentType"), "GENERAL"));
+            payload.put("instruction", defaultText(requestPayload.get("instruction"), ""));
+            payload.put("sourceResourceIds", requestPayload.getOrDefault("sourceResourceIds", List.of()));
+            payload.put("contentMarkdown", "# Draft Document\n\nLocal deterministic draft.");
+        }
+        return payload;
+    }
+
     private List<AgentJobExecutionModelCallLog> modelCallLog(String errorCode) {
         return List.of(new AgentJobExecutionModelCallLog(
                 PROMPT_VERSION,
@@ -140,6 +167,16 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
 
     private String value(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private String text(Object value) {
+        String text = value(value);
+        return text == null || text.isBlank() ? null : text.trim();
+    }
+
+    private String defaultText(Object value, String defaultValue) {
+        String text = text(value);
+        return text == null ? defaultValue : text;
     }
 
     private String errorMessage(RuntimeException exception) {

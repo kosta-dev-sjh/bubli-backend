@@ -40,7 +40,8 @@ public class AgentJobService {
 				requestedByUserId,
 				command.roomId(),
 				command.resourceId(),
-				command.jobType()
+				command.jobType(),
+				command.requestPayload()
 		);
 		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
 		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);

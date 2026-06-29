@@ -109,7 +109,12 @@ public class AgentSuggestionCommandService {
         return switch (suggestion.type()) {
             case TASK -> AgentSuggestionType.TASK;
             case REQUIREMENT -> AgentSuggestionType.REQUIREMENT;
+            case WBS -> AgentSuggestionType.WBS;
+            case QUESTION -> AgentSuggestionType.QUESTION;
             case CONTRACT_FIELD -> AgentSuggestionType.REVIEW_ITEM;
+            case REVIEW_ITEM -> AgentSuggestionType.REVIEW_ITEM;
+            case DOCUMENT_DRAFT -> AgentSuggestionType.DOCUMENT_DRAFT;
+            case DAILY_SUMMARY -> AgentSuggestionType.DAILY_SUMMARY;
         };
     }
 

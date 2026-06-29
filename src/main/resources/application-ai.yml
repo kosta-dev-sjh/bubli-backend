@@ -48,3 +48,26 @@ bubli:
   rag:
     smoke:
       enabled: ${RAG_SMOKE_ENABLED:true}
+
+agent:
+  execution:
+    mode: ${AGENT_EXECUTION_MODE:llm}
+  dispatch:
+    adapter: ${AGENT_DISPATCH_ADAPTER:redis}
+    redis:
+      queue-key: ${AGENT_REDIS_QUEUE_KEY:bubli:agent-jobs}
+    worker:
+      scheduler:
+        enabled: ${AGENT_WORKER_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_WORKER_SCHEDULER_FIXED_DELAY_MS:1000}
+      max-jobs-per-tick: ${AGENT_WORKER_MAX_JOBS_PER_TICK:5}
+    outbox:
+      scheduler:
+        enabled: ${AGENT_OUTBOX_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_OUTBOX_SCHEDULER_FIXED_DELAY_MS:5000}
+      max-retry-count: ${AGENT_OUTBOX_MAX_RETRY_COUNT:3}
+    retry:
+      scheduler:
+        enabled: ${AGENT_RETRY_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_RETRY_SCHEDULER_FIXED_DELAY_MS:60000}
+      max-retry-count: ${AGENT_JOB_MAX_RETRY_COUNT:3}

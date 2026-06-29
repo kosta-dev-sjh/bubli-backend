@@ -10,6 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -82,20 +86,52 @@ public class AiJobCommandService {
 
 	@Transactional
 	public AgentJobResult createDailySummaryJob(UUID userId) {
+		return createDailySummaryJob(userId, null);
+	}
+
+	@Transactional
+	public AgentJobResult createDailySummaryJob(UUID userId, LocalDate summaryDate) {
+		Map<String, Object> requestPayload = new LinkedHashMap<>();
+		if (summaryDate != null) {
+			requestPayload.put("summaryDate", summaryDate.toString());
+		}
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				null,
 				null,
-				AgentJobType.DAILY_SUMMARY
+				AgentJobType.DAILY_SUMMARY,
+				requestPayload
 		));
 	}
 
 	@Transactional
 	public AgentJobResult createDraftDocumentJob(UUID userId, UUID roomId) {
+		return createDraftDocumentJob(userId, roomId, null, null, null);
+	}
+
+	@Transactional
+	public AgentJobResult createDraftDocumentJob(
+			UUID userId,
+			UUID roomId,
+			String documentType,
+			List<UUID> sourceResourceIds,
+			String instruction
+	) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		Map<String, Object> requestPayload = new LinkedHashMap<>();
+		if (documentType != null && !documentType.isBlank()) {
+			requestPayload.put("documentType", documentType.trim());
+		}
+		if (sourceResourceIds != null && !sourceResourceIds.isEmpty()) {
+			requestPayload.put("sourceResourceIds", sourceResourceIds.stream().map(UUID::toString).toList());
+		}
+		if (instruction != null && !instruction.isBlank()) {
+			requestPayload.put("instruction", instruction.trim());
+		}
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.DRAFT_DOCUMENT
+				AgentJobType.DRAFT_DOCUMENT,
+				requestPayload
 		));
 	}
 }

@@ -24,6 +24,24 @@ storage:
   local:
     base-path: ./local-storage
 
+agent:
+  execution:
+    mode: ${AGENT_EXECUTION_MODE:local}
+  dispatch:
+    adapter: ${AGENT_DISPATCH_ADAPTER:in-memory}
+    worker:
+      scheduler:
+        enabled: ${AGENT_WORKER_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_WORKER_SCHEDULER_FIXED_DELAY_MS:1000}
+      max-jobs-per-tick: ${AGENT_WORKER_MAX_JOBS_PER_TICK:5}
+    outbox:
+      scheduler:
+        enabled: ${AGENT_OUTBOX_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_OUTBOX_SCHEDULER_FIXED_DELAY_MS:5000}
+    retry:
+      scheduler:
+        enabled: ${AGENT_RETRY_SCHEDULER_ENABLED:false}
+
 # 로컬 개발 전용 기본값입니다.
 # 운영 환경에서는 local 프로필을 사용하지 말고 JWT_SECRET을 반드시 주입합니다.
 jwt:

@@ -43,6 +43,7 @@ public class ResourceAnalysisPublicService {
     private final ResourceSummaryRepository resourceSummaryRepository;
     private final AiDocumentRepository aiDocumentRepository;
     private final ResourceEmbeddingIndexPublicService resourceEmbeddingIndexService;
+    private final ResourceRelationIndexPublicService resourceRelationIndexService;
     private final StoragePublicService storageService;
 
     @Transactional
@@ -97,7 +98,11 @@ public class ResourceAnalysisPublicService {
                             new BigDecimal("0.5000")
                     )));
             //임베딩
-            resourceEmbeddingIndexService.index(resource, resourceFile, extracted.pages());
+            ResourceEmbeddingIndexPublicService.IndexResult indexResult =
+                    resourceEmbeddingIndexService.index(resource, resourceFile, extracted.pages());
+            if (indexResult.indexed()) {
+                resourceRelationIndexService.rebuildRelations(resource);
+            }
             resource.markAnalyzed();
         } catch (RuntimeException e) {
             if (resource != null) {

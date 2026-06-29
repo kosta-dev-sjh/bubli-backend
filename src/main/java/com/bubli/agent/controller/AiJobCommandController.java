@@ -3,6 +3,7 @@ package com.bubli.agent.controller;
 import com.bubli.agent.dto.AgentJobResponse;
 import com.bubli.agent.dto.AnalyzeResourceRequest;
 import com.bubli.agent.dto.CreateRoomAgentJobRequest;
+import com.bubli.agent.dto.DraftDocumentRequest;
 import com.bubli.agent.dto.SummarizeDayRequest;
 import com.bubli.agent.service.AiJobCommandService;
 import com.bubli.global.response.ApiResponse;
@@ -86,17 +87,26 @@ public class AiJobCommandController {
 			@RequestBody(required = false) SummarizeDayRequest request
 	) {
 		return ApiResponse.success(AgentJobResponse.from(
-				aiJobCommandService.createDailySummaryJob(authUser.userId())
+				aiJobCommandService.createDailySummaryJob(
+						authUser.userId(),
+						request == null ? null : request.summaryDate()
+				)
 		));
 	}
 
 	@PostMapping("/api/ai/draft-document")
 	public ApiResponse<AgentJobResponse> draftDocument(
 			@CurrentUser AuthUser authUser,
-			@Valid @RequestBody CreateRoomAgentJobRequest request
+			@Valid @RequestBody DraftDocumentRequest request
 	) {
 		return ApiResponse.success(AgentJobResponse.from(
-				aiJobCommandService.createDraftDocumentJob(authUser.userId(), request.roomId())
+				aiJobCommandService.createDraftDocumentJob(
+						authUser.userId(),
+						request.roomId(),
+						request.documentType(),
+						request.sourceResourceIds(),
+						request.instruction()
+				)
 		));
 	}
 }
