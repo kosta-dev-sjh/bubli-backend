@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/auth/google/authorize").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/google/callback", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
