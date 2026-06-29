@@ -13,6 +13,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+//코드 흐름
+//pages (TextPage 리스트)
+//     ↓
+//textChunker.splitPages()     → 청크 분할 (TextChunk 리스트)
+//     ↓
+//deleteAllByResourceId()      → 기존 임베딩 전부 삭제
+//     ↓
+//embeddingModel.embed(text)   → float[] 벡터 생성 (AI 모델 호출)
+//     ↓
+//toEmbedding()                → ResourceEmbedding 엔티티 매핑
+//     ↓
+//saveAll()                    → DB(pgvector) 저장
+//     ↓
+//IndexResult.indexed(n)       → 결과 반환
+
+
+
+
 @Service
 @RequiredArgsConstructor
 public class ResourceEmbeddingIndexPublicService {
@@ -31,8 +49,9 @@ public class ResourceEmbeddingIndexPublicService {
         if (embeddingModel == null) {
             return IndexResult.skipped();
         }
-
+        //청크 페이지 나눈걸로
         List<TextChunker.TextChunk> chunks = textChunker.splitPages(pages);
+        //기존 임베딩 삭제, 분석시 이전 임베딩 영향 안받기위해
         resourceEmbeddingRepository.deleteAllByResourceId(resource.getId());
 
         List<ResourceEmbedding> embeddings = chunks.stream()

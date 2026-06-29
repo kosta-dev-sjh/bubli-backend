@@ -9,6 +9,7 @@ import com.bubli.agent.type.AgentSuggestionReviewAction;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,8 @@ import java.util.UUID;
 public class AgentSuggestionCommandService {
 
     private final AgentSuggestionRepository agentSuggestionRepository;
+    private final ProjectMembershipPublicService projectMembershipPublicService;
+    private final AgentSuggestionDomainApplyService agentSuggestionDomainApplyService;
 
     @Transactional
     public AgentSuggestionResponse review(
@@ -33,12 +36,22 @@ public class AgentSuggestionCommandService {
     ) {
         AgentSuggestion suggestion = agentSuggestionRepository.findById(suggestionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_002));
+        validateSuggestionAccess(reviewerId, suggestion);
 
         try {
             switch (action) {
-                case APPROVE -> suggestion.approve(reviewerId);
+                case APPROVE -> {
+                    suggestion.approve(reviewerId);
+                    agentSuggestionDomainApplyService.applyApprovedSuggestion(reviewerId, suggestion);
+                }
+                case EDIT -> suggestion.edit(reviewerId, requirePayload(payloadJson));
                 case HOLD -> suggestion.hold(reviewerId);
                 case REJECT -> suggestion.reject(reviewerId);
+                case DELETE -> {
+                    AgentSuggestionResponse response = AgentSuggestionResponse.from(suggestion);
+                    agentSuggestionRepository.delete(suggestion);
+                    return response;
+                }
                 case MODIFY -> suggestion.modify(reviewerId, requirePayload(payloadJson));
             }
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -77,16 +90,31 @@ public class AgentSuggestionCommandService {
 
     private Map<String, Object> requirePayload(Map<String, Object> payloadJson) {
         if (payloadJson == null) {
-            throw new IllegalArgumentException("payloadJson is required.");
+            throw new IllegalArgumentException("editedContent is required.");
         }
         return payloadJson;
+    }
+
+    private void validateSuggestionAccess(UUID userId, AgentSuggestion suggestion) {
+        if (suggestion.getRoomId() != null) {
+            projectMembershipPublicService.assertActiveMember(userId, suggestion.getRoomId());
+            return;
+        }
+        if (!suggestion.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.AGENT_404_002);
+        }
     }
 
     private AgentSuggestionType mapType(Suggestion suggestion) {
         return switch (suggestion.type()) {
             case TASK -> AgentSuggestionType.TASK;
             case REQUIREMENT -> AgentSuggestionType.REQUIREMENT;
+            case WBS -> AgentSuggestionType.WBS;
+            case QUESTION -> AgentSuggestionType.QUESTION;
             case CONTRACT_FIELD -> AgentSuggestionType.REVIEW_ITEM;
+            case REVIEW_ITEM -> AgentSuggestionType.REVIEW_ITEM;
+            case DOCUMENT_DRAFT -> AgentSuggestionType.DOCUMENT_DRAFT;
+            case DAILY_SUMMARY -> AgentSuggestionType.DAILY_SUMMARY;
         };
     }
 

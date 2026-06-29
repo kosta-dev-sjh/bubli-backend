@@ -4,6 +4,7 @@ import com.bubli.agent.type.AgentJobType;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +19,8 @@ class InMemoryAgentJobQueueAdapterTest {
 				UUID.randomUUID(),
 				UUID.randomUUID(),
 				UUID.randomUUID(),
-				AgentJobType.ANALYZE_RESOURCE
+				AgentJobType.ANALYZE_RESOURCE,
+				Map.of("summaryDate", "2026-07-01")
 		);
 
 		AgentJobQueueMessage message = AgentJobQueueMessage.from(command, enqueuedAt);
@@ -28,6 +30,7 @@ class InMemoryAgentJobQueueAdapterTest {
 		assertThat(message.roomId()).isEqualTo(command.roomId());
 		assertThat(message.resourceId()).isEqualTo(command.resourceId());
 		assertThat(message.jobType()).isEqualTo(command.jobType());
+		assertThat(message.requestPayload()).containsEntry("summaryDate", "2026-07-01");
 		assertThat(message.enqueuedAt()).isEqualTo(enqueuedAt);
 	}
 

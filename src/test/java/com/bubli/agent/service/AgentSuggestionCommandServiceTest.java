@@ -12,6 +12,7 @@ import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AgentSuggestionCommandServiceTest {
@@ -36,7 +38,11 @@ class AgentSuggestionCommandServiceTest {
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
         when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
 
-        var response = new AgentSuggestionCommandService(repository)
+        var response = new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class)
+        )
                 .review(suggestionId, reviewerId, AgentSuggestionReviewAction.APPROVE, null);
 
         assertThat(response.status()).isEqualTo(AgentSuggestionStatus.APPROVED);
@@ -51,10 +57,52 @@ class AgentSuggestionCommandServiceTest {
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
         when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
 
-        assertThatThrownBy(() -> new AgentSuggestionCommandService(repository)
+        assertThatThrownBy(() -> new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class)
+        )
                 .review(suggestionId, UUID.randomUUID(), AgentSuggestionReviewAction.REJECT, null))
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+    }
+
+    @Test
+    void editsDraftSuggestionPayload() {
+        UUID suggestionId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
+
+        var response = new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class)
+        )
+                .review(suggestionId, reviewerId, AgentSuggestionReviewAction.EDIT, Map.of("title", "edited"));
+
+        assertThat(response.status()).isEqualTo(AgentSuggestionStatus.DRAFT);
+        assertThat(response.payloadJson()).containsEntry("title", "edited");
+        assertThat(response.reviewedBy()).isEqualTo(reviewerId);
+    }
+
+    @Test
+    void deletesDraftSuggestion() {
+        UUID suggestionId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
+
+        new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class)
+        )
+                .review(suggestionId, reviewerId, AgentSuggestionReviewAction.DELETE, null);
+
+        verify(repository).delete(suggestion);
     }
 
     @Test
@@ -63,7 +111,11 @@ class AgentSuggestionCommandServiceTest {
         when(repository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
         UUID resourceId = UUID.randomUUID();
 
-        List<com.bubli.agent.dto.AgentSuggestionResponse> responses = new AgentSuggestionCommandService(repository)
+        List<com.bubli.agent.dto.AgentSuggestionResponse> responses = new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class)
+        )
                 .createDrafts(
                         UUID.randomUUID(),
                         UUID.randomUUID(),

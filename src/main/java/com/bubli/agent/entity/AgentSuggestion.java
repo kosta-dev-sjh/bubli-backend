@@ -166,6 +166,10 @@ public class AgentSuggestion extends BaseTimeEntity {
         reviewedAt = Instant.now();
     }
 
+    public void edit(UUID reviewerId, Map<String, Object> editedContent) {
+        modify(reviewerId, editedContent);
+    }
+
     private void review(AgentSuggestionStatus nextStatus, UUID reviewerId) {
         ensureDraft();
         status = nextStatus;

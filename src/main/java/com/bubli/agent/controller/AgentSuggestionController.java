@@ -46,9 +46,11 @@ public class AgentSuggestionController {
     public ResponseEntity<ApiResponse<List<AgentSuggestionResponse>>> findRoomSuggestions(
             @PathVariable UUID roomId,
             @RequestParam(required = false) AgentSuggestionStatus status,
-            @RequestParam(required = false) AgentSuggestionType suggestionType
+            @RequestParam(required = false) AgentSuggestionType suggestionType,
+            @CurrentUser AuthUser currentUser
     ) {
         return ResponseEntity.ok(ApiResponse.success(agentSuggestionQueryService.findRoomSuggestions(
+                currentUser.userId(),
                 roomId,
                 status,
                 suggestionType
@@ -65,7 +67,7 @@ public class AgentSuggestionController {
                 suggestionId,
                 currentUser.userId(),
                 request.action(),
-                request.payloadJson()
+                request.effectiveEditedContent()
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }

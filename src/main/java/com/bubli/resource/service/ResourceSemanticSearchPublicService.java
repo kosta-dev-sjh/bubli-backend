@@ -41,25 +41,27 @@ public class ResourceSemanticSearchPublicService {
             String query,
             Integer topK
     ) {
+        //입력 정규화
         ResourceSearchScope normalizedScope = scope == null ? ResourceSearchScope.ROOM_SHARED : scope;
         require(userId, "userId");
         String normalizedQuery = requireText(query, "query");
-
+        //가용모델 확인
         EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
         if (embeddingModel == null) {
             throw new IllegalStateException("EmbeddingModel is not available. Enable the ai profile to search resources.");
         }
-
+        //임베딩 모델로 사용자의 쿼리 임베딩
         String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(embeddingModel.embed(normalizedQuery));
         int limit = normalizeTopK(topK);
 
+        //개인 자료일경우
         if (normalizedScope == ResourceSearchScope.PERSONAL) {
             return resourceEmbeddingRepository.searchPersonal(userId, queryEmbedding, limit)
                     .stream()
                     .map(this::toHit)
                     .toList();
         }
-
+        //프로젝트 룸 멤버인지 확인+ 권한 확인 및 룸 자료일경우
         require(roomId, "roomId");
         projectRoomAccessService.requireRoomMember(roomId, userId);
         return resourceEmbeddingRepository.searchRoomShared(roomId, queryEmbedding, limit)

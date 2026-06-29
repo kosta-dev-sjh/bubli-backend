@@ -12,6 +12,7 @@ import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -31,6 +32,7 @@ public class AgentJobService {
 	private final AgentJobEventRepository agentJobEventRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private final AgentJobDispatchOutboxRecorder dispatchOutboxRecorder;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
@@ -38,7 +40,8 @@ public class AgentJobService {
 				requestedByUserId,
 				command.roomId(),
 				command.resourceId(),
-				command.jobType()
+				command.jobType(),
+				command.requestPayload()
 		);
 		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
 		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);
@@ -57,6 +60,22 @@ public class AgentJobService {
 	@Transactional(readOnly = true)
 	public PageResponse<AgentJobEventResult> getRequestedJobEvents(UUID requestedByUserId, UUID jobId, Pageable pageable) {
 		getRequestedJob(requestedByUserId, jobId);
+		return getJobEvents(jobId, pageable);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponse<AgentJobEventResult> getAccessibleJobEvents(UUID userId, UUID jobId, Pageable pageable) {
+		AgentJob job = getJob(jobId);
+		if (!job.getRequestedByUserId().equals(userId)) {
+			if (job.getRoomId() == null) {
+				throw new BusinessException(ErrorCode.AGENT_404_001);
+			}
+			projectMembershipPublicService.assertActiveMember(userId, job.getRoomId());
+		}
+		return getJobEvents(jobId, pageable);
+	}
+
+	private PageResponse<AgentJobEventResult> getJobEvents(UUID jobId, Pageable pageable) {
 		Page<AgentJobEventResult> page = agentJobEventRepository
 				.findByJobId(jobId, withEventDefaultSort(pageable))
 				.map(AgentJobEventResult::from);

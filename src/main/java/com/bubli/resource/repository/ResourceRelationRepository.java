@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface ResourceRelationRepository extends JpaRepository<ResourceRelation, UUID> {
 
 	Page<ResourceRelation> findByResourceId(UUID resourceId, Pageable pageable);
+
+	void deleteByResourceIdOrRelatedResourceId(UUID resourceId, UUID relatedResourceId);
 }

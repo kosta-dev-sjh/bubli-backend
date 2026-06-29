@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Component
 @ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "in-memory")
-public class InMemoryAgentJobQueueAdapter implements AgentJobDispatchPort {
+public class InMemoryAgentJobQueueAdapter implements AgentJobDispatchPort, AgentJobQueueConsumerPort {
 
 	private final Queue<AgentJobQueueMessage> queue = new ConcurrentLinkedQueue<>();
 

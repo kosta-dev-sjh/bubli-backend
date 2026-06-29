@@ -16,8 +16,13 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -58,6 +63,10 @@ public class AgentJob extends BaseTimeEntity {
     @Column(name = "resource_id")
     private UUID resourceId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "request_payload", columnDefinition = "jsonb")
+    private Map<String, Object> requestPayload;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "job_type", nullable = false, length = 40)
     private AgentJobType jobType;
@@ -89,13 +98,25 @@ public class AgentJob extends BaseTimeEntity {
             UUID requestedByUserId,
             UUID roomId,
             UUID resourceId,
-            AgentJobType jobType
+            AgentJobType jobType,
+            Map<String, Object> requestPayload
     ) {
         this.requestedByUserId = require(requestedByUserId, "requestedByUserId");
         this.roomId = roomId;
         this.resourceId = resourceId;
         this.jobType = require(jobType, "jobType");
+        this.requestPayload = immutableJsonMap(requestPayload);
         this.status = AgentJobStatus.PENDING;
+    }
+
+    public static AgentJob pending(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            AgentJobType jobType,
+            Map<String, Object> requestPayload
+    ) {
+        return new AgentJob(requestedByUserId, roomId, resourceId, jobType, requestPayload);
     }
 
     public static AgentJob pending(
@@ -104,7 +125,17 @@ public class AgentJob extends BaseTimeEntity {
             UUID resourceId,
             AgentJobType jobType
     ) {
-        return new AgentJob(requestedByUserId, roomId, resourceId, jobType);
+        return pending(requestedByUserId, roomId, resourceId, jobType, null);
+    }
+
+    public static AgentJob create(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            AgentJobType jobType,
+            Map<String, Object> requestPayload
+    ) {
+        return pending(requestedByUserId, roomId, resourceId, jobType, requestPayload);
     }
 
     public static AgentJob create(
@@ -113,7 +144,7 @@ public class AgentJob extends BaseTimeEntity {
             UUID resourceId,
             AgentJobType jobType
     ) {
-        return pending(requestedByUserId, roomId, resourceId, jobType);
+        return create(requestedByUserId, roomId, resourceId, jobType, null);
     }
 
     public void start() {
@@ -191,5 +222,12 @@ public class AgentJob extends BaseTimeEntity {
             throw new IllegalArgumentException(field + " is required.");
         }
         return value;
+    }
+
+    private static Map<String, Object> immutableJsonMap(Map<String, Object> value) {
+        if (value == null) {
+            return null;
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(value));
     }
 }

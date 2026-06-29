@@ -17,7 +17,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -264,5 +266,76 @@ class AiJobCommandServiceTest {
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isNull();
 		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.REVIEW_CONTRACT_DOCUMENTS);
+	}
+
+	@Test
+	void createDailySummaryJobStoresRequestedSummaryDatePayload() {
+		UUID userId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(agentJobService.create(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new AgentJobResult(
+						jobId,
+						userId,
+						null,
+						null,
+						AgentJobType.DAILY_SUMMARY,
+						AgentJobStatus.PENDING,
+						0,
+						null,
+						null,
+						null,
+						null,
+						Instant.now(),
+						Instant.now()
+				));
+
+		aiJobCommandService.createDailySummaryJob(userId, LocalDate.of(2026, 7, 1));
+
+		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.DAILY_SUMMARY);
+		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("summaryDate", "2026-07-01");
+	}
+
+	@Test
+	void createDraftDocumentJobStoresDraftRequestPayload() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID sourceResourceId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(agentJobService.create(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new AgentJobResult(
+						jobId,
+						userId,
+						roomId,
+						null,
+						AgentJobType.DRAFT_DOCUMENT,
+						AgentJobStatus.PENDING,
+						0,
+						null,
+						null,
+						null,
+						null,
+						Instant.now(),
+						Instant.now()
+				));
+
+		aiJobCommandService.createDraftDocumentJob(
+				userId,
+				roomId,
+				"proposal",
+				List.of(sourceResourceId),
+				"견적서 초안을 작성"
+		);
+
+		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.DRAFT_DOCUMENT);
+		assertThat(commandCaptor.getValue().requestPayload())
+				.containsEntry("documentType", "proposal")
+				.containsEntry("instruction", "견적서 초안을 작성");
+		assertThat(commandCaptor.getValue().requestPayload().get("sourceResourceIds").toString())
+				.contains(sourceResourceId.toString());
 	}
 }
