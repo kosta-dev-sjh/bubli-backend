@@ -133,9 +133,6 @@ CREATE INDEX IF NOT EXISTS idx_ai_documents_room_status
     ON ai_documents (room_id, status);
 
 ALTER TABLE agent_jobs
-    ADD COLUMN IF NOT EXISTS row_version BIGINT NOT NULL DEFAULT 0;
-
-ALTER TABLE agent_jobs
     ALTER COLUMN status TYPE VARCHAR(20),
     ALTER COLUMN error_code TYPE VARCHAR(100),
     ALTER COLUMN error_message TYPE VARCHAR(1000);

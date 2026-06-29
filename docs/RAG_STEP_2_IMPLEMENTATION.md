@@ -634,7 +634,7 @@ AI 요청별 후보 조회
 파일:
 
 ```text
-db/migration/V2__rag_step2_data_model.sql
+db/migration/V4__rag_step2_data_model.sql
 ```
 
 Flyway는 애플리케이션 시작 시 아직 실행하지 않은 SQL 파일을 순서대로 실행한다.
