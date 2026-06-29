@@ -35,6 +35,8 @@ public enum ErrorCode {
     PROJECT_409_001(HttpStatus.CONFLICT, "PROJECT_409_001", "이미 프로젝트룸에 참여 중인 사용자입니다."),
     PROJECT_409_002(HttpStatus.CONFLICT, "PROJECT_409_002", "이미 처리되었거나 만료된 초대입니다."),
     PROJECT_409_003(HttpStatus.CONFLICT, "PROJECT_409_003", "이미 대기 중인 초대가 있습니다."),
+    PROJECT_404_003(HttpStatus.NOT_FOUND, "PROJECT_404_003", "초대 링크를 찾을 수 없습니다."),
+    PROJECT_410_001(HttpStatus.GONE, "PROJECT_410_001", "만료된 초대 링크입니다."),
 
     // WORK
     WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),

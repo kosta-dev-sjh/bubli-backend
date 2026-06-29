@@ -1,0 +1,20 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-room-id-here
+@inviteLinkToken = paste-invite-link-token-here
+
+### 초대 링크 생성 (LEADER만 가능)
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/invite-links
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "expiresInHours": 72
+}
+
+### 초대 링크 정보 조회 (인증 불필요)
+GET {{baseUrl}}/api/invite-links/{{inviteLinkToken}}
+
+### 초대 링크 수락
+PATCH {{baseUrl}}/api/invite-links/{{inviteLinkToken}}/accept
+Authorization: Bearer {{accessToken}}
