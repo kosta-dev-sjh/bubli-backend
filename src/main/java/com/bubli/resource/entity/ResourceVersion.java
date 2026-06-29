@@ -72,6 +72,10 @@ public class ResourceVersion extends BaseTimeEntity {
         return new ResourceVersion(resourceId, 1, fileId, createdBy);
     }
 
+    public static ResourceVersion create(UUID resourceId, int versionNo, UUID fileId, UUID createdBy) {
+        return new ResourceVersion(resourceId, versionNo, fileId, createdBy);
+    }
+
     private static <T> T require(T value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " is required.");

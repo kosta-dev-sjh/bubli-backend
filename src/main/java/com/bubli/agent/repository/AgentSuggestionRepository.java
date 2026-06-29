@@ -3,6 +3,8 @@ package com.bubli.agent.repository;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -25,5 +27,17 @@ public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion
             UUID roomId,
             AgentSuggestionType suggestionType,
             AgentSuggestionStatus status
+    );
+
+    Page<AgentSuggestion> findByUserIdAndStatus(
+            UUID userId,
+            AgentSuggestionStatus status,
+            Pageable pageable
+    );
+
+    Page<AgentSuggestion> findByRoomIdAndStatus(
+            UUID roomId,
+            AgentSuggestionStatus status,
+            Pageable pageable
     );
 }

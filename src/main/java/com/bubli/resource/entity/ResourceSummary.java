@@ -2,6 +2,7 @@ package com.bubli.resource.entity;
 
 import com.bubli.global.entity.BaseTimeEntity;
 import com.bubli.resource.type.AnalysisStatus;
+import com.bubli.resource.type.ResourceSummaryStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -98,6 +99,28 @@ public class ResourceSummary extends BaseTimeEntity {
         );
     }
 
+    public static ResourceSummary create(
+            UUID resourceId,
+            UUID jobId,
+            String summaryJson,
+            String checklistJson,
+            ResourceSummaryStatus status,
+            String promptVersion,
+            String schemaVersion,
+            String modelName
+    ) {
+        return new ResourceSummary(
+                resourceId,
+                jobId,
+                AnalysisStatus.valueOf(require(status, "status").name()),
+                rawJson(summaryJson),
+                rawJson(checklistJson),
+                promptVersion,
+                schemaVersion,
+                modelName
+        );
+    }
+
     private static <T> T require(T value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " is required.");
@@ -110,5 +133,12 @@ public class ResourceSummary extends BaseTimeEntity {
             return null;
         }
         return Collections.unmodifiableMap(new LinkedHashMap<>(value));
+    }
+
+    private static Map<String, Object> rawJson(String value) {
+        if (value == null) {
+            return null;
+        }
+        return Map.of("raw", value);
     }
 }

@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@refreshToken = paste-refresh-token-here
+@redirectUri = http://localhost:3000/auth/callback
+
+### 내 프로필 조회
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{accessToken}}
+
+### Google OAuth 로그인 시작 URL
+GET {{baseUrl}}/api/auth/google/authorize?redirectUri={{redirectUri}}&clientType=TAURI&state=local-tauri
+
+### Google OAuth callback
+POST {{baseUrl}}/api/auth/google/callback
+Content-Type: application/json
+
+{
+  "code": "paste-google-oauth-code-here",
+  "redirectUri": "{{redirectUri}}",
+  "clientType": "TAURI"
+}
+
+### Access token 재발급
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}",
+  "clientType": "TAURI"
+}
+
+### 로그아웃
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}",
+  "clientType": "TAURI"
+}

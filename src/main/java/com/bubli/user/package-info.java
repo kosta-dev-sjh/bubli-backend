@@ -9,7 +9,7 @@
  * - 친구 관리 (Bubli ID 검색, 요청/수락/거절/차단)
  *
  * 주요 엔티티:
- * - User                       : 회원 (email, bubli_id, name)
+ * - User                       : 회원 (google_sub, bubli_id, name)
  * - UserPreference             : 테마, 밀도, 기본 프로젝트룸
  * - UserNotificationPreference : 알림 종류별 On/Off
  * - UserPrivacyConsent         : 활동 감지, 폴더 접근 동의

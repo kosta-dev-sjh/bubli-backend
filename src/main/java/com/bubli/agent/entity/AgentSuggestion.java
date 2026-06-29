@@ -115,6 +115,38 @@ public class AgentSuggestion extends BaseTimeEntity {
         );
     }
 
+    public static AgentSuggestion createDraft(
+            UUID userId,
+            UUID roomId,
+            UUID jobId,
+            UUID resourceId,
+            AgentSuggestionType suggestionType,
+            String payloadJson,
+            String evidenceJson
+    ) {
+        return draft(
+                userId,
+                roomId,
+                jobId,
+                resourceId,
+                suggestionType,
+                rawJson(payloadJson),
+                rawJson(evidenceJson)
+        );
+    }
+
+    public void update(AgentSuggestionStatus status, String payloadJson, String evidenceJson) {
+        if (status != null) {
+            this.status = status;
+        }
+        if (payloadJson != null) {
+            this.payloadJson = immutableJsonMap(rawJson(payloadJson));
+        }
+        if (evidenceJson != null) {
+            this.evidenceJson = immutableJsonMap(rawJson(evidenceJson));
+        }
+    }
+
     public void approve(UUID reviewerId) {
         review(AgentSuggestionStatus.APPROVED, reviewerId);
     }
@@ -159,5 +191,12 @@ public class AgentSuggestion extends BaseTimeEntity {
             return null;
         }
         return Collections.unmodifiableMap(new LinkedHashMap<>(value));
+    }
+
+    private static Map<String, Object> rawJson(String value) {
+        if (value == null) {
+            return null;
+        }
+        return Map.of("raw", value);
     }
 }

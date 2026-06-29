@@ -94,6 +94,27 @@ public class Resource extends BaseTimeEntity {
         return new Resource(ownerId, roomId, title, ResourceKind.FILE, ResourceVisibility.ROOM_SHARED);
     }
 
+    public static Resource create(
+            UUID ownerId,
+            UUID roomId,
+            String title,
+            ResourceKind kind,
+            ResourceVisibility visibility,
+            ResourceStatus status
+    ) {
+        Resource resource = new Resource(ownerId, roomId, title, kind, visibility);
+        resource.status = require(status, "status");
+        return resource;
+    }
+
+    public void updateTitle(String title) {
+        this.title = requireText(title, "title");
+    }
+
+    public void markDeleted(Instant deletedAt) {
+        this.deletedAt = require(deletedAt, "deletedAt");
+    }
+
     public void markReady() {
         status = ResourceStatus.READY;
     }

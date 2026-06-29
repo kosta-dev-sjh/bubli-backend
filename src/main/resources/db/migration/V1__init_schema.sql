@@ -32,8 +32,8 @@ CREATE TABLE user_preferences (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL UNIQUE,
     theme VARCHAR(30),
-    font_scale DOUBLE PRECISION,
-    default_room_id UUID,
+    default_home_type VARCHAR(30),
+    default_project_room_id UUID,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
@@ -255,6 +255,19 @@ CREATE TABLE agent_job_events (
     event_type VARCHAR(60) NOT NULL,
     message TEXT,
     created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE agent_dispatch_outbox (
+    id UUID PRIMARY KEY,
+    job_id UUID NOT NULL UNIQUE,
+    payload_json JSONB NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    retry_count INTEGER NOT NULL,
+    error_code VARCHAR(80),
+    error_message TEXT,
+    dispatched_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE agent_model_call_logs (

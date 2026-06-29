@@ -26,6 +26,7 @@ repositories {
 ext {
 	queryDslVersion = '5.1.0'
 	springAiVersion = '1.0.9'
+	lombokVersion = '1.18.38'
 }
 
 dependencies {
@@ -38,7 +39,7 @@ dependencies {
 	// JPA / DB
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.flywaydb:flyway-core'
-	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 
 	// QueryDSL
@@ -75,10 +76,13 @@ dependencies {
 	implementation 'org.apache.tika:tika-core:2.9.2'
 
 	// Lombok
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
-	testCompileOnly 'org.projectlombok:lombok'
-	testAnnotationProcessor 'org.projectlombok:lombok'
+	compileOnly "org.projectlombok:lombok:${lombokVersion}"
+	annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+	testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+	testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+	// Swagger (SpringDoc OpenAPI)
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
 
 	// Actuator (모니터링)
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -88,10 +92,11 @@ dependencies {
 
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
-
 }
 
 // QueryDSL Q-class 생성 위치 (gitignore 대상)
@@ -106,6 +111,11 @@ sourceSets {
 }
 
 tasks.withType(JavaCompile).configureEach {
+	options.annotationProcessorPath = configurations.annotationProcessor
+	options.compilerArgs += [
+			'-processor',
+			'lombok.launch.AnnotationProcessorHider$AnnotationProcessor,com.querydsl.apt.jpa.JPAAnnotationProcessor'
+	]
 	options.generatedSourceOutputDirectory = generatedDir
 }
 

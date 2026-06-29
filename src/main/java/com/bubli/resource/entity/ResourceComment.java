@@ -1,23 +1,72 @@
 package com.bubli.resource.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import java.time.Instant;
 
-/**
- * 프로젝트룸 자료 댓글.
- *
- * 테이블: resource_comments
- * 주요 필드: resource_id, author_id, body, parent_id
- *
- * 프로젝트룸 자료에만 우선 적용한다.
- * 접근 권한: 해당 자료의 접근 권한과 동일 (room_members).
- */
-@Entity
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
 @Getter
+@Entity
+@Table(name = "resource_comments")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ResourceComment {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(name = "resource_id", nullable = false)
+	private UUID resourceId;
+
+	@Column(name = "author_id", nullable = false)
+	private UUID authorId;
+
+	@Column(name = "parent_id")
+	private UUID parentId;
+
+	@Column(nullable = false, columnDefinition = "text")
+	private String body;
+
+	@Column(name = "deleted_at")
+	private Instant deletedAt;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	public static ResourceComment create(UUID resourceId, UUID authorId, UUID parentId, String body) {
+		ResourceComment comment = new ResourceComment();
+		comment.resourceId = resourceId;
+		comment.authorId = authorId;
+		comment.parentId = parentId;
+		comment.body = body;
+		return comment;
+	}
+
+	public void updateBody(String body) {
+		this.body = body;
+	}
+
+	public void markDeleted(Instant deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	@PrePersist
+	private void onCreate() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	private void onUpdate() {
+		this.updatedAt = Instant.now();
+	}
+
 }

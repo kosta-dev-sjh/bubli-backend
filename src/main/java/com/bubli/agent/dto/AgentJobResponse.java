@@ -46,4 +46,22 @@ public record AgentJobResponse(
                 job.getFinishedAt()
         );
     }
+
+    public static AgentJobResponse from(AgentJobResult result) {
+        return new AgentJobResponse(
+                result.id(),
+                result.jobType(),
+                result.status(),
+                result.resourceId(),
+                result.roomId(),
+                result.errorCode(),
+                result.errorMessage(),
+                result.retryCount(),
+                List.of(),
+                null,
+                null,
+                result.startedAt(),
+                result.finishedAt()
+        );
+    }
 }

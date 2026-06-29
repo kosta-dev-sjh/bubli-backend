@@ -1,25 +1,29 @@
 package com.bubli.storage.service;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
+import com.bubli.storage.dto.FileUploadResult;
 
+import java.io.IOException;
 import java.io.InputStream;
 
-@Service
-@RequiredArgsConstructor
-public class StoragePublicService {
+public interface StoragePublicService extends StorageService {
 
-    private final FileStorage fileStorage;
-
-    public String store(String key, InputStream inputStream) {
-        return fileStorage.store(key, inputStream);
+    default String store(String key, InputStream inputStream) {
+        try (inputStream) {
+            return save(key, null, null, inputStream.readAllBytes()).storageKey();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.RESOURCE_500_001);
+        }
     }
 
-    public InputStream open(String storageKey) {
-        return fileStorage.open(storageKey);
+    default InputStream open(String storageKey) {
+        throw new BusinessException(ErrorCode.RESOURCE_501_002);
     }
 
-    public void delete(String storageKey) {
-        fileStorage.delete(storageKey);
-    }
+    @Override
+    FileUploadResult save(String storageKey, String originalName, String mimeType, byte[] content);
+
+    @Override
+    void delete(String storageKey);
 }

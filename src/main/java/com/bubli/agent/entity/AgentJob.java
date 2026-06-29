@@ -107,6 +107,15 @@ public class AgentJob extends BaseTimeEntity {
         return new AgentJob(requestedByUserId, roomId, resourceId, jobType);
     }
 
+    public static AgentJob create(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            AgentJobType jobType
+    ) {
+        return pending(requestedByUserId, roomId, resourceId, jobType);
+    }
+
     public void start() {
         if (status != AgentJobStatus.PENDING) {
             throw new IllegalStateException("PENDING 작업만 시작할 수 있습니다.");
@@ -117,12 +126,20 @@ public class AgentJob extends BaseTimeEntity {
         errorMessage = null;
     }
 
+    public void markRunning() {
+        start();
+    }
+
     public void succeed() {
         if (status != AgentJobStatus.RUNNING) {
             throw new IllegalStateException("RUNNING 작업만 성공 처리할 수 있습니다.");
         }
         status = AgentJobStatus.SUCCEEDED;
         finishedAt = Instant.now();
+    }
+
+    public void markSucceeded() {
+        succeed();
     }
 
     public void fail(String errorCode, String errorMessage) {
@@ -134,6 +151,24 @@ public class AgentJob extends BaseTimeEntity {
         this.errorCode = requireText(errorCode, "errorCode");
         this.errorMessage = requireText(errorMessage, "errorMessage");
         finishedAt = Instant.now();
+    }
+
+    public void markFailed(String errorCode, String errorMessage) {
+        fail(errorCode, errorMessage);
+    }
+
+    public void markDispatchFailed(String errorCode, String errorMessage) {
+        fail(errorCode, errorMessage);
+    }
+
+    public void markRetryQueued() {
+        if (status != AgentJobStatus.FAILED) {
+            throw new IllegalStateException("Only FAILED jobs can be queued for retry.");
+        }
+        status = AgentJobStatus.PENDING;
+        finishedAt = null;
+        errorCode = null;
+        errorMessage = null;
     }
 
     public void cancel() {

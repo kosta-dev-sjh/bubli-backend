@@ -1,11 +1,17 @@
 package com.bubli.agent.type;
 
 public enum AgentSuggestionType {
-    WBS,
-    TASK,
-    REQUIREMENT,
-    SCHEDULE,
-    REVIEW_ITEM,
-    QUESTION,
-    DOCUMENT_DRAFT
+	REQUIREMENT,
+	TODO,
+	WBS,
+	TASK,
+	SCHEDULE,
+	QUESTION,
+	CONTRACT_FIELD,
+	CONTRACT_REVIEW,
+	REVIEW_ITEM,
+	DOCUMENT_DRAFT,
+	DAILY_SUMMARY,
+	MEMO
+
 }

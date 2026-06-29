@@ -78,6 +78,17 @@ public class ResourceFile extends BaseTimeEntity {
         return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
     }
 
+    public static ResourceFile create(
+            UUID resourceId,
+            String storageKey,
+            String originalName,
+            String mimeType,
+            long sizeBytes,
+            String checksum
+    ) {
+        return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
+    }
+
     private static <T> T require(T value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " is required.");

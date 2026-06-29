@@ -1,0 +1,100 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-room-id-here
+@memberUserId = paste-member-user-id-here
+@inviteeUserId = paste-invitee-user-id-here
+@invitationId = paste-invitation-id-here
+
+### 프로젝트룸 목록
+GET {{baseUrl}}/api/project-rooms?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 생성
+POST {{baseUrl}}/api/project-rooms
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "브랜드 사이트 제작",
+  "clientName": "블루클라이언트",
+  "contractAmount": 1500000,
+  "paymentStatus": "PENDING",
+  "paymentDueDate": "2026-07-10",
+  "paidAt": null,
+  "status": "ACTIVE"
+}
+
+### 프로젝트룸 상세
+GET {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 기본 정보 수정
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "브랜드 사이트 리뉴얼",
+  "clientName": "블루클라이언트",
+  "status": "ACTIVE"
+}
+
+### 프로젝트룸 계약/입금 정보 수정
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}/payment
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "contractAmount": 2300000,
+  "paymentStatus": "PAID",
+  "paymentDueDate": "2026-07-20",
+  "paidAt": "2026-07-18"
+}
+
+### 프로젝트룸 종료
+DELETE {{baseUrl}}/api/project-rooms/{{roomId}}
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 이벤트 누락 보충
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/events?afterSequence=0&limit=100
+Authorization: Bearer {{accessToken}}
+
+
+### 프로젝트룸 멤버 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/members?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 초대 생성
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/invitations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inviteeUserId": "{{inviteeUserId}}",
+  "role": "MEMBER"
+}
+
+### 프로젝트룸 초대 목록
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/invitations?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 초대 수락
+PATCH {{baseUrl}}/api/invitations/{{invitationId}}/accept
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 초대 취소
+PATCH {{baseUrl}}/api/invitations/{{invitationId}}/cancel
+Authorization: Bearer {{accessToken}}
+
+### 프로젝트룸 멤버 역할 변경
+PATCH {{baseUrl}}/api/project-rooms/{{roomId}}/members/{{memberUserId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "role": "PROJECT_LEADER"
+}
+
+### 프로젝트룸 멤버 제거 또는 나가기
+DELETE {{baseUrl}}/api/project-rooms/{{roomId}}/members/{{memberUserId}}
+Authorization: Bearer {{accessToken}}
