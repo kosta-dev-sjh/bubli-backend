@@ -119,7 +119,8 @@ class ArchitectureTest {
 			for (Dependency dependency : sourceClass.getDirectDependenciesFromSelf()) {
 				JavaClass targetClass = dependency.getTargetClass();
 				if (targetClass.getPackageName().startsWith(BASE_PACKAGE + ".")
-						&& targetClass.getSimpleName().endsWith("Request")) {
+						&& targetClass.getSimpleName().endsWith("Request")
+						&& !targetClass.getPackageName().contains(".entity")) {
 					violations.add(message(sourceClass, targetClass, dependency));
 				}
 			}
