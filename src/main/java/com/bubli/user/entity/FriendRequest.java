@@ -37,6 +37,24 @@ public class FriendRequest {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static FriendRequest create(UUID requesterId, UUID receiverId) {
+		FriendRequest req = new FriendRequest();
+		req.requesterId = requesterId;
+		req.receiverId = receiverId;
+		req.status = FriendRequestStatus.PENDING;
+		return req;
+	}
+
+	public void accept() {
+		this.status = FriendRequestStatus.ACCEPTED;
+		this.respondedAt = Instant.now();
+	}
+
+	public void reject() {
+		this.status = FriendRequestStatus.REJECTED;
+		this.respondedAt = Instant.now();
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();

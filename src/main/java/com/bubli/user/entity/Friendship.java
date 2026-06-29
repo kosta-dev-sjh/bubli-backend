@@ -32,6 +32,14 @@ public class Friendship {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static Friendship create(UUID userId, UUID friendUserId) {
+		Friendship friendship = new Friendship();
+		friendship.userId = userId;
+		friendship.friendUserId = friendUserId;
+		friendship.acceptedAt = Instant.now();
+		return friendship;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
