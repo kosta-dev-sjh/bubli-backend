@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -128,7 +129,7 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 		UUID id = UUID.randomUUID();
 		jdbcTemplate.update(
 				"INSERT INTO notifications (id, user_id, source_type, title, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-				id, userId, "MESSAGE", title, "UNREAD", Instant.now()
+				id, userId, "MESSAGE", title, "UNREAD", Timestamp.from(Instant.now())
 		);
 		return id;
 	}
