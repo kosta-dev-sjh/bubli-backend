@@ -1,12 +1,12 @@
 package com.bubli.agent.controller;
 
+import com.bubli.agent.dto.AgentJobResponse;
 import com.bubli.agent.dto.AgentJobEventResponse;
 import com.bubli.agent.dto.AgentJobEventResult;
-import com.bubli.agent.dto.AgentJobResponse;
 import com.bubli.agent.dto.SearchResourceRequest;
 import com.bubli.agent.dto.SearchResourceResponse;
-import com.bubli.agent.service.AgentJobService;
 import com.bubli.agent.service.AgentJobQueryService;
+import com.bubli.agent.service.AgentJobService;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
@@ -29,8 +29,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgentJobController {
 
-    private final AgentJobService agentJobService;
     private final AgentJobQueryService agentJobQueryService;
+    private final AgentJobService agentJobService;
     private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 
     @GetMapping("/api/agent-jobs/{jobId}")
@@ -44,10 +44,12 @@ public class AgentJobController {
             @CurrentUser AuthUser currentUser,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        PageResponse<AgentJobEventResponse> response = mapEventPage(
-                agentJobService.getRequestedJobEvents(currentUser.userId(), jobId, pageable)
+        PageResponse<AgentJobEventResult> events = agentJobService.getAccessibleJobEvents(
+                currentUser.userId(),
+                jobId,
+                pageable
         );
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(mapEventPage(events)));
     }
 
     @PostMapping("/api/ai/search-resource")

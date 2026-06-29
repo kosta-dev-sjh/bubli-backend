@@ -59,4 +59,31 @@ public class DailySummary {
 		this.updatedAt = Instant.now();
 	}
 
+	public static DailySummary draft(UUID userId, LocalDate summaryDate, String summaryJson) {
+		DailySummary summary = new DailySummary();
+		summary.userId = userId;
+		summary.summaryDate = summaryDate;
+		summary.summaryJson = summaryJson;
+		summary.status = SummaryStatus.DRAFT;
+		return summary;
+	}
+
+	public void edit(String summaryJson) {
+		if (summaryJson != null) {
+			this.summaryJson = summaryJson;
+			this.status = SummaryStatus.DRAFT;
+			this.approvedAt = null;
+		}
+	}
+
+	public void approve() {
+		this.status = SummaryStatus.APPROVED;
+		this.approvedAt = Instant.now();
+	}
+
+	public void hold() {
+		this.status = SummaryStatus.DRAFT;
+		this.approvedAt = null;
+	}
+
 }
