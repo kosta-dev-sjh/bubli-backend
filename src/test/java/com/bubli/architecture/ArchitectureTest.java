@@ -120,7 +120,7 @@ class ArchitectureTest {
 				JavaClass targetClass = dependency.getTargetClass();
 				if (targetClass.getPackageName().startsWith(BASE_PACKAGE + ".")
 						&& targetClass.getSimpleName().endsWith("Request")
-						&& !targetClass.getPackageName().contains(".entity")) {
+						&& !"entity".equals(layerOf(targetClass))) {
 					violations.add(message(sourceClass, targetClass, dependency));
 				}
 			}
