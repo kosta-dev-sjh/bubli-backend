@@ -346,6 +346,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.items[0].actor.id").value(leader.getId().toString()))
 				.andExpect(jsonPath("$.data.items[0].actor.name").value("미연"))
 				.andExpect(jsonPath("$.data.items[0].payload.title").value("요구사항.pdf"))
+				.andExpect(jsonPath("$.data.lastReceivedSequence").value(2))
+				.andExpect(jsonPath("$.data.latestSequence").value(2))
+				.andExpect(jsonPath("$.data.hasNext").value(false))
 				.andExpect(jsonPath("$.error").value(nullValue()));
 	}
 
