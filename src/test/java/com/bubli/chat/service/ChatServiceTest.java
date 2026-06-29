@@ -17,6 +17,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,9 @@ class ChatServiceTest {
 
 	@Mock
 	UserPublicService userPublicService;
+
+	@Mock
+	WebSocketPublishPublicService webSocketPublishPublicService;
 
 	@Spy
 	ObjectMapper objectMapper = new ObjectMapper();
@@ -159,6 +163,7 @@ class ChatServiceTest {
 		verify(chatMessageRepository).save(captor.capture());
 		assertThat(captor.getValue().getClientMessageId()).isEqualTo("client-1");
 		assertThat(captor.getValue().getRoomSequence()).isEqualTo(8L);
+		verify(webSocketPublishPublicService).publishChatMessage(result);
 	}
 
 	@Test
@@ -199,6 +204,7 @@ class ChatServiceTest {
 		assertThat(result.id()).isEqualTo(existing.getId());
 		assertThat(result.roomSequence()).isEqualTo(3L);
 		verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+		verify(webSocketPublishPublicService, never()).publishChatMessage(any(ChatMessageResult.class));
 	}
 
 	@Test

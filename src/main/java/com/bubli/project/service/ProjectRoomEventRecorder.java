@@ -3,6 +3,7 @@ package com.bubli.project.service;
 import com.bubli.project.entity.ProjectRoom;
 import com.bubli.project.entity.ProjectRoomEvent;
 import com.bubli.project.repository.ProjectRoomEventRepository;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class ProjectRoomEventRecorder {
 
 	private final ProjectRoomEventRepository projectRoomEventRepository;
 	private final ObjectMapper objectMapper;
+	private final WebSocketPublishPublicService webSocketPublishPublicService;
 
 	public void recordRoomUpdated(UUID actorUserId, ProjectRoom projectRoom) {
 		ObjectNode payload = objectMapper.createObjectNode()
@@ -54,7 +56,7 @@ public class ProjectRoomEventRecorder {
 
 	private void save(UUID actorUserId, ProjectRoom projectRoom, String eventType, ObjectNode payload) {
 		Long sequence = nextSequence(projectRoom.getId());
-		projectRoomEventRepository.save(ProjectRoomEvent.create(
+		ProjectRoomEvent event = projectRoomEventRepository.save(ProjectRoomEvent.create(
 				projectRoom.getId(),
 				sequence,
 				eventType,
@@ -62,6 +64,15 @@ public class ProjectRoomEventRecorder {
 				payload.toString(),
 				Instant.now()
 		));
+		webSocketPublishPublicService.publishProjectRoomEvent(
+				event.getId(),
+				event.getEventType(),
+				event.getRoomId(),
+				event.getSequence(),
+				event.getOccurredAt(),
+				event.getActorUserId(),
+				event.getPayloadJson()
+		);
 	}
 
 	private Long nextSequence(UUID roomId) {

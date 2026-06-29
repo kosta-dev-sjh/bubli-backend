@@ -2,6 +2,7 @@ package com.bubli.project.controller;
 
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
+import com.bubli.global.response.SequenceListResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.project.dto.CreateProjectRoomRequest;
@@ -99,7 +100,7 @@ public class ProjectRoomController {
 	}
 
 	@GetMapping("/api/project-rooms/{roomId}/events")
-	public ApiResponse<PageResponse<ProjectRoomEventResponse>> getProjectRoomEvents(
+	public ApiResponse<SequenceListResponse<ProjectRoomEventResponse>> getProjectRoomEvents(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID roomId,
 			@RequestParam(required = false) Long afterSequence,

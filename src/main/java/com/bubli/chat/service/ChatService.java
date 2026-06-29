@@ -18,6 +18,7 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ public class ChatService {
 	private final ChatMessageRepository chatMessageRepository;
 	private final UserPublicService userPublicService;
 	private final ObjectMapper objectMapper;
+	private final WebSocketPublishPublicService webSocketPublishPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ChatRoomResult> getChatRooms(UUID userId, Pageable pageable) {
@@ -118,12 +120,21 @@ public class ChatService {
 	public ChatMessageResult sendMessage(UUID senderUserId, UUID chatRoomId, SendChatMessageCommand command) {
 		checkActiveMember(senderUserId, chatRoomId);
 
+		boolean newMessage = false;
 		ChatMessage message = chatMessageRepository
 				.findByChatRoomIdAndClientMessageId(chatRoomId, command.clientMessageId())
-				.orElseGet(() -> createMessage(senderUserId, chatRoomId, command));
+				.orElse(null);
+		if (message == null) {
+			message = createMessage(senderUserId, chatRoomId, command);
+			newMessage = true;
+		}
 
 		UserResult sender = userPublicService.getUser(senderUserId);
-		return toResult(message, sender);
+		ChatMessageResult result = toResult(message, sender);
+		if (newMessage) {
+			webSocketPublishPublicService.publishChatMessage(result);
+		}
+		return result;
 	}
 
 	@Transactional

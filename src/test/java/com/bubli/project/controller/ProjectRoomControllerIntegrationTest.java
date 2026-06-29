@@ -92,6 +92,37 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	}
 
 	@Test
+	void updateMeChangesCurrentUserProfile() throws Exception {
+		User user = createUser("google-sub-me-update", "정현");
+
+		mockMvc.perform(patch("/api/me")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "name": "마렌",
+								  "avatarUrl": "https://cdn.example/avatar.png",
+								  "locale": "ja-JP",
+								  "timezone": "Asia/Tokyo"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").value(user.getId().toString()))
+				.andExpect(jsonPath("$.data.name").value("마렌"))
+				.andExpect(jsonPath("$.data.avatarUrl").value("https://cdn.example/avatar.png"))
+				.andExpect(jsonPath("$.data.locale").value("ja-JP"))
+				.andExpect(jsonPath("$.data.timezone").value("Asia/Tokyo"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		User updated = userRepository.findById(user.getId()).orElseThrow();
+		assertThat(updated.getName()).isEqualTo("마렌");
+		assertThat(updated.getAvatarUrl()).isEqualTo("https://cdn.example/avatar.png");
+		assertThat(updated.getLocale()).isEqualTo("ja-JP");
+		assertThat(updated.getTimezone()).isEqualTo("Asia/Tokyo");
+	}
+
+	@Test
 	void createProjectRoomPersistsRoomAndLeaderMember() throws Exception {
 		User user = createUser("google-sub-room-create", "미연");
 
@@ -154,8 +185,12 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 		User user = createUser("google-sub-my-room-list", "마렌");
 		User otherUser = createUser("google-sub-my-room-other", "소민");
 		ProjectRoom activeRoom = saveRoom(user.getId(), "자료 정리 프로젝트");
+		ProjectRoom inactiveRoom = saveRoom(user.getId(), "나간 프로젝트");
 		ProjectRoom otherRoom = saveRoom(otherUser.getId(), "다른 팀 프로젝트");
 		roomMemberRepository.save(RoomMember.createLeader(activeRoom.getId(), user.getId()));
+		RoomMember inactiveMember = roomMemberRepository.save(RoomMember.createMember(inactiveRoom.getId(), user.getId()));
+		inactiveMember.leave();
+		roomMemberRepository.save(inactiveMember);
 		roomMemberRepository.save(RoomMember.createLeader(otherRoom.getId(), otherUser.getId()));
 
 		mockMvc.perform(get("/api/me/project-rooms")
@@ -311,6 +346,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.items[0].actor.id").value(leader.getId().toString()))
 				.andExpect(jsonPath("$.data.items[0].actor.name").value("미연"))
 				.andExpect(jsonPath("$.data.items[0].payload.title").value("요구사항.pdf"))
+				.andExpect(jsonPath("$.data.lastReceivedSequence").value(2))
+				.andExpect(jsonPath("$.data.latestSequence").value(2))
+				.andExpect(jsonPath("$.data.hasNext").value(false))
 				.andExpect(jsonPath("$.error").value(nullValue()));
 	}
 
