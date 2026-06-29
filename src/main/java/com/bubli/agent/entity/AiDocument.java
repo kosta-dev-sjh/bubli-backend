@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 @Getter
-@Entity
+@Entity(name = "AgentAiDocument")
 @Table(name = "ai_documents")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AiDocument {

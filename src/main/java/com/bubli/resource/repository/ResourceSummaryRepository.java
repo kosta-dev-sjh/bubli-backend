@@ -8,5 +8,7 @@ import java.util.UUID;
 
 public interface ResourceSummaryRepository extends JpaRepository<ResourceSummary, UUID> {
 
-	Optional<ResourceSummary> findFirstByResourceIdOrderByUpdatedAtDescIdDesc(UUID resourceId);
+    Optional<ResourceSummary> findTopByResourceIdOrderByCreatedAtDesc(UUID resourceId);
+
+    Optional<ResourceSummary> findFirstByResourceIdOrderByUpdatedAtDescIdDesc(UUID resourceId);
 }

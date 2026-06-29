@@ -1,18 +1,20 @@
 package com.bubli.agent.controller;
 
-import com.bubli.agent.dto.AgentJobEventResponse;
-import com.bubli.agent.dto.AgentJobEventResult;
 import com.bubli.agent.dto.AgentJobResponse;
-import com.bubli.agent.service.AgentJobService;
+import com.bubli.agent.dto.SearchResourceRequest;
+import com.bubli.agent.dto.SearchResourceResponse;
+import com.bubli.agent.service.AgentJobQueryService;
 import com.bubli.global.response.ApiResponse;
-import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import com.bubli.resource.service.ResourceSemanticSearchPublicService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -21,39 +23,28 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgentJobController {
 
-	private final AgentJobService agentJobService;
+    private final AgentJobQueryService agentJobQueryService;
+    private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 
-	@GetMapping("/api/agent-jobs/{jobId}")
-	public ApiResponse<AgentJobResponse> getAgentJob(
-			@CurrentUser AuthUser authUser,
-			@PathVariable UUID jobId
-	) {
-		return ApiResponse.success(AgentJobResponse.from(
-				agentJobService.getRequestedJob(authUser.userId(), jobId)
-		));
-	}
+    @GetMapping("/api/agent-jobs/{jobId}")
+    public ResponseEntity<ApiResponse<AgentJobResponse>> getJob(@PathVariable UUID jobId) {
+        return ResponseEntity.ok(ApiResponse.success(agentJobQueryService.getJob(jobId)));
+    }
 
-	@GetMapping("/api/agent-jobs/{jobId}/events")
-	public ApiResponse<PageResponse<AgentJobEventResponse>> getAgentJobEvents(
-			@CurrentUser AuthUser authUser,
-			@PathVariable UUID jobId,
-			@PageableDefault(size = 20) Pageable pageable
-	) {
-		return ApiResponse.success(mapEventPage(
-				agentJobService.getRequestedJobEvents(authUser.userId(), jobId, pageable)
-		));
-	}
-
-	private PageResponse<AgentJobEventResponse> mapEventPage(PageResponse<AgentJobEventResult> page) {
-		return new PageResponse<>(
-				page.getItems().stream()
-						.map(AgentJobEventResponse::from)
-						.toList(),
-				page.getPage(),
-				page.getSize(),
-				page.getTotalElements(),
-				page.getTotalPages(),
-				page.isHasNext()
-		);
-	}
+    @PostMapping("/api/ai/search-resource")
+    public ResponseEntity<ApiResponse<SearchResourceResponse>> searchResource(
+            @Valid @RequestBody SearchResourceRequest request,
+            @CurrentUser AuthUser currentUser
+    ) {
+        SearchResourceResponse response = SearchResourceResponse.of(
+                resourceSemanticSearchService.search(
+                        currentUser.userId(),
+                        request.scope(),
+                        request.roomId(),
+                        request.query(),
+                        request.topK()
+                )
+        );
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "analysis.v2",
+  "resourceId": "24cf02d3-eb51-4a2c-86f9-428feece0ce6",
+  "model": {
+    "name": "anthropic.claude-haiku",
+    "promptVersion": "p1"
+  },
+  "analysis": {
+    "summary": "잘못된 결과 예시",
+    "keywords": [],
+    "risks": [],
+    "checklist": []
+  },
+  "suggestions": [
+    {
+      "type": "TASK",
+      "title": "",
+      "confidence": 1.2
+    },
+    {
+      "type": "CONTRACT_FIELD",
+      "fieldKey": "contract_amount"
+    }
+  ]
+}

@@ -64,6 +64,11 @@ public enum ErrorCode {
     RESOURCE_501_001(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_001", "자료 저장소 URL 발급이 아직 연결되지 않았습니다."),
     RESOURCE_501_002(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_002", "자료 저장소 저장/삭제가 아직 연결되지 않았습니다."),
 
+    RESOURCE_409_001(HttpStatus.CONFLICT, "RESOURCE_409_001", "Resource already exists."),
+    RESOURCE_413_001(HttpStatus.PAYLOAD_TOO_LARGE, "RESOURCE_413_001", "Resource file is too large."),
+    RESOURCE_415_001(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "RESOURCE_415_001", "Unsupported resource file type."),
+    RESOURCE_500_001(HttpStatus.INTERNAL_SERVER_ERROR, "RESOURCE_500_001", "Resource processing failed."),
+
     // STORAGE
     STORAGE_400_001(HttpStatus.BAD_REQUEST, "STORAGE_400_001", "저장 용량 요청 값이 올바르지 않습니다."),
     STORAGE_400_002(HttpStatus.BAD_REQUEST, "STORAGE_400_002", "저장 용량 한도를 초과했습니다."),

@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bubli.local/schema/agent/analysis-v1.schema.json",
+  "title": "Bubli Agent Analysis Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "resourceId",
+    "model",
+    "analysis",
+    "suggestions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "analysis.v1"
+    },
+    "resourceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "model": {
+      "$ref": "#/$defs/model"
+    },
+    "analysis": {
+      "$ref": "#/$defs/analysis"
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/suggestion"
+      }
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "promptVersion"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "keywords",
+        "risks",
+        "checklist"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "checklist": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/checklistItem"
+          }
+        }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "severity"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        }
+      }
+    },
+    "suggestion": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/taskSuggestion"
+        },
+        {
+          "$ref": "#/$defs/requirementSuggestion"
+        },
+        {
+          "$ref": "#/$defs/contractFieldSuggestion"
+        }
+      ]
+    },
+    "suggestionProperties": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "TASK",
+            "REQUIREMENT",
+            "CONTRACT_FIELD"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceText": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fieldKey": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "taskSuggestion": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/suggestionProperties"
+        },
+        {
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "title",
+            "sourceText"
+          ],
+          "properties": {
+            "type": {
+              "const": "TASK"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "sourceText": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "fieldKey": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "requirementSuggestion": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/suggestionProperties"
+        },
+        {
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "title",
+            "description"
+          ],
+          "properties": {
+            "type": {
+              "const": "REQUIREMENT"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sourceText": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "fieldKey": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "contractFieldSuggestion": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/suggestionProperties"
+        },
+        {
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "fieldKey",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "CONTRACT_FIELD"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "sourceText": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "fieldKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

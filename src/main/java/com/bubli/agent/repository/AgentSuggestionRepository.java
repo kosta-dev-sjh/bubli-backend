@@ -2,6 +2,7 @@ package com.bubli.agent.repository;
 
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.type.AgentSuggestionStatus;
+import com.bubli.agent.type.AgentSuggestionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,9 +12,32 @@ import java.util.UUID;
 
 public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion, UUID> {
 
-	Page<AgentSuggestion> findByUserIdAndStatus(UUID userId, AgentSuggestionStatus status, Pageable pageable);
+    List<AgentSuggestion> findAllByUserIdOrderByCreatedAtDesc(UUID userId);
 
-	Page<AgentSuggestion> findByRoomIdAndStatus(UUID roomId, AgentSuggestionStatus status, Pageable pageable);
+    List<AgentSuggestion> findAllByRoomIdOrderByCreatedAtDesc(UUID roomId);
 
-	List<AgentSuggestion> findByJobId(UUID jobId);
+    List<AgentSuggestion> findAllByRoomIdAndStatusOrderByCreatedAtDesc(
+            UUID roomId,
+            AgentSuggestionStatus status
+    );
+
+    List<AgentSuggestion> findAllByJobIdOrderByCreatedAtAsc(UUID jobId);
+
+    List<AgentSuggestion> findAllByRoomIdAndSuggestionTypeAndStatus(
+            UUID roomId,
+            AgentSuggestionType suggestionType,
+            AgentSuggestionStatus status
+    );
+
+    Page<AgentSuggestion> findByUserIdAndStatus(
+            UUID userId,
+            AgentSuggestionStatus status,
+            Pageable pageable
+    );
+
+    Page<AgentSuggestion> findByRoomIdAndStatus(
+            UUID roomId,
+            AgentSuggestionStatus status,
+            Pageable pageable
+    );
 }

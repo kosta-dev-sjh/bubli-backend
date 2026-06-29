@@ -1,41 +1,67 @@
 package com.bubli.agent.dto;
 
+import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record AgentJobResponse(
-		UUID id,
-		UUID requestedByUserId,
-		UUID roomId,
-		UUID resourceId,
-		AgentJobType jobType,
-		AgentJobStatus status,
-		int retryCount,
-		String errorCode,
-		String errorMessage,
-		Instant startedAt,
-		Instant finishedAt,
-		Instant createdAt,
-		Instant updatedAt
+        UUID jobId,
+        AgentJobType jobType,
+        AgentJobStatus status,
+        UUID resourceId,
+        UUID roomId,
+        String errorCode,
+        String errorMessage,
+        int retryCount,
+        List<UUID> suggestionIds,
+        UUID resourceSummaryId,
+        UUID aiDocumentId,
+        Instant startedAt,
+        Instant finishedAt
 ) {
-	public static AgentJobResponse from(AgentJobResult result) {
-		return new AgentJobResponse(
-				result.id(),
-				result.requestedByUserId(),
-				result.roomId(),
-				result.resourceId(),
-				result.jobType(),
-				result.status(),
-				result.retryCount(),
-				result.errorCode(),
-				result.errorMessage(),
-				result.startedAt(),
-				result.finishedAt(),
-				result.createdAt(),
-				result.updatedAt()
-		);
-	}
+
+    public static AgentJobResponse of(
+            AgentJob job,
+            List<UUID> suggestionIds,
+            UUID resourceSummaryId,
+            UUID aiDocumentId
+    ) {
+        return new AgentJobResponse(
+                job.getId(),
+                job.getJobType(),
+                job.getStatus(),
+                job.getResourceId(),
+                job.getRoomId(),
+                job.getErrorCode(),
+                job.getErrorMessage(),
+                job.getRetryCount(),
+                suggestionIds,
+                resourceSummaryId,
+                aiDocumentId,
+                job.getStartedAt(),
+                job.getFinishedAt()
+        );
+    }
+
+    public static AgentJobResponse from(AgentJobResult result) {
+        return new AgentJobResponse(
+                result.id(),
+                result.jobType(),
+                result.status(),
+                result.resourceId(),
+                result.roomId(),
+                result.errorCode(),
+                result.errorMessage(),
+                result.retryCount(),
+                List.of(),
+                null,
+                null,
+                result.startedAt(),
+                result.finishedAt()
+        );
+    }
 }

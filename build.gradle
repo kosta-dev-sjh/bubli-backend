@@ -25,9 +25,13 @@ repositories {
 
 ext {
 	queryDslVersion = '5.1.0'
+	springAiVersion = '1.0.9'
+	lombokVersion = '1.18.38'
 }
 
 dependencies {
+	implementation platform("org.springframework.ai:spring-ai-bom:${springAiVersion}")
+
 	// Web / Validation
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -61,16 +65,21 @@ dependencies {
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:bedrockruntime'
 
+	// Spring AI / RAG
+	implementation 'org.springframework.ai:spring-ai-starter-model-bedrock'
+	implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
+	implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+
 	// 문서 처리
 	implementation 'org.apache.pdfbox:pdfbox:3.0.3'
 	implementation 'org.apache.poi:poi-ooxml:5.3.0'
 	implementation 'org.apache.tika:tika-core:2.9.2'
 
 	// Lombok
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
-	testCompileOnly 'org.projectlombok:lombok'
-	testAnnotationProcessor 'org.projectlombok:lombok'
+	compileOnly "org.projectlombok:lombok:${lombokVersion}"
+	annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+	testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+	testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
 	// Swagger (SpringDoc OpenAPI)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
@@ -102,6 +111,11 @@ sourceSets {
 }
 
 tasks.withType(JavaCompile).configureEach {
+	options.annotationProcessorPath = configurations.annotationProcessor
+	options.compilerArgs += [
+			'-processor',
+			'lombok.launch.AnnotationProcessorHider$AnnotationProcessor,com.querydsl.apt.jpa.JPAAnnotationProcessor'
+	]
 	options.generatedSourceOutputDirectory = generatedDir
 }
 

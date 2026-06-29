@@ -28,8 +28,8 @@ public record AgentSuggestionResult(
 				suggestion.getJobId(),
 				suggestion.getResourceId(),
 				suggestion.getSuggestionType(),
-				suggestion.getPayloadJson(),
-				suggestion.getEvidenceJson(),
+				String.valueOf(suggestion.getPayloadJson()),
+				String.valueOf(suggestion.getEvidenceJson()),
 				suggestion.getStatus(),
 				suggestion.getCreatedAt(),
 				suggestion.getUpdatedAt()

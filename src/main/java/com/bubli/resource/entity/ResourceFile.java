@@ -1,61 +1,105 @@
 package com.bubli.resource.entity;
 
-
-import java.time.Instant;
-
-import jakarta.persistence.*;
+import com.bubli.global.entity.BaseTimeEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
-@Getter
 @Entity
-@Table(name = "resource_files")
+@Table(
+        name = "resource_files",
+        indexes = {
+                @Index(name = "idx_resource_files_resource", columnList = "resource_id"),
+                @Index(name = "idx_resource_files_checksum", columnList = "checksum")
+        }
+)
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ResourceFile {
+public class ResourceFile extends BaseTimeEntity {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-	@Column(name = "resource_id", nullable = false)
-	private UUID resourceId;
+    @Column(name = "resource_id", nullable = false)
+    private UUID resourceId;
 
-	@Column(name = "storage_key", nullable = false, unique = true, length = 500)
-	private String storageKey;
+    @Column(name = "original_name", nullable = false, length = 255)
+    private String originalName;
 
-	@Column(name = "original_name", nullable = false, length = 255)
-	private String originalName;
+    @Column(name = "mime_type", nullable = false, length = 100)
+    private String mimeType;
 
-	@Column(name = "mime_type", nullable = false, length = 120)
-	private String mimeType;
+    @Column(name = "size_bytes", nullable = false)
+    private long sizeBytes;
 
-	@Column(name = "size_bytes", nullable = false)
-	private Long sizeBytes;
+    @Column(name = "storage_key", nullable = false, length = 1000)
+    private String storageKey;
 
-	@Column(length = 128)
-	private String checksum;
+    @Column(name = "checksum", length = 64)
+    private String checksum;
 
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
+    private ResourceFile(
+            UUID resourceId,
+            String originalName,
+            String mimeType,
+            long sizeBytes,
+            String storageKey,
+            String checksum
+    ) {
+        this.resourceId = require(resourceId, "resourceId");
+        this.originalName = requireText(originalName, "originalName");
+        this.mimeType = requireText(mimeType, "mimeType");
+        if (sizeBytes < 0) {
+            throw new IllegalArgumentException("sizeBytes must not be negative.");
+        }
+        this.sizeBytes = sizeBytes;
+        this.storageKey = requireText(storageKey, "storageKey");
+        this.checksum = checksum;
+    }
 
-	public static ResourceFile create(UUID resourceId, String storageKey, String originalName,
-			String mimeType, Long sizeBytes, String checksum) {
-		ResourceFile file = new ResourceFile();
-		file.resourceId = resourceId;
-		file.storageKey = storageKey;
-		file.originalName = originalName;
-		file.mimeType = mimeType;
-		file.sizeBytes = sizeBytes;
-		file.checksum = checksum;
-		return file;
-	}
+    public static ResourceFile create(
+            UUID resourceId,
+            String originalName,
+            String mimeType,
+            long sizeBytes,
+            String storageKey,
+            String checksum
+    ) {
+        return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
+    }
 
-	@PrePersist
-	private void onCreate() {
-		this.createdAt = Instant.now();
-	}
+    public static ResourceFile create(
+            UUID resourceId,
+            String storageKey,
+            String originalName,
+            String mimeType,
+            long sizeBytes,
+            String checksum
+    ) {
+        return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
+    }
 
+    private static <T> T require(T value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        return value;
+    }
+
+    private static String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        return value;
+    }
 }

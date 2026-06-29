@@ -34,7 +34,7 @@ class EntityFlywayAlignmentTest {
 			Pattern.DOTALL
 	);
 	private static final Pattern ALTER_TABLE_ADD_COLUMN_PATTERN = Pattern.compile(
-			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+COLUMN\\s+(\\w+)\\s+([^;]+);",
+			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s+([^;]+);",
 			Pattern.CASE_INSENSITIVE
 	);
 	private static final Pattern ALTER_TABLE_PATTERN = Pattern.compile(
@@ -104,6 +104,7 @@ class EntityFlywayAlignmentTest {
 				"error_message",
 				"started_at",
 				"finished_at",
+				"row_version",
 				"created_at",
 				"updated_at"
 		));
@@ -136,6 +137,8 @@ class EntityFlywayAlignmentTest {
 				"payload_json",
 				"evidence_json",
 				"status",
+				"reviewed_by",
+				"reviewed_at",
 				"created_at",
 				"updated_at"
 		));
@@ -167,6 +170,7 @@ class EntityFlywayAlignmentTest {
 				entry("error_message", "TEXT"),
 				entry("started_at", "TIMESTAMPTZ"),
 				entry("finished_at", "TIMESTAMPTZ"),
+				entry("row_version", "BIGINT"),
 				entry("created_at", "TIMESTAMPTZ"),
 				entry("updated_at", "TIMESTAMPTZ")
 		));
@@ -199,6 +203,8 @@ class EntityFlywayAlignmentTest {
 				entry("payload_json", "JSONB"),
 				entry("evidence_json", "JSONB"),
 				entry("status", "VARCHAR(30)"),
+				entry("reviewed_by", "UUID"),
+				entry("reviewed_at", "TIMESTAMPTZ"),
 				entry("created_at", "TIMESTAMPTZ"),
 				entry("updated_at", "TIMESTAMPTZ")
 		));
