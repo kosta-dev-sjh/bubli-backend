@@ -14,7 +14,7 @@ import java.security.NoSuchAlgorithmException;
 
 @Service
 @ConditionalOnProperty(name = "storage.type", havingValue = "local")
-public class LocalStorageService implements StorageService {
+public class LocalStorageService implements StoragePublicService {
 
 	@Value("${storage.local.base-path}")
 	private String basePath;
