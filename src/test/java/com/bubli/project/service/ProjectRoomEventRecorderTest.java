@@ -5,6 +5,7 @@ import com.bubli.project.entity.ProjectRoomEvent;
 import com.bubli.project.repository.ProjectRoomEventRepository;
 import com.bubli.project.type.PaymentStatus;
 import com.bubli.project.type.ProjectRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,10 +25,12 @@ import static org.mockito.Mockito.when;
 class ProjectRoomEventRecorderTest {
 
 	private final ProjectRoomEventRepository projectRoomEventRepository = mock(ProjectRoomEventRepository.class);
+	private final WebSocketPublishPublicService webSocketPublishPublicService = mock(WebSocketPublishPublicService.class);
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final ProjectRoomEventRecorder recorder = new ProjectRoomEventRecorder(
 			projectRoomEventRepository,
-			objectMapper
+			objectMapper,
+			webSocketPublishPublicService
 	);
 
 	@Test
@@ -54,6 +58,8 @@ class ProjectRoomEventRecorderTest {
 		);
 		when(projectRoomEventRepository.findTopByRoomIdOrderBySequenceDesc(roomId))
 				.thenReturn(Optional.of(previousEvent));
+		when(projectRoomEventRepository.save(any(ProjectRoomEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
 
 		recorder.recordRoomUpdated(actorUserId, projectRoom);
 
@@ -69,6 +75,15 @@ class ProjectRoomEventRecorderTest {
 		assertThat(payload.get("name").asText()).isEqualTo("새 프로젝트");
 		assertThat(payload.get("clientName").asText()).isEqualTo("새 클라이언트");
 		assertThat(payload.get("status").asText()).isEqualTo("ACTIVE");
+		verify(webSocketPublishPublicService).publishProjectRoomEvent(
+				savedEvent.getId(),
+				savedEvent.getEventType(),
+				savedEvent.getRoomId(),
+				savedEvent.getSequence(),
+				savedEvent.getOccurredAt(),
+				savedEvent.getActorUserId(),
+				savedEvent.getPayloadJson()
+		);
 	}
 
 	@Test
@@ -88,6 +103,8 @@ class ProjectRoomEventRecorderTest {
 		ReflectionTestUtils.setField(projectRoom, "id", roomId);
 		when(projectRoomEventRepository.findTopByRoomIdOrderBySequenceDesc(roomId))
 				.thenReturn(Optional.empty());
+		when(projectRoomEventRepository.save(any(ProjectRoomEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
 
 		recorder.recordPaymentUpdated(actorUserId, projectRoom);
 
@@ -101,5 +118,14 @@ class ProjectRoomEventRecorderTest {
 		assertThat(payload.get("contractAmount").decimalValue()).isEqualByComparingTo(BigDecimal.valueOf(2_000_000));
 		assertThat(payload.get("paymentDueDate").asText()).isEqualTo("2026-07-20");
 		assertThat(payload.get("paidAt").asText()).isEqualTo("2026-07-18");
+		verify(webSocketPublishPublicService).publishProjectRoomEvent(
+				savedEvent.getId(),
+				savedEvent.getEventType(),
+				savedEvent.getRoomId(),
+				savedEvent.getSequence(),
+				savedEvent.getOccurredAt(),
+				savedEvent.getActorUserId(),
+				savedEvent.getPayloadJson()
+		);
 	}
 }
