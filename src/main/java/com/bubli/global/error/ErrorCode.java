@@ -104,6 +104,7 @@ public enum ErrorCode {
     VOICE_404_001(HttpStatus.NOT_FOUND, "VOICE_404_001", "보이스챗 방을 찾을 수 없습니다."),
     VOICE_403_001(HttpStatus.FORBIDDEN, "VOICE_403_001", "보이스챗 방 접근 권한이 없습니다."),
     VOICE_409_001(HttpStatus.CONFLICT, "VOICE_409_001", "이미 종료된 보이스챗 방입니다."),
+    VOICE_409_002(HttpStatus.CONFLICT, "VOICE_409_002", "이미 활성화된 보이스챗 방이 있습니다."),
     ;
 
     private final HttpStatus httpStatus;

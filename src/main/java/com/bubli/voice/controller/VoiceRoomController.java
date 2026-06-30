@@ -4,6 +4,8 @@ import com.bubli.global.response.ApiResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.voice.dto.CreateVoiceRoomRequest;
+import com.bubli.voice.dto.UpdateMicStatusRequest;
+import com.bubli.voice.dto.VoiceParticipantResponse;
 import com.bubli.voice.dto.VoiceRoomResponse;
 import com.bubli.voice.dto.VoiceTokenResponse;
 import com.bubli.voice.service.VoiceRoomService;
@@ -47,6 +49,15 @@ public class VoiceRoomController {
             @PathVariable UUID id
     ) {
         return ApiResponse.success(voiceRoomService.issueToken(authUser.userId(), id));
+    }
+
+    @PatchMapping("/{id}/mic")
+    public ApiResponse<VoiceParticipantResponse> updateMicStatus(
+            @CurrentUser AuthUser authUser,
+            @PathVariable UUID id,
+            @RequestBody UpdateMicStatusRequest request
+    ) {
+        return ApiResponse.success(voiceRoomService.updateMicStatus(authUser.userId(), id, request.micStatus()));
     }
 
     @PatchMapping("/{id}/leave")

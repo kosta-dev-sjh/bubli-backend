@@ -61,4 +61,8 @@ public class VoiceParticipant {
 		this.leftAt = Instant.now();
 	}
 
+	public void updateMicStatus(String micStatus) {
+		this.micStatus = micStatus;
+	}
+
 }
