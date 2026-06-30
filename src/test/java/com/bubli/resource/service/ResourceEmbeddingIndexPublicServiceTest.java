@@ -1,9 +1,9 @@
 package com.bubli.resource.service;
 
 import com.bubli.resource.entity.Resource;
-import com.bubli.resource.entity.ResourceEmbedding;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.repository.ResourceEmbeddingRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
@@ -15,6 +15,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,14 +39,17 @@ class ResourceEmbeddingIndexPublicServiceTest {
         assertThat(result.indexed()).isTrue();
         assertThat(result.chunkCount()).isGreaterThan(1);
         verify(repository).deleteAllByResourceId(resource.getId());
-        verify(repository).saveAll(org.mockito.ArgumentMatchers.argThat(saved -> {
-            List<ResourceEmbedding> embeddings = toList(saved);
-            return embeddings.size() == result.chunkCount()
-                    && embeddings.get(0).getResourceId().equals(resource.getId())
-                    && embeddings.get(0).getEmbedding().startsWith("[0.25,0.25")
-                    && "requirements.txt".equals(embeddings.get(0).getChunkMetadata().get("originalName"))
-                    && embeddings.get(0).getChunkMetadata().containsKey("pageNumber");
-        }));
+        verify(repository).insertEmbedding(
+                any(UUID.class),
+                eq(resource.getId()),
+                eq(resource.getOwnerId()),
+                eq(resource.getRoomId()),
+                eq(resource.getVisibility().name()),
+                eq(0),
+                anyString(),
+                org.mockito.ArgumentMatchers.startsWith("[0.25,0.25"),
+                org.mockito.ArgumentMatchers.contains("\"originalName\":\"requirements.txt\"")
+        );
     }
 
     @Test
@@ -61,11 +65,17 @@ class ResourceEmbeddingIndexPublicServiceTest {
         service(repository, provider)
                 .index(resource, resourceFile, List.of(new TextChunker.TextPage(3, "page text")));
 
-        verify(repository).saveAll(org.mockito.ArgumentMatchers.argThat(saved -> {
-            List<ResourceEmbedding> embeddings = toList(saved);
-            return embeddings.size() == 1
-                    && embeddings.get(0).getChunkMetadata().get("pageNumber").equals(3);
-        }));
+        verify(repository).insertEmbedding(
+                any(UUID.class),
+                eq(resource.getId()),
+                eq(resource.getOwnerId()),
+                eq(resource.getRoomId()),
+                eq(resource.getVisibility().name()),
+                eq(0),
+                anyString(),
+                org.mockito.ArgumentMatchers.startsWith("[0.25,0.25"),
+                org.mockito.ArgumentMatchers.contains("\"pageNumber\":3")
+        );
     }
 
     @Test
@@ -79,7 +89,17 @@ class ResourceEmbeddingIndexPublicServiceTest {
         assertThat(result.indexed()).isFalse();
         assertThat(result.chunkCount()).isZero();
         verify(repository, never()).deleteAllByResourceId(any());
-        verify(repository, never()).saveAll(any());
+        verify(repository, never()).insertEmbedding(
+                any(UUID.class),
+                any(UUID.class),
+                any(UUID.class),
+                any(),
+                anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                anyString(),
+                anyString(),
+                anyString()
+        );
     }
 
     private ResourceEmbeddingIndexPublicService service(
@@ -90,7 +110,8 @@ class ResourceEmbeddingIndexPublicServiceTest {
                 repository,
                 new TextChunker(),
                 provider,
-                new EmbeddingVectorFormatter()
+                new EmbeddingVectorFormatter(),
+                new ObjectMapper()
         );
     }
 
@@ -129,7 +150,4 @@ class ResourceEmbeddingIndexPublicServiceTest {
         return vector;
     }
 
-    private List<ResourceEmbedding> toList(Iterable<ResourceEmbedding> embeddings) {
-        return java.util.stream.StreamSupport.stream(embeddings.spliterator(), false).toList();
-    }
 }

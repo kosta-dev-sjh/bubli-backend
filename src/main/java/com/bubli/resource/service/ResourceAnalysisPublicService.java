@@ -3,6 +3,8 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.dto.ResourceAnalysisArtifacts;
+import com.bubli.resource.dto.ResourceAnalysisPage;
+import com.bubli.resource.dto.ResourceAnalysisSource;
 import com.bubli.resource.dto.ResourceAnalysisTarget;
 import com.bubli.resource.entity.AiDocument;
 import com.bubli.resource.entity.Resource;
@@ -27,10 +29,10 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -68,6 +70,12 @@ public class ResourceAnalysisPublicService {
 
     @Transactional
     public void analyzeResourceForJob(UUID resourceId, UUID jobId) {
+        ResourceAnalysisSource source = loadAnalysisSourceForJob(resourceId);
+        completeAnalysisForJob(source, jobId, null);
+    }
+
+    @Transactional
+    public ResourceAnalysisSource loadAnalysisSourceForJob(UUID resourceId) {
         Resource resource = null;
         try {
             resource = resourceRepository.findById(resourceId)
@@ -76,30 +84,64 @@ public class ResourceAnalysisPublicService {
 
             ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
-            //파일 추출
             ExtractedDocument extracted = extract(resourceFile);
             if (extracted.text().isBlank()) {
                 throw new IllegalArgumentException("Extracted text is empty.");
             }
-            //파일+agent job+ summary
+
+            DocumentType documentType = detectDocumentType(resourceFile, extracted.text());
+            return new ResourceAnalysisSource(
+                    resource.getId(),
+                    resource.getRoomId(),
+                    resourceFile.getOriginalName(),
+                    resourceFile.getMimeType(),
+                    documentType,
+                    extracted.pages().stream()
+                            .map(page -> new ResourceAnalysisPage(page.pageNumber(), page.text()))
+                            .toList(),
+                    extracted.text(),
+                    extracted.pageCount(),
+                    extracted.text().length()
+            );
+        } catch (RuntimeException e) {
+            if (resource != null) {
+                resource.markAnalysisFailed();
+            }
+            throw e;
+        }
+    }
+
+    @Transactional
+    public void completeAnalysisForJob(ResourceAnalysisSource source, UUID jobId, Map<String, Object> aiAnalysisJson) {
+        Resource resource = null;
+        try {
+            resource = resourceRepository.findById(source.resourceId())
+                    .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
+            ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
+            List<TextChunker.TextPage> pages = source.pages().stream()
+                    .map(page -> new TextChunker.TextPage(page.pageNumber(), page.text()))
+                    .toList();
+            ExtractedDocument extracted = new ExtractedDocument(pages);
+
             resourceSummaryRepository.save(ResourceSummary.analyzed(
                     resource.getId(),
                     jobId,
-                    summaryJson(resourceFile, extracted)
+                    summaryJson(resourceFile, extracted, source.documentType(), aiAnalysisJson)
             ));
-            //멱등성 보장을 위해 이미있으면 저장 안하고 없으면 생성
+
             UUID analyzedResourceId = resource.getId();
             UUID roomId = resource.getRoomId();
             aiDocumentRepository.findByResourceId(analyzedResourceId)
                     .orElseGet(() -> aiDocumentRepository.save(AiDocument.analyzed(
                             analyzedResourceId,
                             roomId,
-                            detectDocumentType(resourceFile, extracted.text()),
-                            new BigDecimal("0.5000")
+                            source.documentType(),
+                            aiAnalysisJson == null ? new BigDecimal("0.5000") : new BigDecimal("0.8000")
                     )));
-            //임베딩
+
             ResourceEmbeddingIndexPublicService.IndexResult indexResult =
-                    resourceEmbeddingIndexService.index(resource, resourceFile, extracted.pages());
+                    resourceEmbeddingIndexService.index(resource, resourceFile, pages);
             if (indexResult.indexed()) {
                 resourceRelationIndexService.rebuildRelations(resource);
             }
@@ -112,8 +154,12 @@ public class ResourceAnalysisPublicService {
         }
     }
 
+    @Transactional
+    public void markAnalysisFailed(UUID resourceId) {
+        resourceRepository.findById(resourceId).ifPresent(Resource::markAnalysisFailed);
+    }
+
     private ExtractedDocument extract(ResourceFile resourceFile) {
-        //파일 종류별로
         try (InputStream inputStream = storageService.open(resourceFile.getStorageKey())) {
             if (resourceFile.getMimeType().startsWith("application/pdf")) {
                 return extractPdf(inputStream);
@@ -127,13 +173,12 @@ public class ResourceAnalysisPublicService {
             throw new IllegalArgumentException("Failed to extract resource text.", e);
         }
     }
-    //PDF
+
     private ExtractedDocument extractPdf(InputStream inputStream) throws IOException {
         byte[] bytes = inputStream.readAllBytes();
         try (PDDocument document = Loader.loadPDF(bytes)) {
             List<TextChunker.TextPage> pages = new ArrayList<>();
             int pageCount = document.getNumberOfPages();
-            //page별로 문서 나눔
             for (int pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
                 PDFTextStripper stripper = new PDFTextStripper();
                 stripper.setStartPage(pageNumber);
@@ -144,17 +189,37 @@ public class ResourceAnalysisPublicService {
         }
     }
 
-    private Map<String, Object> summaryJson(ResourceFile resourceFile, ExtractedDocument extracted) {
+    private Map<String, Object> summaryJson(
+            ResourceFile resourceFile,
+            ExtractedDocument extracted,
+            DocumentType documentType,
+            Map<String, Object> aiAnalysisJson
+    ) {
         String normalized = extracted.text().replaceAll("\\s+", " ").trim();
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("summary", preview(normalized));
-        summary.put("source", "LOCAL_EXTRACTOR");
+        summary.put("summary", aiSummary(aiAnalysisJson, normalized));
+        summary.put("source", aiAnalysisJson == null ? "LOCAL_EXTRACTOR" : "LLM_ANALYZER");
+        summary.put("documentType", documentType.name());
         summary.put("originalName", resourceFile.getOriginalName());
         summary.put("mimeType", resourceFile.getMimeType());
         summary.put("pageCount", extracted.pageCount());
         summary.put("characterCount", extracted.text().length());
         summary.put("lineCount", extracted.text().lines().count());
+        if (aiAnalysisJson != null) {
+            summary.put("analysis", aiAnalysisJson);
+        }
         return summary;
+    }
+
+    private String aiSummary(Map<String, Object> aiAnalysisJson, String normalizedText) {
+        if (aiAnalysisJson == null) {
+            return preview(normalizedText);
+        }
+        Object summary = aiAnalysisJson.get("summary");
+        if (summary == null || summary.toString().isBlank()) {
+            return preview(normalizedText);
+        }
+        return summary.toString();
     }
 
     private String preview(String text) {
@@ -167,13 +232,13 @@ public class ResourceAnalysisPublicService {
     private DocumentType detectDocumentType(ResourceFile resourceFile, String text) {
         String source = (resourceFile.getOriginalName() + " " + preview(text))
                 .toLowerCase(Locale.ROOT);
-        if (source.contains("contract") || source.contains("怨꾩빟")) {
+        if (source.contains("contract") || source.contains("계약")) {
             return DocumentType.CONTRACT;
         }
-        if (source.contains("requirement") || source.contains("?붽뎄?ы빆") || source.contains("?붽뎄")) {
+        if (source.contains("requirement") || source.contains("요구사항") || source.contains("요건")) {
             return DocumentType.REQUIREMENT;
         }
-        if (source.contains("meeting") || source.contains("?뚯쓽")) {
+        if (source.contains("meeting") || source.contains("회의")) {
             return DocumentType.MEETING_NOTE;
         }
         return DocumentType.REFERENCE;

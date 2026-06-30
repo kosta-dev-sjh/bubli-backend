@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -31,6 +32,15 @@ public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 		if (!roomId.equals(wbsItem.getRoomId())) {
 			throw new BusinessException(ErrorCode.WORK_403_001);
 		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<WbsItemResult> getRoomContextItems(UUID roomId, int limit) {
+		return wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId).stream()
+				.limit(Math.max(1, Math.min(limit, 20)))
+				.map(WbsItemResult::from)
+				.toList();
 	}
 
 	@Override
