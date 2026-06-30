@@ -60,4 +60,18 @@ public class WidgetItemState {
 		this.updatedAt = Instant.now();
 	}
 
+	public static WidgetItemState create(UUID userId, BubbleType bubbleType, WidgetItemType itemType, UUID itemId) {
+		WidgetItemState s = new WidgetItemState();
+		s.userId = userId;
+		s.bubbleType = bubbleType;
+		s.itemType = itemType;
+		s.itemId = itemId;
+		s.state = WidgetItemStateValue.VISIBLE;
+		return s;
+	}
+
+	public void updateState(WidgetItemStateValue state) {
+		this.state = state;
+	}
+
 }

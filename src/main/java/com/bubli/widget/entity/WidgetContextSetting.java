@@ -49,4 +49,17 @@ public class WidgetContextSetting {
 		this.updatedAt = Instant.now();
 	}
 
+	public static WidgetContextSetting create(UUID userId, UUID selectedRoomId) {
+		WidgetContextSetting c = new WidgetContextSetting();
+		c.userId = userId;
+		c.selectedRoomId = selectedRoomId;
+		c.mode = selectedRoomId != null ? WidgetMode.ROOM : WidgetMode.PERSONAL;
+		return c;
+	}
+
+	public void updateRoom(UUID selectedRoomId) {
+		this.selectedRoomId = selectedRoomId;
+		this.mode = selectedRoomId != null ? WidgetMode.ROOM : WidgetMode.PERSONAL;
+	}
+
 }
