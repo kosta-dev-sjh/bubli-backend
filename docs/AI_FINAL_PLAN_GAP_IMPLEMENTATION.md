@@ -29,6 +29,26 @@ Status: implemented in code.
 - Upload response now includes `autoAnalyze`, and `jobId/status` are nullable when no job is created.
 - Verified with `.\gradlew.bat test --console=plain`.
 
+## AI-4 implementation status
+
+Status: implemented in code.
+
+- Approved `TASK`, `TODO`, `WBS`, `SCHEDULE`, and `DAILY_SUMMARY` suggestions are materialized through domain `*PublicService` contracts.
+- Approved `REQUIREMENT`, `QUESTION`, `REVIEW_ITEM`, `DOCUMENT_DRAFT`, `CONTRACT_FIELD`, `CONTRACT_REVIEW`, and `MEMO` suggestions are preserved as approved review artifacts.
+- Approval now records `payloadJson.appliedResult` with target type, target id when available, and applied timestamp.
+- Verified with `.\gradlew.bat test --console=plain`.
+
+## AI-5 implementation status
+
+Status: implemented in code.
+
+- Added project room agent command endpoint: `POST /api/project-rooms/{roomId}/agent/commands`.
+- Command supports `ANSWER`, `SUMMARIZE`, and `SUGGEST` modes.
+- Command service validates active room membership, collects AI-2 context, generates an LLM response when `ai` profile ChatModel is available, and falls back to a local response otherwise.
+- Agent responses are stored as `chat_messages.message_type = AGENT_RESPONSE`.
+- Each command response creates a draft `room_memory_summaries` entry for later context reuse.
+- Verified with `.\gradlew.bat test --console=plain`.
+
 이 문서는 `Bubli_최종기획_완성본_v15_DB회의반영_2026-06-24.md`를 기준으로, 현재 백엔드 AI/RAG 구현에서 아직 부족한 부분을 구현 계획으로 정리한다.
 
 제외 범위:

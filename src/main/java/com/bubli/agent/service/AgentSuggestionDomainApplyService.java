@@ -37,30 +37,32 @@ public class AgentSuggestionDomainApplyService {
     public void applyApprovedSuggestion(UUID reviewerId, AgentSuggestion suggestion) {
         AgentSuggestionType type = suggestion.getSuggestionType();
         if (type == AgentSuggestionType.DAILY_SUMMARY) {
-            upsertDailySummary(reviewerId, suggestion);
+            markApplied(suggestion, "DAILY_SUMMARY", upsertDailySummary(reviewerId, suggestion));
             return;
         }
         if (suggestion.getRoomId() == null) {
+            markApplied(suggestion, "PRESERVED", Map.of("reason", "No roomId for domain materialization."));
             return;
         }
         if (type == AgentSuggestionType.TASK || type == AgentSuggestionType.TODO) {
-            createTask(reviewerId, suggestion);
+            markApplied(suggestion, "TASK", createTask(reviewerId, suggestion));
             return;
         }
         if (type == AgentSuggestionType.WBS) {
-            createWbsItem(reviewerId, suggestion);
+            markApplied(suggestion, "WBS", createWbsItem(reviewerId, suggestion));
             return;
         }
         if (type == AgentSuggestionType.SCHEDULE) {
-            createSchedule(reviewerId, suggestion);
+            markApplied(suggestion, "SCHEDULE", createSchedule(reviewerId, suggestion));
             return;
         }
         preserveApprovedSuggestion(suggestion);
+        markApplied(suggestion, "PRESERVED", Map.of("suggestionType", type.name()));
     }
 
-    private void createTask(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createTask(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        taskPublicService.createRoomTask(reviewerId, suggestion.getRoomId(), new CreateRoomTaskCommand(
+        var result = taskPublicService.createRoomTask(reviewerId, suggestion.getRoomId(), new CreateRoomTaskCommand(
                 uuid(payload.get("assigneeUserId")),
                 uuid(payload.get("wbsItemId")),
                 requiredText(payload, "title"),
@@ -68,21 +70,23 @@ public class AgentSuggestionDomainApplyService {
                 enumValue(TaskStatus.class, payload.get("status"), TaskStatus.TODO),
                 instant(payload.get("dueAt"))
         ));
+        return result == null ? Map.of() : Map.of("taskId", result.id().toString());
     }
 
-    private void createWbsItem(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createWbsItem(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        wbsItemPublicService.create(reviewerId, suggestion.getRoomId(), new CreateWbsItemCommand(
+        var result = wbsItemPublicService.create(reviewerId, suggestion.getRoomId(), new CreateWbsItemCommand(
                 uuid(payload.get("parentId")),
                 requiredText(payload, "title"),
                 integer(payload.get("orderNo")),
                 enumValue(WbsStatus.class, payload.get("status"), WbsStatus.TODO)
         ));
+        return result == null ? Map.of() : Map.of("wbsItemId", result.id().toString());
     }
 
-    private void createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        schedulePublicService.create(reviewerId, new CreateScheduleCommand(
+        var result = schedulePublicService.create(reviewerId, new CreateScheduleCommand(
                 suggestion.getRoomId(),
                 uuid(payload.get("taskId")),
                 uuid(payload.get("wbsItemId")),
@@ -91,14 +95,16 @@ public class AgentSuggestionDomainApplyService {
                 instant(payload.get("endsAt")),
                 bool(payload.get("allDay"))
         ));
+        return result == null ? Map.of() : Map.of("scheduleId", result.id().toString());
     }
 
-    private void upsertDailySummary(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> upsertDailySummary(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        dailySummaryPublicService.upsertDraft(reviewerId, new CreateDailySummaryDraftCommand(
+        var result = dailySummaryPublicService.upsertDraft(reviewerId, new CreateDailySummaryDraftCommand(
                 localDate(payload.get("summaryDate"), LocalDate.now()),
                 summaryJson(payload)
         ));
+        return result == null ? Map.of() : Map.of("dailySummaryId", result.id().toString());
     }
 
     private void preserveApprovedSuggestion(AgentSuggestion suggestion) {
@@ -113,6 +119,16 @@ public class AgentSuggestionDomainApplyService {
             return;
         }
         throw new BusinessException(ErrorCode.AGENT_400_001);
+    }
+
+    private void markApplied(AgentSuggestion suggestion, String targetType, Map<String, Object> details) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(suggestion.getPayloadJson());
+        payload.put("appliedResult", Map.of(
+                "targetType", targetType,
+                "details", details,
+                "appliedAt", Instant.now().toString()
+        ));
+        suggestion.update(null, payload, null);
     }
 
     private String requiredText(Map<String, Object> payload, String field) {

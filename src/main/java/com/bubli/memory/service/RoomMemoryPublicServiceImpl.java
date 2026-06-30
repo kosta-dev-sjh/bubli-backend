@@ -1,6 +1,7 @@
 package com.bubli.memory.service;
 
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
+import com.bubli.memory.entity.RoomMemorySummary;
 import com.bubli.memory.repository.RoomMemorySummaryRepository;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
@@ -30,5 +31,25 @@ public class RoomMemoryPublicServiceImpl implements RoomMemoryPublicService {
 				.map(RoomMemorySummaryContextResult::from)
 				.sorted(Comparator.comparing(RoomMemorySummaryContextResult::toSequence))
 				.toList();
+	}
+
+	@Override
+	@Transactional
+	public RoomMemorySummaryContextResult createDraft(
+			UUID userId,
+			UUID roomId,
+			Long fromSequence,
+			Long toSequence,
+			String summaryJson
+	) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		RoomMemorySummary summary = RoomMemorySummary.createDraft(
+				roomId,
+				fromSequence,
+				toSequence,
+				summaryJson,
+				userId
+		);
+		return RoomMemorySummaryContextResult.from(roomMemorySummaryRepository.save(summary));
 	}
 }
