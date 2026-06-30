@@ -12,6 +12,7 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.calendar.service.GoogleCalendarConnectionPublicService;
 import com.bubli.user.dto.MeResponse;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
@@ -35,11 +36,14 @@ import java.util.UUID;
 public class AuthService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
+	private static final String GOOGLE_LOGIN_SCOPE =
+			"openid profile email https://www.googleapis.com/auth/calendar.events";
 
 	private final GoogleOAuthClient googleOAuthClient;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserPublicService userPublicService;
 	private final UserSessionRepository userSessionRepository;
+	private final GoogleCalendarConnectionPublicService googleCalendarConnectionPublicService;
 
 	@Value("${google.oauth.client-id:${google.calendar.client-id:}}")
 	private String googleClientId;
@@ -55,8 +59,9 @@ public class AuthService {
 				.queryParam("client_id", googleClientId)
 				.queryParam("redirect_uri", redirectUri)
 				.queryParam("response_type", "code")
-				.queryParam("scope", "openid profile")
+				.queryParam("scope", GOOGLE_LOGIN_SCOPE)
 				.queryParam("access_type", "offline")
+				.queryParam("include_granted_scopes", true)
 				.queryParam("prompt", "select_account")
 				.queryParam("state", state)
 				.build()
@@ -74,6 +79,13 @@ public class AuthService {
 				profile.locale(),
 				null
 		));
+		googleCalendarConnectionPublicService.saveAuthorizedConnection(
+				user.id(),
+				profile.email(),
+				profile.googleAccessToken(),
+				profile.googleRefreshToken(),
+				profile.googleTokenExpiresIn()
+		);
 		return issueTokens(user, command.clientType());
 	}
 

@@ -2,9 +2,12 @@ package com.bubli.work.schedule.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.calendar.dto.GoogleCalendarSyncResult;
+import com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 
 	private final ScheduleRepository scheduleRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final GoogleCalendarScheduleSyncPublicService googleCalendarScheduleSyncPublicService;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -48,7 +52,23 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 				command.endsAt(),
 				command.allDay()
 		);
-		return ScheduleResult.from(scheduleRepository.save(schedule));
+		Schedule savedSchedule = scheduleRepository.save(schedule);
+		GoogleCalendarSyncResult syncResult = googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+				userId,
+				ScheduleSyncTarget.from(savedSchedule)
+		);
+		if (syncResult == null) {
+			return ScheduleResult.from(savedSchedule);
+		}
+		if (!syncResult.attempted()) {
+			return ScheduleResult.from(savedSchedule);
+		}
+		if (!syncResult.succeeded()) {
+			savedSchedule.markSyncFailed();
+		} else {
+			savedSchedule.markSynced(syncResult.googleEventId());
+		}
+		return ScheduleResult.from(savedSchedule);
 	}
 
 	private void validateRange(Instant startsAt, Instant endsAt) {

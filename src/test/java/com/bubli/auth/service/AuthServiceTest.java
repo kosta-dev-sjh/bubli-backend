@@ -10,6 +10,7 @@ import com.bubli.auth.repository.UserSessionRepository;
 import com.bubli.auth.type.ClientType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.personal.calendar.service.GoogleCalendarConnectionPublicService;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
@@ -44,6 +45,9 @@ class AuthServiceTest {
 	@Mock
 	UserSessionRepository userSessionRepository;
 
+	@Mock
+	GoogleCalendarConnectionPublicService googleCalendarConnectionPublicService;
+
 	JwtTokenProvider jwtTokenProvider;
 
 	AuthService authService;
@@ -60,7 +64,8 @@ class AuthServiceTest {
 				googleOAuthClient,
 				jwtTokenProvider,
 				userPublicService,
-				userSessionRepository
+				userSessionRepository,
+				googleCalendarConnectionPublicService
 		);
 		ReflectionTestUtils.setField(authService, "googleClientId", "google-client-id");
 		ReflectionTestUtils.setField(authService, "defaultRedirectUri", "http://localhost:3000/auth/callback");
@@ -92,7 +97,11 @@ class AuthServiceTest {
 				"google-sub",
 				"미연",
 				"https://cdn.example/avatar.png",
-				"ko"
+				"ko",
+				"miyeon@example.com",
+				"google-access-token",
+				"google-refresh-token",
+				3600L
 		);
 		UUID userId = UUID.randomUUID();
 		UserResult user = new UserResult(
@@ -120,6 +129,13 @@ class AuthServiceTest {
 		verify(userSessionRepository).save(sessionCaptor.capture());
 		assertThat(sessionCaptor.getValue().getRefreshToken()).isNotEqualTo(response.refreshToken());
 		assertThat(sessionCaptor.getValue().getUserId()).isEqualTo(userId);
+		verify(googleCalendarConnectionPublicService).saveAuthorizedConnection(
+				userId,
+				"miyeon@example.com",
+				"google-access-token",
+				"google-refresh-token",
+				3600L
+		);
 	}
 
 	@Test
@@ -205,7 +221,11 @@ class AuthServiceTest {
 				user.getGoogleSub(),
 				user.getName(),
 				user.getAvatarUrl(),
-				user.getLocale()
+				user.getLocale(),
+				null,
+				null,
+				null,
+				null
 		);
 		given(googleOAuthClient.fetchUserProfile(command)).willReturn(profile);
 		given(userPublicService.upsertGoogleUser(any(UpsertGoogleUserCommand.class))).willReturn(new UserResult(
