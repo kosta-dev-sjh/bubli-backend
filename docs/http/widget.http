@@ -1,0 +1,80 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@itemStateId = paste-item-state-id-here
+@bubbleSettingId = paste-bubble-setting-id-here
+
+### 위젯 버블 표시 데이터 조회
+GET {{baseUrl}}/api/widget/summary
+Authorization: Bearer {{accessToken}}
+
+### 위젯 설정 조회
+GET {{baseUrl}}/api/widget/settings
+Authorization: Bearer {{accessToken}}
+
+### 위젯 설정 저장 (upsert)
+PATCH {{baseUrl}}/api/widget/settings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "bubbles": [
+    {
+      "bubbleType": "TODO",
+      "enabled": true,
+      "x": 100,
+      "y": 200,
+      "width": 300,
+      "height": 400,
+      "minimized": false,
+      "opacity": 1.00,
+      "ghostMode": false,
+      "alertEnabled": true
+    },
+    {
+      "bubbleType": "CHAT",
+      "enabled": false
+    }
+  ]
+}
+
+### 위젯 컨텍스트 조회 (선택된 프로젝트룸)
+GET {{baseUrl}}/api/widget/context
+Authorization: Bearer {{accessToken}}
+
+### 위젯 컨텍스트 저장 (프로젝트룸 선택)
+PATCH {{baseUrl}}/api/widget/context
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "selectedRoomId": null
+}
+
+### 버블 항목 상태 변경
+PATCH {{baseUrl}}/api/widget/items/{{itemStateId}}/state
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "state": "CONFIRMED"
+}
+
+### Tauri 사용 집계 저장
+POST {{baseUrl}}/api/widget/usage-summaries
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "deviceId": "device-abc123",
+  "rollupKey": "device-abc123_2026-06-30_{{bubbleSettingId}}",
+  "summaryDate": "2026-06-30",
+  "bubbleSettingId": "{{bubbleSettingId}}",
+  "openCount": 5,
+  "interactionCount": 12,
+  "visibleSeconds": 3600,
+  "syncedAt": "2026-06-30T10:00:00Z"
+}
+
+### 오늘 사용 집계 조회
+GET {{baseUrl}}/api/widget/usage-summaries/today
+Authorization: Bearer {{accessToken}}
