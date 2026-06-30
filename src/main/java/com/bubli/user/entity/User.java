@@ -1,5 +1,6 @@
 package com.bubli.user.entity;
 
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.user.type.UserStatus;
 import java.time.Instant;
 
@@ -58,7 +59,7 @@ public class User {
 		user.bubliId = bubliId;
 		user.name = name;
 		user.avatarUrl = avatarUrl;
-		user.locale = locale;
+		user.locale = SupportedLocale.normalize(locale);
 		user.timezone = timezone;
 		user.status = UserStatus.ACTIVE;
 		return user;
@@ -72,7 +73,7 @@ public class User {
 			this.avatarUrl = avatarUrl;
 		}
 		if (locale != null) {
-			this.locale = locale;
+			this.locale = SupportedLocale.normalize(locale);
 		}
 		if (timezone != null) {
 			this.timezone = timezone;
