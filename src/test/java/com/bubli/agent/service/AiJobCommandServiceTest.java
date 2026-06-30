@@ -289,12 +289,13 @@ class AiJobCommandServiceTest {
 						Instant.now()
 				));
 
-		aiJobCommandService.createDailySummaryJob(userId, LocalDate.of(2026, 7, 1));
+		aiJobCommandService.createDailySummaryJob(userId, LocalDate.of(2026, 7, 1), "Asia/Tokyo");
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.DAILY_SUMMARY);
 		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("summaryDate", "2026-07-01");
+		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("timezone", "Asia/Tokyo");
 	}
 
 	@Test

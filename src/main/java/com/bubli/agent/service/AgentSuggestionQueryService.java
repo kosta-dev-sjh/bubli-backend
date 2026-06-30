@@ -20,6 +20,13 @@ public class AgentSuggestionQueryService {
     private final AgentSuggestionRepository agentSuggestionRepository;
     private final ProjectMembershipPublicService projectMembershipPublicService;
 
+    private static final List<AgentSuggestionType> CONFIRMATION_ITEM_TYPES = List.of(
+            AgentSuggestionType.QUESTION,
+            AgentSuggestionType.REVIEW_ITEM,
+            AgentSuggestionType.CONTRACT_FIELD,
+            AgentSuggestionType.CONTRACT_REVIEW
+    );
+
     @Transactional(readOnly = true)
     public List<AgentSuggestionResponse> findMine(
             UUID userId,
@@ -49,6 +56,29 @@ public class AgentSuggestionQueryService {
 
         return suggestions.stream()
                 .filter(suggestion -> suggestionType == null || suggestion.getSuggestionType() == suggestionType)
+                .map(AgentSuggestionResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AgentSuggestionResponse> findRoomConfirmationItems(
+            UUID userId,
+            UUID roomId,
+            AgentSuggestionStatus status
+    ) {
+        projectMembershipPublicService.assertActiveMember(userId, roomId);
+        List<AgentSuggestion> suggestions = status == null
+                ? agentSuggestionRepository.findAllByRoomIdAndSuggestionTypeInOrderByCreatedAtDesc(
+                roomId,
+                CONFIRMATION_ITEM_TYPES
+        )
+                : agentSuggestionRepository.findAllByRoomIdAndSuggestionTypeInAndStatusOrderByCreatedAtDesc(
+                roomId,
+                CONFIRMATION_ITEM_TYPES,
+                status
+        );
+
+        return suggestions.stream()
                 .map(AgentSuggestionResponse::from)
                 .toList();
     }

@@ -128,11 +128,17 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             if (summaryDate == null) {
                 summaryDate = LocalDate.now().toString();
             }
+            String timezone = defaultText(requestPayload.get("timezone"), "Asia/Seoul");
             payload.put("summaryDate", summaryDate);
             payload.put("summaryJson", json(Map.of(
                     "summaryDate", summaryDate,
-                    "summary", "Local deterministic daily summary.",
-                    "items", List.of()
+                    "timezone", timezone,
+                    "done", List.of(),
+                    "remaining", List.of(),
+                    "todaySchedules", List.of(),
+                    "tomorrowFocus", List.of(),
+                    "risks", List.of(),
+                    "evidence", List.of("Local deterministic daily summary.")
             )));
             return payload;
         }

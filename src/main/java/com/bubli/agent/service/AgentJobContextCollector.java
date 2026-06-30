@@ -14,6 +14,7 @@ import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.task.type.TaskStatus;
 import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.service.WbsItemPublicService;
 import lombok.RequiredArgsConstructor;
@@ -113,12 +114,20 @@ public class AgentJobContextCollector {
 		appendSection(context, "Daily summary target", List.of(
 				"summaryDate=%s timezone=%s from=%s to=%s".formatted(summaryDate, zoneId, from, to)
 		));
-		appendSection(context, "Daily summary due tasks",
-				taskPublicService.getDueBetweenTasks(message.requestedByUserId(), from, to).stream()
+		List<TaskResult> dueTasks = taskPublicService.getDueBetweenTasks(message.requestedByUserId(), from, to);
+		appendSection(context, "Daily summary completed tasks",
+				dueTasks.stream()
+						.filter(task -> task.status() == TaskStatus.DONE)
 						.limit(20)
 						.map(this::taskLine)
 						.toList());
-		appendSection(context, "Daily summary schedules",
+		appendSection(context, "Daily summary remaining tasks",
+				dueTasks.stream()
+						.filter(task -> task.status() != TaskStatus.DONE)
+						.limit(20)
+						.map(this::taskLine)
+						.toList());
+		appendSection(context, "Daily summary today schedules",
 				schedulePublicService.getSchedulesBetween(message.requestedByUserId(), from, to).stream()
 						.limit(20)
 						.map(this::scheduleLine)

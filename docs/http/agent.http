@@ -6,6 +6,7 @@
 @relatedResourceId = replace-with-related-resource-id
 @roomId = replace-with-room-id
 @summaryDate = 2026-07-01
+@generatedDocumentId = replace-with-generated-document-id
 
 ### Create resource analysis job
 POST {{baseUrl}}/api/ai/analyze-resource
@@ -67,7 +68,8 @@ Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "summaryDate": "{{summaryDate}}"
+  "summaryDate": "{{summaryDate}}",
+  "timezone": "Asia/Seoul"
 }
 
 ### Create document draft job
@@ -140,6 +142,10 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/suggestions?status=DRAFT
 Authorization: Bearer {{accessToken}}
 
+### List room confirmation items
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/confirmation-items?status=DRAFT
+Authorization: Bearer {{accessToken}}
+
 ### Edit agent suggestion before applying it
 PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
 Authorization: Bearer {{accessToken}}
@@ -161,6 +167,18 @@ Content-Type: application/json
 {
   "action": "APPROVE"
 }
+
+### List personal generated documents
+GET {{baseUrl}}/api/generated-documents?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### List room generated documents
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/generated-documents?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### Get generated document
+GET {{baseUrl}}/api/generated-documents/{{generatedDocumentId}}
+Authorization: Bearer {{accessToken}}
 
 ### List generated tasks
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/tasks?page=0&size=20
