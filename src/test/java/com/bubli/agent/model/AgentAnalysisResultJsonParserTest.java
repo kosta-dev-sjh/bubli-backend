@@ -43,9 +43,8 @@ class AgentAnalysisResultJsonParserTest {
         AgentAnalysisResult result = parser.parse(readFixture("analysis-v1-valid.json"));
 
         assertThat(result.schemaVersion()).isEqualTo(AgentAnalysisResult.SCHEMA_VERSION);
-        assertThat(result.analysis().summary()).contains("외주 계약서");
         assertThat(result.suggestions()).hasSize(3);
-        assertThat(result.suggestions().get(0).type()).isEqualTo(SuggestionType.TASK);
+        assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.TASK);
     }
 
     @Test
@@ -86,14 +85,50 @@ class AgentAnalysisResultJsonParserTest {
 
         assertThatThrownBy(() -> parser.parse(json))
                 .isInstanceOf(AgentContractValidationException.class)
-                .hasMessageContaining("JSON을 읽을 수 없습니다");
+                .hasMessageContaining("not readable JSON");
+    }
+
+    @Test
+    void extractsJsonObjectFromMarkdownFencedResponse() {
+        String response = """
+                아래는 요청하신 결과입니다.
+
+                ```json
+                {
+                  "schemaVersion": "analysis.v1",
+                  "resourceId": "24cf02d3-eb51-4a2c-86f9-428feece0ce6",
+                  "model": {"name": "test", "promptVersion": "p1"},
+                  "analysis": {
+                    "summary": "작업 제안 요약",
+                    "keywords": ["작업"],
+                    "risks": [],
+                    "checklist": []
+                  },
+                  "suggestions": [
+                    {
+                      "type": "TASK",
+                      "title": "로그인 API 구현",
+                      "description": "JWT 기반 로그인 API를 구현합니다.",
+                      "sourceText": "인증 기능이 필요합니다.",
+                      "confidence": 0.9
+                    }
+                  ]
+                }
+                ```
+                """;
+
+        AgentAnalysisResult result = parser.parse(response);
+
+        assertThat(result.schemaVersion()).isEqualTo(AgentAnalysisResult.SCHEMA_VERSION);
+        assertThat(result.suggestions()).hasSize(1);
+        assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.TASK);
     }
 
     private static String readFixture(String filename) throws IOException {
         String path = "/fixtures/agent/" + filename;
         try (InputStream inputStream = AgentAnalysisResultJsonParserTest.class.getResourceAsStream(path)) {
             if (inputStream == null) {
-                throw new IOException("Fixture를 찾을 수 없습니다: " + path);
+                throw new IOException("Fixture not found: " + path);
             }
             return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }

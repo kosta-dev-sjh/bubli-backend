@@ -29,20 +29,34 @@ public class AgentAnalysisResultJsonParser {
     public AgentAnalysisResult parse(String json) {
         if (json == null || json.isBlank()) {
             throw new AgentContractValidationException(
-                    "에이전트 분석 결과 JSON이 비어 있습니다.",
-                    List.of(new AgentContractError("$", "JSON 문자열이 필요합니다."))
+                    "Agent analysis result JSON is empty.",
+                    List.of(new AgentContractError("$", "JSON string is required."))
             );
         }
 
         try {
-            AgentAnalysisResult result = strictObjectMapper.readValue(json, AgentAnalysisResult.class);
+            AgentAnalysisResult result = strictObjectMapper.readValue(extractJsonObject(json), AgentAnalysisResult.class);
             resultValidator.validateOrThrow(result);
             return result;
         } catch (JsonProcessingException exception) {
             throw new AgentContractValidationException(
-                    "에이전트 분석 결과 JSON을 읽을 수 없습니다.",
+                    "Agent analysis result is not readable JSON.",
                     List.of(new AgentContractError("$", exception.getOriginalMessage()))
             );
         }
+    }
+
+    private String extractJsonObject(String value) {
+        String trimmed = value.trim();
+        if (trimmed.startsWith("```")) {
+            trimmed = trimmed.replaceFirst("^```(?:json|JSON)?\\s*", "");
+            trimmed = trimmed.replaceFirst("\\s*```$", "").trim();
+        }
+        int start = trimmed.indexOf('{');
+        int end = trimmed.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return trimmed;
+        }
+        return trimmed.substring(start, end + 1);
     }
 }

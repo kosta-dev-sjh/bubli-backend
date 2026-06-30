@@ -140,6 +140,51 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
+	void retriesWithJsonRepairPromptWhenLlmReturnsNonJsonText() {
+		UUID jobId = UUID.randomUUID();
+		given(chatModel.call(contains("GENERATE_TASKS")))
+				.willReturn(
+						"좋습니다. 아래처럼 처리하면 됩니다.",
+						"""
+								{
+								  "schemaVersion": "analysis.v1",
+								  "resourceId": "00000000-0000-0000-0000-000000000000",
+								  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+								  "analysis": {
+								    "summary": "작업 초안을 생성했습니다.",
+								    "keywords": ["task"],
+								    "risks": [],
+								    "checklist": []
+								  },
+								  "suggestions": [
+								    {
+								      "type": "TASK",
+								      "title": "로그인 API 구현",
+								      "description": "JWT 기반 로그인 API를 구현합니다.",
+								      "sourceText": "인증 기능이 필요합니다.",
+								      "confidence": 0.91
+								    }
+								  ]
+								}
+								"""
+				);
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				jobId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts()).hasSize(1);
+		assertThat(outcome.get().modelCallLogs().getFirst().inputTokens()).isGreaterThan(0);
+	}
+
+	@Test
 	void analyzeResourceStoresLlmAnalysisAndReturnsSuggestionDrafts() {
 		UUID jobId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
