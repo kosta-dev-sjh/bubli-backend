@@ -21,7 +21,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class GoogleCalendarConnectionService {
+public class GoogleCalendarConnectionService implements GoogleCalendarConnectionPublicService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
 	private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -75,6 +75,31 @@ public class GoogleCalendarConnectionService {
 				expiresAt
 		);
 		return GoogleCalendarConnectionResponse.from(connectionRepository.save(connection));
+	}
+
+	@Override
+	@Transactional
+	public void saveAuthorizedConnection(
+			UUID userId,
+			String googleAccountEmail,
+			String accessToken,
+			String refreshToken,
+			Long expiresIn
+	) {
+		if (!hasText(accessToken)) {
+			return;
+		}
+		Instant expiresAt = Instant.now().plusSeconds(expiresIn == null ? 3600L : expiresIn);
+		GoogleCalendarConnection connection = connectionRepository.findByUserId(userId)
+				.orElseGet(() -> GoogleCalendarConnection.create(
+						userId,
+						googleAccountEmail,
+						accessToken,
+						refreshToken,
+						expiresAt
+				));
+		connection.updateTokens(googleAccountEmail, accessToken, refreshToken, expiresAt);
+		connectionRepository.save(connection);
 	}
 
 	@Transactional(readOnly = true)
