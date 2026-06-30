@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/voice/webhook/livekit").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
