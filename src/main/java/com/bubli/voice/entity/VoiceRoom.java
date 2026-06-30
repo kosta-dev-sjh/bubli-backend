@@ -24,8 +24,11 @@ public class VoiceRoom {
 	@Column(name = "room_id")
 	private UUID roomId;
 
-	@Column(name = "chat_room_id", nullable = false)
+	@Column(name = "chat_room_id")
 	private UUID chatRoomId;
+
+	@Column(name = "created_by_user_id")
+	private UUID createdByUserId;
 
 	@Column(name = "livekit_room_name", nullable = false, unique = true, length = 120)
 	private String livekitRoomName;
@@ -40,6 +43,19 @@ public class VoiceRoom {
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
+	}
+
+	public static VoiceRoom create(UUID roomId, UUID createdByUserId) {
+		VoiceRoom voiceRoom = new VoiceRoom();
+		voiceRoom.roomId = roomId;
+		voiceRoom.createdByUserId = createdByUserId;
+		voiceRoom.livekitRoomName = "room-" + UUID.randomUUID();
+		voiceRoom.status = VoiceRoomStatus.OPEN;
+		return voiceRoom;
+	}
+
+	public void end() {
+		this.status = VoiceRoomStatus.ENDED;
 	}
 
 }
