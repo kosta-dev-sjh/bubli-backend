@@ -3,6 +3,7 @@ package com.bubli.personal.notification.service;
 import com.bubli.personal.notification.entity.Notification;
 import com.bubli.personal.notification.repository.NotificationRepository;
 import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.personal.notification.type.NotificationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,5 +27,11 @@ public class NotificationPublicServiceImpl implements NotificationPublicService 
 				body
 		);
 		notificationRepository.save(notification);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public long countUnread(UUID userId) {
+		return notificationRepository.countByUserIdAndStatus(userId, NotificationStatus.UNREAD);
 	}
 }
