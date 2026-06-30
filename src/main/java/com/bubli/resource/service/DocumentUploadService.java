@@ -168,6 +168,8 @@ public class DocumentUploadService {
         return switch (fileType) {
             case PDF -> "application/pdf";
             case TXT -> "text/plain; charset=utf-8";
+            case MARKDOWN -> "text/markdown; charset=utf-8";
+            case DOCX -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         };
     }
 
