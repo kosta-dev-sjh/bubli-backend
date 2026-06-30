@@ -45,6 +45,10 @@ public class VoiceRoomService {
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId) {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
 
+        voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN).ifPresent(r -> {
+            throw new BusinessException(ErrorCode.VOICE_409_002);
+        });
+
         VoiceRoom voiceRoom = voiceRoomRepository.save(VoiceRoom.create(roomId, userId));
         VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
 
@@ -76,6 +80,9 @@ public class VoiceRoomService {
         if (voiceRoom.getStatus() == VoiceRoomStatus.ENDED) {
             throw new BusinessException(ErrorCode.VOICE_409_001);
         }
+        if (voiceRoom.getRoomId() != null) {
+            projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
+        }
 
         VoiceParticipant participant = voiceParticipantRepository
                 .findByVoiceRoomIdAndUserId(voiceRoomId, userId)
@@ -91,6 +98,16 @@ public class VoiceRoomService {
                 participant.getId(),
                 expiresAt
         );
+    }
+
+    @Transactional
+    public VoiceParticipantResponse updateMicStatus(UUID userId, UUID voiceRoomId, String micStatus) {
+        findRoom(voiceRoomId);
+        VoiceParticipant participant = voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        participant.updateMicStatus(micStatus);
+        UserResult user = userPublicService.getUser(userId);
+        return toParticipantResponse(participant, user.name());
     }
 
     @Transactional

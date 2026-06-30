@@ -20,6 +20,15 @@ Authorization: Bearer {{accessToken}}
 POST {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/token
 Authorization: Bearer {{accessToken}}
 
+### 마이크 상태 변경
+PATCH {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/mic
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "micStatus": "MUTED"
+}
+
 ### 통화 나가기
 PATCH {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/leave
 Authorization: Bearer {{accessToken}}
