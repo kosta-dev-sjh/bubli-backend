@@ -3,6 +3,7 @@ package com.bubli.work.schedule.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
@@ -41,6 +42,9 @@ class ScheduleServiceTest {
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Mock
+	GoogleCalendarScheduleSyncPublicService googleCalendarScheduleSyncPublicService;
 
 	@InjectMocks
 	ScheduleService scheduleService;
