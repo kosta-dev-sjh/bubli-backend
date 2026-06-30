@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface VoiceRoomRepository extends JpaRepository<VoiceRoom, UUID> {
 
     Optional<VoiceRoom> findByRoomIdAndStatus(UUID roomId, VoiceRoomStatus status);
+
+    Optional<VoiceRoom> findByLivekitRoomName(String livekitRoomName);
 }
