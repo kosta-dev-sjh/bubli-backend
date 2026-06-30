@@ -4,6 +4,8 @@ import com.bubli.agent.model.AgentAnalysisResultJsonParser;
 import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.service.AgentJobContextCollector;
+import com.bubli.agent.service.AgentModelUsageGuard;
+import com.bubli.agent.service.AgentModelUsageLimitExceededException;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.agent.validation.AgentAnalysisResultValidator;
@@ -24,13 +26,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -41,6 +46,7 @@ class LlmAgentJobExecutionPortTest {
 	private ResourceAnalysisPublicService resourceAnalysisService;
 	private ChatModel chatModel;
 	private AgentJobContextCollector contextCollector;
+	private AgentModelUsageGuard modelUsageGuard;
 	private LlmAgentJobExecutionPort executionPort;
 
 	@BeforeEach
@@ -50,6 +56,9 @@ class LlmAgentJobExecutionPortTest {
 		resourceAnalysisService = mock(ResourceAnalysisPublicService.class);
 		chatModel = mock(ChatModel.class);
 		contextCollector = mock(AgentJobContextCollector.class);
+		modelUsageGuard = mock(AgentModelUsageGuard.class);
+		given(resourceAnalysisService.findReusableAnalysisForJob(any(UUID.class)))
+				.willReturn(Optional.empty());
 		given(contextCollector.collect(org.mockito.ArgumentMatchers.any(AgentJobQueueMessage.class)))
 				.willReturn(new AgentJobContext("[Room tasks]\n- existing task", 28));
 		executionPort = new LlmAgentJobExecutionPort(
@@ -61,7 +70,8 @@ class LlmAgentJobExecutionPortTest {
 						new AgentAnalysisResultValidator(validator)
 				),
 				new ObjectMapper(),
-				contextCollector
+				contextCollector,
+				modelUsageGuard
 		);
 	}
 
@@ -140,6 +150,74 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
+	void retriesWithJsonRepairPromptWhenLlmReturnsNonJsonText() {
+		UUID jobId = UUID.randomUUID();
+		given(chatModel.call(contains("GENERATE_TASKS")))
+				.willReturn(
+						"좋습니다. 아래처럼 처리하면 됩니다.",
+						"""
+								{
+								  "schemaVersion": "analysis.v1",
+								  "resourceId": "00000000-0000-0000-0000-000000000000",
+								  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+								  "analysis": {
+								    "summary": "작업 초안을 생성했습니다.",
+								    "keywords": ["task"],
+								    "risks": [],
+								    "checklist": []
+								  },
+								  "suggestions": [
+								    {
+								      "type": "TASK",
+								      "title": "로그인 API 구현",
+								      "description": "JWT 기반 로그인 API를 구현합니다.",
+								      "sourceText": "인증 기능이 필요합니다.",
+								      "confidence": 0.91
+								    }
+								  ]
+								}
+								"""
+				);
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				jobId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts()).hasSize(1);
+		assertThat(outcome.get().modelCallLogs().getFirst().inputTokens()).isGreaterThan(0);
+	}
+
+	@Test
+	void returnsUsageLimitFailureBeforeCallingLlmWhenDailyLimitExceeded() {
+		UUID userId = UUID.randomUUID();
+		doThrow(new AgentModelUsageLimitExceededException(
+				"AI_DAILY_USAGE_LIMIT_EXCEEDED",
+				"AI 모델 하루 사용량 제한을 초과했습니다."
+		)).when(modelUsageGuard).assertWithinDailyLimit(userId, AgentJobType.GENERATE_TASKS);
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				userId,
+				UUID.randomUUID(),
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isFalse();
+		assertThat(outcome.get().errorCode()).isEqualTo("AI_DAILY_USAGE_LIMIT_EXCEEDED");
+		verifyNoInteractions(chatModel);
+	}
+
+	@Test
 	void analyzeResourceStoresLlmAnalysisAndReturnsSuggestionDrafts() {
 		UUID jobId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
@@ -215,6 +293,44 @@ class LlmAgentJobExecutionPortTest {
 						&& analysis.get("documentType").equals("CONTRACT")
 						&& analysis.get("suggestionCount").equals(2))
 		);
+	}
+
+	@Test
+	void analyzeResourceReusesCachedAnalysisWithoutCallingLlm() {
+		UUID jobId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceAnalysisSource source = new ResourceAnalysisSource(
+				resourceId,
+				UUID.randomUUID(),
+				"contract.txt",
+				"text/plain",
+				DocumentType.CONTRACT,
+				List.of(new ResourceAnalysisPage(null, "계약 본문")),
+				"계약 본문",
+				1,
+				5
+		);
+		Map<String, Object> cachedAnalysis = Map.of(
+				"summary", "캐시된 분석",
+				"cacheHit", true
+		);
+		given(resourceAnalysisService.loadAnalysisSourceForJob(resourceId)).willReturn(source);
+		given(resourceAnalysisService.findReusableAnalysisForJob(resourceId)).willReturn(Optional.of(cachedAnalysis));
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				jobId,
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				resourceId,
+				AgentJobType.ANALYZE_RESOURCE,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts()).isEmpty();
+		verify(resourceAnalysisService).completeAnalysisForJob(source, jobId, cachedAnalysis);
+		verifyNoInteractions(chatModel);
 	}
 
 	@Test

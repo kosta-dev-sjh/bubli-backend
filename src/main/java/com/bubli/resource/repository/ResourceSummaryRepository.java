@@ -31,4 +31,28 @@ public interface ResourceSummaryRepository extends JpaRepository<ResourceSummary
             @Param("visibility") ResourceVisibility visibility,
             Pageable pageable
     );
+
+    @Query("""
+            select summary
+            from ResourceSummary summary
+            join Resource resource on resource.id = summary.resourceId
+            join ResourceFile file on file.resourceId = resource.id
+            where summary.resourceId <> :resourceId
+              and file.checksum = :checksum
+              and resource.visibility = :visibility
+              and (
+                    (:roomId is null and resource.roomId is null)
+                    or resource.roomId = :roomId
+                  )
+              and resource.deletedAt is null
+              and summary.summaryJson is not null
+            order by summary.updatedAt desc, summary.id desc
+            """)
+    Page<ResourceSummary> findReusableAnalysisSummaries(
+            @Param("resourceId") UUID resourceId,
+            @Param("checksum") String checksum,
+            @Param("roomId") UUID roomId,
+            @Param("visibility") ResourceVisibility visibility,
+            Pageable pageable
+    );
 }

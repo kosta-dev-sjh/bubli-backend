@@ -50,6 +50,9 @@ bubli:
       enabled: ${RAG_SMOKE_ENABLED:true}
 
 agent:
+  model-usage:
+    user-daily-limit: ${AGENT_MODEL_USER_DAILY_LIMIT:0}
+    job-type-daily-limit: ${AGENT_MODEL_JOB_TYPE_DAILY_LIMIT:0}
   execution:
     mode: ${AGENT_EXECUTION_MODE:llm}
   dispatch:

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "analysis.v1",
+  "resourceId": "55555555-5555-4555-8555-555555555555",
+  "model": {
+    "name": "fixture-model",
+    "promptVersion": "agent-job-llm-v1"
+  },
+  "analysis": {
+    "summary": "오늘 완료한 작업과 내일 집중할 항목을 요약했습니다.",
+    "keywords": ["하루정리", "완료", "내일"],
+    "risks": ["운영 환경 Bedrock 검증 결과를 별도로 기록해야 합니다."],
+    "checklist": [
+      {
+        "title": "완료 항목과 미완료 항목을 분리합니다.",
+        "severity": "LOW"
+      }
+    ]
+  },
+  "suggestions": [
+    {
+      "type": "DAILY_SUMMARY",
+      "title": "2026-06-30 하루 정리",
+      "description": "{\"done\":[\"AI-8 완료 알림 구현\"],\"remaining\":[\"AI-9 fixture 회귀 테스트\"],\"tomorrowFocus\":[\"E2E 샘플 검증\"],\"risks\":[\"운영 설정 누락\"],\"evidence\":[\"Agent 작업 완료 알림 테스트 통과\"]}",
+      "sourceText": "AI-8 완료 알림 구현 및 테스트 통과",
+      "confidence": 0.86
+    }
+  ]
+}

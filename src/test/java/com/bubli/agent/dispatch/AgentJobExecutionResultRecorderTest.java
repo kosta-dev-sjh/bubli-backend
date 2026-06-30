@@ -6,6 +6,7 @@ import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.personal.notification.service.NotificationPublicService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -28,7 +29,8 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				mock(NotificationPublicService.class)
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = runningJob(jobId);
@@ -54,7 +56,8 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				mock(NotificationPublicService.class)
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = runningJob(jobId);
@@ -82,7 +85,8 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				mock(NotificationPublicService.class)
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = runningJob(jobId);
@@ -105,7 +109,8 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				mock(NotificationPublicService.class)
 		);
 		UUID jobId = UUID.randomUUID();
 		AgentJob agentJob = AgentJob.create(
@@ -130,7 +135,8 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
 				agentJobRepository,
-				agentJobEventRepository
+				agentJobEventRepository,
+				mock(NotificationPublicService.class)
 		);
 		UUID jobId = UUID.randomUUID();
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.empty());

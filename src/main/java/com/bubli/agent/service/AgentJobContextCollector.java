@@ -2,6 +2,7 @@ package com.bubli.agent.service;
 
 import com.bubli.agent.dispatch.AgentJobQueueMessage;
 import com.bubli.agent.dto.AgentJobContext;
+import com.bubli.agent.type.AgentJobType;
 import com.bubli.chat.dto.ChatMessageContextResult;
 import com.bubli.chat.service.ChatMessagePublicService;
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
@@ -19,15 +20,21 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class AgentJobContextCollector {
 
 	private static final int MAX_CONTEXT_CHARS = 6000;
+	private static final ZoneId DEFAULT_SUMMARY_ZONE = ZoneId.of("Asia/Seoul");
 
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ResourcePublicService resourcePublicService;
@@ -42,6 +49,9 @@ public class AgentJobContextCollector {
 		StringBuilder context = new StringBuilder();
 		if (message.roomId() != null) {
 			appendRoomContext(context, message);
+		}
+		if (message.jobType() == AgentJobType.DAILY_SUMMARY) {
+			appendDailySummaryContext(context, message);
 		}
 		appendPersonalContext(context, message);
 		if (context.isEmpty()) {
@@ -92,6 +102,51 @@ public class AgentJobContextCollector {
 						.limit(8)
 						.map(this::scheduleLine)
 						.toList());
+	}
+
+	private void appendDailySummaryContext(StringBuilder context, AgentJobQueueMessage message) {
+		ZoneId zoneId = summaryZone(message.requestPayload());
+		LocalDate summaryDate = summaryDate(message.requestPayload(), zoneId);
+		Instant from = summaryDate.atStartOfDay(zoneId).toInstant();
+		Instant to = summaryDate.plusDays(1).atStartOfDay(zoneId).toInstant();
+
+		appendSection(context, "Daily summary target", List.of(
+				"summaryDate=%s timezone=%s from=%s to=%s".formatted(summaryDate, zoneId, from, to)
+		));
+		appendSection(context, "Daily summary due tasks",
+				taskPublicService.getDueBetweenTasks(message.requestedByUserId(), from, to).stream()
+						.limit(20)
+						.map(this::taskLine)
+						.toList());
+		appendSection(context, "Daily summary schedules",
+				schedulePublicService.getSchedulesBetween(message.requestedByUserId(), from, to).stream()
+						.limit(20)
+						.map(this::scheduleLine)
+						.toList());
+	}
+
+	private LocalDate summaryDate(Map<String, Object> payload, ZoneId zoneId) {
+		Object value = payload == null ? null : payload.get("summaryDate");
+		if (value == null || value.toString().isBlank()) {
+			return LocalDate.now(zoneId);
+		}
+		try {
+			return LocalDate.parse(value.toString());
+		} catch (DateTimeParseException exception) {
+			return LocalDate.now(zoneId);
+		}
+	}
+
+	private ZoneId summaryZone(Map<String, Object> payload) {
+		Object value = payload == null ? null : payload.get("timezone");
+		if (value == null || value.toString().isBlank()) {
+			return DEFAULT_SUMMARY_ZONE;
+		}
+		try {
+			return ZoneId.of(value.toString());
+		} catch (DateTimeException exception) {
+			return DEFAULT_SUMMARY_ZONE;
+		}
 	}
 
 	private void appendSection(StringBuilder context, String title, List<String> lines) {

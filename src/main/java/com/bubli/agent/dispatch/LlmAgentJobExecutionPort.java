@@ -8,6 +8,8 @@ import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.model.AiCallFailedException;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.service.AgentJobContextCollector;
+import com.bubli.agent.service.AgentModelUsageGuard;
+import com.bubli.agent.service.AgentModelUsageLimitExceededException;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.agent.validation.AgentContractValidationException;
@@ -41,8 +43,10 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private static final String PROVIDER_ERROR = "AI_PROVIDER_UNAVAILABLE";
 	private static final String INVALID_OUTPUT_ERROR = "AI_INVALID_OUTPUT";
 	private static final String EXECUTION_ERROR = "AGENT_EXECUTION_FAILED";
+	private static final String USAGE_LIMIT_PROMPT = "AI_USAGE_LIMIT_CHECK";
 	private static final String EMPTY_RESOURCE_ID = "00000000-0000-0000-0000-000000000000";
 	private static final int ANALYSIS_TEXT_LIMIT = 12000;
+	private static final int RESPONSE_PREVIEW_LIMIT = 4000;
 
 	private final ResourceAnalysisPublicService resourceAnalysisService;
 	private final ChatModel chatModel;
@@ -50,24 +54,33 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private final AgentAnalysisResultJsonParser resultJsonParser;
 	private final ObjectMapper objectMapper;
 	private final AgentJobContextCollector contextCollector;
+	private final AgentModelUsageGuard modelUsageGuard;
 
 	@Override
 	public Optional<AgentJobExecutionOutcome> execute(AgentJobQueueMessage message) {
 		Instant startedAt = Instant.now();
+		try {
+			modelUsageGuard.assertWithinDailyLimit(message.requestedByUserId(), message.jobType());
+		} catch (AgentModelUsageLimitExceededException exception) {
+			return Optional.of(AgentJobExecutionOutcome.failedWithModelCallLogs(
+					exception.errorCode(),
+					exception.getMessage(),
+					List.of(modelCallLog(startedAt, USAGE_LIMIT_PROMPT, null, exception.errorCode()))
+			));
+		}
 		if (message.jobType() == AgentJobType.ANALYZE_RESOURCE) {
 			return Optional.of(analyzeResource(message, startedAt));
 		}
 		AgentJobContext context = contextCollector.collect(message);
 		String prompt = promptFor(message, context);
 		try {
-			String response = aiCallExecutor.execute(
+			ParsedModelResult parsed = callAndParseJson(
 					"agent-job-" + message.jobType().name().toLowerCase(),
-					() -> chatModel.call(prompt)
+					prompt
 			);
-			AgentAnalysisResult result = resultJsonParser.parse(response);
 			return Optional.of(AgentJobExecutionOutcome.succeededWithResults(
-					toSuggestionDrafts(message, result),
-					List.of(modelCallLog(startedAt, prompt, response, null))
+					toSuggestionDrafts(message, parsed.result()),
+					List.of(modelCallLog(startedAt, parsed.prompt(), parsed.response(), null))
 			));
 		} catch (AgentContractValidationException exception) {
 			return Optional.of(AgentJobExecutionOutcome.failedWithModelCallLogs(
@@ -102,18 +115,19 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		String prompt = "ANALYZE_RESOURCE";
 		try {
 			source = resourceAnalysisService.loadAnalysisSourceForJob(message.resourceId());
+			Optional<Map<String, Object>> reusableAnalysis = resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
+			if (reusableAnalysis.isPresent()) {
+				resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), reusableAnalysis.get());
+				return AgentJobExecutionOutcome.succeeded();
+			}
 			AgentJobContext context = contextCollector.collect(message);
 			prompt = analyzeResourcePrompt(message, source, context);
-			String finalPrompt = prompt;
-			String response = aiCallExecutor.execute(
-					"agent-job-analyze-resource",
-					() -> chatModel.call(finalPrompt)
-			);
-			AgentAnalysisResult result = resultJsonParser.parse(response);
+			ParsedModelResult parsed = callAndParseJson("agent-job-analyze-resource", prompt);
+			AgentAnalysisResult result = parsed.result();
 			resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), analysisJson(result, source));
 			return AgentJobExecutionOutcome.succeededWithResults(
 					toSuggestionDrafts(message, result),
-					List.of(modelCallLog(startedAt, prompt, response, null))
+					List.of(modelCallLog(startedAt, parsed.prompt(), parsed.response(), null))
 			);
 		} catch (AgentContractValidationException exception) {
 			markAnalysisFailed(source, message);
@@ -139,6 +153,44 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		}
 	}
 
+	private ParsedModelResult callAndParseJson(String operationName, String prompt) {
+		String response = aiCallExecutor.execute(operationName, () -> chatModel.call(prompt));
+		try {
+			return new ParsedModelResult(resultJsonParser.parse(response), response, prompt);
+		} catch (AgentContractValidationException firstFailure) {
+			String repairPrompt = jsonRepairPrompt(prompt, response, firstFailure);
+			String repairedResponse = aiCallExecutor.execute(
+					operationName + "-json-repair",
+					() -> chatModel.call(repairPrompt)
+			);
+			return new ParsedModelResult(resultJsonParser.parse(repairedResponse), repairedResponse, repairPrompt);
+		}
+	}
+
+	private String jsonRepairPrompt(String originalPrompt, String invalidResponse, AgentContractValidationException failure) {
+		return """
+				Your previous answer did not satisfy Bubli's required JSON contract.
+				Return ONLY one valid JSON object. Do not include markdown fences, comments, apologies, explanations, or text outside JSON.
+				The JSON object must match schemaVersion "%s" and the required shape from the original prompt.
+				All string values that users can see must be natural Korean.
+				If a value is unknown, use a conservative empty array or a concise Korean placeholder, but keep the schema valid.
+
+				Validation error:
+				%s
+
+				Previous invalid answer:
+				%s
+
+				Original prompt:
+				%s
+				""".formatted(
+				SCHEMA_VERSION,
+				failure.getMessage(),
+				truncate(invalidResponse, RESPONSE_PREVIEW_LIMIT),
+				originalPrompt
+		);
+	}
+
 	private String analyzeResourcePrompt(
 			AgentJobQueueMessage message,
 			ResourceAnalysisSource source,
@@ -146,6 +198,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	) {
 		return """
 				You are Bubli's AI document analyzer. Return only valid JSON matching schemaVersion "%s".
+				JSON_OUTPUT_ONLY: The first character of your response must be { and the last character must be }.
+				Do not include any text before or after the JSON object.
 				Do not include markdown fences or explanatory text.
 				Write all user-facing content in natural Korean.
 				Analyze the provided document text for project use. Do not make legal judgments; create review aids only.
@@ -256,6 +310,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private String promptFor(AgentJobQueueMessage message, AgentJobContext context) {
 		return """
 				You are Bubli's project assistant. Return only valid JSON matching schemaVersion "%s".
+				JSON_OUTPUT_ONLY: The first character of your response must be { and the last character must be }.
+				Do not include any text before or after the JSON object.
 				Do not include markdown fences or explanatory text.
 				Write all user-facing content in natural Korean.
 				Do not copy placeholder phrases from this prompt.
@@ -286,7 +342,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
 				- DRAFT_DOCUMENT: propose a document draft outline.
-				- DAILY_SUMMARY: propose a daily summary draft.
+				- DAILY_SUMMARY: propose a daily summary draft using the target date context. Include done, remaining, tomorrowFocus, risks, and evidence fields in the suggestion description or JSON-like text.
 
 				Job context:
 				jobId: %s
@@ -435,5 +491,12 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private String errorMessage(RuntimeException exception) {
 		String message = exception.getMessage();
 		return message == null || message.isBlank() ? exception.getClass().getSimpleName() : message;
+	}
+
+	private record ParsedModelResult(
+			AgentAnalysisResult result,
+			String response,
+			String prompt
+	) {
 	}
 }

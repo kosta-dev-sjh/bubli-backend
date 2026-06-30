@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "analysis.v1",
+  "resourceId": "11111111-1111-4111-8111-111111111111",
+  "model": {
+    "name": "fixture-model",
+    "promptVersion": "agent-job-llm-v1"
+  },
+  "analysis": {
+    "summary": "검수 조건과 지급 조건이 포함된 계약 문서입니다.",
+    "keywords": ["계약", "검수", "지급"],
+    "risks": ["검수 완료 기준이 구체적이지 않습니다."],
+    "checklist": [
+      {
+        "title": "검수 완료 기준과 증빙 방식을 확인합니다.",
+        "severity": "HIGH"
+      }
+    ]
+  },
+  "suggestions": [
+    {
+      "type": "REVIEW_ITEM",
+      "title": "검수 완료 기준 확인",
+      "description": "대금 지급 전 검수 완료 기준과 이의 제기 기간을 계약 당사자와 확인합니다.",
+      "sourceText": "검수 완료 후 7일 이내 대금을 지급한다.",
+      "confidence": 0.88
+    },
+    {
+      "type": "CONTRACT_FIELD",
+      "title": "대금 지급 조건",
+      "description": "계약서에 명시된 지급 조건입니다.",
+      "sourceText": "검수 완료 후 7일 이내",
+      "confidence": 0.84,
+      "fieldKey": "payment_condition",
+      "value": "검수 완료 후 7일 이내"
+    }
+  ]
+}
