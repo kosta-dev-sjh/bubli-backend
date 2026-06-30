@@ -47,4 +47,22 @@ public class VoiceParticipant {
 		this.createdAt = Instant.now();
 	}
 
+	public static VoiceParticipant join(UUID voiceRoomId, UUID userId) {
+		VoiceParticipant p = new VoiceParticipant();
+		p.voiceRoomId = voiceRoomId;
+		p.userId = userId;
+		p.status = VoiceParticipantStatus.JOINED;
+		p.joinedAt = Instant.now();
+		return p;
+	}
+
+	public void leave() {
+		this.status = VoiceParticipantStatus.LEFT;
+		this.leftAt = Instant.now();
+	}
+
+	public void updateMicStatus(String micStatus) {
+		this.micStatus = micStatus;
+	}
+
 }

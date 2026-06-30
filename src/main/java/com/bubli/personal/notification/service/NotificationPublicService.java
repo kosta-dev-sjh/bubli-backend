@@ -14,4 +14,8 @@ public interface NotificationPublicService {
 			String title,
 			String body
 	);
+
+	void createNotification(UUID userId, String sourceType, UUID sourceId, String title, String body);
+
+	long countUnread(UUID userId);
 }
