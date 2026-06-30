@@ -1,29 +1,36 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dto.AgentJobTicket;
-import com.bubli.agent.entity.AgentJob;
-import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AgentJobPublicService {
 
-    private final AgentJobRepository agentJobRepository;
+    private final AgentJobService agentJobService;
 
-    @Transactional
     public AgentJobTicket createAnalyzeResourceJob(UUID requestedByUserId, UUID roomId, UUID resourceId) {
-        AgentJob job = agentJobRepository.save(AgentJob.pending(
-                requestedByUserId,
+        return createAnalyzeResourceJob(requestedByUserId, roomId, resourceId, null);
+    }
+
+    public AgentJobTicket createAnalyzeResourceJob(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            Map<String, Object> requestPayload
+    ) {
+        var result = agentJobService.create(requestedByUserId, new CreateAgentJobCommand(
                 roomId,
                 resourceId,
-                AgentJobType.ANALYZE_RESOURCE
+                AgentJobType.ANALYZE_RESOURCE,
+                requestPayload
         ));
-        return AgentJobTicket.from(job);
+        return new AgentJobTicket(result.id(), result.status());
     }
 }

@@ -3,9 +3,12 @@ package com.bubli.work.schedule.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.calendar.dto.GoogleCalendarSyncResult;
+import com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
@@ -30,6 +33,7 @@ public class ScheduleService {
 
 	private final ScheduleRepository scheduleRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final GoogleCalendarScheduleSyncPublicService googleCalendarScheduleSyncPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ScheduleResult> getSchedules(UUID userId, UUID roomId, Instant from, Instant to, Pageable pageable) {
@@ -69,7 +73,15 @@ public class ScheduleService {
 				command.endsAt(),
 				command.allDay()
 		);
-		return ScheduleResult.from(scheduleRepository.save(schedule));
+		Schedule savedSchedule = scheduleRepository.save(schedule);
+		markGoogleSyncResult(
+				savedSchedule,
+				googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+						userId,
+						ScheduleSyncTarget.from(savedSchedule)
+				)
+		);
+		return ScheduleResult.from(savedSchedule);
 	}
 
 	@Transactional
@@ -88,13 +100,35 @@ public class ScheduleService {
 				command.taskId(),
 				command.wbsItemId()
 		);
+		markGoogleSyncResult(
+				schedule,
+				googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+						userId,
+						ScheduleSyncTarget.from(schedule)
+				)
+		);
 		return ScheduleResult.from(schedule);
 	}
 
 	@Transactional
 	public void delete(UUID userId, UUID scheduleId) {
 		Schedule schedule = getAccessibleSchedule(userId, scheduleId);
+		googleCalendarScheduleSyncPublicService.deleteSyncedSchedule(userId, ScheduleSyncTarget.from(schedule));
 		scheduleRepository.delete(schedule);
+	}
+
+	private void markGoogleSyncResult(Schedule schedule, GoogleCalendarSyncResult syncResult) {
+		if (syncResult == null) {
+			return;
+		}
+		if (!syncResult.attempted()) {
+			return;
+		}
+		if (!syncResult.succeeded()) {
+			schedule.markSyncFailed();
+			return;
+		}
+		schedule.markSynced(syncResult.googleEventId());
 	}
 
 	private Schedule getAccessibleSchedule(UUID userId, UUID scheduleId) {

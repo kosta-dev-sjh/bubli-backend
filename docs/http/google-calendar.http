@@ -1,0 +1,131 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@authRedirectUri = http://localhost:3000/auth/callback
+@calendarRedirectUri = http://localhost:3000/calendar/google/callback
+@roomId = paste-room-id-here
+@scheduleId = paste-schedule-id-here
+@bubliOnlyScheduleId = paste-bubli-only-schedule-id-here
+
+### Google 로그인 시작 URL - 회원가입/로그인 시 Calendar 권한 포함
+GET {{baseUrl}}/api/auth/google/authorize?redirectUri={{authRedirectUri}}&clientType=TAURI&state=calendar-login-test
+
+### Google 로그인 callback - code는 브라우저 callback URL에서 복사
+POST {{baseUrl}}/api/auth/google/callback
+Content-Type: application/json
+
+{
+  "code": "paste-google-oauth-code-here",
+  "redirectUri": "{{authRedirectUri}}",
+  "clientType": "TAURI"
+}
+
+### Calendar 별도 연결 URL - 로그인 후 Calendar 권한을 다시 동의받을 때
+GET {{baseUrl}}/api/calendar/google/connect?redirectUri={{calendarRedirectUri}}
+Authorization: Bearer {{accessToken}}
+
+### Calendar 별도 연결 callback - code는 브라우저 callback URL에서 복사
+POST {{baseUrl}}/api/calendar/google/callback
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "code": "paste-google-oauth-code-here",
+  "redirectUri": "{{calendarRedirectUri}}"
+}
+
+### Calendar 연결 상태 조회
+GET {{baseUrl}}/api/calendar/google/connection
+Authorization: Bearer {{accessToken}}
+
+### Calendar 연결 해제
+DELETE {{baseUrl}}/api/calendar/google/connection
+Authorization: Bearer {{accessToken}}
+
+### Calendar 일정 목록 조회
+GET {{baseUrl}}/api/calendar/events?page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### Calendar 기간 기준 일정 목록 조회
+GET {{baseUrl}}/api/calendar/events?from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### Calendar 프로젝트룸 일정 목록 조회
+GET {{baseUrl}}/api/calendar/events?roomId={{roomId}}&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### Calendar 개인 일정 생성 - Google Calendar 연결 시 외부 캘린더에도 생성
+POST {{baseUrl}}/api/calendar/events
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Bubli Calendar 연동 테스트",
+  "startsAt": "2026-07-02T01:00:00Z",
+  "endsAt": "2026-07-02T02:00:00Z",
+  "allDay": false
+}
+
+### Calendar 프로젝트룸 일정 생성
+POST {{baseUrl}}/api/calendar/events
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}",
+  "title": "Bubli 프로젝트 일정 연동 테스트",
+  "startsAt": "2026-07-03T05:00:00Z",
+  "endsAt": "2026-07-03T06:00:00Z",
+  "allDay": false
+}
+
+### Calendar 일정 수정 - Google Calendar 연결 시 외부 캘린더에도 수정
+PATCH {{baseUrl}}/api/calendar/events/{{scheduleId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Bubli Calendar 연동 테스트 수정",
+  "startsAt": "2026-07-02T01:30:00Z",
+  "endsAt": "2026-07-02T02:30:00Z",
+  "allDay": false
+}
+
+### Calendar 일정 삭제 - Google Calendar 연결 시 외부 캘린더에서도 삭제
+DELETE {{baseUrl}}/api/calendar/events/{{scheduleId}}
+Authorization: Bearer {{accessToken}}
+
+### Bubli 내부 일정 생성 - Calendar 연결 해제 상태에서 실행하면 Bubli에만 남음
+POST {{baseUrl}}/api/schedules
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Bubli에만 먼저 저장된 일정",
+  "startsAt": "2026-07-04T01:00:00Z",
+  "endsAt": "2026-07-04T02:00:00Z",
+  "allDay": false
+}
+
+### Bubli 내부 일정 목록 조회 - 생성 응답 또는 이 목록의 id를 @bubliOnlyScheduleId에 복사
+GET {{baseUrl}}/api/schedules?from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### Bubli 내부 일정 수정 - @bubliOnlyScheduleId는 실제 UUID여야 함
+PATCH {{baseUrl}}/api/schedules/{{bubliOnlyScheduleId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Google Calendar로 올릴 Bubli 일정",
+  "startsAt": "2026-07-04T01:30:00Z",
+  "endsAt": "2026-07-04T02:30:00Z",
+  "allDay": false
+}
+
+### Google Calendar에서 Bubli로 동기화
+POST {{baseUrl}}/api/calendar/sync?from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z
+Authorization: Bearer {{accessToken}}
+
+### Bubli 미동기화 일정을 Google Calendar로 올리기
+POST {{baseUrl}}/api/calendar/push-unsynced?from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z
+Authorization: Bearer {{accessToken}}

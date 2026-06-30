@@ -49,6 +49,23 @@ public class RoomMemorySummary {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static RoomMemorySummary createDraft(
+			UUID roomId,
+			Long fromSequence,
+			Long toSequence,
+			String summaryJson,
+			UUID createdByUserId
+	) {
+		RoomMemorySummary summary = new RoomMemorySummary();
+		summary.roomId = require(roomId, "roomId");
+		summary.fromSequence = require(fromSequence, "fromSequence");
+		summary.toSequence = require(toSequence, "toSequence");
+		summary.summaryJson = requireText(summaryJson, "summaryJson");
+		summary.createdByUserId = createdByUserId;
+		summary.status = SummaryStatus.DRAFT;
+		return summary;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
@@ -59,6 +76,20 @@ public class RoomMemorySummary {
 	@PreUpdate
 	private void onUpdate() {
 		this.updatedAt = Instant.now();
+	}
+
+	private static <T> T require(T value, String field) {
+		if (value == null) {
+			throw new IllegalArgumentException(field + " is required.");
+		}
+		return value;
+	}
+
+	private static String requireText(String value, String field) {
+		if (value == null || value.isBlank()) {
+			throw new IllegalArgumentException(field + " is required.");
+		}
+		return value;
 	}
 
 }

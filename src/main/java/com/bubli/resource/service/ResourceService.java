@@ -132,6 +132,19 @@ public class ResourceService {
 	}
 
 	@Transactional(readOnly = true)
+	public java.util.List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
+		validateRoomResourceAccess(userId, roomId);
+		int size = Math.max(1, Math.min(limit, 10));
+		return resourceSummaryRepository.findRecentRoomSummaries(
+						roomId,
+						ResourceVisibility.ROOM_SHARED,
+						PageRequest.of(0, size)
+				).stream()
+				.map(ResourceSummaryResult::from)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public PageResponse<ResourceRelatedResult> getRelatedResources(UUID userId, UUID resourceId, Pageable pageable) {
 		getReadableResource(userId, resourceId);
 		Page<ResourceRelatedResult> page = resourceRelationRepository

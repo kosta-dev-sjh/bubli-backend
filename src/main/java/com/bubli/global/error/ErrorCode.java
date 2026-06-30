@@ -91,6 +91,11 @@ public enum ErrorCode {
     SCHEDULE_403_001(HttpStatus.FORBIDDEN, "SCHEDULE_403_001", "일정 접근 권한이 없습니다."),
     SCHEDULE_404_001(HttpStatus.NOT_FOUND, "SCHEDULE_404_001", "일정을 찾을 수 없습니다."),
 
+    // CALENDAR
+    CALENDAR_400_001(HttpStatus.BAD_REQUEST, "CALENDAR_400_001", "Google Calendar 연동 요청 값이 올바르지 않습니다."),
+    CALENDAR_404_001(HttpStatus.NOT_FOUND, "CALENDAR_404_001", "Google Calendar 연동 정보를 찾을 수 없습니다."),
+    CALENDAR_502_001(HttpStatus.BAD_GATEWAY, "CALENDAR_502_001", "Google Calendar API 호출에 실패했습니다."),
+
     // NOTIFICATION
     NOTIFICATION_403_001(HttpStatus.FORBIDDEN, "NOTIFICATION_403_001", "알림 접근 권한이 없습니다."),
     NOTIFICATION_404_001(HttpStatus.NOT_FOUND, "NOTIFICATION_404_001", "알림을 찾을 수 없습니다."),

@@ -4,6 +4,8 @@ import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceEmbedding;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.repository.ResourceEmbeddingRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 //코드 흐름
 //pages (TextPage 리스트)
@@ -39,6 +42,7 @@ public class ResourceEmbeddingIndexPublicService {
     private final TextChunker textChunker;
     private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
     private final EmbeddingVectorFormatter embeddingVectorFormatter;
+    private final ObjectMapper objectMapper;
 
     public IndexResult index(Resource resource, ResourceFile resourceFile, String text) {
         return index(resource, resourceFile, List.of(new TextChunker.TextPage(null, text)));
@@ -57,8 +61,22 @@ public class ResourceEmbeddingIndexPublicService {
         List<ResourceEmbedding> embeddings = chunks.stream()
                 .map(chunk -> toEmbedding(resource, resourceFile, chunk, embeddingModel.embed(chunk.text())))
                 .toList();
-        resourceEmbeddingRepository.saveAll(embeddings);
+        embeddings.forEach(this::insertEmbedding);
         return IndexResult.indexed(embeddings.size());
+    }
+
+    private void insertEmbedding(ResourceEmbedding embedding) {
+        resourceEmbeddingRepository.insertEmbedding(
+                UUID.randomUUID(),
+                embedding.getResourceId(),
+                embedding.getOwnerId(),
+                embedding.getRoomId(),
+                embedding.getVisibility().name(),
+                embedding.getChunkIndex(),
+                embedding.getChunkText(),
+                embedding.getEmbedding(),
+                metadataJson(embedding.getChunkMetadata())
+        );
     }
 
     private ResourceEmbedding toEmbedding(
@@ -88,6 +106,14 @@ public class ResourceEmbeddingIndexPublicService {
         metadata.put("endOffset", chunk.endOffset());
         metadata.put("characterCount", chunk.text().length());
         return metadata;
+    }
+
+    private String metadataJson(Map<String, Object> metadata) {
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize resource embedding metadata.", exception);
+        }
     }
 
     public record IndexResult(

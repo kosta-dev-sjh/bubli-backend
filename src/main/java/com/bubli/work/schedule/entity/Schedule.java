@@ -92,6 +92,16 @@ public class Schedule {
 		this.syncStatus = ScheduleSyncStatus.LOCAL_ONLY;
 	}
 
+	public void markSynced(String googleEventId) {
+		this.googleEventId = googleEventId;
+		this.syncStatus = ScheduleSyncStatus.SYNCED;
+		this.lastSyncedAt = Instant.now();
+	}
+
+	public void markSyncFailed() {
+		this.syncStatus = ScheduleSyncStatus.SYNC_FAILED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

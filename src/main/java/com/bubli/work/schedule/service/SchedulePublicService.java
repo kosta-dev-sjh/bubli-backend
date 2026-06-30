@@ -11,5 +11,7 @@ public interface SchedulePublicService {
 
 	List<ScheduleResult> getSchedulesBetween(UUID userId, Instant from, Instant to);
 
+	List<ScheduleResult> getRoomSchedulesBetween(UUID roomId, Instant from, Instant to);
+
 	ScheduleResult create(UUID userId, CreateScheduleCommand command);
 }
