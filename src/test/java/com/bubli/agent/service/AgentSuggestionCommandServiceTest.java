@@ -13,6 +13,7 @@ import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -41,7 +42,8 @@ class AgentSuggestionCommandServiceTest {
         var response = new AgentSuggestionCommandService(
                 repository,
                 mock(ProjectMembershipPublicService.class),
-                mock(AgentSuggestionDomainApplyService.class)
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
         )
                 .review(suggestionId, reviewerId, AgentSuggestionReviewAction.APPROVE, null);
 
@@ -60,7 +62,8 @@ class AgentSuggestionCommandServiceTest {
         assertThatThrownBy(() -> new AgentSuggestionCommandService(
                 repository,
                 mock(ProjectMembershipPublicService.class),
-                mock(AgentSuggestionDomainApplyService.class)
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
         )
                 .review(suggestionId, UUID.randomUUID(), AgentSuggestionReviewAction.REJECT, null))
                 .isInstanceOfSatisfying(BusinessException.class,
@@ -78,7 +81,8 @@ class AgentSuggestionCommandServiceTest {
         var response = new AgentSuggestionCommandService(
                 repository,
                 mock(ProjectMembershipPublicService.class),
-                mock(AgentSuggestionDomainApplyService.class)
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
         )
                 .review(suggestionId, reviewerId, AgentSuggestionReviewAction.EDIT, Map.of("title", "edited"));
 
@@ -98,7 +102,8 @@ class AgentSuggestionCommandServiceTest {
         new AgentSuggestionCommandService(
                 repository,
                 mock(ProjectMembershipPublicService.class),
-                mock(AgentSuggestionDomainApplyService.class)
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
         )
                 .review(suggestionId, reviewerId, AgentSuggestionReviewAction.DELETE, null);
 
@@ -114,7 +119,8 @@ class AgentSuggestionCommandServiceTest {
         List<com.bubli.agent.dto.AgentSuggestionResponse> responses = new AgentSuggestionCommandService(
                 repository,
                 mock(ProjectMembershipPublicService.class),
-                mock(AgentSuggestionDomainApplyService.class)
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
         )
                 .createDrafts(
                         UUID.randomUUID(),
@@ -128,7 +134,34 @@ class AgentSuggestionCommandServiceTest {
         assertThat(responses.get(0).suggestionType()).isEqualTo(AgentSuggestionType.TASK);
         assertThat(responses.get(0).payloadJson()).containsEntry("title", "로그인 구현");
         assertThat(responses.get(0).evidenceJson()).containsEntry("resourceId", resourceId.toString());
-        assertThat(responses.get(1).suggestionType()).isEqualTo(AgentSuggestionType.REVIEW_ITEM);
+        assertThat(responses.get(1).suggestionType()).isEqualTo(AgentSuggestionType.CONTRACT_FIELD);
+    }
+
+    @Test
+    void recordsRoomEventAfterReviewingRoomSuggestion() {
+        UUID suggestionId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
+
+        new AgentSuggestionCommandService(
+                repository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class),
+                eventPublicService
+        )
+                .review(suggestionId, reviewerId, AgentSuggestionReviewAction.HOLD, null);
+
+        verify(eventPublicService).recordAgentSuggestionReviewed(
+                reviewerId,
+                suggestion.getRoomId(),
+                suggestionId,
+                AgentSuggestionType.REVIEW_ITEM.name(),
+                AgentSuggestionStatus.HELD.name(),
+                AgentSuggestionReviewAction.HOLD.name()
+        );
     }
 
     private AgentSuggestion suggestion(UUID suggestionId) {

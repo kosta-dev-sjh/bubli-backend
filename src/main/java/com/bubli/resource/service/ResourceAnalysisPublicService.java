@@ -17,6 +17,11 @@ import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.type.DocumentType;
 import com.bubli.storage.service.StoragePublicService;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableCell;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -186,17 +191,24 @@ public class ResourceAnalysisPublicService {
 
     private ExtractedDocument extract(ResourceFile resourceFile) {
         try (InputStream inputStream = storageService.open(resourceFile.getStorageKey())) {
-            if (resourceFile.getMimeType().startsWith("application/pdf")) {
+            if (isPdf(resourceFile)) {
                 return extractPdf(inputStream);
             }
-            if (resourceFile.getMimeType().startsWith("text/plain")) {
-                String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-                return new ExtractedDocument(List.of(new TextChunker.TextPage(null, text)));
+            if (isText(resourceFile) || isMarkdown(resourceFile)) {
+                return extractUtf8Text(inputStream);
             }
-            throw new IllegalArgumentException("Unsupported resource file mime type.");
+            if (isDocx(resourceFile)) {
+                return extractDocx(inputStream);
+            }
+            throw new BusinessException(ErrorCode.RESOURCE_415_001);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to extract resource text.", e);
+            throw new BusinessException(ErrorCode.RESOURCE_500_001);
         }
+    }
+
+    private ExtractedDocument extractUtf8Text(InputStream inputStream) throws IOException {
+        String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        return new ExtractedDocument(List.of(new TextChunker.TextPage(null, text)));
     }
 
     private ExtractedDocument extractPdf(InputStream inputStream) throws IOException {
@@ -212,6 +224,72 @@ public class ResourceAnalysisPublicService {
             }
             return new ExtractedDocument(pages);
         }
+    }
+
+    private ExtractedDocument extractDocx(InputStream inputStream) {
+        try (XWPFDocument document = new XWPFDocument(inputStream)) {
+            StringBuilder text = new StringBuilder();
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                appendLine(text, paragraph.getText());
+            }
+            for (XWPFTable table : document.getTables()) {
+                appendTable(text, table);
+            }
+            return new ExtractedDocument(List.of(new TextChunker.TextPage(null, text.toString())));
+        } catch (IOException | RuntimeException e) {
+            throw new BusinessException(ErrorCode.RESOURCE_415_001);
+        }
+    }
+
+    private void appendTable(StringBuilder text, XWPFTable table) {
+        for (XWPFTableRow row : table.getRows()) {
+            List<String> cells = row.getTableCells().stream()
+                    .map(XWPFTableCell::getText)
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .toList();
+            appendLine(text, String.join(" | ", cells));
+        }
+    }
+
+    private void appendLine(StringBuilder text, String line) {
+        if (line == null || line.isBlank()) {
+            return;
+        }
+        if (text.length() > 0) {
+            text.append('\n');
+        }
+        text.append(line.trim());
+    }
+
+    private boolean isPdf(ResourceFile resourceFile) {
+        return mimeType(resourceFile).startsWith("application/pdf")
+                || originalName(resourceFile).endsWith(".pdf");
+    }
+
+    private boolean isText(ResourceFile resourceFile) {
+        return mimeType(resourceFile).startsWith("text/plain")
+                || originalName(resourceFile).endsWith(".txt");
+    }
+
+    private boolean isMarkdown(ResourceFile resourceFile) {
+        String originalName = originalName(resourceFile);
+        return mimeType(resourceFile).startsWith("text/markdown")
+                || originalName.endsWith(".md")
+                || originalName.endsWith(".markdown");
+    }
+
+    private boolean isDocx(ResourceFile resourceFile) {
+        return mimeType(resourceFile).startsWith("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                || originalName(resourceFile).endsWith(".docx");
+    }
+
+    private String mimeType(ResourceFile resourceFile) {
+        return resourceFile.getMimeType() == null ? "" : resourceFile.getMimeType().toLowerCase(Locale.ROOT);
+    }
+
+    private String originalName(ResourceFile resourceFile) {
+        return resourceFile.getOriginalName() == null ? "" : resourceFile.getOriginalName().toLowerCase(Locale.ROOT);
     }
 
     private Map<String, Object> summaryJson(

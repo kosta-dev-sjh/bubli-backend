@@ -3,6 +3,7 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.type.DocumentFileType;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -48,6 +49,13 @@ public class DocumentFileInspector {
                 }
                 return;
             }
+            if (fileType == DocumentFileType.DOCX) {
+                try (XWPFDocument ignored = new XWPFDocument(input)) {
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    throw new BusinessException(ErrorCode.RESOURCE_415_001);
+                }
+            }
 
             byte[] content = input.readAllBytes();
             if (containsNullByte(content)) {
@@ -85,6 +93,12 @@ public class DocumentFileInspector {
         }
         if (lowerName.endsWith(".txt")) {
             return DocumentFileType.TXT;
+        }
+        if (lowerName.endsWith(".md") || lowerName.endsWith(".markdown")) {
+            return DocumentFileType.MARKDOWN;
+        }
+        if (lowerName.endsWith(".docx")) {
+            return DocumentFileType.DOCX;
         }
         throw new BusinessException(ErrorCode.RESOURCE_415_001);
     }

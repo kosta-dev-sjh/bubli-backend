@@ -49,6 +49,29 @@ class AgentSuggestionQueryServiceTest {
         verify(membershipService).assertActiveMember(userId, roomId);
     }
 
+    @Test
+    void findsRoomConfirmationItemsByConfirmationTypes() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        AgentSuggestion question = suggestion(userId, AgentSuggestionType.QUESTION);
+        AgentSuggestion contractField = suggestion(userId, AgentSuggestionType.CONTRACT_FIELD);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
+        when(repository.findAllByRoomIdAndSuggestionTypeInAndStatusOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.eq(roomId),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(AgentSuggestionStatus.DRAFT)
+        )).thenReturn(List.of(question, contractField));
+
+        var responses = new AgentSuggestionQueryService(repository, membershipService)
+                .findRoomConfirmationItems(userId, roomId, AgentSuggestionStatus.DRAFT);
+
+        assertThat(responses)
+                .extracting(response -> response.suggestionType())
+                .containsExactly(AgentSuggestionType.QUESTION, AgentSuggestionType.CONTRACT_FIELD);
+        verify(membershipService).assertActiveMember(userId, roomId);
+    }
+
     private AgentSuggestion suggestion(UUID userId, AgentSuggestionType type) {
         return AgentSuggestion.draft(
                 userId,

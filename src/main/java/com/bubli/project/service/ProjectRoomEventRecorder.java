@@ -5,6 +5,7 @@ import com.bubli.project.entity.ProjectRoomEvent;
 import com.bubli.project.repository.ProjectRoomEventRepository;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -21,6 +23,12 @@ public class ProjectRoomEventRecorder {
 	static final String ROOM_UPDATED = "ROOM_UPDATED";
 	static final String ROOM_PAYMENT_UPDATED = "ROOM_PAYMENT_UPDATED";
 	static final String ROOM_CLOSED = "ROOM_CLOSED";
+	static final String AGENT_SUGGESTIONS_CREATED = "AGENT_SUGGESTIONS_CREATED";
+	static final String AGENT_SUGGESTION_APPROVED = "AGENT_SUGGESTION_APPROVED";
+	static final String AGENT_SUGGESTION_REJECTED = "AGENT_SUGGESTION_REJECTED";
+	static final String AGENT_SUGGESTION_HELD = "AGENT_SUGGESTION_HELD";
+	static final String AGENT_SUGGESTION_UPDATED = "AGENT_SUGGESTION_UPDATED";
+	static final String AGENT_SUGGESTION_DELETED = "AGENT_SUGGESTION_DELETED";
 
 	private final ProjectRoomEventRepository projectRoomEventRepository;
 	private final ObjectMapper objectMapper;
@@ -54,10 +62,59 @@ public class ProjectRoomEventRecorder {
 		save(actorUserId, projectRoom, ROOM_CLOSED, payload);
 	}
 
+	public void recordAgentSuggestionsCreated(
+			UUID actorUserId,
+			UUID roomId,
+			List<UUID> suggestionIds,
+			List<String> suggestionTypes
+	) {
+		ObjectNode payload = objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("count", suggestionIds.size());
+		ArrayNode ids = payload.putArray("suggestionIds");
+		suggestionIds.forEach(id -> ids.add(id.toString()));
+		ArrayNode types = payload.putArray("suggestionTypes");
+		suggestionTypes.forEach(types::add);
+		save(actorUserId, roomId, AGENT_SUGGESTIONS_CREATED, payload);
+	}
+
+	public void recordAgentSuggestionReviewed(
+			UUID actorUserId,
+			UUID roomId,
+			UUID suggestionId,
+			String suggestionType,
+			String status,
+			String action
+	) {
+		ObjectNode payload = objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("suggestionId", suggestionId.toString())
+				.put("suggestionType", suggestionType)
+				.put("status", status)
+				.put("action", action);
+		save(actorUserId, roomId, agentSuggestionReviewEventType(status, action), payload);
+	}
+
+	private String agentSuggestionReviewEventType(String status, String action) {
+		if ("DELETE".equals(action)) {
+			return AGENT_SUGGESTION_DELETED;
+		}
+		return switch (status) {
+			case "APPROVED" -> AGENT_SUGGESTION_APPROVED;
+			case "REJECTED" -> AGENT_SUGGESTION_REJECTED;
+			case "HELD" -> AGENT_SUGGESTION_HELD;
+			default -> AGENT_SUGGESTION_UPDATED;
+		};
+	}
+
 	private void save(UUID actorUserId, ProjectRoom projectRoom, String eventType, ObjectNode payload) {
-		Long sequence = nextSequence(projectRoom.getId());
+		save(actorUserId, projectRoom.getId(), eventType, payload);
+	}
+
+	private void save(UUID actorUserId, UUID roomId, String eventType, ObjectNode payload) {
+		Long sequence = nextSequence(roomId);
 		ProjectRoomEvent event = projectRoomEventRepository.save(ProjectRoomEvent.create(
-				projectRoom.getId(),
+				roomId,
 				sequence,
 				eventType,
 				actorUserId,

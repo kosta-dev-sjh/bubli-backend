@@ -57,6 +57,19 @@ public class AgentSuggestionController {
         )));
     }
 
+    @GetMapping("/api/project-rooms/{roomId}/agent/confirmation-items")
+    public ResponseEntity<ApiResponse<List<AgentSuggestionResponse>>> findRoomConfirmationItems(
+            @PathVariable UUID roomId,
+            @RequestParam(required = false) AgentSuggestionStatus status,
+            @CurrentUser AuthUser currentUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(agentSuggestionQueryService.findRoomConfirmationItems(
+                currentUser.userId(),
+                roomId,
+                status
+        )));
+    }
+
     @PatchMapping("/api/agent/suggestions/{suggestionId}")
     public ResponseEntity<ApiResponse<AgentSuggestionResponse>> review(
             @PathVariable UUID suggestionId,

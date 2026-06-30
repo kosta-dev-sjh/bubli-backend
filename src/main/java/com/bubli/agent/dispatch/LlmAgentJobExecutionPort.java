@@ -342,7 +342,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
 				- DRAFT_DOCUMENT: propose a document draft outline.
-				- DAILY_SUMMARY: propose a daily summary draft using the target date context. Include done, remaining, tomorrowFocus, risks, and evidence fields in the suggestion description or JSON-like text.
+				- DAILY_SUMMARY: propose a daily summary draft using only the target date context. The description must contain JSON-like fields: summaryDate, timezone, done, remaining, todaySchedules, tomorrowFocus, risks, evidence. Do not include private raw source text beyond the provided concise evidence labels.
 
 				Job context:
 				jobId: %s

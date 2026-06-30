@@ -86,14 +86,22 @@ public class AiJobCommandService {
 
 	@Transactional
 	public AgentJobResult createDailySummaryJob(UUID userId) {
-		return createDailySummaryJob(userId, null);
+		return createDailySummaryJob(userId, null, null);
 	}
 
 	@Transactional
 	public AgentJobResult createDailySummaryJob(UUID userId, LocalDate summaryDate) {
+		return createDailySummaryJob(userId, summaryDate, null);
+	}
+
+	@Transactional
+	public AgentJobResult createDailySummaryJob(UUID userId, LocalDate summaryDate, String timezone) {
 		Map<String, Object> requestPayload = new LinkedHashMap<>();
 		if (summaryDate != null) {
 			requestPayload.put("summaryDate", summaryDate.toString());
+		}
+		if (timezone != null && !timezone.isBlank()) {
+			requestPayload.put("timezone", timezone.trim());
 		}
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				null,

@@ -10,6 +10,7 @@ import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class AgentSuggestionCommandService {
     private final AgentSuggestionRepository agentSuggestionRepository;
     private final ProjectMembershipPublicService projectMembershipPublicService;
     private final AgentSuggestionDomainApplyService agentSuggestionDomainApplyService;
+    private final ProjectRoomEventPublicService projectRoomEventPublicService;
 
     @Transactional
     public AgentSuggestionResponse review(
@@ -50,6 +52,7 @@ public class AgentSuggestionCommandService {
                 case DELETE -> {
                     AgentSuggestionResponse response = AgentSuggestionResponse.from(suggestion);
                     agentSuggestionRepository.delete(suggestion);
+                    recordReviewEvent(reviewerId, suggestion, action);
                     return response;
                 }
                 case MODIFY -> suggestion.modify(reviewerId, requirePayload(payloadJson));
@@ -58,7 +61,9 @@ public class AgentSuggestionCommandService {
             throw new BusinessException(ErrorCode.COMMON_400_002);
         }
 
-        return AgentSuggestionResponse.from(suggestion);
+        AgentSuggestionResponse response = AgentSuggestionResponse.from(suggestion);
+        recordReviewEvent(reviewerId, suggestion, action);
+        return response;
     }
 
     @Transactional
@@ -88,6 +93,28 @@ public class AgentSuggestionCommandService {
                 .toList();
     }
 
+    @Transactional
+    public AgentSuggestionResponse createDraft(
+            UUID userId,
+            UUID roomId,
+            UUID jobId,
+            UUID resourceId,
+            AgentSuggestionType suggestionType,
+            Map<String, Object> payload,
+            Map<String, Object> evidence
+    ) {
+        AgentSuggestion suggestion = AgentSuggestion.draft(
+                userId,
+                roomId,
+                jobId,
+                resourceId,
+                suggestionType,
+                payload,
+                evidence
+        );
+        return AgentSuggestionResponse.from(agentSuggestionRepository.save(suggestion));
+    }
+
     private Map<String, Object> requirePayload(Map<String, Object> payloadJson) {
         if (payloadJson == null) {
             throw new IllegalArgumentException("editedContent is required.");
@@ -105,13 +132,31 @@ public class AgentSuggestionCommandService {
         }
     }
 
+    private void recordReviewEvent(
+            UUID reviewerId,
+            AgentSuggestion suggestion,
+            AgentSuggestionReviewAction action
+    ) {
+        if (suggestion.getRoomId() == null) {
+            return;
+        }
+        projectRoomEventPublicService.recordAgentSuggestionReviewed(
+                reviewerId,
+                suggestion.getRoomId(),
+                suggestion.getId(),
+                suggestion.getSuggestionType().name(),
+                suggestion.getStatus().name(),
+                action.name()
+        );
+    }
+
     private AgentSuggestionType mapType(Suggestion suggestion) {
         return switch (suggestion.type()) {
             case TASK -> AgentSuggestionType.TASK;
             case REQUIREMENT -> AgentSuggestionType.REQUIREMENT;
             case WBS -> AgentSuggestionType.WBS;
             case QUESTION -> AgentSuggestionType.QUESTION;
-            case CONTRACT_FIELD -> AgentSuggestionType.REVIEW_ITEM;
+            case CONTRACT_FIELD -> AgentSuggestionType.CONTRACT_FIELD;
             case REVIEW_ITEM -> AgentSuggestionType.REVIEW_ITEM;
             case DOCUMENT_DRAFT -> AgentSuggestionType.DOCUMENT_DRAFT;
             case DAILY_SUMMARY -> AgentSuggestionType.DAILY_SUMMARY;
