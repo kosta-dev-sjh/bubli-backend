@@ -8,6 +8,8 @@ import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.model.AiCallFailedException;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.service.AgentJobContextCollector;
+import com.bubli.agent.service.AgentModelUsageGuard;
+import com.bubli.agent.service.AgentModelUsageLimitExceededException;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.agent.validation.AgentContractValidationException;
@@ -41,6 +43,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private static final String PROVIDER_ERROR = "AI_PROVIDER_UNAVAILABLE";
 	private static final String INVALID_OUTPUT_ERROR = "AI_INVALID_OUTPUT";
 	private static final String EXECUTION_ERROR = "AGENT_EXECUTION_FAILED";
+	private static final String USAGE_LIMIT_PROMPT = "AI_USAGE_LIMIT_CHECK";
 	private static final String EMPTY_RESOURCE_ID = "00000000-0000-0000-0000-000000000000";
 	private static final int ANALYSIS_TEXT_LIMIT = 12000;
 	private static final int RESPONSE_PREVIEW_LIMIT = 4000;
@@ -51,10 +54,20 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private final AgentAnalysisResultJsonParser resultJsonParser;
 	private final ObjectMapper objectMapper;
 	private final AgentJobContextCollector contextCollector;
+	private final AgentModelUsageGuard modelUsageGuard;
 
 	@Override
 	public Optional<AgentJobExecutionOutcome> execute(AgentJobQueueMessage message) {
 		Instant startedAt = Instant.now();
+		try {
+			modelUsageGuard.assertWithinDailyLimit(message.requestedByUserId(), message.jobType());
+		} catch (AgentModelUsageLimitExceededException exception) {
+			return Optional.of(AgentJobExecutionOutcome.failedWithModelCallLogs(
+					exception.errorCode(),
+					exception.getMessage(),
+					List.of(modelCallLog(startedAt, USAGE_LIMIT_PROMPT, null, exception.errorCode()))
+			));
+		}
 		if (message.jobType() == AgentJobType.ANALYZE_RESOURCE) {
 			return Optional.of(analyzeResource(message, startedAt));
 		}
@@ -102,6 +115,11 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		String prompt = "ANALYZE_RESOURCE";
 		try {
 			source = resourceAnalysisService.loadAnalysisSourceForJob(message.resourceId());
+			Optional<Map<String, Object>> reusableAnalysis = resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
+			if (reusableAnalysis.isPresent()) {
+				resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), reusableAnalysis.get());
+				return AgentJobExecutionOutcome.succeeded();
+			}
 			AgentJobContext context = contextCollector.collect(message);
 			prompt = analyzeResourcePrompt(message, source, context);
 			ParsedModelResult parsed = callAndParseJson("agent-job-analyze-resource", prompt);
@@ -324,7 +342,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
 				- DRAFT_DOCUMENT: propose a document draft outline.
-				- DAILY_SUMMARY: propose a daily summary draft.
+				- DAILY_SUMMARY: propose a daily summary draft using the target date context. Include done, remaining, tomorrowFocus, risks, and evidence fields in the suggestion description or JSON-like text.
 
 				Job context:
 				jobId: %s

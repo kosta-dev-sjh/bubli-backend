@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -66,6 +68,29 @@ public class ResourceAnalysisPublicService {
                 .map(AiDocument::getId)
                 .orElse(null);
         return new ResourceAnalysisArtifacts(resourceSummaryId, aiDocumentId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Map<String, Object>> findReusableAnalysisForJob(UUID resourceId) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+        ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
+        if (resourceFile.getChecksum() == null || resourceFile.getChecksum().isBlank()) {
+            return Optional.empty();
+        }
+        return resourceSummaryRepository.findReusableAnalysisSummaries(
+                        resource.getId(),
+                        resourceFile.getChecksum(),
+                        resource.getRoomId(),
+                        resource.getVisibility(),
+                        PageRequest.of(0, 5)
+                )
+                .stream()
+                .map(ResourceSummary::getSummaryJson)
+                .map(this::cachedAnalysis)
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     @Transactional
@@ -220,6 +245,20 @@ public class ResourceAnalysisPublicService {
             return preview(normalizedText);
         }
         return summary.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<Map<String, Object>> cachedAnalysis(Map<String, Object> summaryJson) {
+        if (summaryJson == null || !"LLM_ANALYZER".equals(summaryJson.get("source"))) {
+            return Optional.empty();
+        }
+        Object analysis = summaryJson.get("analysis");
+        if (!(analysis instanceof Map<?, ?> analysisMap)) {
+            return Optional.empty();
+        }
+        Map<String, Object> cached = new LinkedHashMap<>((Map<String, Object>) analysisMap);
+        cached.put("cacheHit", true);
+        return Optional.of(cached);
     }
 
     private String preview(String text) {

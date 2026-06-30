@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "analysis.v1",
+  "resourceId": "22222222-2222-4222-8222-222222222222",
+  "model": {
+    "name": "fixture-model",
+    "promptVersion": "agent-job-llm-v1"
+  },
+  "analysis": {
+    "summary": "알림과 검색 기능 요구사항을 정리한 문서입니다.",
+    "keywords": ["요구사항", "알림", "검색"],
+    "risks": ["알림 수신 범위가 사용자 설정과 연결되어야 합니다."],
+    "checklist": [
+      {
+        "title": "알림 수신 설정과 발송 조건을 분리해 정의합니다.",
+        "severity": "MEDIUM"
+      }
+    ]
+  },
+  "suggestions": [
+    {
+      "type": "REQUIREMENT",
+      "title": "AI 작업 완료 알림 제공",
+      "description": "사용자는 AI 작업 완료 또는 실패 상태를 알림 목록과 실시간 이벤트로 확인할 수 있어야 합니다.",
+      "sourceText": "에이전트 작업 완료 시 사용자에게 알림을 제공한다.",
+      "confidence": 0.9
+    },
+    {
+      "type": "WBS",
+      "title": "알림 이벤트 연동",
+      "description": "작업 완료 이벤트 저장, 알림 생성, WebSocket 전송을 구현합니다.",
+      "sourceText": "알림 목록과 실시간 이벤트로 확인",
+      "confidence": 0.82
+    }
+  ]
+}

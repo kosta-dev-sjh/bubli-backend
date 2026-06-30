@@ -52,6 +52,23 @@ public class Notification {
 		this.createdAt = Instant.now();
 	}
 
+	public static Notification create(
+			UUID userId,
+			NotificationSourceType sourceType,
+			UUID sourceId,
+			String title,
+			String body
+	) {
+		Notification notification = new Notification();
+		notification.userId = userId;
+		notification.sourceType = sourceType;
+		notification.sourceId = sourceId;
+		notification.title = title;
+		notification.body = body;
+		notification.status = NotificationStatus.UNREAD;
+		return notification;
+	}
+
 	public void markAsRead() {
 		this.status = NotificationStatus.READ;
 		this.readAt = Instant.now();
