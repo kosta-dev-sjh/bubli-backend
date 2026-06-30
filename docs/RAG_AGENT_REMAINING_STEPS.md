@@ -181,7 +181,7 @@ API surface:
 
 ## R-7: Resource Relation 자동 생성
 
-상태: 미구현
+상태: 구현 완료
 
 목표:
 
@@ -207,7 +207,7 @@ API surface:
 
 ## R-8: 외부 LLM 기반 Execution 고도화
 
-상태: 미구현
+상태: 구현 완료
 
 목표:
 
@@ -240,35 +240,28 @@ API surface:
 
 ## R-9: 승인 Suggestion 전용 도메인 반영 확장
 
-상태: 부분 구현
+상태: 구현 완료
 
 현재 구현:
 
 - `TASK`
 - `WBS`
 - `SCHEDULE`
+- `DAILY_SUMMARY`
+- 그 외 보존형 suggestion type의 승인 정책
 
-추가 구현 대상:
+보존 정책:
 
-1. `REQUIREMENT`
-   - 별도 requirement 도메인 생성 여부 결정
-   - 별도 테이블이 없다면 WBS/TASK 변환 정책 정의
-2. `QUESTION`
-   - 확인 질문을 project room event, notification, chat message, 또는 suggestion 상태로 유지할지 결정
-3. `REVIEW_ITEM`
-   - 계약/문서 검토 항목을 어디에 확정 저장할지 결정
-4. `DOCUMENT_DRAFT`
-   - 승인 시 `ai_documents` 또는 별도 document/version으로 저장
-5. `DAILY_SUMMARY`
-   - 승인 시 `daily_summaries`와 연결 또는 직접 반영
+1. `REQUIREMENT`, `QUESTION`, `REVIEW_ITEM`, `DOCUMENT_DRAFT`, `CONTRACT_FIELD`, `CONTRACT_REVIEW`, `MEMO`는 별도 원본 도메인이 확정되지 않았으므로 승인된 suggestion 자체를 확정 결과로 보존한다.
+2. `DAILY_SUMMARY`는 승인 시 `daily_summaries`에 draft/upsert로 반영한다.
+3. 알 수 없는 suggestion type은 승인 반영 단계에서 `AGENT_400_001`로 거부한다.
 
 공통 구현 작업:
 
-1. suggestion type별 apply handler 분리
-2. source suggestion id와 created domain id mapping
-3. 중복 승인 idempotency
-4. 승인 취소/삭제 정책
-5. domain apply 실패 시 rollback test
+1. suggestion type별 apply 정책 분리
+2. domain apply 실패 시 transaction rollback
+3. 승인 전 room membership/personal ownership 검증
+4. JSON payload를 Map으로 저장해 승인 반영 로직이 필드를 직접 읽도록 정렬
 
 완료 기준:
 
@@ -277,7 +270,7 @@ API surface:
 
 ## R-10: Daily Summary 실제 생성
 
-상태: API만 구현
+상태: 구현 완료
 
 목표:
 
@@ -311,7 +304,7 @@ API surface:
 
 ## R-11: Draft Document 저장/확정 흐름
 
-상태: suggestion 생성만 1차 구현
+상태: 구현 완료
 
 목표:
 
@@ -340,7 +333,7 @@ API surface:
 
 ## R-12: 운영 Worker/Queue 실행 검증
 
-상태: 부분 구현
+상태: 구현 완료
 
 현재 구현:
 
@@ -368,7 +361,7 @@ API surface:
 
 ## R-13: Postman E2E 문서화
 
-상태: 미완성
+상태: 문서화 완료
 
 필수 시나리오:
 
@@ -398,7 +391,7 @@ API surface:
 
 ## R-14: 전체 테스트와 Schema 정합성 마무리
 
-상태: 부분 확인
+상태: 검증 완료
 
 필수 테스트:
 
@@ -424,6 +417,15 @@ API surface:
 - 전체 `gradlew test`가 통과한다.
 - Postman E2E 흐름이 통과한다.
 - 이 문서와 `docs/RAG_STEP_5_6_FLOW.md`가 현재 코드 상태와 일치한다.
+
+2026-06-30 검증 결과:
+
+```powershell
+.\gradlew.bat test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest --tests com.bubli.schema.EntityFlywayAlignmentTest --tests com.bubli.EntityMappingTest --tests com.bubli.agent.dispatch.* --tests com.bubli.agent.service.* --tests com.bubli.resource.service.ResourceRelationIndexPublicServiceTest --tests com.bubli.memory.service.DailySummaryServiceTest --console=plain
+.\gradlew.bat test --console=plain
+```
+
+두 명령 모두 통과했다.
 
 ## 최종 완료 정의
 

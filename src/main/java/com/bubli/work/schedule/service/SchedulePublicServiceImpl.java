@@ -32,6 +32,15 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public List<ScheduleResult> getRoomSchedulesBetween(UUID roomId, Instant from, Instant to) {
+		return scheduleRepository.findByRoomIdAndStartsAtBetweenOrderByStartsAtAsc(roomId, from, to)
+				.stream()
+				.map(ScheduleResult::from)
+				.toList();
+	}
+
+	@Override
 	@Transactional
 	public ScheduleResult create(UUID userId, CreateScheduleCommand command) {
 		validateRange(command.startsAt(), command.endsAt());

@@ -9,6 +9,7 @@ import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.repository.TaskRepository;
 import com.bubli.work.wbs.service.WbsItemPublicService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,22 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 	@Transactional(readOnly = true)
 	public List<TaskResult> getRoomTasksForBoard(UUID roomId) {
 		return taskRepository.findByRoomIdOrderByUpdatedAtDesc(roomId).stream()
+				.map(TaskResult::from)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<TaskResult> getRecentRoomTasks(UUID roomId, int limit) {
+		return taskRepository.findByRoomId(roomId, PageRequest.of(0, boundedLimit(limit))).stream()
+				.map(TaskResult::from)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<TaskResult> getPersonalContextTasks(UUID userId, int limit) {
+		return taskRepository.findDashboardTasks(userId, PageRequest.of(0, boundedLimit(limit))).stream()
 				.map(TaskResult::from)
 				.toList();
 	}
@@ -72,5 +89,9 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 				command.dueAt()
 		);
 		return TaskResult.from(taskRepository.save(task));
+	}
+
+	private int boundedLimit(int limit) {
+		return Math.max(1, Math.min(limit, 20));
 	}
 }

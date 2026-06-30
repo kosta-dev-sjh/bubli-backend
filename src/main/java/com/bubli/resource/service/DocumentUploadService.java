@@ -4,6 +4,7 @@ import com.bubli.agent.dto.AgentJobTicket;
 import com.bubli.agent.service.AgentJobPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ContractDocumentUploadResponse;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceFile;
@@ -25,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +40,7 @@ public class DocumentUploadService {
     private final AgentJobPublicService agentJobService;
     private final StoragePublicService storageService;
     private final DocumentFileInspector fileInspector;
+    private final ProjectMembershipPublicService projectMembershipPublicService;
 
     @Transactional
     public ContractDocumentUploadResponse uploadContractDocument(
@@ -46,10 +49,22 @@ public class DocumentUploadService {
             DocumentType documentType,
             MultipartFile file
     ) {
+        return uploadContractDocument(roomId, ownerId, documentType, file, true);
+    }
+
+    @Transactional
+    public ContractDocumentUploadResponse uploadContractDocument(
+            UUID roomId,
+            UUID ownerId,
+            DocumentType documentType,
+            MultipartFile file,
+            boolean autoAnalyze
+    ) {
         require(roomId, "roomId");
         require(ownerId, "ownerId");
         require(documentType, "documentType");
         requireContractDocumentType(documentType);
+        projectMembershipPublicService.assertActiveMember(ownerId, roomId);
 
         DocumentFileInspector.InspectedDocument inspected = fileInspector.inspect(file);
         rejectDuplicate(roomId, inspected.checksum());
@@ -79,15 +94,24 @@ public class DocumentUploadService {
                 ownerId
         ));
 
-        resource.startAnalysis();
+        AgentJobTicket job = null;
+        if (autoAnalyze) {
+            resource.startAnalysis();
+            job = agentJobService.createAnalyzeResourceJob(
+                    ownerId,
+                    roomId,
+                    resource.getId(),
+                    Map.of(
+                            "source", "PROJECT_ROOM_DOCUMENT_UPLOAD",
+                            "documentTypeHint", documentType.name(),
+                            "originalName", inspected.fileName()
+                    )
+            );
+        } else {
+            resource.markReady();
+        }
 
-        AgentJobTicket job = agentJobService.createAnalyzeResourceJob(
-                ownerId,
-                roomId,
-                resource.getId()
-        );
-
-        return ContractDocumentUploadResponse.of(resource, job);
+        return ContractDocumentUploadResponse.of(resource, job, autoAnalyze);
     }
 
     private void rejectDuplicate(UUID roomId, String checksum) {

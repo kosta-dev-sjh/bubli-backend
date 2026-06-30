@@ -66,4 +66,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
 			@Param("chatType") ChatType chatType,
 			@Param("status") ChatMemberStatus status
 	);
+
+	Optional<ChatRoom> findByRoomIdAndChatType(UUID roomId, ChatType chatType);
 }

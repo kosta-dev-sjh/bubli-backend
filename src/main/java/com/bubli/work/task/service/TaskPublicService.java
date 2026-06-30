@@ -11,6 +11,10 @@ public interface TaskPublicService {
 
 	List<TaskResult> getRoomTasksForBoard(UUID roomId);
 
+	List<TaskResult> getRecentRoomTasks(UUID roomId, int limit);
+
+	List<TaskResult> getPersonalContextTasks(UUID userId, int limit);
+
 	List<TaskResult> getDueBetweenTasks(UUID userId, Instant from, Instant to);
 
 	boolean existsByWbsItemId(UUID wbsItemId);

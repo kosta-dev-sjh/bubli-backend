@@ -21,7 +21,18 @@ AGENT_EXECUTION_MODE=llm
 AGENT_DISPATCH_ADAPTER=redis
 AGENT_WORKER_SCHEDULER_ENABLED=true
 AGENT_REDIS_QUEUE_KEY=bubli:agent-jobs
-OPENAI_API_KEY=replace-with-key
+AWS_REGION=ap-northeast-2
+AWS_ACCESS_KEY_ID=replace-with-key
+AWS_SECRET_ACCESS_KEY=replace-with-secret
+AWS_SESSION_TOKEN=replace-when-using-temporary-credentials
+BEDROCK_CHAT_MODEL_ID=apac.anthropic.claude-3-haiku-20240307-v1:0
+BEDROCK_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v2:0
+```
+
+For local E2E with the local datasource and real Bedrock/Redis execution, run both profiles:
+
+```bash
+SPRING_PROFILES_ACTIVE=local,ai
 ```
 
 ## Collection variables
@@ -73,3 +84,16 @@ Run these negative checks during manual QA:
 - Submit an invalid `documentType`; expect validation or a failed job event.
 - Approve a suggestion twice; expect the second approval to be rejected or have no duplicate domain side effect.
 - Disable the worker scheduler, create a job, then re-enable it and confirm queued work resumes.
+
+## Verified Result
+
+2026-06-30 local E2E verification passed with `local,ai` profiles:
+
+- AWS Bedrock smoke: chat call succeeded, Titan embedding returned 1024 dimensions.
+- Redis queue: `bubli:agent-jobs` received jobs and drained to `0` after worker processing.
+- TXT and PDF resources uploaded as `ROOM_SHARED`.
+- `ANALYZE_RESOURCE` succeeded for TXT and PDF resources.
+- `ROOM_SHARED` semantic search returned both TXT and PDF hits with page metadata.
+- `GET /api/resources/{resourceId}/related` returned a relation candidate.
+- `GENERATE_TASKS` created an LLM suggestion.
+- `APPROVE` on the task suggestion created a room task.
