@@ -8,6 +8,7 @@ import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -111,6 +112,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobRepository,
 				agentJobEventRepository,
 				notificationPublicService,
+				mock(ProjectRoomEventPublicService.class),
 				messageSource,
 				localeService
 		);
@@ -126,6 +128,38 @@ class AgentJobExecutionResultRecorderTest {
 				eq(jobId),
 				eq("AI job completed."),
 				org.mockito.ArgumentMatchers.contains("Agent job execution completed.")
+		);
+	}
+
+	@Test
+	void recordSucceededPublishesProjectRoomEventWhenJobBelongsToRoom() {
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		NotificationPublicService notificationPublicService = mock(NotificationPublicService.class);
+		ProjectRoomEventPublicService projectRoomEventPublicService = mock(ProjectRoomEventPublicService.class);
+		UserLocalePublicService localeService = mock(UserLocalePublicService.class);
+		when(localeService.resolveLocaleCode(any(UUID.class), any())).thenReturn("ko-KR");
+		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
+				agentJobRepository,
+				agentJobEventRepository,
+				notificationPublicService,
+				projectRoomEventPublicService,
+				new StaticMessageSource(),
+				localeService
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = runningJob(jobId);
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+
+		recorder.recordSucceeded(jobId);
+
+		verify(projectRoomEventPublicService).recordAgentJobCompleted(
+				eq(agentJob.getRequestedByUserId()),
+				eq(agentJob.getRoomId()),
+				eq(jobId),
+				eq(agentJob.getJobType().name()),
+				eq("SUCCEEDED"),
+				eq(AgentJobExecutionResultRecorder.SUCCEEDED_EVENT_MESSAGE)
 		);
 	}
 
@@ -187,6 +221,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobRepository,
 				agentJobEventRepository,
 				mock(NotificationPublicService.class),
+				mock(ProjectRoomEventPublicService.class),
 				new StaticMessageSource(),
 				localeService
 		);
