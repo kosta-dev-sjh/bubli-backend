@@ -12,6 +12,9 @@ public record DashboardWorkResponse(
 		List<ScheduleResult> todaySchedules,
 		long unreadNotificationCount,
 		TimeLogResult runningTimer,
-		List<String> agentSuggestionSummary
+		List<String> agentSuggestionSummary,
+		List<String> memoSummary,
+		List<String> recentResourceAnalysisSummary,
+		List<DashboardProjectProgressSummary> projectProgressSummary
 ) {
 }
