@@ -59,6 +59,14 @@ public class ChatRoom {
 		return chatRoom;
 	}
 
+	public static ChatRoom createGroup(String name) {
+		ChatRoom chatRoom = new ChatRoom();
+		chatRoom.chatType = ChatType.GROUP;
+		chatRoom.name = name;
+		chatRoom.status = ChatRoomStatus.ACTIVE;
+		return chatRoom;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();
