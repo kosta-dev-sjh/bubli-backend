@@ -7,6 +7,7 @@ import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.entity.UserPrivacyConsentId;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
@@ -44,10 +45,15 @@ public class UserPublicServiceImpl implements UserPublicService {
 						generateBubliId(command),
 						resolveName(command),
 						command.avatarUrl(),
-						command.locale(),
+						SupportedLocale.normalize(command.locale()),
 						command.timezone()
 		)));
-		user.updateProfile(resolveName(command), command.avatarUrl(), command.locale(), command.timezone());
+		user.updateProfile(
+				resolveName(command),
+				command.avatarUrl(),
+				SupportedLocale.normalize(command.locale()),
+				command.timezone()
+		);
 		return UserResult.from(user);
 	}
 

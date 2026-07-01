@@ -86,7 +86,7 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(jsonPath("$.data.id").value(user.getId().toString()))
 				.andExpect(jsonPath("$.data.bubliId").value("me"))
 				.andExpect(jsonPath("$.data.name").value("정현"))
-				.andExpect(jsonPath("$.data.locale").value("ko"))
+				.andExpect(jsonPath("$.data.locale").value("ko-KR"))
 				.andExpect(jsonPath("$.data.timezone").value("Asia/Seoul"))
 				.andExpect(jsonPath("$.error").value(nullValue()));
 	}

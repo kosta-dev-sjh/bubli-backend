@@ -1,6 +1,7 @@
 package com.bubli.global.security;
 
 import com.bubli.global.error.ErrorCode;
+import com.bubli.global.error.ErrorResponseFactory;
 import com.bubli.global.error.ErrorResponse;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.trace.TraceIdHolder;
@@ -33,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+    private final ErrorResponseFactory errorResponseFactory;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -44,7 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!authorization.startsWith(BEARER_PREFIX)) {
-            writeErrorResponse(response, ErrorCode.AUTH_401_002);
+            writeErrorResponse(request, response, ErrorCode.AUTH_401_002);
             return;
         }
 
@@ -60,19 +62,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (ExpiredJwtException e) {
             SecurityContextHolder.clearContext();
-            writeErrorResponse(response, ErrorCode.AUTH_401_003);
+            writeErrorResponse(request, response, ErrorCode.AUTH_401_003);
             return;
         } catch (JwtException | IllegalArgumentException e) {
             SecurityContextHolder.clearContext();
-            writeErrorResponse(response, ErrorCode.AUTH_401_002);
+            writeErrorResponse(request, response, ErrorCode.AUTH_401_002);
             return;
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {
-        ErrorResponse errorResponse = ErrorResponse.of(errorCode, TraceIdHolder.get());
+    private void writeErrorResponse(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            ErrorCode errorCode
+    ) throws IOException {
+        ErrorResponse errorResponse = errorResponseFactory.of(errorCode, TraceIdHolder.get(), request);
         response.setStatus(errorCode.getHttpStatus().value());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
