@@ -43,6 +43,26 @@ public class ActivityLog {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
+	public static ActivityLog create(
+			UUID userId,
+			UUID roomId,
+			String appName,
+			String windowTitle,
+			Instant startedAt,
+			Instant endedAt,
+			Long durationSeconds
+	) {
+		ActivityLog activityLog = new ActivityLog();
+		activityLog.userId = userId;
+		activityLog.roomId = roomId;
+		activityLog.appName = appName;
+		activityLog.windowTitle = windowTitle;
+		activityLog.startedAt = startedAt;
+		activityLog.endedAt = endedAt;
+		activityLog.durationSeconds = durationSeconds == null ? 0L : durationSeconds;
+		return activityLog;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();

@@ -3,10 +3,14 @@ package com.bubli.agent.service;
 import com.bubli.agent.dispatch.AgentJobQueueMessage;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.activity.dto.ActivityLogResult;
+import com.bubli.activity.service.ActivityPublicService;
 import com.bubli.chat.dto.ChatMessageContextResult;
 import com.bubli.chat.service.ChatMessagePublicService;
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
+import com.bubli.personal.memo.dto.MemoResult;
+import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
@@ -44,6 +48,8 @@ public class AgentJobContextCollector {
 	private final SchedulePublicService schedulePublicService;
 	private final ChatMessagePublicService chatMessagePublicService;
 	private final RoomMemoryPublicService roomMemoryPublicService;
+	private final MemoPublicService memoPublicService;
+	private final ActivityPublicService activityPublicService;
 
 	@Transactional(readOnly = true)
 	public AgentJobContext collect(AgentJobQueueMessage message) {
@@ -132,6 +138,14 @@ public class AgentJobContextCollector {
 						.limit(20)
 						.map(this::scheduleLine)
 						.toList());
+		appendSection(context, "Daily summary memos",
+				memoPublicService.getUpdatedMemosBetween(message.requestedByUserId(), from, to, 20).stream()
+						.map(this::memoLine)
+						.toList());
+		appendSection(context, "Daily summary activity",
+				activityPublicService.getActivityContextBetween(message.requestedByUserId(), from, to, 20).stream()
+						.map(this::activityLine)
+						.toList());
 	}
 
 	private LocalDate summaryDate(Map<String, Object> payload, ZoneId zoneId) {
@@ -217,6 +231,27 @@ public class AgentJobContextCollector {
 				memory.toSequence(),
 				memory.status(),
 				memory.summaryJson()
+		);
+	}
+
+	private String memoLine(MemoResult memo) {
+		return "memoId=%s roomId=%s updatedAt=%s body=%s".formatted(
+				memo.id(),
+				memo.roomId(),
+				memo.updatedAt(),
+				memo.body()
+		);
+	}
+
+	private String activityLine(ActivityLogResult activity) {
+		return "activityId=%s roomId=%s app=%s title=%s durationSeconds=%s startedAt=%s endedAt=%s".formatted(
+				activity.id(),
+				activity.roomId(),
+				activity.appName(),
+				activity.windowTitle(),
+				activity.durationSeconds(),
+				activity.startedAt(),
+				activity.endedAt()
 		);
 	}
 

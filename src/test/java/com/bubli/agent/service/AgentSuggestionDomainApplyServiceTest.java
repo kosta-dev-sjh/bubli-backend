@@ -5,6 +5,10 @@ import com.bubli.agent.entity.GeneratedDocument;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.memory.dto.CreateDailySummaryDraftCommand;
 import com.bubli.memory.service.DailySummaryPublicService;
+import com.bubli.personal.memo.dto.CreateMemoCommand;
+import com.bubli.personal.memo.dto.MemoResult;
+import com.bubli.personal.memo.service.MemoPublicService;
+import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
@@ -33,7 +37,7 @@ class AgentSuggestionDomainApplyServiceTest {
     @Test
     void appliesTaskSuggestionToRoomTask() {
         TaskPublicService taskPublicService = mock(TaskPublicService.class);
-        AgentSuggestionDomainApplyService service = service(taskPublicService, mock(WbsItemPublicService.class), mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class));
+        AgentSuggestionDomainApplyService service = service(taskPublicService, mock(WbsItemPublicService.class), mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
         UUID reviewerId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();
         UUID assigneeId = UUID.randomUUID();
@@ -60,7 +64,7 @@ class AgentSuggestionDomainApplyServiceTest {
     @Test
     void appliesWbsSuggestionToWbsItem() {
         WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
-        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class));
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
         UUID reviewerId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
@@ -84,7 +88,7 @@ class AgentSuggestionDomainApplyServiceTest {
     @Test
     void appliesScheduleSuggestionToSchedule() {
         SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
-        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), mock(WbsItemPublicService.class), schedulePublicService, mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class));
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), mock(WbsItemPublicService.class), schedulePublicService, mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
         UUID reviewerId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();
         Instant startsAt = Instant.parse("2026-07-01T01:00:00Z");
@@ -114,7 +118,8 @@ class AgentSuggestionDomainApplyServiceTest {
                 mock(WbsItemPublicService.class),
                 mock(SchedulePublicService.class),
                 dailySummaryPublicService,
-                mock(GeneratedDocumentService.class)
+                mock(GeneratedDocumentService.class),
+                mock(MemoPublicService.class)
         );
         UUID reviewerId = UUID.randomUUID();
         AgentSuggestion suggestion = suggestion(null, AgentSuggestionType.DAILY_SUMMARY, Map.of(
@@ -155,7 +160,8 @@ class AgentSuggestionDomainApplyServiceTest {
                 wbsItemPublicService,
                 schedulePublicService,
                 dailySummaryPublicService,
-                generatedDocumentService
+                generatedDocumentService,
+                mock(MemoPublicService.class)
         );
         AgentSuggestion suggestion = suggestion(UUID.randomUUID(), AgentSuggestionType.DOCUMENT_DRAFT, Map.of(
                 "title", "문서 초안",
@@ -182,13 +188,58 @@ class AgentSuggestionDomainApplyServiceTest {
     }
 
     @Test
+    void appliesMemoSuggestionToMemo() {
+        MemoPublicService memoPublicService = mock(MemoPublicService.class);
+        AgentSuggestionDomainApplyService service = service(
+                mock(TaskPublicService.class),
+                mock(WbsItemPublicService.class),
+                mock(SchedulePublicService.class),
+                mock(DailySummaryPublicService.class),
+                mock(GeneratedDocumentService.class),
+                memoPublicService
+        );
+        UUID reviewerId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID memoId = UUID.randomUUID();
+        org.mockito.Mockito.when(memoPublicService.createRoomMemo(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.eq(roomId),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new MemoResult(
+                memoId,
+                reviewerId,
+                roomId,
+                "회의 후 확인할 내용",
+                MemoStatus.ACTIVE,
+                Instant.now(),
+                Instant.now()
+        ));
+        AgentSuggestion suggestion = suggestion(roomId, AgentSuggestionType.MEMO, Map.of(
+                "body", "회의 후 확인할 내용"
+        ));
+
+        service.applyApprovedSuggestion(reviewerId, suggestion);
+
+        ArgumentCaptor<CreateMemoCommand> commandCaptor = ArgumentCaptor.forClass(CreateMemoCommand.class);
+        verify(memoPublicService).createRoomMemo(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.eq(roomId),
+                commandCaptor.capture()
+        );
+        assertThat(commandCaptor.getValue().body()).isEqualTo("회의 후 확인할 내용");
+        assertThat(appliedResult(suggestion).get("targetType")).isEqualTo("MEMO");
+        assertThat(suggestion.getPayloadJson().toString()).contains(memoId.toString());
+    }
+
+    @Test
     void appliesPreservedSuggestionTypesWithExplicitTargetTypes() {
         AgentSuggestionDomainApplyService service = service(
                 mock(TaskPublicService.class),
                 mock(WbsItemPublicService.class),
                 mock(SchedulePublicService.class),
                 mock(DailySummaryPublicService.class),
-                mock(GeneratedDocumentService.class)
+                mock(GeneratedDocumentService.class),
+                mock(MemoPublicService.class)
         );
         UUID reviewerId = UUID.randomUUID();
 
@@ -197,8 +248,7 @@ class AgentSuggestionDomainApplyServiceTest {
                 Map.entry(AgentSuggestionType.QUESTION, "CONFIRMATION_QUESTION"),
                 Map.entry(AgentSuggestionType.REVIEW_ITEM, "CONFIRMATION_REVIEW_ITEM"),
                 Map.entry(AgentSuggestionType.CONTRACT_FIELD, "CONTRACT_FIELD_REFERENCE"),
-                Map.entry(AgentSuggestionType.CONTRACT_REVIEW, "CONTRACT_REVIEW_NOTE"),
-                Map.entry(AgentSuggestionType.MEMO, "CONFIRMED_MEMO")
+                Map.entry(AgentSuggestionType.CONTRACT_REVIEW, "CONTRACT_REVIEW_NOTE")
         ).forEach(entry -> {
             AgentSuggestion suggestion = suggestion(UUID.randomUUID(), entry.getKey(), Map.of(
                     "title", entry.getKey().name(),
@@ -219,7 +269,8 @@ class AgentSuggestionDomainApplyServiceTest {
             WbsItemPublicService wbsItemPublicService,
             SchedulePublicService schedulePublicService,
             DailySummaryPublicService dailySummaryPublicService,
-            GeneratedDocumentService generatedDocumentService
+            GeneratedDocumentService generatedDocumentService,
+            MemoPublicService memoPublicService
     ) {
         return new AgentSuggestionDomainApplyService(
                 taskPublicService,
@@ -227,6 +278,7 @@ class AgentSuggestionDomainApplyServiceTest {
                 schedulePublicService,
                 dailySummaryPublicService,
                 generatedDocumentService,
+                memoPublicService,
                 new ObjectMapper()
         );
     }
