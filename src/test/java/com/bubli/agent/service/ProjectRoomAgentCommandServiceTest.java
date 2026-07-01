@@ -12,6 +12,7 @@ import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.memory.type.SummaryStatus;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -132,6 +133,46 @@ class ProjectRoomAgentCommandServiceTest {
         verify(eventPublicService, never()).recordAgentSuggestionsCreated(any(), any(), any(), any());
     }
 
+    @Test
+    void fallbackAnswerUsesResolvedUserLocale() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
+        ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+        RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+        ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
+
+        when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+                .thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+        when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+                .thenReturn(new RoomMemorySummaryContextResult(
+                        UUID.randomUUID(),
+                        10L,
+                        10L,
+                        "{}",
+                        SummaryStatus.DRAFT,
+                        Instant.now()
+                ));
+
+        var response = service(
+                chatMessagePublicService,
+                memoryPublicService,
+                suggestionCommandService,
+                eventPublicService,
+                new ObjectMapper(),
+                "en-US"
+        ).execute(
+                userId,
+                roomId,
+                "answer this",
+                AgentCommandMode.ANSWER,
+                List.of()
+        );
+
+        assertThat(response.message().body().get("text").asText())
+                .contains("I checked the currently collected project context.");
+    }
+
     @SuppressWarnings("unchecked")
     private ProjectRoomAgentCommandService service(
             ChatMessagePublicService chatMessagePublicService,
@@ -140,10 +181,31 @@ class ProjectRoomAgentCommandServiceTest {
             ProjectRoomEventPublicService eventPublicService,
             ObjectMapper objectMapper
     ) {
+        return service(
+                chatMessagePublicService,
+                memoryPublicService,
+                suggestionCommandService,
+                eventPublicService,
+                objectMapper,
+                "ko-KR"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private ProjectRoomAgentCommandService service(
+            ChatMessagePublicService chatMessagePublicService,
+            RoomMemoryPublicService memoryPublicService,
+            AgentSuggestionCommandService suggestionCommandService,
+            ProjectRoomEventPublicService eventPublicService,
+            ObjectMapper objectMapper,
+            String locale
+    ) {
         AgentJobContextCollector contextCollector = mock(AgentJobContextCollector.class);
         when(contextCollector.collect(any())).thenReturn(new AgentJobContext("context", 7));
         ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
         when(chatModelProvider.getIfAvailable()).thenReturn(null);
+        UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+        when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
         return new ProjectRoomAgentCommandService(
                 mock(ProjectMembershipPublicService.class),
                 contextCollector,
@@ -151,6 +213,7 @@ class ProjectRoomAgentCommandServiceTest {
                 memoryPublicService,
                 suggestionCommandService,
                 eventPublicService,
+                userLocalePublicService,
                 chatModelProvider,
                 mock(ObjectProvider.class),
                 objectMapper

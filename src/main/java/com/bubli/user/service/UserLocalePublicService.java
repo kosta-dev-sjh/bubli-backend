@@ -1,10 +1,11 @@
 package com.bubli.user.service;
 
+import com.bubli.global.locale.LocaleResolverPort;
 import com.bubli.global.security.AuthUser;
 
 import java.util.UUID;
 
-public interface UserLocalePublicService {
+public interface UserLocalePublicService extends LocaleResolverPort {
 
 	String resolveLocaleCode(AuthUser authUser, String acceptLanguageHeader);
 

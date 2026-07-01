@@ -1,11 +1,9 @@
 package com.bubli.global.error;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-@AllArgsConstructor
 public enum ErrorCode {
 
     // COMMON
@@ -112,5 +110,17 @@ public enum ErrorCode {
 
     private final HttpStatus httpStatus;
     private final String code;
-    private final String message;
+    private final String messageKey;
+    private final String defaultMessage;
+
+    ErrorCode(HttpStatus httpStatus, String code, String defaultMessage) {
+        this.httpStatus = httpStatus;
+        this.code = code;
+        this.messageKey = "error." + code;
+        this.defaultMessage = defaultMessage;
+    }
+
+    public String getMessage() {
+        return defaultMessage;
+    }
 }

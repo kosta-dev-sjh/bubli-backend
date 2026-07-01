@@ -5,92 +5,114 @@ import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AgentJobExecutionResultRecorder {
 
-	static final String SUCCEEDED_EVENT_TYPE = "SUCCEEDED";
-	static final String FAILED_EVENT_TYPE = "FAILED";
-	static final String SUCCEEDED_EVENT_MESSAGE = "에이전트 작업 실행이 완료되었습니다.";
-	static final String DEFAULT_FAILURE_MESSAGE = "에이전트 작업 실행이 실패했습니다.";
-	static final String SUCCEEDED_NOTIFICATION_TITLE = "AI 작업이 완료되었습니다.";
-	static final String FAILED_NOTIFICATION_TITLE = "AI 작업이 실패했습니다.";
+    static final String SUCCEEDED_EVENT_TYPE = "SUCCEEDED";
+    static final String FAILED_EVENT_TYPE = "FAILED";
+    static final String SUCCEEDED_EVENT_MESSAGE = "에이전트 작업 실행이 완료되었습니다.";
+    static final String DEFAULT_FAILURE_MESSAGE = "에이전트 작업 실행이 실패했습니다.";
+    static final String SUCCEEDED_NOTIFICATION_TITLE = "AI 작업이 완료되었습니다.";
+    static final String FAILED_NOTIFICATION_TITLE = "AI 작업이 실패했습니다.";
 
-	private final AgentJobRepository agentJobRepository;
-	private final AgentJobEventRepository agentJobEventRepository;
-	private final NotificationPublicService notificationPublicService;
+    private final AgentJobRepository agentJobRepository;
+    private final AgentJobEventRepository agentJobEventRepository;
+    private final NotificationPublicService notificationPublicService;
+    private final MessageSource messageSource;
+    private final UserLocalePublicService userLocalePublicService;
 
-	@Transactional
-	public boolean recordSucceeded(UUID jobId) {
-		return agentJobRepository.findById(jobId)
-				.filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
-				.map(this::markSucceeded)
-				.orElse(false);
-	}
+    @Transactional
+    public boolean recordSucceeded(UUID jobId) {
+        return agentJobRepository.findById(jobId)
+                .filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
+                .map(this::markSucceeded)
+                .orElse(false);
+    }
 
-	@Transactional
-	public boolean recordFailed(UUID jobId, String errorCode, String errorMessage) {
-		return agentJobRepository.findById(jobId)
-				.filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
-				.map(agentJob -> markFailed(agentJob, errorCode, errorMessage))
-				.orElse(false);
-	}
+    @Transactional
+    public boolean recordFailed(UUID jobId, String errorCode, String errorMessage) {
+        return agentJobRepository.findById(jobId)
+                .filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
+                .map(agentJob -> markFailed(agentJob, errorCode, errorMessage))
+                .orElse(false);
+    }
 
-	private boolean markSucceeded(AgentJob agentJob) {
-		agentJob.markSucceeded();
-		agentJobEventRepository.save(AgentJobEvent.create(
-				agentJob.getId(),
-				SUCCEEDED_EVENT_TYPE,
-				SUCCEEDED_EVENT_MESSAGE
-		));
-		notificationPublicService.create(
-				agentJob.getRequestedByUserId(),
-				NotificationSourceType.AGENT,
-				agentJob.getId(),
-				SUCCEEDED_NOTIFICATION_TITLE,
-				notificationBody(agentJob, SUCCEEDED_EVENT_MESSAGE)
-		);
-		return true;
-	}
+    private boolean markSucceeded(AgentJob agentJob) {
+        Locale locale = locale(agentJob.getRequestedByUserId());
+        String message = message("agent.job.succeeded.event", locale, SUCCEEDED_EVENT_MESSAGE);
+        agentJob.markSucceeded();
+        agentJobEventRepository.save(AgentJobEvent.create(
+                agentJob.getId(),
+                SUCCEEDED_EVENT_TYPE,
+                message
+        ));
+        notificationPublicService.create(
+                agentJob.getRequestedByUserId(),
+                NotificationSourceType.AGENT,
+                agentJob.getId(),
+                message("agent.job.succeeded.notification.title", locale, SUCCEEDED_NOTIFICATION_TITLE),
+                notificationBody(agentJob, message, locale)
+        );
+        return true;
+    }
 
-	private boolean markFailed(AgentJob agentJob, String errorCode, String errorMessage) {
-		String message = failureMessage(errorMessage);
-		agentJob.markFailed(errorCode, message);
-		agentJobEventRepository.save(AgentJobEvent.create(
-				agentJob.getId(),
-				FAILED_EVENT_TYPE,
-				message
-		));
-		notificationPublicService.create(
-				agentJob.getRequestedByUserId(),
-				NotificationSourceType.AGENT,
-				agentJob.getId(),
-				FAILED_NOTIFICATION_TITLE,
-				notificationBody(agentJob, message)
-		);
-		return true;
-	}
+    private boolean markFailed(AgentJob agentJob, String errorCode, String errorMessage) {
+        Locale locale = locale(agentJob.getRequestedByUserId());
+        String message = failureMessage(errorMessage, locale);
+        agentJob.markFailed(errorCode, message);
+        agentJobEventRepository.save(AgentJobEvent.create(
+                agentJob.getId(),
+                FAILED_EVENT_TYPE,
+                message
+        ));
+        notificationPublicService.create(
+                agentJob.getRequestedByUserId(),
+                NotificationSourceType.AGENT,
+                agentJob.getId(),
+                message("agent.job.failed.notification.title", locale, FAILED_NOTIFICATION_TITLE),
+                notificationBody(agentJob, message, locale)
+        );
+        return true;
+    }
 
-	private String failureMessage(String errorMessage) {
-		if (errorMessage == null || errorMessage.isBlank()) {
-			return DEFAULT_FAILURE_MESSAGE;
-		}
-		return errorMessage;
-	}
+    private String failureMessage(String errorMessage, Locale locale) {
+        if (errorMessage == null || errorMessage.isBlank()) {
+            return message("agent.job.failed.event", locale, DEFAULT_FAILURE_MESSAGE);
+        }
+        return errorMessage;
+    }
 
-	private String notificationBody(AgentJob agentJob, String message) {
-		return "jobType=%s, jobId=%s, message=%s".formatted(
-				agentJob.getJobType(),
-				agentJob.getId(),
-				message
-		);
-	}
+    private String notificationBody(AgentJob agentJob, String message, Locale locale) {
+        return messageSource.getMessage(
+                "agent.job.notification.body",
+                new Object[]{agentJob.getJobType(), agentJob.getId(), message},
+                "jobType=%s, jobId=%s, message=%s".formatted(
+                        agentJob.getJobType(),
+                        agentJob.getId(),
+                        message
+                ),
+                locale
+        );
+    }
+
+    private Locale locale(UUID userId) {
+        return SupportedLocale.resolve(userLocalePublicService.resolveLocaleCode(userId, null)).toJavaLocale();
+    }
+
+    private String message(String key, Locale locale, String defaultMessage) {
+        return messageSource.getMessage(key, null, defaultMessage, locale);
+    }
 }
