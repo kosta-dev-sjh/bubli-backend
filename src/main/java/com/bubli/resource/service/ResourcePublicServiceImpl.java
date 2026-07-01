@@ -1,5 +1,6 @@
 package com.bubli.resource.service;
 
+import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import lombok.RequiredArgsConstructor;
@@ -31,5 +32,11 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 	@Transactional(readOnly = true)
 	public List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
 		return resourceService.getRecentRoomSummaries(userId, roomId, limit);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit) {
+		return resourceService.getRecentAnalysisSummaries(userId, limit);
 	}
 }

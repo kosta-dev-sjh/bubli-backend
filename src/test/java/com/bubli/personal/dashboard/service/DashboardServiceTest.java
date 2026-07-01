@@ -6,6 +6,8 @@ import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.timer.service.TimeLogPublicService;
+import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
 import org.junit.jupiter.api.Test;
@@ -45,11 +47,14 @@ class DashboardServiceTest {
 	@Mock
 	MemoPublicService memoPublicService;
 
+	@Mock
+	ResourcePublicService resourcePublicService;
+
 	@InjectMocks
 	DashboardService dashboardService;
 
 	@Test
-	void getWorkDashboardIncludesMemoSummary() {
+	void getWorkDashboardIncludesMemoAndResourceAnalysisSummaries() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		given(taskPublicService.getDueBetweenTasks(eq(userId), any(), any())).willReturn(List.of());
@@ -61,12 +66,23 @@ class DashboardServiceTest {
 				memo(userId, null, "개인 메모"),
 				memo(userId, roomId, "프로젝트룸 메모")
 		));
+		given(resourcePublicService.getRecentAnalysisSummaries(userId, 5)).willReturn(List.of(
+				new ResourceAnalysisSummaryResult(
+						UUID.randomUUID(),
+						"요구사항.pdf",
+						"핵심 요구사항 분석 완료",
+						Instant.parse("2026-07-01T00:00:00Z")
+				)
+		));
 
 		var response = dashboardService.getWorkDashboard(userId);
 
 		assertThat(response.memoSummary()).containsExactly(
 				"개인: 개인 메모",
 				"프로젝트룸: 프로젝트룸 메모"
+		);
+		assertThat(response.recentResourceAnalysisSummary()).containsExactly(
+				"자료: 요구사항.pdf - 핵심 요구사항 분석 완료"
 		);
 	}
 

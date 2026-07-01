@@ -13,6 +13,7 @@ public record DashboardWorkResponse(
 		long unreadNotificationCount,
 		TimeLogResult runningTimer,
 		List<String> agentSuggestionSummary,
-		List<String> memoSummary
+		List<String> memoSummary,
+		List<String> recentResourceAnalysisSummary
 ) {
 }

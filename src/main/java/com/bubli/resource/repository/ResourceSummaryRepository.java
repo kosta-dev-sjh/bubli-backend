@@ -1,6 +1,7 @@
 package com.bubli.resource.repository;
 
 import com.bubli.resource.entity.ResourceSummary;
+import com.bubli.resource.type.AnalysisStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,22 @@ public interface ResourceSummaryRepository extends JpaRepository<ResourceSummary
     Page<ResourceSummary> findRecentRoomSummaries(
             @Param("roomId") UUID roomId,
             @Param("visibility") ResourceVisibility visibility,
+            Pageable pageable
+    );
+
+    @Query("""
+            select summary
+            from ResourceSummary summary
+            join Resource resource on resource.id = summary.resourceId
+            where resource.ownerId = :ownerId
+              and resource.deletedAt is null
+              and summary.status = :status
+              and summary.summaryJson is not null
+            order by summary.updatedAt desc, summary.id desc
+            """)
+    Page<ResourceSummary> findRecentOwnerAnalyzedSummaries(
+            @Param("ownerId") UUID ownerId,
+            @Param("status") AnalysisStatus status,
             Pageable pageable
     );
 

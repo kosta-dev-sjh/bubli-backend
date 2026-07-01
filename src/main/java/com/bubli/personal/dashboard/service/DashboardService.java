@@ -7,6 +7,8 @@ import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.timer.dto.TimeLogResult;
 import com.bubli.personal.timer.service.TimeLogPublicService;
+import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,8 @@ public class DashboardService {
 	private static final int DASHBOARD_MEMO_LIMIT = 5;
 	private static final int DASHBOARD_MEMO_LOOKBACK_DAYS = 30;
 	private static final int MEMO_SUMMARY_BODY_LIMIT = 80;
+	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT = 5;
+	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT_LENGTH = 100;
 
 	private final TaskPublicService taskPublicService;
 	private final SchedulePublicService schedulePublicService;
@@ -31,6 +35,7 @@ public class DashboardService {
 	private final TimeLogPublicService timeLogPublicService;
 	private final AgentSuggestionPublicService agentSuggestionPublicService;
 	private final MemoPublicService memoPublicService;
+	private final ResourcePublicService resourcePublicService;
 
 	@Transactional(readOnly = true)
 	public DashboardWorkResponse getWorkDashboard(UUID userId) {
@@ -56,6 +61,10 @@ public class DashboardService {
 						)
 						.stream()
 						.map(this::memoSummaryLine)
+						.toList(),
+				resourcePublicService.getRecentAnalysisSummaries(userId, RESOURCE_ANALYSIS_SUMMARY_LIMIT)
+						.stream()
+						.map(this::resourceAnalysisSummaryLine)
 						.toList()
 		);
 	}
@@ -70,5 +79,12 @@ public class DashboardService {
 			return text;
 		}
 		return text.substring(0, limit) + "...";
+	}
+
+	private String resourceAnalysisSummaryLine(ResourceAnalysisSummaryResult summary) {
+		return "자료: %s - %s".formatted(
+				summary.title(),
+				truncate(summary.summary(), RESOURCE_ANALYSIS_SUMMARY_LIMIT_LENGTH)
+		);
 	}
 }
