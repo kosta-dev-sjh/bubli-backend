@@ -2,8 +2,13 @@ package com.bubli.agent.service;
 
 import com.bubli.agent.dispatch.AgentJobQueueMessage;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.activity.dto.ActivityLogResult;
+import com.bubli.activity.service.ActivityPublicService;
 import com.bubli.chat.service.ChatMessagePublicService;
 import com.bubli.memory.service.RoomMemoryPublicService;
+import com.bubli.personal.memo.dto.MemoResult;
+import com.bubli.personal.memo.service.MemoPublicService;
+import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.work.schedule.dto.ScheduleResult;
@@ -35,6 +40,8 @@ class AgentJobContextCollectorTest {
         UUID userId = UUID.randomUUID();
         TaskPublicService taskPublicService = mock(TaskPublicService.class);
         SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        MemoPublicService memoPublicService = mock(MemoPublicService.class);
+        ActivityPublicService activityPublicService = mock(ActivityPublicService.class);
         AgentJobContextCollector collector = new AgentJobContextCollector(
                 mock(ProjectMembershipPublicService.class),
                 mock(ResourcePublicService.class),
@@ -42,7 +49,9 @@ class AgentJobContextCollectorTest {
                 mock(WbsItemPublicService.class),
                 schedulePublicService,
                 mock(ChatMessagePublicService.class),
-                mock(RoomMemoryPublicService.class)
+                mock(RoomMemoryPublicService.class),
+                memoPublicService,
+                activityPublicService
         );
         when(taskPublicService.getDueBetweenTasks(eq(userId), any(), any())).thenReturn(List.of(
                 task("완료 작업", TaskStatus.DONE),
@@ -50,6 +59,12 @@ class AgentJobContextCollectorTest {
         ));
         when(schedulePublicService.getSchedulesBetween(eq(userId), any(), any())).thenReturn(List.of(
                 schedule("오늘 회의")
+        ));
+        when(memoPublicService.getUpdatedMemosBetween(eq(userId), any(), any(), eq(20))).thenReturn(List.of(
+                memo("클라이언트 피드백 확인")
+        ));
+        when(activityPublicService.getActivityContextBetween(eq(userId), any(), any(), eq(20))).thenReturn(List.of(
+                activity("IntelliJ IDEA", "Bubli Backend", 1800L)
         ));
 
         var context = collector.collect(new AgentJobQueueMessage(
@@ -69,7 +84,12 @@ class AgentJobContextCollectorTest {
                 "[Daily summary remaining tasks]",
                 "잔여 작업",
                 "[Daily summary today schedules]",
-                "오늘 회의"
+                "오늘 회의",
+                "[Daily summary memos]",
+                "클라이언트 피드백 확인",
+                "[Daily summary activity]",
+                "IntelliJ IDEA",
+                "Bubli Backend"
         );
         ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
@@ -113,6 +133,34 @@ class AgentJobContextCollectorTest {
                 null,
                 startsAt,
                 startsAt
+        );
+    }
+
+    private MemoResult memo(String body) {
+        Instant now = Instant.parse("2026-07-01T04:00:00Z");
+        return new MemoResult(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                body,
+                MemoStatus.ACTIVE,
+                now,
+                now
+        );
+    }
+
+    private ActivityLogResult activity(String appName, String windowTitle, Long durationSeconds) {
+        Instant now = Instant.parse("2026-07-01T05:00:00Z");
+        return new ActivityLogResult(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                appName,
+                windowTitle,
+                now,
+                now.plusSeconds(durationSeconds),
+                durationSeconds,
+                now
         );
     }
 }

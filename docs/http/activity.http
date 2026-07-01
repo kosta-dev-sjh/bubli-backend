@@ -1,0 +1,25 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-me
+@activityId = replace-me
+@roomId = replace-me
+
+### 현재 앱 활동 기록
+POST {{baseUrl}}/api/activity/current-app
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}",
+  "appName": "IntelliJ IDEA",
+  "windowTitle": "Bubli Backend",
+  "startedAt": "2026-07-01T01:00:00Z",
+  "endedAt": "2026-07-01T01:30:00Z"
+}
+
+### 오늘 활동 기록 조회
+GET {{baseUrl}}/api/activity/today
+Authorization: Bearer {{accessToken}}
+
+### 활동 기록 삭제
+DELETE {{baseUrl}}/api/activity/{{activityId}}
+Authorization: Bearer {{accessToken}}
