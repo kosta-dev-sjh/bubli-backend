@@ -70,6 +70,28 @@ public class AgentSuggestionController {
         )));
     }
 
+    @GetMapping("/api/project-rooms/{roomId}/agent/confirmed-requirements")
+    public ResponseEntity<ApiResponse<List<AgentSuggestionResponse>>> findRoomConfirmedRequirements(
+            @PathVariable UUID roomId,
+            @CurrentUser AuthUser currentUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(agentSuggestionQueryService.findRoomConfirmedRequirements(
+                currentUser.userId(),
+                roomId
+        )));
+    }
+
+    @GetMapping("/api/project-rooms/{roomId}/agent/contract-references")
+    public ResponseEntity<ApiResponse<List<AgentSuggestionResponse>>> findRoomContractReferences(
+            @PathVariable UUID roomId,
+            @CurrentUser AuthUser currentUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(agentSuggestionQueryService.findRoomContractReferences(
+                currentUser.userId(),
+                roomId
+        )));
+    }
+
     @PatchMapping("/api/agent/suggestions/{suggestionId}")
     public ResponseEntity<ApiResponse<AgentSuggestionResponse>> review(
             @PathVariable UUID suggestionId,
