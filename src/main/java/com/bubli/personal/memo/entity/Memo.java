@@ -40,6 +40,31 @@ public class Memo {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
+	public static Memo createPersonal(UUID authorUserId, String body) {
+		Memo memo = new Memo();
+		memo.authorUserId = authorUserId;
+		memo.body = body;
+		return memo;
+	}
+
+	public static Memo createRoom(UUID authorUserId, UUID roomId, String body) {
+		Memo memo = new Memo();
+		memo.authorUserId = authorUserId;
+		memo.roomId = roomId;
+		memo.body = body;
+		return memo;
+	}
+
+	public void update(String body) {
+		if (body != null) {
+			this.body = body;
+		}
+	}
+
+	public void delete() {
+		this.status = MemoStatus.DELETED;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

@@ -50,7 +50,9 @@ public enum ErrorCode {
 
     // PERSONAL
     PERSONAL_400_001(HttpStatus.BAD_REQUEST, "PERSONAL_400_001", "타이머 상태가 올바르지 않습니다."),
+    PERSONAL_403_001(HttpStatus.FORBIDDEN, "PERSONAL_403_001", "개인 기능 접근 권한이 없습니다."),
     PERSONAL_404_001(HttpStatus.NOT_FOUND, "PERSONAL_404_001", "타이머 기록을 찾을 수 없습니다."),
+    PERSONAL_404_002(HttpStatus.NOT_FOUND, "PERSONAL_404_002", "메모를 찾을 수 없습니다."),
     PERSONAL_409_001(HttpStatus.CONFLICT, "PERSONAL_409_001", "이미 실행 중인 타이머가 있습니다."),
 
     // USER
