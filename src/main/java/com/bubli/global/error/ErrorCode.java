@@ -111,6 +111,7 @@ public enum ErrorCode {
     VOICE_409_001(HttpStatus.CONFLICT, "VOICE_409_001", "이미 종료된 보이스챗 방입니다."),
     VOICE_409_002(HttpStatus.CONFLICT, "VOICE_409_002", "이미 활성화된 보이스챗 방이 있습니다."),
 
+    // WIDGET
     WIDGET_400_001(HttpStatus.BAD_REQUEST, "WIDGET_400_001", "유효하지 않은 위젯 값입니다."),
     WIDGET_404_001(HttpStatus.NOT_FOUND, "WIDGET_404_001", "위젯 항목을 찾을 수 없습니다."),
     ;
