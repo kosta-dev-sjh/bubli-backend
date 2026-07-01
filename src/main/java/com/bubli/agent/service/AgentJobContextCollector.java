@@ -3,6 +3,8 @@ package com.bubli.agent.service;
 import com.bubli.agent.dispatch.AgentJobQueueMessage;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.activity.dto.ActivityLogResult;
+import com.bubli.activity.service.ActivityPublicService;
 import com.bubli.chat.dto.ChatMessageContextResult;
 import com.bubli.chat.service.ChatMessagePublicService;
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
@@ -47,6 +49,7 @@ public class AgentJobContextCollector {
 	private final ChatMessagePublicService chatMessagePublicService;
 	private final RoomMemoryPublicService roomMemoryPublicService;
 	private final MemoPublicService memoPublicService;
+	private final ActivityPublicService activityPublicService;
 
 	@Transactional(readOnly = true)
 	public AgentJobContext collect(AgentJobQueueMessage message) {
@@ -138,6 +141,10 @@ public class AgentJobContextCollector {
 		appendSection(context, "Daily summary memos",
 				memoPublicService.getUpdatedMemosBetween(message.requestedByUserId(), from, to, 20).stream()
 						.map(this::memoLine)
+						.toList());
+		appendSection(context, "Daily summary activity",
+				activityPublicService.getActivityContextBetween(message.requestedByUserId(), from, to, 20).stream()
+						.map(this::activityLine)
 						.toList());
 	}
 
@@ -233,6 +240,18 @@ public class AgentJobContextCollector {
 				memo.roomId(),
 				memo.updatedAt(),
 				memo.body()
+		);
+	}
+
+	private String activityLine(ActivityLogResult activity) {
+		return "activityId=%s roomId=%s app=%s title=%s durationSeconds=%s startedAt=%s endedAt=%s".formatted(
+				activity.id(),
+				activity.roomId(),
+				activity.appName(),
+				activity.windowTitle(),
+				activity.durationSeconds(),
+				activity.startedAt(),
+				activity.endedAt()
 		);
 	}
 

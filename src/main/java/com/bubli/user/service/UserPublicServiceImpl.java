@@ -5,7 +5,10 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.entity.UserPrivacyConsentId;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.repository.UserPrivacyConsentRepository;
+import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,7 @@ import java.util.stream.Collectors;
 public class UserPublicServiceImpl implements UserPublicService {
 
 	private final UserRepository userRepository;
+	private final UserPrivacyConsentRepository userPrivacyConsentRepository;
 	private final BubliIdGenerator bubliIdGenerator;
 
 	@Override
@@ -61,6 +65,14 @@ public class UserPublicServiceImpl implements UserPublicService {
 		if (!userRepository.existsById(userId)) {
 			throw new BusinessException(ErrorCode.USER_404_001);
 		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean isPrivacyConsentEnabled(UUID userId, ConsentType consentType) {
+		return userPrivacyConsentRepository.findById(UserPrivacyConsentId.of(userId, consentType))
+				.map(consent -> consent.isEnabled())
+				.orElse(false);
 	}
 
 	private UserResult toPublicResult(User user) {

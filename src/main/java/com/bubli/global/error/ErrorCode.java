@@ -102,6 +102,11 @@ public enum ErrorCode {
     NOTIFICATION_403_001(HttpStatus.FORBIDDEN, "NOTIFICATION_403_001", "알림 접근 권한이 없습니다."),
     NOTIFICATION_404_001(HttpStatus.NOT_FOUND, "NOTIFICATION_404_001", "알림을 찾을 수 없습니다."),
 
+    // ACTIVITY
+    ACTIVITY_400_001(HttpStatus.BAD_REQUEST, "ACTIVITY_400_001", "활동 기록 요청 값이 올바르지 않습니다."),
+    ACTIVITY_403_001(HttpStatus.FORBIDDEN, "ACTIVITY_403_001", "활동 감지 동의가 필요합니다."),
+    ACTIVITY_404_001(HttpStatus.NOT_FOUND, "ACTIVITY_404_001", "활동 기록을 찾을 수 없습니다."),
+
     // VOICE
     VOICE_404_001(HttpStatus.NOT_FOUND, "VOICE_404_001", "보이스챗 방을 찾을 수 없습니다."),
     VOICE_403_001(HttpStatus.FORBIDDEN, "VOICE_403_001", "보이스챗 방 접근 권한이 없습니다."),
