@@ -54,15 +54,16 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
     }
 
     private AgentJobExecutionOutcome generateSuggestion(AgentJobQueueMessage message) {
+        String locale = locale(message);
         AgentSuggestionType suggestionType = suggestionType(message.jobType());
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("title", title(message.jobType()));
-        payload.put("description", description(message.jobType()));
+        payload.put("title", title(message.jobType(), locale));
+        payload.put("description", description(message.jobType(), locale));
         payload.put("jobType", message.jobType().name());
         payload.put("roomId", value(message.roomId()));
         payload.put("resourceId", value(message.resourceId()));
         payload.put("source", MODEL_NAME);
-        payload.putAll(enrichPayload(message));
+        payload.putAll(enrichPayload(message, locale));
 
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("jobId", value(message.jobId()));
@@ -94,33 +95,23 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
         };
     }
 
-    private String title(AgentJobType jobType) {
-        return switch (jobType) {
-            case GENERATE_REQUIREMENTS -> "요구사항 후보";
-            case GENERATE_TASKS -> "작업 후보";
-            case GENERATE_WBS -> "WBS 후보";
-            case GENERATE_QUESTIONS -> "확인 질문 후보";
-            case REVIEW_CONTRACT_DOCUMENTS -> "문서 검토 항목 후보";
-            case DRAFT_DOCUMENT -> "문서 초안 후보";
-            case DAILY_SUMMARY -> "일일 요약 후보";
-            case ANALYZE_RESOURCE -> "자료 분석 결과";
+    private String title(AgentJobType jobType, String locale) {
+        return switch (locale) {
+            case "en-US" -> englishTitle(jobType);
+            case "ja-JP" -> japaneseTitle(jobType);
+            default -> koreanTitle(jobType);
         };
     }
 
-    private String description(AgentJobType jobType) {
-        return switch (jobType) {
-            case GENERATE_REQUIREMENTS -> "프로젝트룸 자료를 바탕으로 요구사항 후보를 생성했습니다.";
-            case GENERATE_TASKS -> "프로젝트룸 자료를 바탕으로 작업 후보를 생성했습니다.";
-            case GENERATE_WBS -> "프로젝트룸 자료를 바탕으로 WBS 후보를 생성했습니다.";
-            case GENERATE_QUESTIONS -> "추가 확인이 필요한 질문 후보를 생성했습니다.";
-            case REVIEW_CONTRACT_DOCUMENTS -> "검토가 필요한 문서 항목 후보를 생성했습니다.";
-            case DRAFT_DOCUMENT -> "문서 초안 후보를 생성했습니다.";
-            case DAILY_SUMMARY -> "일일 요약 후보를 생성했습니다.";
-            case ANALYZE_RESOURCE -> "자료 분석을 완료했습니다.";
+    private String description(AgentJobType jobType, String locale) {
+        return switch (locale) {
+            case "en-US" -> "Created a %s.".formatted(englishTitle(jobType).toLowerCase());
+            case "ja-JP" -> "%sを作成しました。".formatted(japaneseTitle(jobType));
+            default -> "%s를 생성했습니다.".formatted(koreanTitle(jobType));
         };
     }
 
-    private Map<String, Object> enrichPayload(AgentJobQueueMessage message) {
+    private Map<String, Object> enrichPayload(AgentJobQueueMessage message, String locale) {
         Map<String, Object> payload = new LinkedHashMap<>();
         Map<String, Object> requestPayload = message.requestPayload() == null ? Map.of() : message.requestPayload();
         if (message.jobType() == AgentJobType.DAILY_SUMMARY) {
@@ -138,7 +129,7 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
                     "todaySchedules", List.of(),
                     "tomorrowFocus", List.of(),
                     "risks", List.of(),
-                    "evidence", List.of("Local deterministic daily summary.")
+                    "evidence", List.of(localEvidence(locale))
             )));
             return payload;
         }
@@ -146,9 +137,64 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             payload.put("documentType", defaultText(requestPayload.get("documentType"), "GENERAL"));
             payload.put("instruction", defaultText(requestPayload.get("instruction"), ""));
             payload.put("sourceResourceIds", requestPayload.getOrDefault("sourceResourceIds", List.of()));
-            payload.put("contentMarkdown", "# Draft Document\n\nLocal deterministic draft.");
+            payload.put("contentMarkdown", draftContent(locale));
         }
         return payload;
+    }
+
+    private String koreanTitle(AgentJobType jobType) {
+        return switch (jobType) {
+            case GENERATE_REQUIREMENTS -> "요구사항 후보";
+            case GENERATE_TASKS -> "작업 후보";
+            case GENERATE_WBS -> "WBS 후보";
+            case GENERATE_QUESTIONS -> "확인 질문 후보";
+            case REVIEW_CONTRACT_DOCUMENTS -> "문서 검토 항목 후보";
+            case DRAFT_DOCUMENT -> "문서 초안 후보";
+            case DAILY_SUMMARY -> "일일 요약 후보";
+            case ANALYZE_RESOURCE -> "자료 분석 결과";
+        };
+    }
+
+    private String englishTitle(AgentJobType jobType) {
+        return switch (jobType) {
+            case GENERATE_REQUIREMENTS -> "Requirement candidate";
+            case GENERATE_TASKS -> "Task candidate";
+            case GENERATE_WBS -> "WBS candidate";
+            case GENERATE_QUESTIONS -> "Clarification question candidate";
+            case REVIEW_CONTRACT_DOCUMENTS -> "Document review item candidate";
+            case DRAFT_DOCUMENT -> "Document draft candidate";
+            case DAILY_SUMMARY -> "Daily summary candidate";
+            case ANALYZE_RESOURCE -> "Resource analysis result";
+        };
+    }
+
+    private String japaneseTitle(AgentJobType jobType) {
+        return switch (jobType) {
+            case GENERATE_REQUIREMENTS -> "要件候補";
+            case GENERATE_TASKS -> "タスク候補";
+            case GENERATE_WBS -> "WBS候補";
+            case GENERATE_QUESTIONS -> "確認質問候補";
+            case REVIEW_CONTRACT_DOCUMENTS -> "文書レビュー項目候補";
+            case DRAFT_DOCUMENT -> "文書ドラフト候補";
+            case DAILY_SUMMARY -> "日次サマリー候補";
+            case ANALYZE_RESOURCE -> "資料分析結果";
+        };
+    }
+
+    private String localEvidence(String locale) {
+        return switch (locale) {
+            case "en-US" -> "Local deterministic daily summary.";
+            case "ja-JP" -> "ローカル決定論による日次サマリーです。";
+            default -> "로컬 결정론 기반 일일 요약입니다.";
+        };
+    }
+
+    private String draftContent(String locale) {
+        return switch (locale) {
+            case "en-US" -> "# Draft Document\n\nLocal deterministic draft.";
+            case "ja-JP" -> "# 文書ドラフト\n\nローカル決定論によるドラフトです。";
+            default -> "# 문서 초안\n\n로컬 결정론 기반 초안입니다.";
+        };
     }
 
     private List<AgentJobExecutionModelCallLog> modelCallLog(String errorCode) {
@@ -183,6 +229,10 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
     private String defaultText(Object value, String defaultValue) {
         String text = text(value);
         return text == null ? defaultValue : text;
+    }
+
+    private String locale(AgentJobQueueMessage message) {
+        return defaultText(message.requestPayload() == null ? null : message.requestPayload().get("locale"), "ko-KR");
     }
 
     private String errorMessage(RuntimeException exception) {

@@ -102,6 +102,52 @@ class UserServiceTest {
 	}
 
 	@Test
+	void updateMeNormalizesProvidedLocale() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "en-US", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+		UserResult result = userService.updateMe(userId, new UpdateUserProfileCommand(
+				null,
+				null,
+				"ja",
+				null
+		));
+
+		assertThat(result.locale()).isEqualTo("ja-JP");
+	}
+
+	@Test
+	void updateMeKeepsLocaleWhenLocaleIsOmitted() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "en-US", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+		UserResult result = userService.updateMe(userId, new UpdateUserProfileCommand(
+				"new name",
+				null,
+				null,
+				null
+		));
+
+		assertThat(result.locale()).isEqualTo("en-US");
+	}
+
+	@Test
+	void getMeFallsBackToDefaultLocaleWhenStoredLocaleIsUnsupported() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "fr-FR", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+		UserResult result = userService.getMe(userId);
+
+		assertThat(result.locale()).isEqualTo("ko-KR");
+	}
+
+	@Test
 	void getPreferencesReturnsEmptyResultWhenPreferenceDoesNotExist() {
 		UUID userId = UUID.randomUUID();
 		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());

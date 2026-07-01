@@ -23,6 +23,7 @@ import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
 import com.bubli.user.type.ConsentType;
 import com.bubli.user.type.NotificationType;
+import com.bubli.global.locale.SupportedLocale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,10 +60,14 @@ public class UserService {
 		user.updateProfile(
 				command.name(),
 				command.avatarUrl(),
-				command.locale(),
+				normalizeLocaleForUpdate(command.locale()),
 				command.timezone()
 		);
 		return UserResult.from(user);
+	}
+
+	private String normalizeLocaleForUpdate(String locale) {
+		return locale == null ? null : SupportedLocale.normalize(locale);
 	}
 
 	@Transactional(readOnly = true)

@@ -10,10 +10,12 @@ import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.chat.dto.ChatMessageResponse;
 import com.bubli.chat.service.ChatMessagePublicService;
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
-import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class ProjectRoomAgentCommandService {
 	private final RoomMemoryPublicService roomMemoryPublicService;
 	private final AgentSuggestionCommandService agentSuggestionCommandService;
 	private final ProjectRoomEventPublicService projectRoomEventPublicService;
+	private final UserLocalePublicService userLocalePublicService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
 	private final ObjectMapper objectMapper;
@@ -54,6 +57,7 @@ public class ProjectRoomAgentCommandService {
 	) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
+		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
 		AgentJobContext context = contextCollector.collect(new AgentJobQueueMessage(
 				UUID.randomUUID(),
 				userId,
@@ -63,12 +67,13 @@ public class ProjectRoomAgentCommandService {
 				Map.of(
 						"source", "PROJECT_ROOM_AGENT_COMMAND",
 						"mode", commandMode.name(),
+						"locale", locale,
 						"message", message,
 						"resourceIds", resourceIds == null ? List.of() : resourceIds
 				),
 				java.time.Instant.now()
 		));
-		String answer = answer(message, commandMode, context);
+		String answer = answer(message, commandMode, context, locale);
 		List<AgentSuggestionResponse> suggestions = createSuggestions(
 				userId,
 				roomId,
@@ -94,22 +99,22 @@ public class ProjectRoomAgentCommandService {
 		return new ProjectRoomAgentCommandResponse(chatMessage, memory, suggestions);
 	}
 
-	private String answer(String message, AgentCommandMode mode, AgentJobContext context) {
+	private String answer(String message, AgentCommandMode mode, AgentJobContext context, String locale) {
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
 		if (chatModel == null) {
-			return fallbackAnswer(message, mode, context);
+			return fallbackAnswer(message, mode, context, locale);
 		}
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
-		String prompt = prompt(message, mode, context);
+		String prompt = prompt(message, mode, context, locale);
 		if (executor == null) {
 			return chatModel.call(prompt);
 		}
 		return executor.execute("project-room-agent-command", () -> chatModel.call(prompt));
 	}
 
-	private String prompt(String message, AgentCommandMode mode, AgentJobContext context) {
+	private String prompt(String message, AgentCommandMode mode, AgentJobContext context, String locale) {
 		return """
-				You are Bubli's project room agent. Write a concise Korean response.
+				You are Bubli's project room agent. %s
 				Mode: %s
 				Do not invent confirmed facts. Use the provided project context and say what should be checked when context is insufficient.
 
@@ -118,14 +123,36 @@ public class ProjectRoomAgentCommandService {
 
 				Project context:
 				%s
-				""".formatted(mode, message, context.promptBlock());
+				""".formatted(languageInstruction(locale), mode, message, context.promptBlock());
 	}
 
-	private String fallbackAnswer(String message, AgentCommandMode mode, AgentJobContext context) {
+	private String fallbackAnswer(String message, AgentCommandMode mode, AgentJobContext context, String locale) {
+		if ("en-US".equals(locale)) {
+			return switch (mode) {
+				case ANSWER -> "I checked the currently collected project context. Request: %s".formatted(message);
+				case SUMMARIZE -> "Current project context summary: %s".formatted(context.promptBlock());
+				case SUGGEST -> "Create a TODO or review item from the request and confirm it through the approval flow.";
+			};
+		}
+		if ("ja-JP".equals(locale)) {
+			return switch (mode) {
+				case ANSWER -> "現在収集されているプロジェクト文脈を確認しました。リクエスト: %s".formatted(message);
+				case SUMMARIZE -> "現在のプロジェクト文脈の要約です: %s".formatted(context.promptBlock());
+				case SUGGEST -> "リクエスト内容をもとにTODOまたはレビュー項目を作成し、承認フローで確定してください。";
+			};
+		}
 		return switch (mode) {
 			case ANSWER -> "현재 수집된 프로젝트 맥락을 기준으로 확인했습니다. 요청: %s".formatted(message);
-			case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다. %s".formatted(context.promptBlock());
-			case SUGGEST -> "다음 조치를 제안합니다: 요청 내용을 기준으로 TODO 또는 검토 항목을 생성해 승인 흐름에서 확정하세요.";
+			case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다: %s".formatted(context.promptBlock());
+			case SUGGEST -> "요청 내용을 기준으로 TODO 또는 검토 항목을 생성하고 승인 흐름에서 확정하세요.";
+		};
+	}
+
+	private String languageInstruction(String locale) {
+		return switch (locale) {
+			case "en-US" -> "Write a concise natural English response.";
+			case "ja-JP" -> "Write a concise natural Japanese response.";
+			default -> "Write a concise natural Korean response.";
 		};
 	}
 
@@ -162,7 +189,7 @@ public class ProjectRoomAgentCommandService {
 
 	private AgentSuggestionType inferSuggestionType(String message) {
 		String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
-		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "애매", "누락", "불명확",
+		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "누락", "불명확",
 				"question", "ask", "unclear", "missing")) {
 			return AgentSuggestionType.QUESTION;
 		}

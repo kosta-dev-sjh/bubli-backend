@@ -54,6 +54,7 @@ class UserPublicServiceImplTest {
 		));
 
 		assertThat(result.bubliId()).isEqualTo("milo4827");
+		assertThat(result.locale()).isEqualTo("ko-KR");
 	}
 
 	@Test
@@ -82,5 +83,6 @@ class UserPublicServiceImplTest {
 		ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
 		verify(userRepository).save(userCaptor.capture());
 		assertThat(userCaptor.getValue().getBubliId()).isEqualTo("nora4828");
+		assertThat(userCaptor.getValue().getLocale()).isEqualTo("ko-KR");
 	}
 }

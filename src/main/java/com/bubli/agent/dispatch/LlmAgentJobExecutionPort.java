@@ -168,12 +168,13 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	}
 
 	private String jsonRepairPrompt(String originalPrompt, String invalidResponse, AgentContractValidationException failure) {
+		String languageInstruction = languageInstructionFromPrompt(originalPrompt);
 		return """
 				Your previous answer did not satisfy Bubli's required JSON contract.
 				Return ONLY one valid JSON object. Do not include markdown fences, comments, apologies, explanations, or text outside JSON.
 				The JSON object must match schemaVersion "%s" and the required shape from the original prompt.
-				All string values that users can see must be natural Korean.
-				If a value is unknown, use a conservative empty array or a concise Korean placeholder, but keep the schema valid.
+				%s
+				If a value is unknown, use a conservative empty array or a concise placeholder in the requested response language, but keep the schema valid.
 
 				Validation error:
 				%s
@@ -185,6 +186,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				%s
 				""".formatted(
 				SCHEMA_VERSION,
+				languageInstruction,
 				failure.getMessage(),
 				truncate(invalidResponse, RESPONSE_PREVIEW_LIMIT),
 				originalPrompt
@@ -196,12 +198,14 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 			ResourceAnalysisSource source,
 			AgentJobContext context
 	) {
+		String languageInstruction = languageInstruction(message);
 		return """
 				You are Bubli's AI document analyzer. Return only valid JSON matching schemaVersion "%s".
 				JSON_OUTPUT_ONLY: The first character of your response must be { and the last character must be }.
 				Do not include any text before or after the JSON object.
 				Do not include markdown fences or explanatory text.
-				Write all user-facing content in natural Korean.
+				%s
+				Keep sourceText and direct evidence quotes in the original document language.
 				Analyze the provided document text for project use. Do not make legal judgments; create review aids only.
 				Every suggestion must be grounded in the document text.
 
@@ -211,7 +215,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				  "resourceId": "%s",
 				  "model": {"name": "spring-ai-chat", "promptVersion": "%s"},
 				  "analysis": {
-				    "summary": "document summary in Korean",
+				    "summary": "document summary in the requested response language",
 				    "keywords": ["keyword"],
 				    "risks": ["review risk or ambiguity"],
 				    "checklist": [{"title": "actionable review checklist item", "severity": "MEDIUM"}]
@@ -219,8 +223,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				  "suggestions": [
 				    {
 				      "type": "REVIEW_ITEM",
-				      "title": "specific Korean title",
-				      "description": "specific Korean review action",
+				      "title": "specific title in the requested response language",
+				      "description": "specific review action in the requested response language",
 				      "sourceText": "short evidence text from the document",
 				      "confidence": 0.0
 				    },
@@ -264,6 +268,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				%s
 				""".formatted(
 				SCHEMA_VERSION,
+				languageInstruction,
 				SCHEMA_VERSION,
 				source.resourceId(),
 				PROMPT_VERSION,
@@ -308,12 +313,14 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	}
 
 	private String promptFor(AgentJobQueueMessage message, AgentJobContext context) {
+		String languageInstruction = languageInstruction(message);
 		return """
 				You are Bubli's project assistant. Return only valid JSON matching schemaVersion "%s".
 				JSON_OUTPUT_ONLY: The first character of your response must be { and the last character must be }.
 				Do not include any text before or after the JSON object.
 				Do not include markdown fences or explanatory text.
-				Write all user-facing content in natural Korean.
+				%s
+				Keep sourceText and direct evidence quotes in the original source language.
 				Do not copy placeholder phrases from this prompt.
 				Make the suggestion specific to the jobType and requestPayload.
 				If detailed project context is missing, create a conservative, useful first draft instead of a generic label.
@@ -323,13 +330,13 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				  "schemaVersion": "%s",
 				  "resourceId": "%s",
 				  "model": {"name": "spring-ai-chat", "promptVersion": "%s"},
-				  "analysis": {"summary": "concise Korean summary of what should be done", "keywords": [], "risks": [], "checklist": []},
+				  "analysis": {"summary": "concise summary in the requested response language", "keywords": [], "risks": [], "checklist": []},
 				  "suggestions": [
 				    {
 				      "type": "%s",
-				      "title": "specific actionable Korean title",
-				      "description": "specific Korean description with expected next action",
-				      "sourceText": "brief Korean reason based on the job context",
+				      "title": "specific actionable title in the requested response language",
+				      "description": "specific description with expected next action in the requested response language",
+				      "sourceText": "brief reason based on the job context",
 				      "confidence": 0.0
 				    }
 				  ]
@@ -357,6 +364,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				%s
 				""".formatted(
 				SCHEMA_VERSION,
+				languageInstruction,
 				SCHEMA_VERSION,
 				message.resourceId() == null ? EMPTY_RESOURCE_ID : message.resourceId(),
 				PROMPT_VERSION,
@@ -486,6 +494,36 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 			return text;
 		}
 		return text.substring(0, limit);
+	}
+
+	private String languageInstruction(AgentJobQueueMessage message) {
+		String locale = requestPayloadText(message, "locale");
+		if (locale == null || locale.isBlank()) {
+			locale = "ko-KR";
+		}
+		return switch (locale) {
+			case "en-US" -> "Write all user-facing content in natural English.";
+			case "ja-JP" -> "Write all user-facing content in natural Japanese.";
+			default -> "Write all user-facing content in natural Korean.";
+		};
+	}
+
+	private String languageInstructionFromPrompt(String prompt) {
+		if (prompt != null && prompt.contains("natural English")) {
+			return "Write all user-facing content in natural English.";
+		}
+		if (prompt != null && prompt.contains("natural Japanese")) {
+			return "Write all user-facing content in natural Japanese.";
+		}
+		return "Write all user-facing content in natural Korean.";
+	}
+
+	private String requestPayloadText(AgentJobQueueMessage message, String key) {
+		if (message.requestPayload() == null) {
+			return null;
+		}
+		Object value = message.requestPayload().get(key);
+		return value == null ? null : value.toString();
 	}
 
 	private String errorMessage(RuntimeException exception) {

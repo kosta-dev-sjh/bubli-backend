@@ -1,6 +1,7 @@
 package com.bubli.user.dto;
 
 import com.bubli.user.entity.User;
+import com.bubli.global.locale.SupportedLocale;
 
 import java.util.UUID;
 
@@ -18,7 +19,7 @@ public record UserResult(
 				user.getBubliId(),
 				user.getName(),
 				user.getAvatarUrl(),
-				user.getLocale(),
+				SupportedLocale.normalize(user.getLocale()),
 				user.getTimezone()
 		);
 	}

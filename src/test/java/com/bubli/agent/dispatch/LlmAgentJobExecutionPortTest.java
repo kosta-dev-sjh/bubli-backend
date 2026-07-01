@@ -130,6 +130,88 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
+	void promptUsesEnglishInstructionWhenRequestLocaleIsEnglish() {
+		given(chatModel.call(contains("natural English"))).willReturn("""
+				{
+				  "schemaVersion": "analysis.v1",
+				  "resourceId": "00000000-0000-0000-0000-000000000000",
+				  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+				  "analysis": {
+				    "summary": "Created a task candidate.",
+				    "keywords": ["task"],
+				    "risks": [],
+				    "checklist": []
+				  },
+				  "suggestions": [
+				    {
+				      "type": "TASK",
+				      "title": "Implement login API",
+				      "description": "Implement the JWT login API.",
+				      "sourceText": "Authentication is required.",
+				      "confidence": 0.91
+				    }
+				  ]
+				}
+				""");
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Map.of("locale", "en-US"),
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+				.contains("Implement login API");
+	}
+
+	@Test
+	void promptUsesJapaneseInstructionWhenRequestLocaleIsJapanese() {
+		given(chatModel.call(contains("natural Japanese"))).willReturn("""
+				{
+				  "schemaVersion": "analysis.v1",
+				  "resourceId": "00000000-0000-0000-0000-000000000000",
+				  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+				  "analysis": {
+				    "summary": "タスク候補を作成しました。",
+				    "keywords": ["task"],
+				    "risks": [],
+				    "checklist": []
+				  },
+				  "suggestions": [
+				    {
+				      "type": "TASK",
+				      "title": "ログインAPIを実装する",
+				      "description": "JWTログインAPIを実装します。",
+				      "sourceText": "Authentication is required.",
+				      "confidence": 0.91
+				    }
+				  ]
+				}
+				""");
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Map.of("locale", "ja-JP"),
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+				.contains("ログインAPIを実装する");
+	}
+
+	@Test
 	void returnsInvalidOutputFailureWhenLlmResponseViolatesSchema() {
 		given(chatModel.call(contains("GENERATE_REQUIREMENTS"))).willReturn("{\"schemaVersion\":\"wrong\"}");
 
