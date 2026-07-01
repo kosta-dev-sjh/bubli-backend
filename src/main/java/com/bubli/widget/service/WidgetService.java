@@ -42,7 +42,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class WidgetService {
+public class WidgetService implements WidgetPublicService {
 
     private final WidgetBubbleSettingRepository bubbleSettingRepository;
     private final WidgetContextSettingRepository contextSettingRepository;
@@ -173,13 +173,19 @@ public class WidgetService {
 
     @Transactional(readOnly = true)
     public WidgetTodaySummaryResponse getTodaySummary(UUID userId) {
-        LocalDate today = LocalDate.now();
-        List<WidgetDailySummary> summaries = dailySummaryRepository.findByUserIdAndSummaryDate(userId, today);
+        return getUsageSummary(userId, LocalDate.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WidgetTodaySummaryResponse getUsageSummary(UUID userId, LocalDate summaryDate) {
+        LocalDate targetDate = summaryDate == null ? LocalDate.now() : summaryDate;
+        List<WidgetDailySummary> summaries = dailySummaryRepository.findByUserIdAndSummaryDate(userId, targetDate);
         int totalOpen = summaries.stream().mapToInt(WidgetDailySummary::getOpenCount).sum();
         int totalInteraction = summaries.stream().mapToInt(WidgetDailySummary::getInteractionCount).sum();
         long totalVisible = summaries.stream().mapToLong(WidgetDailySummary::getVisibleSeconds).sum();
         List<WidgetDailySummaryResponse> byDevice = summaries.stream().map(this::toSummaryResponse).toList();
-        return new WidgetTodaySummaryResponse(today, totalOpen, totalInteraction, totalVisible, byDevice);
+        return new WidgetTodaySummaryResponse(targetDate, totalOpen, totalInteraction, totalVisible, byDevice);
     }
 
     private WidgetBubbleSettingResponse toSettingResponse(WidgetBubbleSetting s) {
