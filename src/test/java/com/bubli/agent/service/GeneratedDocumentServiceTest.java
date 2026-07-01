@@ -113,6 +113,32 @@ class GeneratedDocumentServiceTest {
         verify(membershipService).assertActiveMember(userId, roomId);
     }
 
+    @Test
+    void exportsReadableDocumentAsMarkdownFile() {
+        GeneratedDocumentRepository repository = mock(GeneratedDocumentRepository.class);
+        UUID userId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        GeneratedDocument document = GeneratedDocument.create(
+                userId,
+                null,
+                UUID.randomUUID(),
+                null,
+                "회의록: 1차 검토",
+                "MEETING_NOTE",
+                "# Meeting Note",
+                Map.of()
+        );
+        ReflectionTestUtils.setField(document, "id", documentId);
+        when(repository.findById(documentId)).thenReturn(Optional.of(document));
+
+        var result = new GeneratedDocumentService(repository, mock(ProjectMembershipPublicService.class))
+                .exportMarkdown(userId, documentId);
+
+        assertThat(result.fileName()).isEqualTo("회의록_ 1차 검토.md");
+        assertThat(result.contentType()).isEqualTo("text/markdown;charset=UTF-8");
+        assertThat(new String(result.content())).isEqualTo("# Meeting Note");
+    }
+
     private AgentSuggestion suggestion(UUID suggestionId, UUID roomId, Map<String, Object> payload) {
         AgentSuggestion suggestion = AgentSuggestion.draft(
                 UUID.randomUUID(),

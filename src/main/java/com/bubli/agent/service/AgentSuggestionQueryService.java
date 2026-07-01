@@ -27,6 +27,11 @@ public class AgentSuggestionQueryService {
             AgentSuggestionType.CONTRACT_REVIEW
     );
 
+    private static final List<AgentSuggestionType> CONTRACT_REFERENCE_TYPES = List.of(
+            AgentSuggestionType.CONTRACT_FIELD,
+            AgentSuggestionType.CONTRACT_REVIEW
+    );
+
     @Transactional(readOnly = true)
     public List<AgentSuggestionResponse> findMine(
             UUID userId,
@@ -79,6 +84,32 @@ public class AgentSuggestionQueryService {
         );
 
         return suggestions.stream()
+                .map(AgentSuggestionResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AgentSuggestionResponse> findRoomConfirmedRequirements(UUID userId, UUID roomId) {
+        projectMembershipPublicService.assertActiveMember(userId, roomId);
+        return agentSuggestionRepository.findAllByRoomIdAndSuggestionTypeAndStatus(
+                        roomId,
+                        AgentSuggestionType.REQUIREMENT,
+                        AgentSuggestionStatus.APPROVED
+                )
+                .stream()
+                .map(AgentSuggestionResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AgentSuggestionResponse> findRoomContractReferences(UUID userId, UUID roomId) {
+        projectMembershipPublicService.assertActiveMember(userId, roomId);
+        return agentSuggestionRepository.findAllByRoomIdAndSuggestionTypeInAndStatusOrderByCreatedAtDesc(
+                        roomId,
+                        CONTRACT_REFERENCE_TYPES,
+                        AgentSuggestionStatus.APPROVED
+                )
+                .stream()
                 .map(AgentSuggestionResponse::from)
                 .toList();
     }

@@ -146,6 +146,14 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/confirmation-items?status=DRAFT
 Authorization: Bearer {{accessToken}}
 
+### List confirmed room requirements
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/confirmed-requirements
+Authorization: Bearer {{accessToken}}
+
+### List approved contract references
+GET {{baseUrl}}/api/project-rooms/{{roomId}}/agent/contract-references
+Authorization: Bearer {{accessToken}}
+
 ### Edit agent suggestion before applying it
 PATCH {{baseUrl}}/api/agent/suggestions/{{suggestionId}}
 Authorization: Bearer {{accessToken}}

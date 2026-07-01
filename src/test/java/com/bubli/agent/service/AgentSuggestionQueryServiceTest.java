@@ -72,6 +72,51 @@ class AgentSuggestionQueryServiceTest {
         verify(membershipService).assertActiveMember(userId, roomId);
     }
 
+    @Test
+    void findsApprovedRoomRequirementsAsConfirmedRequirements() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        AgentSuggestion requirement = suggestion(userId, AgentSuggestionType.REQUIREMENT);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
+        when(repository.findAllByRoomIdAndSuggestionTypeAndStatus(
+                roomId,
+                AgentSuggestionType.REQUIREMENT,
+                AgentSuggestionStatus.APPROVED
+        )).thenReturn(List.of(requirement));
+
+        var responses = new AgentSuggestionQueryService(repository, membershipService)
+                .findRoomConfirmedRequirements(userId, roomId);
+
+        assertThat(responses)
+                .extracting(response -> response.suggestionType())
+                .containsExactly(AgentSuggestionType.REQUIREMENT);
+        verify(membershipService).assertActiveMember(userId, roomId);
+    }
+
+    @Test
+    void findsApprovedContractReferencesByContractTypes() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        AgentSuggestion contractField = suggestion(userId, AgentSuggestionType.CONTRACT_FIELD);
+        AgentSuggestion contractReview = suggestion(userId, AgentSuggestionType.CONTRACT_REVIEW);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
+        when(repository.findAllByRoomIdAndSuggestionTypeInAndStatusOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.eq(roomId),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(AgentSuggestionStatus.APPROVED)
+        )).thenReturn(List.of(contractField, contractReview));
+
+        var responses = new AgentSuggestionQueryService(repository, membershipService)
+                .findRoomContractReferences(userId, roomId);
+
+        assertThat(responses)
+                .extracting(response -> response.suggestionType())
+                .containsExactly(AgentSuggestionType.CONTRACT_FIELD, AgentSuggestionType.CONTRACT_REVIEW);
+        verify(membershipService).assertActiveMember(userId, roomId);
+    }
+
     private AgentSuggestion suggestion(UUID userId, AgentSuggestionType type) {
         return AgentSuggestion.draft(
                 userId,
