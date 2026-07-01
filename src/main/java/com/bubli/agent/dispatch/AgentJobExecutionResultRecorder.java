@@ -8,6 +8,7 @@ import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.global.locale.SupportedLocale;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
@@ -31,6 +32,7 @@ public class AgentJobExecutionResultRecorder {
     private final AgentJobRepository agentJobRepository;
     private final AgentJobEventRepository agentJobEventRepository;
     private final NotificationPublicService notificationPublicService;
+    private final ProjectRoomEventPublicService projectRoomEventPublicService;
     private final MessageSource messageSource;
     private final UserLocalePublicService userLocalePublicService;
 
@@ -66,6 +68,7 @@ public class AgentJobExecutionResultRecorder {
                 message("agent.job.succeeded.notification.title", locale, SUCCEEDED_NOTIFICATION_TITLE),
                 notificationBody(agentJob, message, locale)
         );
+        recordProjectRoomEvent(agentJob, "SUCCEEDED", message);
         return true;
     }
 
@@ -85,7 +88,22 @@ public class AgentJobExecutionResultRecorder {
                 message("agent.job.failed.notification.title", locale, FAILED_NOTIFICATION_TITLE),
                 notificationBody(agentJob, message, locale)
         );
+        recordProjectRoomEvent(agentJob, "FAILED", message);
         return true;
+    }
+
+    private void recordProjectRoomEvent(AgentJob agentJob, String status, String message) {
+        if (agentJob.getRoomId() == null) {
+            return;
+        }
+        projectRoomEventPublicService.recordAgentJobCompleted(
+                agentJob.getRequestedByUserId(),
+                agentJob.getRoomId(),
+                agentJob.getId(),
+                agentJob.getJobType().name(),
+                status,
+                message
+        );
     }
 
     private String failureMessage(String errorMessage, Locale locale) {

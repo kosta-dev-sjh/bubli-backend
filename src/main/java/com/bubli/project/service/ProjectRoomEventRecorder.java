@@ -29,6 +29,13 @@ public class ProjectRoomEventRecorder {
 	static final String AGENT_SUGGESTION_HELD = "AGENT_SUGGESTION_HELD";
 	static final String AGENT_SUGGESTION_UPDATED = "AGENT_SUGGESTION_UPDATED";
 	static final String AGENT_SUGGESTION_DELETED = "AGENT_SUGGESTION_DELETED";
+	static final String AGENT_JOB_SUCCEEDED = "AGENT_JOB_SUCCEEDED";
+	static final String AGENT_JOB_FAILED = "AGENT_JOB_FAILED";
+	static final String VOICE_ROOM_CREATED = "VOICE_ROOM_CREATED";
+	static final String VOICE_PARTICIPANT_JOINED = "VOICE_PARTICIPANT_JOINED";
+	static final String VOICE_PARTICIPANT_LEFT = "VOICE_PARTICIPANT_LEFT";
+	static final String VOICE_PARTICIPANT_MIC_UPDATED = "VOICE_PARTICIPANT_MIC_UPDATED";
+	static final String VOICE_ROOM_ENDED = "VOICE_ROOM_ENDED";
 
 	private final ProjectRoomEventRepository projectRoomEventRepository;
 	private final ObjectMapper objectMapper;
@@ -93,6 +100,70 @@ public class ProjectRoomEventRecorder {
 				.put("status", status)
 				.put("action", action);
 		save(actorUserId, roomId, agentSuggestionReviewEventType(status, action), payload);
+	}
+
+	public void recordAgentJobCompleted(
+			UUID actorUserId,
+			UUID roomId,
+			UUID jobId,
+			String jobType,
+			String status,
+			String message
+	) {
+		ObjectNode payload = objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("jobId", jobId.toString())
+				.put("jobType", jobType)
+				.put("status", status);
+		putNullable(payload, "message", message);
+		String eventType = "SUCCEEDED".equals(status) ? AGENT_JOB_SUCCEEDED : AGENT_JOB_FAILED;
+		save(actorUserId, roomId, eventType, payload);
+	}
+
+	public void recordVoiceRoomCreated(UUID actorUserId, UUID roomId, UUID voiceRoomId, String livekitRoomName) {
+		ObjectNode payload = objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("voiceRoomId", voiceRoomId.toString())
+				.put("livekitRoomName", livekitRoomName);
+		save(actorUserId, roomId, VOICE_ROOM_CREATED, payload);
+	}
+
+	public void recordVoiceParticipantJoined(UUID actorUserId, UUID roomId, UUID voiceRoomId, UUID participantId, UUID userId) {
+		ObjectNode payload = voiceParticipantPayload(roomId, voiceRoomId, participantId, userId);
+		save(actorUserId, roomId, VOICE_PARTICIPANT_JOINED, payload);
+	}
+
+	public void recordVoiceParticipantLeft(UUID actorUserId, UUID roomId, UUID voiceRoomId, UUID participantId, UUID userId) {
+		ObjectNode payload = voiceParticipantPayload(roomId, voiceRoomId, participantId, userId);
+		save(actorUserId, roomId, VOICE_PARTICIPANT_LEFT, payload);
+	}
+
+	public void recordVoiceParticipantMicUpdated(
+			UUID actorUserId,
+			UUID roomId,
+			UUID voiceRoomId,
+			UUID participantId,
+			UUID userId,
+			String micStatus
+	) {
+		ObjectNode payload = voiceParticipantPayload(roomId, voiceRoomId, participantId, userId);
+		putNullable(payload, "micStatus", micStatus);
+		save(actorUserId, roomId, VOICE_PARTICIPANT_MIC_UPDATED, payload);
+	}
+
+	public void recordVoiceRoomEnded(UUID actorUserId, UUID roomId, UUID voiceRoomId) {
+		ObjectNode payload = objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("voiceRoomId", voiceRoomId.toString());
+		save(actorUserId, roomId, VOICE_ROOM_ENDED, payload);
+	}
+
+	private ObjectNode voiceParticipantPayload(UUID roomId, UUID voiceRoomId, UUID participantId, UUID userId) {
+		return objectMapper.createObjectNode()
+				.put("roomId", roomId.toString())
+				.put("voiceRoomId", voiceRoomId.toString())
+				.put("participantId", participantId.toString())
+				.put("userId", userId.toString());
 	}
 
 	private String agentSuggestionReviewEventType(String status, String action) {
