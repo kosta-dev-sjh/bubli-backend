@@ -3,6 +3,8 @@ package com.bubli.personal.notification.service;
 import com.bubli.personal.notification.dto.NotificationResponse;
 import com.bubli.personal.notification.type.NotificationSourceType;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface NotificationPublicService {
@@ -18,4 +20,6 @@ public interface NotificationPublicService {
 	void createNotification(UUID userId, String sourceType, UUID sourceId, String title, String body);
 
 	long countUnread(UUID userId);
+
+	List<NotificationResponse> getNotificationsBetween(UUID userId, Instant from, Instant to, int limit);
 }

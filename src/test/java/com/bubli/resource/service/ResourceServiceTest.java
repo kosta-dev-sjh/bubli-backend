@@ -785,6 +785,39 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void getRecentAnalysisSummariesReturnsOwnerAnalyzedResourceSummaries() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"요구사항.pdf",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.ANALYZED
+		);
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		ResourceSummary summary = ResourceSummary.analyzed(
+				resourceId,
+				UUID.randomUUID(),
+				java.util.Map.of("summary", "핵심 요구사항 분석 완료")
+		);
+		given(resourceSummaryRepository.findRecentOwnerAnalyzedSummaries(
+				eq(userId),
+				eq(com.bubli.resource.type.AnalysisStatus.ANALYZED),
+				any(Pageable.class)
+		)).willReturn(new PageImpl<>(List.of(summary)));
+		given(resourceRepository.findAllById(List.of(resourceId))).willReturn(List.of(resource));
+
+		var result = resourceService.getRecentAnalysisSummaries(userId, 5);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.getFirst().resourceId()).isEqualTo(resourceId);
+		assertThat(result.getFirst().title()).isEqualTo("요구사항.pdf");
+		assertThat(result.getFirst().summary()).isEqualTo("핵심 요구사항 분석 완료");
+	}
+
+	@Test
 	void getRelatedResourcesRequiresReadableResourcesAndReturnsRelatedMetadata() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();

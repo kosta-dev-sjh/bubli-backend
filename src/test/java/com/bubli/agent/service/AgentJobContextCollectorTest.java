@@ -9,8 +9,18 @@ import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
+import com.bubli.personal.notification.dto.NotificationResponse;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.personal.notification.type.NotificationStatus;
+import com.bubli.personal.timer.dto.TimeLogResult;
+import com.bubli.personal.timer.service.TimeLogPublicService;
+import com.bubli.personal.timer.type.TimeLogStatus;
+import com.bubli.personal.timer.type.TimerType;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.widget.dto.WidgetTodaySummaryResponse;
+import com.bubli.widget.service.WidgetPublicService;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.schedule.type.ScheduleSyncStatus;
@@ -22,8 +32,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +54,10 @@ class AgentJobContextCollectorTest {
         SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
         MemoPublicService memoPublicService = mock(MemoPublicService.class);
         ActivityPublicService activityPublicService = mock(ActivityPublicService.class);
+        NotificationPublicService notificationPublicService = mock(NotificationPublicService.class);
+        TimeLogPublicService timeLogPublicService = mock(TimeLogPublicService.class);
+        WidgetPublicService widgetPublicService = mock(WidgetPublicService.class);
+        AgentSuggestionPublicService agentSuggestionPublicService = mock(AgentSuggestionPublicService.class);
         AgentJobContextCollector collector = new AgentJobContextCollector(
                 mock(ProjectMembershipPublicService.class),
                 mock(ResourcePublicService.class),
@@ -51,7 +67,11 @@ class AgentJobContextCollectorTest {
                 mock(ChatMessagePublicService.class),
                 mock(RoomMemoryPublicService.class),
                 memoPublicService,
-                activityPublicService
+                activityPublicService,
+                notificationPublicService,
+                timeLogPublicService,
+                widgetPublicService,
+                agentSuggestionPublicService
         );
         when(taskPublicService.getDueBetweenTasks(eq(userId), any(), any())).thenReturn(List.of(
                 task("완료 작업", TaskStatus.DONE),
@@ -65,6 +85,15 @@ class AgentJobContextCollectorTest {
         ));
         when(activityPublicService.getActivityContextBetween(eq(userId), any(), any(), eq(20))).thenReturn(List.of(
                 activity("IntelliJ IDEA", "Bubli Backend", 1800L)
+        ));
+        when(notificationPublicService.getNotificationsBetween(eq(userId), any(), any(), eq(10))).thenReturn(List.of(
+                notification("AI 제안 검토 필요")
+        ));
+        when(timeLogPublicService.getRunningTimer(userId)).thenReturn(Optional.of(runningTimer()));
+        when(widgetPublicService.getUsageSummary(eq(userId), eq(LocalDate.of(2026, 7, 1))))
+                .thenReturn(new WidgetTodaySummaryResponse(LocalDate.of(2026, 7, 1), 3, 7, 900L, List.of()));
+        when(agentSuggestionPublicService.getReviewRequiredSummaries(userId, 10)).thenReturn(List.of(
+                "DOCUMENT_DRAFT: 회의록 초안"
         ));
 
         var context = collector.collect(new AgentJobQueueMessage(
@@ -89,7 +118,15 @@ class AgentJobContextCollectorTest {
                 "클라이언트 피드백 확인",
                 "[Daily summary activity]",
                 "IntelliJ IDEA",
-                "Bubli Backend"
+                "Bubli Backend",
+                "[Daily summary notifications]",
+                "AI 제안 검토 필요",
+                "[Daily summary running timer]",
+                "WORK",
+                "[Daily summary widget usage]",
+                "visibleSeconds=900",
+                "[Daily summary pending agent suggestions]",
+                "DOCUMENT_DRAFT: 회의록 초안"
         );
         ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
@@ -160,6 +197,40 @@ class AgentJobContextCollectorTest {
                 now,
                 now.plusSeconds(durationSeconds),
                 durationSeconds,
+                now
+        );
+    }
+
+    private NotificationResponse notification(String title) {
+        Instant now = Instant.parse("2026-07-01T06:00:00Z");
+        return new NotificationResponse(
+                UUID.randomUUID(),
+                NotificationSourceType.AGENT,
+                UUID.randomUUID(),
+                title,
+                "본문",
+                NotificationStatus.UNREAD,
+                null,
+                now
+        );
+    }
+
+    private TimeLogResult runningTimer() {
+        Instant now = Instant.parse("2026-07-01T07:00:00Z");
+        return new TimeLogResult(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                TimerType.WORK,
+                "timer-key",
+                null,
+                TimeLogStatus.RUNNING,
+                now,
+                now,
+                null,
+                null,
+                now,
+                now,
                 now
         );
     }

@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:8080
-@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MWM3ZDJmMC0zZjFkLTQxZWMtYTUzZi1mYTg4MWI4NjM3NjYiLCJpYXQiOjE3ODI4NzI4MDAsImV4cCI6MTc4Mjk1OTIwMH0.t_OADNgnqShxxZay9EHmEuUklZ71gx5Wg0gRviglwGM
+@accessToken = paste-access-token-here
 @resourceId = replace-with-resource-id
 @commentId = replace-with-comment-id
 @roomId = replace-with-room-id

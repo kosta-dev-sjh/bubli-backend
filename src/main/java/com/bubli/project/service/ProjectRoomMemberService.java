@@ -1,5 +1,6 @@
 package com.bubli.project.service;
 
+import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
@@ -36,6 +37,7 @@ public class ProjectRoomMemberService {
 	private final InvitationRepository invitationRepository;
 	private final UserPublicService userPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final RoomChatPublicService roomChatPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomMemberResult> getMembers(UUID requesterId, UUID roomId, Pageable pageable) {
@@ -136,6 +138,7 @@ public class ProjectRoomMemberService {
 		roomMemberRepository.save(roomMember);
 
 		invitation.accept(now);
+		roomChatPublicService.addMember(invitation.getRoomId(), userId);
 
 		UserResult invitee = userPublicService.getUser(userId);
 		return InvitationResult.from(invitation, invitee);
@@ -181,10 +184,12 @@ public class ProjectRoomMemberService {
 
 		if (requesterId.equals(memberUserId)) {
 			member.leave();
+			roomChatPublicService.removeMember(roomId, memberUserId);
 			return;
 		}
 
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 		member.remove();
+		roomChatPublicService.removeMember(roomId, memberUserId);
 	}
 }

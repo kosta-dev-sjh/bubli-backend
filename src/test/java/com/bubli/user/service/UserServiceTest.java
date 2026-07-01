@@ -1,6 +1,7 @@
 package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.auth.service.AuthSessionPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
 import com.bubli.user.dto.UpdatePrivacyConsentsCommand;
@@ -20,6 +21,7 @@ import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
 import com.bubli.user.type.ConsentType;
 import com.bubli.user.type.NotificationType;
+import com.bubli.user.type.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
@@ -55,6 +57,9 @@ class UserServiceTest {
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
 
+	@Mock
+	AuthSessionPublicService authSessionPublicService;
+
 	@InjectMocks
 	UserService userService;
 
@@ -75,6 +80,18 @@ class UserServiceTest {
 	void getMeThrowsWhenUserDoesNotExist() {
 		UUID userId = UUID.randomUUID();
 		given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> userService.getMe(userId))
+				.isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void getMeThrowsWhenUserIsWithdrawn() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "ko", "Asia/Seoul");
+		user.withdraw();
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
 		assertThatThrownBy(() -> userService.getMe(userId))
 				.isInstanceOf(BusinessException.class);
@@ -133,6 +150,20 @@ class UserServiceTest {
 		));
 
 		assertThat(result.locale()).isEqualTo("en-US");
+	}
+
+	@Test
+	void withdrawMeMarksUserDeletedAndRevokesSessions() {
+		UUID userId = UUID.randomUUID();
+		User user = User.createGoogleUser("google-sub", "bubli", "정현", null, "ko", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+		userService.withdrawMe(userId);
+
+		assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+		assertThat(user.getDeletedAt()).isNotNull();
+		org.mockito.Mockito.verify(authSessionPublicService).revokeAllUserSessions(userId);
 	}
 
 	@Test

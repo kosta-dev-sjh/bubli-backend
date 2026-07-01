@@ -6,6 +6,7 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionCommand;
+import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceDownloadUrlResult;
 import com.bubli.resource.dto.ResourceRelatedResult;
@@ -27,6 +28,7 @@ import com.bubli.resource.repository.ResourceSummaryRepository;
 import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.storage.StorageDownloadUrl;
 import com.bubli.resource.storage.StorageDownloadUrlProvider;
+import com.bubli.resource.type.AnalysisStatus;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -46,8 +48,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -198,6 +203,26 @@ public class ResourceService {
 			return List.of(keywords.get(0), keywords.get(1), keywords.get(1));
 		}
 		return keywords;
+	}
+
+	@Transactional(readOnly = true)
+	public List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit) {
+		int size = Math.max(1, Math.min(limit, 10));
+		List<ResourceSummary> summaries = resourceSummaryRepository
+				.findRecentOwnerAnalyzedSummaries(userId, AnalysisStatus.ANALYZED, PageRequest.of(0, size))
+				.getContent();
+		Map<UUID, Resource> resourcesById = resourceRepository.findAllById(summaries.stream()
+						.map(ResourceSummary::getResourceId)
+						.toList())
+				.stream()
+				.collect(Collectors.toMap(Resource::getId, Function.identity()));
+		return summaries.stream()
+				.map(summary -> {
+					Resource resource = resourcesById.get(summary.getResourceId());
+					return resource == null ? null : ResourceAnalysisSummaryResult.from(summary, resource);
+				})
+				.filter(result -> result != null)
+				.toList();
 	}
 
 	@Transactional(readOnly = true)

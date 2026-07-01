@@ -6,16 +6,17 @@ import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
-import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Optional;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,12 +61,12 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJob agentJob = runningJob(jobId);
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 
-		boolean recorded = recorder.recordFailed(jobId, "MODEL_TIMEOUT", "모델 응답 시간이 초과되었습니다.");
+		boolean recorded = recorder.recordFailed(jobId, "MODEL_TIMEOUT", "model timeout");
 
 		assertThat(recorded).isTrue();
 		assertThat(agentJob.getStatus()).isEqualTo(AgentJobStatus.FAILED);
 		assertThat(agentJob.getErrorCode()).isEqualTo("MODEL_TIMEOUT");
-		assertThat(agentJob.getErrorMessage()).isEqualTo("모델 응답 시간이 초과되었습니다.");
+		assertThat(agentJob.getErrorMessage()).isEqualTo("model timeout");
 		assertThat(agentJob.getRetryCount()).isZero();
 		assertThat(agentJob.getFinishedAt()).isNotNull();
 		ArgumentCaptor<AgentJobEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobEvent.class);
@@ -73,7 +74,7 @@ class AgentJobExecutionResultRecorderTest {
 		assertThat(eventCaptor.getValue().getJobId()).isEqualTo(jobId);
 		assertThat(eventCaptor.getValue().getEventType())
 				.isEqualTo(AgentJobExecutionResultRecorder.FAILED_EVENT_TYPE);
-		assertThat(eventCaptor.getValue().getMessage()).isEqualTo("모델 응답 시간이 초과되었습니다.");
+		assertThat(eventCaptor.getValue().getMessage()).isEqualTo("model timeout");
 	}
 
 	@Test
@@ -101,6 +102,7 @@ class AgentJobExecutionResultRecorderTest {
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		NotificationPublicService notificationPublicService = mock(NotificationPublicService.class);
+		ProjectRoomEventPublicService projectRoomEventPublicService = mock(ProjectRoomEventPublicService.class);
 		UserLocalePublicService localeService = mock(UserLocalePublicService.class);
 		when(localeService.resolveLocaleCode(any(UUID.class), any())).thenReturn("en-US");
 		StaticMessageSource messageSource = new StaticMessageSource();
@@ -111,6 +113,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobRepository,
 				agentJobEventRepository,
 				notificationPublicService,
+				projectRoomEventPublicService,
 				messageSource,
 				localeService
 		);
@@ -126,6 +129,38 @@ class AgentJobExecutionResultRecorderTest {
 				eq(jobId),
 				eq("AI job completed."),
 				org.mockito.ArgumentMatchers.contains("Agent job execution completed.")
+		);
+	}
+
+	@Test
+	void recordSucceededPublishesProjectRoomEventWhenJobBelongsToRoom() {
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		NotificationPublicService notificationPublicService = mock(NotificationPublicService.class);
+		ProjectRoomEventPublicService projectRoomEventPublicService = mock(ProjectRoomEventPublicService.class);
+		UserLocalePublicService localeService = mock(UserLocalePublicService.class);
+		when(localeService.resolveLocaleCode(any(UUID.class), any())).thenReturn("ko-KR");
+		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
+				agentJobRepository,
+				agentJobEventRepository,
+				notificationPublicService,
+				projectRoomEventPublicService,
+				new StaticMessageSource(),
+				localeService
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = runningJob(jobId);
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+
+		recorder.recordSucceeded(jobId);
+
+		verify(projectRoomEventPublicService).recordAgentJobCompleted(
+				eq(agentJob.getRequestedByUserId()),
+				eq(agentJob.getRoomId()),
+				eq(jobId),
+				eq(agentJob.getJobType().name()),
+				eq("SUCCEEDED"),
+				eq(AgentJobExecutionResultRecorder.SUCCEEDED_EVENT_MESSAGE)
 		);
 	}
 
@@ -187,6 +222,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobRepository,
 				agentJobEventRepository,
 				mock(NotificationPublicService.class),
+				mock(ProjectRoomEventPublicService.class),
 				new StaticMessageSource(),
 				localeService
 		);

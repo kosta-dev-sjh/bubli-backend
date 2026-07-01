@@ -2,6 +2,11 @@ package com.bubli.widget.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.agent.service.AgentSuggestionPublicService;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.timer.dto.TimeLogResult;
+import com.bubli.personal.timer.service.TimeLogPublicService;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.widget.dto.BubbleSettingUpdate;
 import com.bubli.widget.dto.WidgetBubbleSettingResponse;
 import com.bubli.widget.dto.WidgetContextResponse;
@@ -19,23 +24,40 @@ import com.bubli.widget.repository.WidgetDailySummaryRepository;
 import com.bubli.widget.repository.WidgetItemStateRepository;
 import com.bubli.widget.type.BubbleType;
 import com.bubli.widget.type.WidgetItemStateValue;
-import com.bubli.widget.type.WidgetItemType;
+import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.TaskResult;
+import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.task.type.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class WidgetService {
+public class WidgetService implements WidgetPublicService {
 
     private final WidgetBubbleSettingRepository bubbleSettingRepository;
     private final WidgetContextSettingRepository contextSettingRepository;
     private final WidgetItemStateRepository itemStateRepository;
     private final WidgetDailySummaryRepository dailySummaryRepository;
+    private final ProjectMembershipPublicService projectMembershipPublicService;
+    private final TaskPublicService taskPublicService;
+    private final SchedulePublicService schedulePublicService;
+    private final NotificationPublicService notificationPublicService;
+    private final TimeLogPublicService timeLogPublicService;
+    private final AgentSuggestionPublicService agentSuggestionPublicService;
+
+    private static final int SUMMARY_TASK_LIMIT = 5;
+    private static final int SUMMARY_SCHEDULE_LIMIT = 5;
+    private static final int SUMMARY_SUGGESTION_LIMIT = 5;
 
     @Transactional(readOnly = true)
     public WidgetSettingsResponse getSettings(UUID userId) {
@@ -66,6 +88,9 @@ public class WidgetService {
 
     @Transactional
     public WidgetContextResponse updateContext(UUID userId, UUID selectedRoomId) {
+        if (selectedRoomId != null) {
+            projectMembershipPublicService.assertActiveMember(userId, selectedRoomId);
+        }
         WidgetContextSetting context = contextSettingRepository.findByUserId(userId)
                 .orElseGet(() -> contextSettingRepository.save(WidgetContextSetting.create(userId, selectedRoomId)));
         context.updateRoom(selectedRoomId);
@@ -77,7 +102,48 @@ public class WidgetService {
         WidgetContextResponse context = getContext(userId);
         List<WidgetBubbleSettingResponse> bubbles = bubbleSettingRepository.findByUserId(userId)
                 .stream().map(this::toSettingResponse).toList();
-        return new WidgetSummaryResponse(context, bubbles);
+        UUID roomId = context.selectedRoomId();
+        if (roomId != null) {
+            projectMembershipPublicService.assertActiveMember(userId, roomId);
+        }
+
+        Instant now = Instant.now();
+        Instant startOfToday = now.truncatedTo(ChronoUnit.DAYS);
+        Instant startOfTomorrow = startOfToday.plus(1, ChronoUnit.DAYS);
+        Instant endOfWeek = startOfToday.plus(7, ChronoUnit.DAYS);
+
+        List<TaskResult> tasks = roomId == null
+                ? taskPublicService.getDueBetweenTasks(userId, startOfToday, endOfWeek).stream()
+                        .limit(SUMMARY_TASK_LIMIT)
+                        .toList()
+                : roomSummaryTasks(roomId);
+        List<ScheduleResult> schedules = roomId == null
+                ? schedulePublicService.getSchedulesBetween(userId, startOfToday, startOfTomorrow).stream()
+                        .limit(SUMMARY_SCHEDULE_LIMIT)
+                        .toList()
+                : schedulePublicService.getRoomSchedulesBetween(roomId, startOfToday, startOfTomorrow).stream()
+                        .limit(SUMMARY_SCHEDULE_LIMIT)
+                        .toList();
+        TimeLogResult runningTimer = timeLogPublicService.getRunningTimer(userId).orElse(null);
+        return new WidgetSummaryResponse(
+                context,
+                bubbles,
+                tasks,
+                schedules,
+                notificationPublicService.countUnread(userId),
+                runningTimer,
+                agentSuggestionPublicService.getReviewRequiredSummaries(userId, SUMMARY_SUGGESTION_LIMIT)
+        );
+    }
+
+    private List<TaskResult> roomSummaryTasks(UUID roomId) {
+        return taskPublicService.getRoomTasksForBoard(roomId).stream()
+                .filter(task -> task.status() != TaskStatus.DONE)
+                .sorted(Comparator
+                        .comparing(TaskResult::dueAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(TaskResult::createdAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(SUMMARY_TASK_LIMIT)
+                .toList();
     }
 
     @Transactional
@@ -107,13 +173,19 @@ public class WidgetService {
 
     @Transactional(readOnly = true)
     public WidgetTodaySummaryResponse getTodaySummary(UUID userId) {
-        LocalDate today = LocalDate.now();
-        List<WidgetDailySummary> summaries = dailySummaryRepository.findByUserIdAndSummaryDate(userId, today);
+        return getUsageSummary(userId, LocalDate.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WidgetTodaySummaryResponse getUsageSummary(UUID userId, LocalDate summaryDate) {
+        LocalDate targetDate = summaryDate == null ? LocalDate.now() : summaryDate;
+        List<WidgetDailySummary> summaries = dailySummaryRepository.findByUserIdAndSummaryDate(userId, targetDate);
         int totalOpen = summaries.stream().mapToInt(WidgetDailySummary::getOpenCount).sum();
         int totalInteraction = summaries.stream().mapToInt(WidgetDailySummary::getInteractionCount).sum();
         long totalVisible = summaries.stream().mapToLong(WidgetDailySummary::getVisibleSeconds).sum();
         List<WidgetDailySummaryResponse> byDevice = summaries.stream().map(this::toSummaryResponse).toList();
-        return new WidgetTodaySummaryResponse(today, totalOpen, totalInteraction, totalVisible, byDevice);
+        return new WidgetTodaySummaryResponse(targetDate, totalOpen, totalInteraction, totalVisible, byDevice);
     }
 
     private WidgetBubbleSettingResponse toSettingResponse(WidgetBubbleSetting s) {

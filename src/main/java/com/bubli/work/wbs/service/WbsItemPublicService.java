@@ -10,6 +10,8 @@ public interface WbsItemPublicService {
 
 	void assertRoomWbsItem(UUID roomId, UUID wbsItemId);
 
+	List<WbsItemResult> getRoomItemsForBoard(UUID roomId);
+
 	List<WbsItemResult> getRoomContextItems(UUID roomId, int limit);
 
 	WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command);
