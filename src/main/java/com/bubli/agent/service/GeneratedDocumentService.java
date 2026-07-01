@@ -1,6 +1,7 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dto.GeneratedDocumentResponse;
+import com.bubli.agent.dto.GeneratedDocumentExportResult;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.entity.GeneratedDocument;
 import com.bubli.agent.repository.GeneratedDocumentRepository;
@@ -36,10 +37,14 @@ public class GeneratedDocumentService {
 
     @Transactional(readOnly = true)
     public GeneratedDocumentResponse get(UUID userId, UUID documentId) {
-        GeneratedDocument document = generatedDocumentRepository.findById(documentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_002));
-        validateAccess(userId, document);
+        GeneratedDocument document = getReadableDocument(userId, documentId);
         return GeneratedDocumentResponse.from(document);
+    }
+
+    @Transactional(readOnly = true)
+    public GeneratedDocumentExportResult exportMarkdown(UUID userId, UUID documentId) {
+        GeneratedDocument document = getReadableDocument(userId, documentId);
+        return GeneratedDocumentExportResult.markdown(document.getTitle(), document.getContentMarkdown());
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +82,13 @@ public class GeneratedDocumentService {
         if (!document.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.AGENT_404_002);
         }
+    }
+
+    private GeneratedDocument getReadableDocument(UUID userId, UUID documentId) {
+        GeneratedDocument document = generatedDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_002));
+        validateAccess(userId, document);
+        return document;
     }
 
     private PageResponse<GeneratedDocumentResponse> toPageResponse(Page<GeneratedDocument> page) {
