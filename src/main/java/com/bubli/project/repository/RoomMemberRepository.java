@@ -37,5 +37,7 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, UUID> {
 
     Page<RoomMember> findByRoomIdAndStatus(UUID roomId, RoomMemberStatus status, Pageable pageable);
 
+    List<RoomMember> findByRoomIdAndStatus(UUID roomId, RoomMemberStatus status);
+
     List<RoomMember> findByUserIdAndStatus(UUID userId, RoomMemberStatus status);
 }

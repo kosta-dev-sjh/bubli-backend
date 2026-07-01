@@ -11,5 +11,7 @@ public interface ProjectMembershipPublicService {
 
 	List<UUID> findActiveRoomIds(UUID userId);
 
+	List<UUID> findActiveMemberIds(UUID roomId);
+
 	void assertProjectLeader(UUID userId, UUID roomId);
 }

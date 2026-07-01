@@ -15,6 +15,9 @@ import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.dto.ProjectRoomResult;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
@@ -29,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -54,6 +58,12 @@ class ChatServiceTest {
 
 	@Mock
 	UserPublicService userPublicService;
+
+	@Mock
+	ProjectRoomService projectRoomService;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Mock
 	WebSocketPublishPublicService webSocketPublishPublicService;
@@ -114,6 +124,61 @@ class ChatServiceTest {
 		)).willReturn(Optional.of(existing));
 
 		ChatRoomResult result = chatService.createDirectRoom(requesterId, targetUserId);
+
+		assertThat(result.id()).isEqualTo(existing.getId());
+		verify(chatRoomRepository, never()).save(any(ChatRoom.class));
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
+	void createProjectRoomChatRoomCreatesRoomWithActiveProjectMembers() {
+		UUID requesterId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ProjectRoomResult projectRoom = projectRoom(roomId, "프로젝트룸");
+		given(projectRoomService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.empty());
+		given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> {
+			ChatRoom chatRoom = invocation.getArgument(0);
+			ReflectionTestUtils.setField(chatRoom, "id", UUID.randomUUID());
+			ReflectionTestUtils.setField(chatRoom, "createdAt", Instant.now());
+			ReflectionTestUtils.setField(chatRoom, "updatedAt", Instant.now());
+			return chatRoom;
+		});
+		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId, memberId));
+
+		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
+
+		assertThat(result.roomId()).isEqualTo(roomId);
+		assertThat(result.chatType()).isEqualTo(ChatType.ROOM);
+		assertThat(result.name()).isEqualTo("프로젝트룸");
+
+		ArgumentCaptor<ChatRoomMember> memberCaptor = ArgumentCaptor.forClass(ChatRoomMember.class);
+		verify(chatRoomMemberRepository, times(2)).save(memberCaptor.capture());
+		assertThat(memberCaptor.getAllValues())
+				.extracting(ChatRoomMember::getUserId)
+				.containsExactlyInAnyOrder(requesterId, memberId);
+	}
+
+	@Test
+	void createProjectRoomChatRoomReturnsExistingRoom() {
+		UUID requesterId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ProjectRoomResult projectRoom = projectRoom(roomId, "프로젝트룸");
+		ChatRoom existing = ChatRoom.createRoom(roomId, "프로젝트룸");
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
+		ReflectionTestUtils.setField(existing, "updatedAt", Instant.now());
+		given(projectRoomService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
+		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId));
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				existing.getId(),
+				requesterId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+
+		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
 
 		assertThat(result.id()).isEqualTo(existing.getId());
 		verify(chatRoomRepository, never()).save(any(ChatRoom.class));
@@ -278,6 +343,23 @@ class ChatServiceTest {
 				null,
 				"ko",
 				"Asia/Seoul"
+		);
+	}
+
+	private ProjectRoomResult projectRoom(UUID roomId, String name) {
+		return new ProjectRoomResult(
+				roomId,
+				UUID.randomUUID(),
+				name,
+				null,
+				null,
+				null,
+				null,
+				null,
+				null,
+				null,
+				Instant.now(),
+				Instant.now()
 		);
 	}
 }
