@@ -60,6 +60,7 @@ public enum ErrorCode {
     USER_409_001(HttpStatus.CONFLICT, "USER_409_001", "이미 대기 중인 친구 요청이 있습니다."),
     USER_409_002(HttpStatus.CONFLICT, "USER_409_002", "이미 친구인 사용자입니다."),
     USER_409_003(HttpStatus.CONFLICT, "USER_409_003", "이미 처리된 친구 요청입니다."),
+    USER_410_001(HttpStatus.GONE, "USER_410_001", "탈퇴한 사용자입니다."),
 
     // RESOURCE
     RESOURCE_400_001(HttpStatus.BAD_REQUEST, "RESOURCE_400_001", "자료 요청 값이 올바르지 않습니다."),
