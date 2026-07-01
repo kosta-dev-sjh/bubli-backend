@@ -6,6 +6,8 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.memory.dto.CreateDailySummaryDraftCommand;
 import com.bubli.memory.service.DailySummaryPublicService;
+import com.bubli.personal.memo.dto.CreateMemoCommand;
+import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
@@ -34,6 +36,7 @@ public class AgentSuggestionDomainApplyService {
     private final SchedulePublicService schedulePublicService;
     private final DailySummaryPublicService dailySummaryPublicService;
     private final GeneratedDocumentService generatedDocumentService;
+    private final MemoPublicService memoPublicService;
     private final ObjectMapper objectMapper;
 
     public void applyApprovedSuggestion(UUID reviewerId, AgentSuggestion suggestion) {
@@ -44,6 +47,10 @@ public class AgentSuggestionDomainApplyService {
         }
         if (type == AgentSuggestionType.DOCUMENT_DRAFT) {
             markApplied(suggestion, "GENERATED_DOCUMENT", createGeneratedDocument(reviewerId, suggestion));
+            return;
+        }
+        if (type == AgentSuggestionType.MEMO) {
+            markApplied(suggestion, "MEMO", createMemo(reviewerId, suggestion));
             return;
         }
         if (suggestion.getRoomId() == null) {
@@ -71,10 +78,6 @@ public class AgentSuggestionDomainApplyService {
             ));
             case CONTRACT_FIELD -> markApplied(suggestion, "CONTRACT_FIELD_REFERENCE", contractReferenceDetails(suggestion));
             case CONTRACT_REVIEW -> markApplied(suggestion, "CONTRACT_REVIEW_NOTE", contractReviewDetails(type));
-            case MEMO -> markApplied(suggestion, "CONFIRMED_MEMO", preservedDetails(
-                    type,
-                    "Approved suggestion is the confirmed memo because a separate memo API is not defined."
-            ));
             default -> throw new BusinessException(ErrorCode.AGENT_400_001);
         }
     }
@@ -129,6 +132,18 @@ public class AgentSuggestionDomainApplyService {
     private Map<String, Object> createGeneratedDocument(UUID reviewerId, AgentSuggestion suggestion) {
         var result = generatedDocumentService.createFromSuggestion(reviewerId, suggestion);
         return Map.of("generatedDocumentId", result.getId().toString());
+    }
+
+    private Map<String, Object> createMemo(UUID reviewerId, AgentSuggestion suggestion) {
+        Map<String, Object> payload = suggestion.getPayloadJson();
+        String body = text(payload.get("body"));
+        if (body == null || body.isBlank()) {
+            body = requiredText(payload, "description");
+        }
+        var result = suggestion.getRoomId() == null
+                ? memoPublicService.createPersonalMemo(reviewerId, new CreateMemoCommand(body))
+                : memoPublicService.createRoomMemo(reviewerId, suggestion.getRoomId(), new CreateMemoCommand(body));
+        return result == null ? Map.of() : Map.of("memoId", result.id().toString());
     }
 
     private Map<String, Object> preservedDetails(AgentSuggestionType type, String reason) {
