@@ -20,5 +20,7 @@ public interface ResourcePublicService {
 
 	ResourceResult createPersonalResource(UUID userId, String title);
 
+	ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title);
+
 	void deletePersonalResource(UUID userId, UUID resourceId);
 }
