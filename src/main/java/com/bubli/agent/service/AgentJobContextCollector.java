@@ -11,9 +11,15 @@ import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
+import com.bubli.personal.notification.dto.NotificationResponse;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.timer.dto.TimeLogResult;
+import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.widget.dto.WidgetTodaySummaryResponse;
+import com.bubli.widget.service.WidgetPublicService;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
@@ -50,6 +56,10 @@ public class AgentJobContextCollector {
 	private final RoomMemoryPublicService roomMemoryPublicService;
 	private final MemoPublicService memoPublicService;
 	private final ActivityPublicService activityPublicService;
+	private final NotificationPublicService notificationPublicService;
+	private final TimeLogPublicService timeLogPublicService;
+	private final WidgetPublicService widgetPublicService;
+	private final AgentSuggestionPublicService agentSuggestionPublicService;
 
 	@Transactional(readOnly = true)
 	public AgentJobContext collect(AgentJobQueueMessage message) {
@@ -146,6 +156,17 @@ public class AgentJobContextCollector {
 				activityPublicService.getActivityContextBetween(message.requestedByUserId(), from, to, 20).stream()
 						.map(this::activityLine)
 						.toList());
+		appendSection(context, "Daily summary notifications",
+				notificationPublicService.getNotificationsBetween(message.requestedByUserId(), from, to, 10).stream()
+						.map(this::notificationLine)
+						.toList());
+		timeLogPublicService.getRunningTimer(message.requestedByUserId())
+				.ifPresent(timer -> appendSection(context, "Daily summary running timer", List.of(timerLine(timer))));
+		appendSection(context, "Daily summary widget usage", List.of(
+				widgetSummaryLine(widgetPublicService.getUsageSummary(message.requestedByUserId(), summaryDate))
+		));
+		appendSection(context, "Daily summary pending agent suggestions",
+				agentSuggestionPublicService.getReviewRequiredSummaries(message.requestedByUserId(), 10));
 	}
 
 	private LocalDate summaryDate(Map<String, Object> payload, ZoneId zoneId) {
@@ -252,6 +273,38 @@ public class AgentJobContextCollector {
 				activity.durationSeconds(),
 				activity.startedAt(),
 				activity.endedAt()
+		);
+	}
+
+	private String notificationLine(NotificationResponse notification) {
+		return "notificationId=%s sourceType=%s status=%s title=%s body=%s createdAt=%s".formatted(
+				notification.id(),
+				notification.sourceType(),
+				notification.status(),
+				notification.title(),
+				notification.body(),
+				notification.createdAt()
+		);
+	}
+
+	private String timerLine(TimeLogResult timer) {
+		return "timeLogId=%s roomId=%s type=%s status=%s startedAt=%s durationSeconds=%s".formatted(
+				timer.id(),
+				timer.roomId(),
+				timer.timerType(),
+				timer.status(),
+				timer.startedAt(),
+				timer.durationSeconds()
+		);
+	}
+
+	private String widgetSummaryLine(WidgetTodaySummaryResponse summary) {
+		return "date=%s openCount=%s interactionCount=%s visibleSeconds=%s deviceCount=%s".formatted(
+				summary.date(),
+				summary.totalOpenCount(),
+				summary.totalInteractionCount(),
+				summary.totalVisibleSeconds(),
+				summary.byDevice().size()
 		);
 	}
 

@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
@@ -15,4 +16,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 	Page<Notification> findAllByUserId(UUID userId, Pageable pageable);
 
 	long countByUserIdAndStatus(UUID userId, NotificationStatus status);
+
+	Page<Notification> findAllByUserIdAndCreatedAtBetween(UUID userId, Instant from, Instant to, Pageable pageable);
 }
