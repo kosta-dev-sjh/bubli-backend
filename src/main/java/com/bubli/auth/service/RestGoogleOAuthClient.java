@@ -51,7 +51,11 @@ public class RestGoogleOAuthClient implements GoogleOAuthClient {
 					userInfo.sub(),
 					userInfo.name(),
 					userInfo.picture(),
-					userInfo.locale()
+					userInfo.locale(),
+					userInfo.email(),
+					tokenResponse.accessToken(),
+					tokenResponse.refreshToken(),
+					tokenResponse.expiresIn()
 			);
 		} catch (BusinessException e) {
 			throw e;
@@ -90,7 +94,13 @@ public class RestGoogleOAuthClient implements GoogleOAuthClient {
 
 	private record GoogleTokenResponse(
 			@com.fasterxml.jackson.annotation.JsonProperty("access_token")
-			String accessToken
+			String accessToken,
+
+			@com.fasterxml.jackson.annotation.JsonProperty("refresh_token")
+			String refreshToken,
+
+			@com.fasterxml.jackson.annotation.JsonProperty("expires_in")
+			Long expiresIn
 	) {
 	}
 
@@ -98,7 +108,8 @@ public class RestGoogleOAuthClient implements GoogleOAuthClient {
 			String sub,
 			String name,
 			String picture,
-			String locale
+			String locale,
+			String email
 	) {
 	}
 }

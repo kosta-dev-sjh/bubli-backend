@@ -10,6 +10,9 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -26,6 +30,7 @@ public class AgentSuggestionService {
 
 	private final AgentSuggestionRepository agentSuggestionRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final ObjectMapper objectMapper;
 
 	@Transactional(readOnly = true)
 	public PageResponse<AgentSuggestionResult> getPersonalSuggestions(
@@ -55,14 +60,14 @@ public class AgentSuggestionService {
 
 	@Transactional
 	public AgentSuggestionResult createDraft(CreateAgentSuggestionCommand command) {
-		AgentSuggestion suggestion = AgentSuggestion.createDraft(
+		AgentSuggestion suggestion = AgentSuggestion.draft(
 				command.userId(),
 				command.roomId(),
 				command.jobId(),
 				command.resourceId(),
 				command.suggestionType(),
-				command.payloadJson(),
-				command.evidenceJson()
+				toJsonMap(command.payloadJson()),
+				toNullableJsonMap(command.evidenceJson())
 		);
 		return AgentSuggestionResult.from(agentSuggestionRepository.save(suggestion));
 	}
@@ -73,8 +78,32 @@ public class AgentSuggestionService {
 		AgentSuggestion suggestion = agentSuggestionRepository.findById(suggestionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_002));
 		validateSuggestionAccess(userId, suggestion);
-		suggestion.update(command.status(), command.payloadJson(), command.evidenceJson());
+		suggestion.update(
+				command.status(),
+				toNullableJsonMap(command.payloadJson()),
+				toNullableJsonMap(command.evidenceJson())
+		);
 		return AgentSuggestionResult.from(suggestion);
+	}
+
+	private Map<String, Object> toJsonMap(String value) {
+		Map<String, Object> parsed = toNullableJsonMap(value);
+		if (parsed == null) {
+			throw new BusinessException(ErrorCode.AGENT_400_001);
+		}
+		return parsed;
+	}
+
+	private Map<String, Object> toNullableJsonMap(String value) {
+		if (value == null) {
+			return null;
+		}
+		try {
+			return objectMapper.readValue(value, new TypeReference<>() {
+			});
+		} catch (JsonProcessingException exception) {
+			return Map.of("raw", value);
+		}
 	}
 
 	private void validateUpdateCommand(UpdateAgentSuggestionCommand command) {

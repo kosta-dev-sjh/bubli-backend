@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,9 +30,26 @@ public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion
             AgentSuggestionStatus status
     );
 
+    List<AgentSuggestion> findAllByRoomIdAndSuggestionTypeInOrderByCreatedAtDesc(
+            UUID roomId,
+            Collection<AgentSuggestionType> suggestionTypes
+    );
+
+    List<AgentSuggestion> findAllByRoomIdAndSuggestionTypeInAndStatusOrderByCreatedAtDesc(
+            UUID roomId,
+            Collection<AgentSuggestionType> suggestionTypes,
+            AgentSuggestionStatus status
+    );
+
     Page<AgentSuggestion> findByUserIdAndStatus(
             UUID userId,
             AgentSuggestionStatus status,
+            Pageable pageable
+    );
+
+    Page<AgentSuggestion> findByUserIdAndStatusIn(
+            UUID userId,
+            Collection<AgentSuggestionStatus> statuses,
             Pageable pageable
     );
 

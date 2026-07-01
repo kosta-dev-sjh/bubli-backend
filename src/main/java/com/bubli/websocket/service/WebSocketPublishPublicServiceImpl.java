@@ -4,6 +4,7 @@ import com.bubli.chat.dto.ChatMessageResponse;
 import com.bubli.chat.dto.ChatMessageResult;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.notification.dto.NotificationResponse;
 import com.bubli.project.dto.ProjectRoomEventActorResponse;
 import com.bubli.project.dto.ProjectRoomEventResponse;
 import com.bubli.user.dto.UserResult;
@@ -27,6 +28,7 @@ public class WebSocketPublishPublicServiceImpl implements WebSocketPublishPublic
 	private static final String CHAT_TOPIC_PREFIX = "/topic/chat/";
 	private static final String PROJECT_ROOM_EVENTS_TOPIC_PREFIX = "/topic/project-rooms/";
 	private static final String PROJECT_ROOM_EVENTS_TOPIC_SUFFIX = "/events";
+	private static final String USER_NOTIFICATION_QUEUE = "/queue/notifications";
 	private static final String UNKNOWN_USER_NAME = "Unknown";
 
 	private final SimpMessagingTemplate messagingTemplate;
@@ -62,6 +64,11 @@ public class WebSocketPublishPublicServiceImpl implements WebSocketPublishPublic
 		);
 	}
 
+	@Override
+	public void publishUserNotification(UUID userId, NotificationResponse notification) {
+		publishToUserAfterCommit(userId.toString(), USER_NOTIFICATION_QUEUE, notification);
+	}
+
 	private void publishAfterCommit(String destination, Object payload) {
 		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
 			messagingTemplate.convertAndSend(destination, payload);
@@ -72,6 +79,20 @@ public class WebSocketPublishPublicServiceImpl implements WebSocketPublishPublic
 			@Override
 			public void afterCommit() {
 				messagingTemplate.convertAndSend(destination, payload);
+			}
+		});
+	}
+
+	private void publishToUserAfterCommit(String user, String destination, Object payload) {
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			messagingTemplate.convertAndSendToUser(user, destination, payload);
+			return;
+		}
+
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				messagingTemplate.convertAndSendToUser(user, destination, payload);
 			}
 		});
 	}

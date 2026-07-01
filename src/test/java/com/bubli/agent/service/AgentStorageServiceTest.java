@@ -26,11 +26,13 @@ import com.bubli.agent.type.AiDocumentType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
@@ -73,6 +75,9 @@ class AgentStorageServiceTest {
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Spy
+	ObjectMapper objectMapper = new ObjectMapper();
 
 	@InjectMocks
 	AgentJobService agentJobService;

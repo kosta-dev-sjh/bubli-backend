@@ -1,6 +1,7 @@
 package com.bubli.global.security;
 
 import com.bubli.global.error.ErrorCode;
+import com.bubli.global.error.ErrorResponseFactory;
 import com.bubli.global.error.ErrorResponse;
 import com.bubli.global.response.ApiResponse;
 import com.bubli.global.trace.TraceIdHolder;
@@ -32,6 +33,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
+    private final ErrorResponseFactory errorResponseFactory;
 
     @Value("${cors.allowed-origin-patterns:http://localhost:3000,http://localhost:5173,http://localhost:1420}")
     private String allowedOriginPatterns;
@@ -48,20 +50,29 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/voice/webhook/livekit").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) -> {
-                            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.AUTH_401_001, TraceIdHolder.get());
+                            ErrorResponse errorResponse = errorResponseFactory.of(
+                                    ErrorCode.AUTH_401_001,
+                                    TraceIdHolder.get(),
+                                    request
+                            );
                             response.setStatus(ErrorCode.AUTH_401_001.getHttpStatus().value());
                             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getWriter(), ApiResponse.fail(errorResponse));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.AUTH_403_001, TraceIdHolder.get());
+                            ErrorResponse errorResponse = errorResponseFactory.of(
+                                    ErrorCode.AUTH_403_001,
+                                    TraceIdHolder.get(),
+                                    request
+                            );
                             response.setStatus(ErrorCode.AUTH_403_001.getHttpStatus().value());
                             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);

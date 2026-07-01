@@ -1075,13 +1075,14 @@ Content-Type: application/json
 현재 상태:
 
 - `GET /api/resources/{resourceId}/related` 조회 API는 존재한다.
-- relation 데이터가 언제, 어떤 기준으로 생성되는지는 아직 명확하지 않다.
+- resource 분석 중 embedding indexing이 성공하면 `ResourceRelationIndexPublicService`가 relation을 자동 재생성한다.
+- relation은 같은 room 안의 resource embedding similarity를 기준으로 양방향 생성된다.
 
 구현 범위:
 
 1. 분석 완료 시 유사 embedding 기반 related resource 후보 계산
 2. 같은 room 또는 접근 가능한 scope 안에서만 relation 생성
-3. relation type, score, evidence 정책 정의
+3. relation reason, score 정책 정의
 4. 중복 relation 방지
 5. relation 조회 테스트 추가
 
@@ -1089,6 +1090,8 @@ Content-Type: application/json
 
 - resource 분석 이후 관련 문서 조회 API에서 실제 관계 데이터가 반환된다.
 - 권한이 없는 resource는 relation 후보에 포함되지 않는다.
+
+상태: 구현 완료
 
 ### Step 6.8: Postman E2E 검증 시나리오
 
@@ -1116,6 +1119,13 @@ Content-Type: application/json
 - async worker 실행 방식이 문서화되어 있다.
 - 실패 케이스도 Postman으로 확인할 수 있다.
 
+상태: 문서화 완료
+
+검증 문서:
+
+- `docs/RAG_POSTMAN_E2E.md`
+- `docs/http/agent.http`
+
 ### Step 6.9: 테스트와 Schema 정합성 마무리
 
 목표:
@@ -1140,8 +1150,17 @@ Content-Type: application/json
 
 위 명령이 통과해야 한다.
 
+상태: 검증 완료
+
+2026-06-30 기준 아래 검증이 통과했다.
+
+```powershell
+.\gradlew.bat test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest --tests com.bubli.schema.EntityFlywayAlignmentTest --tests com.bubli.EntityMappingTest --tests com.bubli.agent.dispatch.* --tests com.bubli.agent.service.* --tests com.bubli.resource.service.ResourceRelationIndexPublicServiceTest --tests com.bubli.memory.service.DailySummaryServiceTest --console=plain
+.\gradlew.bat test --console=plain
+```
+
 ### 권장 구현 순서
 
-1. Step 6.7: resource relation 자동 생성
-2. Step 6.8: Postman E2E 문서화
-3. Step 6.9: 전체 테스트와 schema 정합성 마무리
+1. Step 6.7: resource relation 자동 생성 완료
+2. Step 6.8: Postman E2E 문서화 완료
+3. Step 6.9: 전체 테스트와 schema 정합성 검증 완료

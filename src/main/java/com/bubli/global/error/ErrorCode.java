@@ -1,11 +1,9 @@
 package com.bubli.global.error;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-@AllArgsConstructor
 public enum ErrorCode {
 
     // COMMON
@@ -50,7 +48,9 @@ public enum ErrorCode {
 
     // PERSONAL
     PERSONAL_400_001(HttpStatus.BAD_REQUEST, "PERSONAL_400_001", "타이머 상태가 올바르지 않습니다."),
+    PERSONAL_403_001(HttpStatus.FORBIDDEN, "PERSONAL_403_001", "개인 기능 접근 권한이 없습니다."),
     PERSONAL_404_001(HttpStatus.NOT_FOUND, "PERSONAL_404_001", "타이머 기록을 찾을 수 없습니다."),
+    PERSONAL_404_002(HttpStatus.NOT_FOUND, "PERSONAL_404_002", "메모를 찾을 수 없습니다."),
     PERSONAL_409_001(HttpStatus.CONFLICT, "PERSONAL_409_001", "이미 실행 중인 타이머가 있습니다."),
 
     // USER
@@ -60,6 +60,7 @@ public enum ErrorCode {
     USER_409_001(HttpStatus.CONFLICT, "USER_409_001", "이미 대기 중인 친구 요청이 있습니다."),
     USER_409_002(HttpStatus.CONFLICT, "USER_409_002", "이미 친구인 사용자입니다."),
     USER_409_003(HttpStatus.CONFLICT, "USER_409_003", "이미 처리된 친구 요청입니다."),
+    USER_410_001(HttpStatus.GONE, "USER_410_001", "탈퇴한 사용자입니다."),
 
     // RESOURCE
     RESOURCE_400_001(HttpStatus.BAD_REQUEST, "RESOURCE_400_001", "자료 요청 값이 올바르지 않습니다."),
@@ -91,12 +92,44 @@ public enum ErrorCode {
     SCHEDULE_403_001(HttpStatus.FORBIDDEN, "SCHEDULE_403_001", "일정 접근 권한이 없습니다."),
     SCHEDULE_404_001(HttpStatus.NOT_FOUND, "SCHEDULE_404_001", "일정을 찾을 수 없습니다."),
 
+    // CALENDAR
+    CALENDAR_400_001(HttpStatus.BAD_REQUEST, "CALENDAR_400_001", "Google Calendar 연동 요청 값이 올바르지 않습니다."),
+    CALENDAR_404_001(HttpStatus.NOT_FOUND, "CALENDAR_404_001", "Google Calendar 연동 정보를 찾을 수 없습니다."),
+    CALENDAR_502_001(HttpStatus.BAD_GATEWAY, "CALENDAR_502_001", "Google Calendar API 호출에 실패했습니다."),
+
     // NOTIFICATION
     NOTIFICATION_403_001(HttpStatus.FORBIDDEN, "NOTIFICATION_403_001", "알림 접근 권한이 없습니다."),
     NOTIFICATION_404_001(HttpStatus.NOT_FOUND, "NOTIFICATION_404_001", "알림을 찾을 수 없습니다."),
+
+    // ACTIVITY
+    ACTIVITY_400_001(HttpStatus.BAD_REQUEST, "ACTIVITY_400_001", "활동 기록 요청 값이 올바르지 않습니다."),
+    ACTIVITY_403_001(HttpStatus.FORBIDDEN, "ACTIVITY_403_001", "활동 감지 동의가 필요합니다."),
+    ACTIVITY_404_001(HttpStatus.NOT_FOUND, "ACTIVITY_404_001", "활동 기록을 찾을 수 없습니다."),
+
+    // VOICE
+    VOICE_404_001(HttpStatus.NOT_FOUND, "VOICE_404_001", "보이스챗 방을 찾을 수 없습니다."),
+    VOICE_403_001(HttpStatus.FORBIDDEN, "VOICE_403_001", "보이스챗 방 접근 권한이 없습니다."),
+    VOICE_409_001(HttpStatus.CONFLICT, "VOICE_409_001", "이미 종료된 보이스챗 방입니다."),
+    VOICE_409_002(HttpStatus.CONFLICT, "VOICE_409_002", "이미 활성화된 보이스챗 방이 있습니다."),
+
+    // WIDGET
+    WIDGET_400_001(HttpStatus.BAD_REQUEST, "WIDGET_400_001", "유효하지 않은 위젯 값입니다."),
+    WIDGET_404_001(HttpStatus.NOT_FOUND, "WIDGET_404_001", "위젯 항목을 찾을 수 없습니다."),
     ;
 
     private final HttpStatus httpStatus;
     private final String code;
-    private final String message;
+    private final String messageKey;
+    private final String defaultMessage;
+
+    ErrorCode(HttpStatus httpStatus, String code, String defaultMessage) {
+        this.httpStatus = httpStatus;
+        this.code = code;
+        this.messageKey = "error." + code;
+        this.defaultMessage = defaultMessage;
+    }
+
+    public String getMessage() {
+        return defaultMessage;
+    }
 }

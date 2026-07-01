@@ -1,0 +1,38 @@
+@baseUrl = http://localhost:8080
+@accessToken = paste-access-token-here
+@roomId = paste-project-room-id-here
+@voiceRoomId = paste-voice-room-id-here
+
+### 보이스챗 방 생성
+POST {{baseUrl}}/api/voice/rooms
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "roomId": "{{roomId}}"
+}
+
+### 보이스챗 방 조회
+GET {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}
+Authorization: Bearer {{accessToken}}
+
+### LiveKit 접속 토큰 발급
+POST {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/token
+Authorization: Bearer {{accessToken}}
+
+### 마이크 상태 변경
+PATCH {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/mic
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "micStatus": "MUTED"
+}
+
+### 통화 나가기
+PATCH {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/leave
+Authorization: Bearer {{accessToken}}
+
+### 통화 종료 (생성자만)
+PATCH {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/end
+Authorization: Bearer {{accessToken}}

@@ -6,6 +6,8 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.memory.dto.CreateDailySummaryDraftCommand;
 import com.bubli.memory.service.DailySummaryPublicService;
+import com.bubli.personal.memo.dto.CreateMemoCommand;
+import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,35 +35,56 @@ public class AgentSuggestionDomainApplyService {
     private final WbsItemPublicService wbsItemPublicService;
     private final SchedulePublicService schedulePublicService;
     private final DailySummaryPublicService dailySummaryPublicService;
+    private final GeneratedDocumentService generatedDocumentService;
+    private final MemoPublicService memoPublicService;
     private final ObjectMapper objectMapper;
 
     public void applyApprovedSuggestion(UUID reviewerId, AgentSuggestion suggestion) {
         AgentSuggestionType type = suggestion.getSuggestionType();
         if (type == AgentSuggestionType.DAILY_SUMMARY) {
-            upsertDailySummary(reviewerId, suggestion);
+            markApplied(suggestion, "DAILY_SUMMARY", upsertDailySummary(reviewerId, suggestion));
+            return;
+        }
+        if (type == AgentSuggestionType.DOCUMENT_DRAFT) {
+            markApplied(suggestion, "GENERATED_DOCUMENT", createGeneratedDocument(reviewerId, suggestion));
+            return;
+        }
+        if (type == AgentSuggestionType.MEMO) {
+            markApplied(suggestion, "MEMO", createMemo(reviewerId, suggestion));
             return;
         }
         if (suggestion.getRoomId() == null) {
+            markApplied(suggestion, "CONFIRMED_SUGGESTION", preservedDetails(
+                    type,
+                    "No roomId for domain materialization."
+            ));
             return;
         }
-        if (type == AgentSuggestionType.TASK || type == AgentSuggestionType.TODO) {
-            createTask(reviewerId, suggestion);
-            return;
+        switch (type) {
+            case TASK, TODO -> markApplied(suggestion, "TASK", createTask(reviewerId, suggestion));
+            case WBS -> markApplied(suggestion, "WBS", createWbsItem(reviewerId, suggestion));
+            case SCHEDULE -> markApplied(suggestion, "SCHEDULE", createSchedule(reviewerId, suggestion));
+            case REQUIREMENT -> markApplied(suggestion, "CONFIRMED_REQUIREMENT", preservedDetails(
+                    type,
+                    "Approved suggestion is the confirmed requirement because a separate requirement table is not defined."
+            ));
+            case QUESTION -> markApplied(suggestion, "CONFIRMATION_QUESTION", preservedDetails(
+                    type,
+                    "Approved suggestion remains available through confirmation item queries."
+            ));
+            case REVIEW_ITEM -> markApplied(suggestion, "CONFIRMATION_REVIEW_ITEM", preservedDetails(
+                    type,
+                    "Approved suggestion remains available through confirmation item queries."
+            ));
+            case CONTRACT_FIELD -> markApplied(suggestion, "CONTRACT_FIELD_REFERENCE", contractReferenceDetails(suggestion));
+            case CONTRACT_REVIEW -> markApplied(suggestion, "CONTRACT_REVIEW_NOTE", contractReviewDetails(type));
+            default -> throw new BusinessException(ErrorCode.AGENT_400_001);
         }
-        if (type == AgentSuggestionType.WBS) {
-            createWbsItem(reviewerId, suggestion);
-            return;
-        }
-        if (type == AgentSuggestionType.SCHEDULE) {
-            createSchedule(reviewerId, suggestion);
-            return;
-        }
-        preserveApprovedSuggestion(suggestion);
     }
 
-    private void createTask(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createTask(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        taskPublicService.createRoomTask(reviewerId, suggestion.getRoomId(), new CreateRoomTaskCommand(
+        var result = taskPublicService.createRoomTask(reviewerId, suggestion.getRoomId(), new CreateRoomTaskCommand(
                 uuid(payload.get("assigneeUserId")),
                 uuid(payload.get("wbsItemId")),
                 requiredText(payload, "title"),
@@ -68,21 +92,23 @@ public class AgentSuggestionDomainApplyService {
                 enumValue(TaskStatus.class, payload.get("status"), TaskStatus.TODO),
                 instant(payload.get("dueAt"))
         ));
+        return result == null ? Map.of() : Map.of("taskId", result.id().toString());
     }
 
-    private void createWbsItem(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createWbsItem(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        wbsItemPublicService.create(reviewerId, suggestion.getRoomId(), new CreateWbsItemCommand(
+        var result = wbsItemPublicService.create(reviewerId, suggestion.getRoomId(), new CreateWbsItemCommand(
                 uuid(payload.get("parentId")),
                 requiredText(payload, "title"),
                 integer(payload.get("orderNo")),
                 enumValue(WbsStatus.class, payload.get("status"), WbsStatus.TODO)
         ));
+        return result == null ? Map.of() : Map.of("wbsItemId", result.id().toString());
     }
 
-    private void createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        schedulePublicService.create(reviewerId, new CreateScheduleCommand(
+        var result = schedulePublicService.create(reviewerId, new CreateScheduleCommand(
                 suggestion.getRoomId(),
                 uuid(payload.get("taskId")),
                 uuid(payload.get("wbsItemId")),
@@ -91,28 +117,79 @@ public class AgentSuggestionDomainApplyService {
                 instant(payload.get("endsAt")),
                 bool(payload.get("allDay"))
         ));
+        return result == null ? Map.of() : Map.of("scheduleId", result.id().toString());
     }
 
-    private void upsertDailySummary(UUID reviewerId, AgentSuggestion suggestion) {
+    private Map<String, Object> upsertDailySummary(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
-        dailySummaryPublicService.upsertDraft(reviewerId, new CreateDailySummaryDraftCommand(
+        var result = dailySummaryPublicService.upsertDraft(reviewerId, new CreateDailySummaryDraftCommand(
                 localDate(payload.get("summaryDate"), LocalDate.now()),
                 summaryJson(payload)
         ));
+        return result == null ? Map.of() : Map.of("dailySummaryId", result.id().toString());
     }
 
-    private void preserveApprovedSuggestion(AgentSuggestion suggestion) {
-        AgentSuggestionType type = suggestion.getSuggestionType();
-        if (type == AgentSuggestionType.REQUIREMENT
-                || type == AgentSuggestionType.QUESTION
-                || type == AgentSuggestionType.REVIEW_ITEM
-                || type == AgentSuggestionType.DOCUMENT_DRAFT
-                || type == AgentSuggestionType.CONTRACT_FIELD
-                || type == AgentSuggestionType.CONTRACT_REVIEW
-                || type == AgentSuggestionType.MEMO) {
-            return;
+    private Map<String, Object> createGeneratedDocument(UUID reviewerId, AgentSuggestion suggestion) {
+        var result = generatedDocumentService.createFromSuggestion(reviewerId, suggestion);
+        return Map.of("generatedDocumentId", result.getId().toString());
+    }
+
+    private Map<String, Object> createMemo(UUID reviewerId, AgentSuggestion suggestion) {
+        Map<String, Object> payload = suggestion.getPayloadJson();
+        String body = text(payload.get("body"));
+        if (body == null || body.isBlank()) {
+            body = requiredText(payload, "description");
         }
-        throw new BusinessException(ErrorCode.AGENT_400_001);
+        var result = suggestion.getRoomId() == null
+                ? memoPublicService.createPersonalMemo(reviewerId, new CreateMemoCommand(body))
+                : memoPublicService.createRoomMemo(reviewerId, suggestion.getRoomId(), new CreateMemoCommand(body));
+        return result == null ? Map.of() : Map.of("memoId", result.id().toString());
+    }
+
+    private Map<String, Object> preservedDetails(AgentSuggestionType type, String reason) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("suggestionType", type.name());
+        details.put("policy", "APPROVED_SUGGESTION_IS_CONFIRMED_RESULT");
+        details.put("materialized", false);
+        details.put("reason", reason);
+        return details;
+    }
+
+    private Map<String, Object> contractReferenceDetails(AgentSuggestion suggestion) {
+        Map<String, Object> payload = suggestion.getPayloadJson();
+        Map<String, Object> details = preservedDetails(
+                AgentSuggestionType.CONTRACT_FIELD,
+                "Contract field suggestions are preserved as project-room reference values and are not auto-applied."
+        );
+        putIfPresent(details, "fieldKey", payload.get("fieldKey"));
+        putIfPresent(details, "value", payload.get("value"));
+        details.put("legalDisclaimer", "This is a reference extraction, not legal advice or legal judgment.");
+        return details;
+    }
+
+    private Map<String, Object> contractReviewDetails(AgentSuggestionType type) {
+        Map<String, Object> details = preservedDetails(
+                type,
+                "Contract review suggestions are preserved as review notes and are not auto-applied."
+        );
+        details.put("legalDisclaimer", "This is a reference extraction, not legal advice or legal judgment.");
+        return details;
+    }
+
+    private void putIfPresent(Map<String, Object> details, String key, Object value) {
+        if (value != null) {
+            details.put(key, value);
+        }
+    }
+
+    private void markApplied(AgentSuggestion suggestion, String targetType, Map<String, Object> details) {
+        Map<String, Object> payload = new LinkedHashMap<>(suggestion.getPayloadJson());
+        payload.put("appliedResult", Map.of(
+                "targetType", targetType,
+                "details", details,
+                "appliedAt", Instant.now().toString()
+        ));
+        suggestion.update(null, payload, null);
     }
 
     private String requiredText(Map<String, Object> payload, String field) {

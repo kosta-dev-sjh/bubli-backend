@@ -147,6 +147,18 @@ public class AgentSuggestion extends BaseTimeEntity {
         }
     }
 
+    public void update(AgentSuggestionStatus status, Map<String, Object> payloadJson, Map<String, Object> evidenceJson) {
+        if (status != null) {
+            this.status = status;
+        }
+        if (payloadJson != null) {
+            this.payloadJson = immutableJsonMap(payloadJson);
+        }
+        if (evidenceJson != null) {
+            this.evidenceJson = immutableJsonMap(evidenceJson);
+        }
+    }
+
     public void approve(UUID reviewerId) {
         review(AgentSuggestionStatus.APPROVED, reviewerId);
     }

@@ -1,8 +1,10 @@
 package com.bubli.user.service;
 
+import com.bubli.global.error.BusinessException;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -25,6 +28,9 @@ class UserPublicServiceImplTest {
 
 	@Mock
 	UserRepository userRepository;
+
+	@Mock
+	UserPrivacyConsentRepository userPrivacyConsentRepository;
 
 	@Mock
 	BubliIdGenerator bubliIdGenerator;
@@ -54,6 +60,7 @@ class UserPublicServiceImplTest {
 		));
 
 		assertThat(result.bubliId()).isEqualTo("milo4827");
+		assertThat(result.locale()).isEqualTo("ko-KR");
 	}
 
 	@Test
@@ -82,5 +89,21 @@ class UserPublicServiceImplTest {
 		ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
 		verify(userRepository).save(userCaptor.capture());
 		assertThat(userCaptor.getValue().getBubliId()).isEqualTo("nora4828");
+		assertThat(userCaptor.getValue().getLocale()).isEqualTo("ko-KR");
+	}
+
+	@Test
+	void upsertGoogleUserRejectsWithdrawnUser() {
+		User user = User.createGoogleUser("google-sub", "bubli-id", "미연", null, "ko", "Asia/Seoul");
+		user.withdraw();
+		given(userRepository.findByGoogleSub("google-sub")).willReturn(Optional.of(user));
+
+		assertThatThrownBy(() -> userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
+				"google-sub",
+				"미연",
+				null,
+				"ko",
+				"Asia/Seoul"
+		))).isInstanceOf(BusinessException.class);
 	}
 }

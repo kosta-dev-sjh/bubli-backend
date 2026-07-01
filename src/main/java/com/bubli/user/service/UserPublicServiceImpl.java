@@ -5,7 +5,11 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.entity.UserPrivacyConsentId;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.global.locale.SupportedLocale;
+import com.bubli.user.repository.UserPrivacyConsentRepository;
+import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -21,13 +25,13 @@ import java.util.stream.Collectors;
 public class UserPublicServiceImpl implements UserPublicService {
 
 	private final UserRepository userRepository;
+	private final UserPrivacyConsentRepository userPrivacyConsentRepository;
 	private final BubliIdGenerator bubliIdGenerator;
 
 	@Override
 	@Transactional(readOnly = true)
 	public UserResult getUser(UUID userId) {
-		User user = userRepository.findById(userId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		User user = getActiveUser(userId);
 		return UserResult.from(user);
 	}
 
@@ -35,15 +39,26 @@ public class UserPublicServiceImpl implements UserPublicService {
 	@Transactional
 	public UserResult upsertGoogleUser(UpsertGoogleUserCommand command) {
 		User user = userRepository.findByGoogleSub(command.googleSub())
+				.map(existingUser -> {
+					if (!existingUser.isActive()) {
+						throw new BusinessException(ErrorCode.USER_410_001);
+					}
+					return existingUser;
+				})
 				.orElseGet(() -> userRepository.save(User.createGoogleUser(
 						command.googleSub(),
 						generateBubliId(command),
 						resolveName(command),
 						command.avatarUrl(),
-						command.locale(),
+						SupportedLocale.normalize(command.locale()),
 						command.timezone()
 		)));
-		user.updateProfile(resolveName(command), command.avatarUrl(), command.locale(), command.timezone());
+		user.updateProfile(
+				resolveName(command),
+				command.avatarUrl(),
+				SupportedLocale.normalize(command.locale()),
+				command.timezone()
+		);
 		return UserResult.from(user);
 	}
 
@@ -51,6 +66,7 @@ public class UserPublicServiceImpl implements UserPublicService {
 	@Transactional(readOnly = true)
 	public Map<UUID, UserResult> getUsers(Page<UUID> userIds) {
 		return userRepository.findAllById(userIds.getContent()).stream()
+				.filter(User::isActive)
 				.map(this::toPublicResult)
 				.collect(Collectors.toMap(UserResult::id, Function.identity()));
 	}
@@ -58,9 +74,27 @@ public class UserPublicServiceImpl implements UserPublicService {
 	@Override
 	@Transactional(readOnly = true)
 	public void assertExists(UUID userId) {
-		if (!userRepository.existsById(userId)) {
-			throw new BusinessException(ErrorCode.USER_404_001);
+		getActiveUser(userId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean isPrivacyConsentEnabled(UUID userId, ConsentType consentType) {
+		if (userRepository.findById(userId).filter(User::isActive).isEmpty()) {
+			return false;
 		}
+		return userPrivacyConsentRepository.findById(UserPrivacyConsentId.of(userId, consentType))
+				.map(consent -> consent.isEnabled())
+				.orElse(false);
+	}
+
+	private User getActiveUser(UUID userId) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		if (!user.isActive()) {
+			throw new BusinessException(ErrorCode.USER_410_001);
+		}
+		return user;
 	}
 
 	private UserResult toPublicResult(User user) {

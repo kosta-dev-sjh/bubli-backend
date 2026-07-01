@@ -32,13 +32,15 @@ public class DocumentController {
             @PathVariable UUID roomId,
             @RequestParam DocumentType documentType,
             @RequestParam MultipartFile file,
+            @RequestParam(defaultValue = "true") boolean autoAnalyze,
             @CurrentUser AuthUser currentUser
     ) {
         ContractDocumentUploadResponse response = documentUploadService.uploadContractDocument(
                 roomId,
                 currentUser.userId(),
                 documentType,
-                file
+                file,
+                autoAnalyze
         );
         return ResponseEntity
                 .status(HttpStatus.CREATED)

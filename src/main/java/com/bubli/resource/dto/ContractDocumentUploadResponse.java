@@ -9,14 +9,16 @@ import java.util.UUID;
 public record ContractDocumentUploadResponse(
         UUID resourceId,
         UUID jobId,
-        AgentJobStatus status
+        AgentJobStatus status,
+        boolean autoAnalyze
 ) {
 
-    public static ContractDocumentUploadResponse of(Resource resource, AgentJobTicket job) {
+    public static ContractDocumentUploadResponse of(Resource resource, AgentJobTicket job, boolean autoAnalyze) {
         return new ContractDocumentUploadResponse(
                 resource.getId(),
-                job.jobId(),
-                job.status()
+                job == null ? null : job.jobId(),
+                job == null ? null : job.status(),
+                autoAnalyze
         );
     }
 }

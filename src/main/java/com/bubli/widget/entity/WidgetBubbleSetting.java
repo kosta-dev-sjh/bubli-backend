@@ -71,4 +71,28 @@ public class WidgetBubbleSetting {
 		this.updatedAt = Instant.now();
 	}
 
+	public static WidgetBubbleSetting create(UUID userId, BubbleType bubbleType) {
+		WidgetBubbleSetting s = new WidgetBubbleSetting();
+		s.userId = userId;
+		s.bubbleType = bubbleType;
+		s.enabled = true;
+		s.minimized = false;
+		s.ghostMode = false;
+		s.alertEnabled = true;
+		return s;
+	}
+
+	public void update(Boolean enabled, Integer x, Integer y, Integer width, Integer height,
+			Boolean minimized, java.math.BigDecimal opacity, Boolean ghostMode, Boolean alertEnabled) {
+		if (enabled != null) this.enabled = enabled;
+		if (x != null) this.x = x;
+		if (y != null) this.y = y;
+		if (width != null) this.width = width;
+		if (height != null) this.height = height;
+		if (minimized != null) this.minimized = minimized;
+		if (opacity != null) this.opacity = opacity;
+		if (ghostMode != null) this.ghostMode = ghostMode;
+		if (alertEnabled != null) this.alertEnabled = alertEnabled;
+	}
+
 }

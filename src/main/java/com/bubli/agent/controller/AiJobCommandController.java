@@ -89,7 +89,8 @@ public class AiJobCommandController {
 		return ApiResponse.success(AgentJobResponse.from(
 				aiJobCommandService.createDailySummaryJob(
 						authUser.userId(),
-						request == null ? null : request.summaryDate()
+						request == null ? null : request.summaryDate(),
+						request == null ? null : request.timezone()
 				)
 		));
 	}

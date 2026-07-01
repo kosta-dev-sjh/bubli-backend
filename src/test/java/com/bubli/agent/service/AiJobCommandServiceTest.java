@@ -10,6 +10,8 @@ import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.user.service.UserLocalePublicService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,8 +41,20 @@ class AiJobCommandServiceTest {
 	@Mock
 	AgentJobService agentJobService;
 
+	@Mock
+	UserLocalePublicService userLocalePublicService;
+
 	@InjectMocks
 	AiJobCommandService aiJobCommandService;
+
+	@BeforeEach
+	void setUp() {
+		lenient().when(userLocalePublicService.resolveLocaleCode(
+						org.mockito.ArgumentMatchers.any(UUID.class),
+						org.mockito.ArgumentMatchers.isNull()
+				))
+				.thenReturn("ko-KR");
+	}
 
 	@Test
 	void createAnalyzeResourceJobChecksResourceAccessThenCreatesPendingAgentJob() {
@@ -289,12 +304,45 @@ class AiJobCommandServiceTest {
 						Instant.now()
 				));
 
-		aiJobCommandService.createDailySummaryJob(userId, LocalDate.of(2026, 7, 1));
+		aiJobCommandService.createDailySummaryJob(userId, LocalDate.of(2026, 7, 1), "Asia/Tokyo");
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().jobType()).isEqualTo(AgentJobType.DAILY_SUMMARY);
 		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("summaryDate", "2026-07-01");
+		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("timezone", "Asia/Tokyo");
+		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("locale", "ko-KR");
+	}
+
+	@Test
+	void createAgentJobStoresResolvedUserLocalePayload() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID jobId = UUID.randomUUID();
+		given(userLocalePublicService.resolveLocaleCode(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.isNull()))
+				.willReturn("en-US");
+		given(agentJobService.create(org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new AgentJobResult(
+						jobId,
+						userId,
+						roomId,
+						null,
+						AgentJobType.GENERATE_TASKS,
+						AgentJobStatus.PENDING,
+						0,
+						null,
+						null,
+						null,
+						null,
+						Instant.now(),
+						Instant.now()
+				));
+
+		aiJobCommandService.createGenerateTasksJob(userId, roomId);
+
+		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().requestPayload()).containsEntry("locale", "en-US");
 	}
 
 	@Test

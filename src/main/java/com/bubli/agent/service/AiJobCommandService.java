@@ -3,9 +3,11 @@ package com.bubli.agent.service;
 import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobType;
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class AiJobCommandService {
 	private final ResourcePublicService resourcePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final AgentJobService agentJobService;
+	private final UserLocalePublicService userLocalePublicService;
 
 	@Transactional
 	public AgentJobResult createAnalyzeResourceJob(UUID userId, UUID resourceId) {
@@ -30,7 +33,8 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				resource.roomId(),
 				resource.id(),
-				AgentJobType.ANALYZE_RESOURCE
+				AgentJobType.ANALYZE_RESOURCE,
+				localePayload(userId)
 		));
 	}
 
@@ -40,7 +44,8 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.GENERATE_REQUIREMENTS
+				AgentJobType.GENERATE_REQUIREMENTS,
+				localePayload(userId)
 		));
 	}
 
@@ -50,7 +55,8 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.GENERATE_TASKS
+				AgentJobType.GENERATE_TASKS,
+				localePayload(userId)
 		));
 	}
 
@@ -60,7 +66,8 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.GENERATE_WBS
+				AgentJobType.GENERATE_WBS,
+				localePayload(userId)
 		));
 	}
 
@@ -70,7 +77,8 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.GENERATE_QUESTIONS
+				AgentJobType.GENERATE_QUESTIONS,
+				localePayload(userId)
 		));
 	}
 
@@ -80,20 +88,29 @@ public class AiJobCommandService {
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				roomId,
 				null,
-				AgentJobType.REVIEW_CONTRACT_DOCUMENTS
+				AgentJobType.REVIEW_CONTRACT_DOCUMENTS,
+				localePayload(userId)
 		));
 	}
 
 	@Transactional
 	public AgentJobResult createDailySummaryJob(UUID userId) {
-		return createDailySummaryJob(userId, null);
+		return createDailySummaryJob(userId, null, null);
 	}
 
 	@Transactional
 	public AgentJobResult createDailySummaryJob(UUID userId, LocalDate summaryDate) {
-		Map<String, Object> requestPayload = new LinkedHashMap<>();
+		return createDailySummaryJob(userId, summaryDate, null);
+	}
+
+	@Transactional
+	public AgentJobResult createDailySummaryJob(UUID userId, LocalDate summaryDate, String timezone) {
+		Map<String, Object> requestPayload = localePayload(userId);
 		if (summaryDate != null) {
 			requestPayload.put("summaryDate", summaryDate.toString());
+		}
+		if (timezone != null && !timezone.isBlank()) {
+			requestPayload.put("timezone", timezone.trim());
 		}
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				null,
@@ -117,7 +134,7 @@ public class AiJobCommandService {
 			String instruction
 	) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
-		Map<String, Object> requestPayload = new LinkedHashMap<>();
+		Map<String, Object> requestPayload = localePayload(userId);
 		if (documentType != null && !documentType.isBlank()) {
 			requestPayload.put("documentType", documentType.trim());
 		}
@@ -133,5 +150,15 @@ public class AiJobCommandService {
 				AgentJobType.DRAFT_DOCUMENT,
 				requestPayload
 		));
+	}
+
+	private Map<String, Object> localePayload(UUID userId) {
+		Map<String, Object> payload = new LinkedHashMap<>();
+		payload.put("locale", resolveLocale(userId));
+		return payload;
+	}
+
+	private String resolveLocale(UUID userId) {
+		return SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
 	}
 }

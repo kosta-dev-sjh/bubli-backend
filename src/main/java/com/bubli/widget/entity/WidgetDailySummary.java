@@ -66,4 +66,20 @@ public class WidgetDailySummary {
 		this.updatedAt = Instant.now();
 	}
 
+	public static WidgetDailySummary create(UUID userId, String deviceId, String rollupKey,
+			LocalDate summaryDate, UUID bubbleSettingId,
+			int openCount, int interactionCount, long visibleSeconds, Instant syncedAt) {
+		WidgetDailySummary s = new WidgetDailySummary();
+		s.userId = userId;
+		s.deviceId = deviceId;
+		s.rollupKey = rollupKey;
+		s.summaryDate = summaryDate;
+		s.bubbleSettingId = bubbleSettingId;
+		s.openCount = openCount;
+		s.interactionCount = interactionCount;
+		s.visibleSeconds = visibleSeconds;
+		s.syncedAt = syncedAt;
+		return s;
+	}
+
 }

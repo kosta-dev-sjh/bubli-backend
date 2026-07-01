@@ -5,6 +5,7 @@ import com.bubli.agent.service.AgentJobPublicService;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ContractDocumentUploadResponse;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceFile;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,6 +42,7 @@ class DocumentUploadServiceTest {
         ResourceVersionRepository resourceVersionRepository = mock(ResourceVersionRepository.class);
         AgentJobPublicService agentJobService = mock(AgentJobPublicService.class);
         StoragePublicService storageService = mock(StoragePublicService.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
         DocumentFileInspector inspector = new DocumentFileInspector();
         UUID resourceId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
@@ -58,7 +61,7 @@ class DocumentUploadServiceTest {
             return resourceFile;
         });
         when(resourceVersionRepository.save(any(ResourceVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(agentJobService.createAnalyzeResourceJob(any(), any(), any()))
+        when(agentJobService.createAnalyzeResourceJob(any(), any(), any(), any()))
                 .thenReturn(new AgentJobTicket(jobId, AgentJobStatus.PENDING));
 
         ContractDocumentUploadResponse response = new DocumentUploadService(
@@ -67,7 +70,8 @@ class DocumentUploadServiceTest {
                 resourceVersionRepository,
                 agentJobService,
                 storageService,
-                inspector
+                inspector,
+                membershipService
         ).uploadContractDocument(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -78,10 +82,11 @@ class DocumentUploadServiceTest {
         assertThat(response.resourceId()).isEqualTo(resourceId);
         assertThat(response.jobId()).isEqualTo(jobId);
         assertThat(response.status()).isEqualTo(AgentJobStatus.PENDING);
+        assertThat(response.autoAnalyze()).isTrue();
         verify(resourceRepository).saveAndFlush(org.mockito.ArgumentMatchers.argThat(resource ->
                 resource.getStatus() == ResourceStatus.ANALYZING
         ));
-        verify(agentJobService).createAnalyzeResourceJob(any(), any(), org.mockito.ArgumentMatchers.eq(resourceId));
+        verify(agentJobService).createAnalyzeResourceJob(any(), any(), eq(resourceId), any());
     }
 
     @Test
@@ -100,7 +105,8 @@ class DocumentUploadServiceTest {
                 resourceVersionRepository,
                 agentJobService,
                 storageService,
-                new DocumentFileInspector()
+                new DocumentFileInspector(),
+                mock(ProjectMembershipPublicService.class)
         );
 
         assertThatThrownBy(() -> service.uploadContractDocument(
@@ -115,7 +121,7 @@ class DocumentUploadServiceTest {
 
         verify(storageService, never()).store(anyString(), any());
         verify(resourceRepository, never()).saveAndFlush(any());
-        verify(agentJobService, never()).createAnalyzeResourceJob(any(), any(), any());
+        verify(agentJobService, never()).createAnalyzeResourceJob(any(), any(), any(), any());
     }
 
     @Test
@@ -126,7 +132,8 @@ class DocumentUploadServiceTest {
                 mock(ResourceVersionRepository.class),
                 mock(AgentJobPublicService.class),
                 mock(StoragePublicService.class),
-                new DocumentFileInspector()
+                new DocumentFileInspector(),
+                mock(ProjectMembershipPublicService.class)
         );
 
         assertThatThrownBy(() -> service.uploadContractDocument(
