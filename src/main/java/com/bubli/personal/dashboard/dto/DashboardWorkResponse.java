@@ -14,6 +14,7 @@ public record DashboardWorkResponse(
 		TimeLogResult runningTimer,
 		List<String> agentSuggestionSummary,
 		List<String> memoSummary,
-		List<String> recentResourceAnalysisSummary
+		List<String> recentResourceAnalysisSummary,
+		List<DashboardProjectProgressSummary> projectProgressSummary
 ) {
 }

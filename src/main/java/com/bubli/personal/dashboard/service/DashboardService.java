@@ -1,22 +1,28 @@
 package com.bubli.personal.dashboard.service;
 
 import com.bubli.agent.service.AgentSuggestionPublicService;
+import com.bubli.personal.dashboard.dto.DashboardProjectProgressSummary;
 import com.bubli.personal.dashboard.dto.DashboardWorkResponse;
 import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.timer.dto.TimeLogResult;
 import com.bubli.personal.timer.service.TimeLogPublicService;
+import com.bubli.project.dto.ProjectRoomResult;
+import com.bubli.project.service.ProjectRoomPublicService;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.task.type.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,6 +34,7 @@ public class DashboardService {
 	private static final int MEMO_SUMMARY_BODY_LIMIT = 80;
 	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT = 5;
 	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT_LENGTH = 100;
+	private static final int PROJECT_PROGRESS_SUMMARY_LIMIT = 5;
 
 	private final TaskPublicService taskPublicService;
 	private final SchedulePublicService schedulePublicService;
@@ -36,6 +43,7 @@ public class DashboardService {
 	private final AgentSuggestionPublicService agentSuggestionPublicService;
 	private final MemoPublicService memoPublicService;
 	private final ResourcePublicService resourcePublicService;
+	private final ProjectRoomPublicService projectRoomPublicService;
 
 	@Transactional(readOnly = true)
 	public DashboardWorkResponse getWorkDashboard(UUID userId) {
@@ -65,6 +73,10 @@ public class DashboardService {
 				resourcePublicService.getRecentAnalysisSummaries(userId, RESOURCE_ANALYSIS_SUMMARY_LIMIT)
 						.stream()
 						.map(this::resourceAnalysisSummaryLine)
+						.toList(),
+				projectRoomPublicService.getAccessibleRooms(userId, PROJECT_PROGRESS_SUMMARY_LIMIT)
+						.stream()
+						.map(this::projectProgressSummary)
 						.toList()
 		);
 	}
@@ -86,5 +98,39 @@ public class DashboardService {
 				summary.title(),
 				truncate(summary.summary(), RESOURCE_ANALYSIS_SUMMARY_LIMIT_LENGTH)
 		);
+	}
+
+	private DashboardProjectProgressSummary projectProgressSummary(ProjectRoomResult room) {
+		var tasks = taskPublicService.getRoomTasksForBoard(room.id());
+		long total = tasks.size();
+		long todo = countStatus(tasks, TaskStatus.TODO);
+		long inProgress = countStatus(tasks, TaskStatus.IN_PROGRESS);
+		long review = countStatus(tasks, TaskStatus.REVIEW);
+		long blocked = countStatus(tasks, TaskStatus.BLOCKED);
+		long done = countStatus(tasks, TaskStatus.DONE);
+		return new DashboardProjectProgressSummary(
+				room.id(),
+				room.name(),
+				total,
+				todo,
+				inProgress,
+				review,
+				blocked,
+				done,
+				progressPercent(done, total)
+		);
+	}
+
+	private long countStatus(List<TaskResult> tasks, TaskStatus status) {
+		return tasks.stream()
+				.filter(task -> task.status() == status)
+				.count();
+	}
+
+	private int progressPercent(long done, long total) {
+		if (total == 0) {
+			return 0;
+		}
+		return (int) Math.round(done * 100.0 / total);
 	}
 }
