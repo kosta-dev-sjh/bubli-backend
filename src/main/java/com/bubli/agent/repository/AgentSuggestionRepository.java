@@ -47,6 +47,12 @@ public interface AgentSuggestionRepository extends JpaRepository<AgentSuggestion
             Pageable pageable
     );
 
+    Page<AgentSuggestion> findByUserIdAndStatusIn(
+            UUID userId,
+            Collection<AgentSuggestionStatus> statuses,
+            Pageable pageable
+    );
+
     Page<AgentSuggestion> findByRoomIdAndStatus(
             UUID roomId,
             AgentSuggestionStatus status,

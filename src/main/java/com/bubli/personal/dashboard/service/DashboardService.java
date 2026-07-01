@@ -1,5 +1,6 @@
 package com.bubli.personal.dashboard.service;
 
+import com.bubli.agent.service.AgentSuggestionPublicService;
 import com.bubli.personal.dashboard.dto.DashboardWorkResponse;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.timer.dto.TimeLogResult;
@@ -12,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,6 +23,7 @@ public class DashboardService {
 	private final SchedulePublicService schedulePublicService;
 	private final NotificationPublicService notificationPublicService;
 	private final TimeLogPublicService timeLogPublicService;
+	private final AgentSuggestionPublicService agentSuggestionPublicService;
 
 	@Transactional(readOnly = true)
 	public DashboardWorkResponse getWorkDashboard(UUID userId) {
@@ -39,7 +40,7 @@ public class DashboardService {
 				schedulePublicService.getSchedulesBetween(userId, startOfToday, startOfTomorrow),
 				notificationPublicService.countUnread(userId),
 				runningTimer,
-				List.of()
+				agentSuggestionPublicService.getReviewRequiredSummaries(userId, 5)
 		);
 	}
 }
