@@ -11,6 +11,11 @@ public record DashboardProjectProgressSummary(
 		long reviewTasks,
 		long blockedTasks,
 		long doneTasks,
-		int progressPercent
+		int progressPercent,
+		long totalWbsItems,
+		long todoWbsItems,
+		long inProgressWbsItems,
+		long doneWbsItems,
+		int wbsProgressPercent
 ) {
 }

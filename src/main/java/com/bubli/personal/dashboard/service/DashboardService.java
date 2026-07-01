@@ -16,6 +16,9 @@ import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
+import com.bubli.work.wbs.dto.WbsItemResult;
+import com.bubli.work.wbs.service.WbsItemPublicService;
+import com.bubli.work.wbs.type.WbsStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +47,7 @@ public class DashboardService {
 	private final MemoPublicService memoPublicService;
 	private final ResourcePublicService resourcePublicService;
 	private final ProjectRoomPublicService projectRoomPublicService;
+	private final WbsItemPublicService wbsItemPublicService;
 
 	@Transactional(readOnly = true)
 	public DashboardWorkResponse getWorkDashboard(UUID userId) {
@@ -102,12 +106,17 @@ public class DashboardService {
 
 	private DashboardProjectProgressSummary projectProgressSummary(ProjectRoomResult room) {
 		var tasks = taskPublicService.getRoomTasksForBoard(room.id());
+		var wbsItems = wbsItemPublicService.getRoomItemsForBoard(room.id());
 		long total = tasks.size();
 		long todo = countStatus(tasks, TaskStatus.TODO);
 		long inProgress = countStatus(tasks, TaskStatus.IN_PROGRESS);
 		long review = countStatus(tasks, TaskStatus.REVIEW);
 		long blocked = countStatus(tasks, TaskStatus.BLOCKED);
 		long done = countStatus(tasks, TaskStatus.DONE);
+		long totalWbs = wbsItems.size();
+		long todoWbs = countStatus(wbsItems, WbsStatus.TODO);
+		long inProgressWbs = countStatus(wbsItems, WbsStatus.IN_PROGRESS);
+		long doneWbs = countStatus(wbsItems, WbsStatus.DONE);
 		return new DashboardProjectProgressSummary(
 				room.id(),
 				room.name(),
@@ -117,13 +126,24 @@ public class DashboardService {
 				review,
 				blocked,
 				done,
-				progressPercent(done, total)
+				progressPercent(done, total),
+				totalWbs,
+				todoWbs,
+				inProgressWbs,
+				doneWbs,
+				progressPercent(doneWbs, totalWbs)
 		);
 	}
 
 	private long countStatus(List<TaskResult> tasks, TaskStatus status) {
 		return tasks.stream()
 				.filter(task -> task.status() == status)
+				.count();
+	}
+
+	private long countStatus(List<WbsItemResult> items, WbsStatus status) {
+		return items.stream()
+				.filter(item -> item.status() == status)
 				.count();
 	}
 

@@ -15,6 +15,9 @@ import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
+import com.bubli.work.wbs.dto.WbsItemResult;
+import com.bubli.work.wbs.service.WbsItemPublicService;
+import com.bubli.work.wbs.type.WbsStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -58,6 +61,9 @@ class DashboardServiceTest {
 	@Mock
 	ProjectRoomPublicService projectRoomPublicService;
 
+	@Mock
+	WbsItemPublicService wbsItemPublicService;
+
 	@InjectMocks
 	DashboardService dashboardService;
 
@@ -89,6 +95,11 @@ class DashboardServiceTest {
 				task(roomId, TaskStatus.DONE),
 				task(roomId, TaskStatus.DONE)
 		));
+		given(wbsItemPublicService.getRoomItemsForBoard(roomId)).willReturn(List.of(
+				wbs(roomId, WbsStatus.TODO),
+				wbs(roomId, WbsStatus.IN_PROGRESS),
+				wbs(roomId, WbsStatus.DONE)
+		));
 
 		var response = dashboardService.getWorkDashboard(userId);
 
@@ -107,6 +118,11 @@ class DashboardServiceTest {
 		assertThat(response.projectProgressSummary().getFirst().inProgressTasks()).isEqualTo(1);
 		assertThat(response.projectProgressSummary().getFirst().doneTasks()).isEqualTo(2);
 		assertThat(response.projectProgressSummary().getFirst().progressPercent()).isEqualTo(50);
+		assertThat(response.projectProgressSummary().getFirst().totalWbsItems()).isEqualTo(3);
+		assertThat(response.projectProgressSummary().getFirst().todoWbsItems()).isEqualTo(1);
+		assertThat(response.projectProgressSummary().getFirst().inProgressWbsItems()).isEqualTo(1);
+		assertThat(response.projectProgressSummary().getFirst().doneWbsItems()).isEqualTo(1);
+		assertThat(response.projectProgressSummary().getFirst().wbsProgressPercent()).isEqualTo(33);
 	}
 
 	private MemoResult memo(UUID userId, UUID roomId, String body) {
@@ -152,6 +168,20 @@ class DashboardServiceTest {
 				null,
 				status,
 				null,
+				now,
+				now
+		);
+	}
+
+	private WbsItemResult wbs(UUID roomId, WbsStatus status) {
+		Instant now = Instant.parse("2026-07-01T00:00:00Z");
+		return new WbsItemResult(
+				UUID.randomUUID(),
+				roomId,
+				null,
+				status.name(),
+				1,
+				status,
 				now,
 				now
 		);
