@@ -12,8 +12,8 @@ import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.memory.type.SummaryStatus;
 import com.bubli.project.service.ProjectMembershipPublicService;
-import com.bubli.user.service.UserLocalePublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -173,7 +173,6 @@ class ProjectRoomAgentCommandServiceTest {
                 .contains("I checked the currently collected project context.");
     }
 
-    @SuppressWarnings("unchecked")
     private ProjectRoomAgentCommandService service(
             ChatMessagePublicService chatMessagePublicService,
             RoomMemoryPublicService memoryPublicService,

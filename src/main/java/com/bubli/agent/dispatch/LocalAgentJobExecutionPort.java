@@ -176,7 +176,7 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             case GENERATE_QUESTIONS -> "確認質問候補";
             case REVIEW_CONTRACT_DOCUMENTS -> "文書レビュー項目候補";
             case DRAFT_DOCUMENT -> "文書ドラフト候補";
-            case DAILY_SUMMARY -> "日次要約候補";
+            case DAILY_SUMMARY -> "日次サマリー候補";
             case ANALYZE_RESOURCE -> "資料分析結果";
         };
     }
@@ -184,16 +184,16 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
     private String localEvidence(String locale) {
         return switch (locale) {
             case "en-US" -> "Local deterministic daily summary.";
-            case "ja-JP" -> "ローカルの決定的な日次要約です。";
-            default -> "로컬 결정형 일일 요약입니다.";
+            case "ja-JP" -> "ローカル決定論による日次サマリーです。";
+            default -> "로컬 결정론 기반 일일 요약입니다.";
         };
     }
 
     private String draftContent(String locale) {
         return switch (locale) {
             case "en-US" -> "# Draft Document\n\nLocal deterministic draft.";
-            case "ja-JP" -> "# 文書ドラフト\n\nローカルの決定的なドラフトです。";
-            default -> "# 문서 초안\n\n로컬 결정형 초안입니다.";
+            case "ja-JP" -> "# 文書ドラフト\n\nローカル決定論によるドラフトです。";
+            default -> "# 문서 초안\n\n로컬 결정론 기반 초안입니다.";
         };
     }
 

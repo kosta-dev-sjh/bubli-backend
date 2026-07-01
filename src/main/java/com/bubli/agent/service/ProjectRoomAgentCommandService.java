@@ -13,8 +13,8 @@ import com.bubli.chat.service.ChatMessagePublicService;
 import com.bubli.global.locale.SupportedLocale;
 import com.bubli.memory.dto.RoomMemorySummaryContextResult;
 import com.bubli.memory.service.RoomMemoryPublicService;
-import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -136,22 +136,15 @@ public class ProjectRoomAgentCommandService {
 		}
 		if ("ja-JP".equals(locale)) {
 			return switch (mode) {
-				case ANSWER -> "現在収集されたプロジェクト文脈を確認しました。リクエスト: %s".formatted(message);
+				case ANSWER -> "現在収集されているプロジェクト文脈を確認しました。リクエスト: %s".formatted(message);
 				case SUMMARIZE -> "現在のプロジェクト文脈の要約です: %s".formatted(context.promptBlock());
-				case SUGGEST -> "リクエスト内容を基にTODOまたはレビュー項目を作成し、承認フローで確定してください。";
-			};
-		}
-		if ("ko-KR".equals(locale)) {
-			return switch (mode) {
-				case ANSWER -> "현재 수집된 프로젝트 맥락을 기준으로 확인했습니다. 요청: %s".formatted(message);
-				case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다: %s".formatted(context.promptBlock());
-				case SUGGEST -> "요청 내용을 기준으로 TODO 또는 검토 항목을 생성해 승인 흐름에서 확정하세요.";
+				case SUGGEST -> "リクエスト内容をもとにTODOまたはレビュー項目を作成し、承認フローで確定してください。";
 			};
 		}
 		return switch (mode) {
 			case ANSWER -> "현재 수집된 프로젝트 맥락을 기준으로 확인했습니다. 요청: %s".formatted(message);
-			case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다. %s".formatted(context.promptBlock());
-			case SUGGEST -> "다음 조치를 제안합니다: 요청 내용을 기준으로 TODO 또는 검토 항목을 생성해 승인 흐름에서 확정하세요.";
+			case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다: %s".formatted(context.promptBlock());
+			case SUGGEST -> "요청 내용을 기준으로 TODO 또는 검토 항목을 생성하고 승인 흐름에서 확정하세요.";
 		};
 	}
 
@@ -196,7 +189,7 @@ public class ProjectRoomAgentCommandService {
 
 	private AgentSuggestionType inferSuggestionType(String message) {
 		String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
-		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "애매", "누락", "불명확",
+		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "누락", "불명확",
 				"question", "ask", "unclear", "missing")) {
 			return AgentSuggestionType.QUESTION;
 		}
