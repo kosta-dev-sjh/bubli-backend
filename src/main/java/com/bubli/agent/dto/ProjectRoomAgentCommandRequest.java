@@ -11,4 +11,7 @@ public record ProjectRoomAgentCommandRequest(
 		AgentCommandMode mode,
 		List<UUID> resourceIds
 ) {
+	public ProjectRoomAgentCommandRequest {
+		resourceIds = resourceIds == null ? List.of() : List.copyOf(resourceIds);
+	}
 }
