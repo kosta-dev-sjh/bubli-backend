@@ -60,6 +60,14 @@ public class ChatRoomMember {
 		this.lastReadAt = lastReadAt;
 	}
 
+	public void leave() {
+		this.status = ChatMemberStatus.LEFT;
+	}
+
+	public void reactivate() {
+		this.status = ChatMemberStatus.ACTIVE;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

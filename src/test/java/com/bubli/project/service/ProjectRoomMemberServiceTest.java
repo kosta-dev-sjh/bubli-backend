@@ -1,5 +1,6 @@
 package com.bubli.project.service;
 
+import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.dto.CreateInvitationCommand;
@@ -47,6 +48,9 @@ class ProjectRoomMemberServiceTest {
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Mock
+	RoomChatPublicService roomChatPublicService;
 
 	@InjectMocks
 	ProjectRoomMemberService projectRoomMemberService;

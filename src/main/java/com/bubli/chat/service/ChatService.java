@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -168,6 +169,19 @@ public class ChatService {
 				command.resourceId()
 		);
 		return chatMessageRepository.save(message);
+	}
+
+	@Transactional
+	public ChatRoomResult createGroupRoom(UUID creatorUserId, String name, List<UUID> memberUserIds) {
+		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createGroup(name));
+		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), creatorUserId));
+		memberUserIds.stream()
+				.filter(memberId -> !memberId.equals(creatorUserId))
+				.forEach(memberId -> {
+					userPublicService.getUser(memberId);
+					chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), memberId));
+				});
+		return ChatRoomResult.from(chatRoom);
 	}
 
 	private ChatRoomResult createNewDirectRoom(UUID requesterId, UserResult targetUser) {
