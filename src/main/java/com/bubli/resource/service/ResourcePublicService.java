@@ -1,8 +1,10 @@
 package com.bubli.resource.service;
 
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
+import com.bubli.resource.dto.ResourceExtractedTextResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
+import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +27,10 @@ public interface ResourcePublicService {
 	ResourceResult createPersonalResource(UUID userId, String title);
 
 	ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title);
+
+	ResourceResult startAnalysis(UUID userId, UUID resourceId);
+
+	ResourceExtractedTextResult storeExtractedText(UUID userId, StoreResourceExtractedTextCommand command);
 
 	void deletePersonalResource(UUID userId, UUID resourceId);
 }
