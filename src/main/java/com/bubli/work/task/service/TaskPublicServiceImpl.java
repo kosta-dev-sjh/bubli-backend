@@ -67,7 +67,7 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 	@Transactional(readOnly = true)
 	public void assertNoTaskLinkedToWbsItem(UUID wbsItemId) {
 		if (existsByWbsItemId(wbsItemId)) {
-			throw new BusinessException(ErrorCode.COMMON_400_002);
+			throw new BusinessException(ErrorCode.WORK_400_001);
 		}
 	}
 
