@@ -98,7 +98,10 @@ public class FriendService {
 			throw new BusinessException(ErrorCode.USER_409_001);
 		}
 
-		FriendRequest saved = friendRequestRepository.save(FriendRequest.create(requesterId, receiver.getId()));
+		FriendRequest saved = friendRequestRepository.findByRequesterIdAndReceiverId(requesterId, receiver.getId())
+				.map(existing -> { existing.resend(); return existing; })
+				.orElseGet(() -> FriendRequest.create(requesterId, receiver.getId()));
+		saved = friendRequestRepository.save(saved);
 		User requester = userRepository.findById(requesterId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
 
