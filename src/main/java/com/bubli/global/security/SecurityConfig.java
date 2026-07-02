@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/auth/google/authorize").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/oauth2/authorization/google").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/google/callback", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()

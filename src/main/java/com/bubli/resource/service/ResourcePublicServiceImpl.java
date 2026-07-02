@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -44,10 +45,28 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords) {
+		return resourceService.findLatestRoomResource(userId, roomId, titleKeywords);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId) {
+		return resourceService.findLatestRoomFile(userId, roomId);
+	}
+
+	@Override
 	@Transactional
 	public ResourceResult createPersonalResource(UUID userId, String title) {
 		return resourceService.create(userId,
 				new CreateResourceCommand(title, ResourceKind.FILE, ResourceVisibility.PERSONAL, null));
+	}
+
+	@Override
+	@Transactional
+	public ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title) {
+		return resourceService.updateResource(userId, resourceId, title);
 	}
 
 	@Override

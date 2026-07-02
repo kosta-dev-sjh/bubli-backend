@@ -103,7 +103,7 @@ cd bubli-backend
 
 # 환경 변수 설정
 cp src/main/resources/application-secret.yml.example src/main/resources/application-secret.yml
-# DB, Redis, AWS Bedrock, LiveKit API key 등 입력
+# Google OAuth, JWT, LiveKit, AWS Bedrock 등 서버 전용 키 입력
 
 # 실행
 ./gradlew bootRun

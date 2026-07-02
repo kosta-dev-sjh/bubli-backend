@@ -61,6 +61,8 @@ public class FriendService {
 	public void deleteFriend(UUID userId, UUID friendUserId) {
 		friendshipRepository.deleteByUserIdAndFriendUserId(userId, friendUserId);
 		friendshipRepository.deleteByUserIdAndFriendUserId(friendUserId, userId);
+		friendRequestRepository.deleteByRequesterIdAndReceiverId(userId, friendUserId);
+		friendRequestRepository.deleteByRequesterIdAndReceiverId(friendUserId, userId);
 	}
 
 	@Transactional(readOnly = true)
