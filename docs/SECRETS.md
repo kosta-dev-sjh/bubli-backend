@@ -45,6 +45,19 @@
 
 ---
 
+## Google OAuth
+
+| Secret 이름 | 설명 | 예시값 / 획득 방법 |
+|---|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | Google 로그인 OAuth 클라이언트 ID | Google Cloud Console → OAuth 2.0 Client |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google 로그인 OAuth 클라이언트 보안 비밀번호 | 위 클라이언트 상세 화면 |
+| `GOOGLE_OAUTH_REDIRECT_URI` | 로그인 후 프론트 콜백 주소 | `https://bubli.n-e.kr/auth/callback` |
+| `GOOGLE_CALENDAR_CLIENT_ID` | Google Calendar 연동 클라이언트 ID, 로그인과 같으면 같은 값을 등록 | Google OAuth와 같은 클라이언트 사용 가능 |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | Google Calendar 연동 클라이언트 보안 비밀번호, 로그인과 같으면 같은 값을 등록 | Google OAuth와 같은 클라이언트 사용 가능 |
+| `GOOGLE_CALENDAR_REDIRECT_URI` | Calendar 연결 후 프론트 콜백 주소 | `https://bubli.n-e.kr/calendar/google/callback` |
+
+---
+
 ## AWS
 
 | Secret 이름 | 설명 | 예시값 / 획득 방법 |
@@ -61,6 +74,7 @@
 |---|---|---|
 | `LIVEKIT_API_KEY` | LiveKit 서버 API 키 | LiveKit Cloud 대시보드 → 프로젝트 → **Keys** |
 | `LIVEKIT_API_SECRET` | LiveKit 서버 API 시크릿 | 위 Keys 페이지에서 함께 발급 |
+| `LIVEKIT_SERVER_URL` | 클라이언트가 접속할 LiveKit 서버 URL | LiveKit Cloud 프로젝트의 `wss://...livekit.cloud` 주소 |
 
 ---
 
@@ -88,10 +102,17 @@
 | RDS | `RDS_USERNAME` | 필수 |
 | RDS | `RDS_PASSWORD` | 필수 |
 | JWT | `JWT_SECRET` | 필수 |
+| Google OAuth | `GOOGLE_OAUTH_CLIENT_ID` | 필수 |
+| Google OAuth | `GOOGLE_OAUTH_CLIENT_SECRET` | 필수 |
+| Google OAuth | `GOOGLE_OAUTH_REDIRECT_URI` | 필수 |
+| Google Calendar | `GOOGLE_CALENDAR_CLIENT_ID` | 필수, 로그인과 같으면 같은 값 등록 |
+| Google Calendar | `GOOGLE_CALENDAR_CLIENT_SECRET` | 필수, 로그인과 같으면 같은 값 등록 |
+| Google Calendar | `GOOGLE_CALENDAR_REDIRECT_URI` | 필수 |
 | AWS | `AWS_ACCESS_KEY_ID` | 필수 |
 | AWS | `AWS_SECRET_ACCESS_KEY` | 필수 |
 | AWS | `AWS_REGION` | 필수 |
 | LiveKit | `LIVEKIT_API_KEY` | 필수 |
 | LiveKit | `LIVEKIT_API_SECRET` | 필수 |
+| LiveKit | `LIVEKIT_SERVER_URL` | 필수 |
 | Grafana | `GRAFANA_ADMIN_USER` | 선택 |
 | Grafana | `GRAFANA_ADMIN_PASSWORD` | 필수 |
