@@ -9,12 +9,11 @@ class BubliIdGeneratorTest {
 	private final BubliIdGenerator generator = new BubliIdGenerator();
 
 	@Test
-	void generateReturnsWordAndFourDigits() {
+	void generateReturnsSpecialLettersDigitsFormat() {
 		String bubliId = generator.generate("google-sub", 0);
 
-		assertThat(bubliId).matches("[a-z]{4}[0-9]{4}");
-		assertThat(bubliId).doesNotStartWith("bubli");
-		assertThat(bubliId).hasSize(8);
+		assertThat(bubliId).matches("[!@#$*\\-_+][a-z]{4}[0-9]{4}");
+		assertThat(bubliId).hasSize(9);
 	}
 
 	@Test
@@ -22,7 +21,7 @@ class BubliIdGeneratorTest {
 		String first = generator.generate("google-sub", 0);
 		String second = generator.generate("google-sub", 1);
 
-		assertThat(second).matches("[a-z]{4}[0-9]{4}");
+		assertThat(second).matches("[!@#$*\\-_+][a-z]{4}[0-9]{4}");
 		assertThat(second).isNotEqualTo(first);
 	}
 }
