@@ -7,6 +7,7 @@ import com.bubli.chat.dto.ChatRoomResponse;
 import com.bubli.chat.dto.ChatRoomResult;
 import com.bubli.chat.dto.CreateDirectChatRoomRequest;
 import com.bubli.chat.dto.CreateGroupChatRoomRequest;
+import com.bubli.chat.dto.InviteChatRoomMembersRequest;
 import com.bubli.chat.dto.MarkChatRoomReadRequest;
 import com.bubli.chat.dto.SendChatMessageRequest;
 import com.bubli.chat.service.ChatService;
@@ -59,6 +60,27 @@ public class ChatController {
 	) {
 		return ApiResponse.success(ChatRoomResponse.from(
 				chatService.createGroupRoom(authUser.userId(), request.name(), request.memberUserIds())
+		));
+	}
+
+	@PostMapping("/api/project-rooms/{roomId}/chat-room")
+	public ApiResponse<ChatRoomResponse> createProjectRoomChatRoom(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId
+	) {
+		return ApiResponse.success(ChatRoomResponse.from(
+				chatService.createProjectRoomChatRoom(authUser.userId(), roomId)
+		));
+	}
+
+	@PostMapping("/api/chat/rooms/{chatRoomId}/members")
+	public ApiResponse<ChatRoomResponse> inviteMembers(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID chatRoomId,
+			@Valid @RequestBody InviteChatRoomMembersRequest request
+	) {
+		return ApiResponse.success(ChatRoomResponse.from(
+				chatService.inviteMembers(authUser.userId(), chatRoomId, request.memberUserIds())
 		));
 	}
 

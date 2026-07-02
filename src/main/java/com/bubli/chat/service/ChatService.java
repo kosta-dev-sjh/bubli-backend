@@ -16,6 +16,9 @@ import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.project.dto.ProjectRoomResult;
+import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.project.service.ProjectRoomService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
@@ -29,8 +32,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -44,6 +49,8 @@ public class ChatService {
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
 	private final ChatMessageRepository chatMessageRepository;
 	private final UserPublicService userPublicService;
+	private final ProjectRoomService projectRoomService;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ObjectMapper objectMapper;
 	private final WebSocketPublishPublicService webSocketPublishPublicService;
 
@@ -79,6 +86,57 @@ public class ChatService {
 				)
 				.map(ChatRoomResult::from)
 				.orElseGet(() -> createNewDirectRoom(requesterId, targetUser));
+	}
+
+	@Transactional
+	public ChatRoomResult createGroupRoom(UUID creatorId, String name, List<UUID> memberUserIds) {
+		Set<UUID> memberIds = normalizedMemberIds(creatorId, memberUserIds);
+		if (name == null || name.isBlank() || memberIds.size() < 2) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		memberIds.stream()
+				.filter(memberId -> !memberId.equals(creatorId))
+				.forEach(userPublicService::getUser);
+
+		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createGroup(name.trim()));
+		memberIds.forEach(memberId -> chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), memberId)));
+		return ChatRoomResult.from(chatRoom);
+	}
+
+	@Transactional
+	public ChatRoomResult createProjectRoomChatRoom(UUID requesterId, UUID roomId) {
+		ProjectRoomResult projectRoom = projectRoomService.getProjectRoom(requesterId, roomId);
+		ChatRoom chatRoom = chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)
+				.orElseGet(() -> chatRoomRepository.save(ChatRoom.createRoom(roomId, projectRoom.name())));
+
+		addActiveProjectMembers(chatRoom.getId(), roomId);
+		return ChatRoomResult.from(chatRoom);
+	}
+
+	@Transactional
+	public ChatRoomResult inviteMembers(UUID inviterId, UUID chatRoomId, List<UUID> memberUserIds) {
+		checkActiveMember(inviterId, chatRoomId);
+		ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_404_001));
+		if (chatRoom.getChatType() != ChatType.GROUP) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		Set<UUID> memberIds = normalizedMemberIds(inviterId, memberUserIds);
+		memberIds.remove(inviterId);
+		if (memberIds.isEmpty()) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		memberIds.forEach(memberId -> {
+			userPublicService.getUser(memberId);
+			if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(chatRoomId, memberId, ChatMemberStatus.ACTIVE)) {
+				chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
+			}
+		});
+
+		return ChatRoomResult.from(chatRoom);
 	}
 
 	@Transactional(readOnly = true)
@@ -171,24 +229,37 @@ public class ChatService {
 		return chatMessageRepository.save(message);
 	}
 
-	@Transactional
-	public ChatRoomResult createGroupRoom(UUID creatorUserId, String name, List<UUID> memberUserIds) {
-		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createGroup(name));
-		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), creatorUserId));
-		memberUserIds.stream()
-				.filter(memberId -> !memberId.equals(creatorUserId))
-				.forEach(memberId -> {
-					userPublicService.getUser(memberId);
-					chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), memberId));
-				});
-		return ChatRoomResult.from(chatRoom);
-	}
-
 	private ChatRoomResult createNewDirectRoom(UUID requesterId, UserResult targetUser) {
 		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(targetUser.name()));
 		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), requesterId));
 		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), targetUser.id()));
 		return ChatRoomResult.from(chatRoom);
+	}
+
+	private void addActiveProjectMembers(UUID chatRoomId, UUID roomId) {
+		projectMembershipPublicService.findActiveMemberIds(roomId)
+				.forEach(memberId -> {
+					if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+							chatRoomId,
+							memberId,
+							ChatMemberStatus.ACTIVE
+					)) {
+						chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
+					}
+				});
+	}
+
+	private Set<UUID> normalizedMemberIds(UUID requesterId, List<UUID> memberUserIds) {
+		if (memberUserIds == null || memberUserIds.isEmpty()) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		Set<UUID> memberIds = new LinkedHashSet<>();
+		memberIds.add(requesterId);
+		memberUserIds.stream()
+				.filter(memberId -> memberId != null && !memberId.equals(requesterId))
+				.forEach(memberIds::add);
+		return memberIds;
 	}
 
 	private void checkActiveMember(UUID userId, UUID chatRoomId) {
