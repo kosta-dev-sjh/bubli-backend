@@ -17,7 +17,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.service.ProjectMembershipPublicService;
-import com.bubli.project.service.ProjectRoomService;
+import com.bubli.project.service.ProjectRoomPublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
@@ -60,7 +60,7 @@ class ChatServiceTest {
 	UserPublicService userPublicService;
 
 	@Mock
-	ProjectRoomService projectRoomService;
+	ProjectRoomPublicService projectRoomPublicService;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -136,7 +136,7 @@ class ChatServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID memberId = UUID.randomUUID();
 		ProjectRoomResult projectRoom = projectRoom(roomId, "프로젝트룸");
-		given(projectRoomService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
 		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.empty());
 		given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> {
 			ChatRoom chatRoom = invocation.getArgument(0);
@@ -169,7 +169,7 @@ class ChatServiceTest {
 		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
 		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
 		ReflectionTestUtils.setField(existing, "updatedAt", Instant.now());
-		given(projectRoomService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
 		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
 		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId));
 		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(

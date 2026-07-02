@@ -18,7 +18,7 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.service.ProjectMembershipPublicService;
-import com.bubli.project.service.ProjectRoomService;
+import com.bubli.project.service.ProjectRoomPublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
@@ -49,7 +49,7 @@ public class ChatService {
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
 	private final ChatMessageRepository chatMessageRepository;
 	private final UserPublicService userPublicService;
-	private final ProjectRoomService projectRoomService;
+	private final ProjectRoomPublicService projectRoomPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ObjectMapper objectMapper;
 	private final WebSocketPublishPublicService webSocketPublishPublicService;
@@ -106,7 +106,7 @@ public class ChatService {
 
 	@Transactional
 	public ChatRoomResult createProjectRoomChatRoom(UUID requesterId, UUID roomId) {
-		ProjectRoomResult projectRoom = projectRoomService.getProjectRoom(requesterId, roomId);
+		ProjectRoomResult projectRoom = projectRoomPublicService.getProjectRoom(requesterId, roomId);
 		ChatRoom chatRoom = chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)
 				.orElseGet(() -> chatRoomRepository.save(ChatRoom.createRoom(roomId, projectRoom.name())));
 
