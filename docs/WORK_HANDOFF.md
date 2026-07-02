@@ -52,6 +52,28 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### Google Calendar WBS 삭제 재동기화 트러블슈팅
+
+처리 시각: 2026-07-03 KST
+
+변경 내용:
+
+- Bubli DB에서는 삭제됐지만 Google Calendar 삭제가 실패한 일정을 `google_calendar_delete_requests`에 남긴다.
+- Google Calendar 삭제 API가 404/410을 반환하면 이미 없는 이벤트로 보고 삭제 성공 처리한다.
+- `POST /api/calendar/sync`에서 삭제 대기 중인 `googleEventId`가 다시 내려오면 로컬 일정으로 upsert하지 않고 Google 삭제만 재시도한다.
+- Google Calendar에서 `cancelled` 상태가 확인된 이벤트는 로컬 일정 삭제와 함께 삭제 대기 상태도 정리한다.
+- 트러블슈팅 문서 `docs/troubleshooting/google-calendar-wbs-delete-resync-2026-07-03.md`를 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests 'com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest' --no-daemon` 통과
+- `./gradlew test --no-daemon` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 실제 Google 계정으로 삭제 실패/재동기화 상황을 수동 재현해 Google Calendar에서도 최종 삭제되는지 확인한다.
+
 ### Google Calendar 외부 삭제 일정 동기화 보강
 
 처리 시각: 2026-07-03 KST
