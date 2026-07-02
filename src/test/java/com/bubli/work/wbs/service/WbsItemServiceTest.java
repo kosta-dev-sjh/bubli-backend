@@ -3,9 +3,12 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.wbs.dto.ApplyWbsToCalendarCommand;
 import com.bubli.work.wbs.dto.CreateWbsItemRequest;
 import com.bubli.work.wbs.dto.ReorderWbsItemRequest;
 import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
@@ -24,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,9 +35,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +53,9 @@ class WbsItemServiceTest {
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@InjectMocks
 	WbsItemService wbsItemService;
@@ -217,5 +226,74 @@ class WbsItemServiceTest {
 		ArgumentCaptor<WbsItem> itemCaptor = ArgumentCaptor.forClass(WbsItem.class);
 		verify(wbsItemRepository).delete(itemCaptor.capture());
 		assertThat(itemCaptor.getValue().getId()).isEqualTo(itemId);
+	}
+
+	@Test
+	void applyToCalendarCreatesSchedulesForRoomWbsItems() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID firstId = UUID.randomUUID();
+		UUID secondId = UUID.randomUUID();
+		Instant startsAt = Instant.parse("2026-07-03T01:00:00Z");
+		WbsItem first = WbsItem.create(roomId, null, "기획 정리", 1, WbsStatus.TODO);
+		WbsItem second = WbsItem.create(roomId, null, "화면 구현", 2, WbsStatus.IN_PROGRESS);
+		ReflectionTestUtils.setField(first, "id", firstId);
+		ReflectionTestUtils.setField(second, "id", secondId);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(first, second));
+
+		wbsItemService.applyToCalendar(userId, roomId, new ApplyWbsToCalendarCommand(
+				startsAt,
+				null,
+				30,
+				10,
+				false,
+				true,
+				null
+		));
+
+		ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+		verify(schedulePublicService, times(2)).create(eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getAllValues())
+				.extracting(CreateScheduleCommand::wbsItemId)
+				.containsExactly(firstId, secondId);
+		assertThat(commandCaptor.getAllValues())
+				.extracting(CreateScheduleCommand::title)
+				.containsExactly("기획 정리", "화면 구현");
+		assertThat(commandCaptor.getAllValues().get(0).startsAt()).isEqualTo(startsAt);
+		assertThat(commandCaptor.getAllValues().get(0).endsAt()).isEqualTo(Instant.parse("2026-07-03T01:30:00Z"));
+		assertThat(commandCaptor.getAllValues().get(1).startsAt()).isEqualTo(Instant.parse("2026-07-03T01:40:00Z"));
+		assertThat(commandCaptor.getAllValues().get(1).endsAt()).isEqualTo(Instant.parse("2026-07-03T02:10:00Z"));
+	}
+
+	@Test
+	void applyToCalendarDistributesWbsItemsAcrossRequestedRange() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID firstId = UUID.randomUUID();
+		UUID secondId = UUID.randomUUID();
+		WbsItem first = WbsItem.create(roomId, null, "계약서 내용 검토", 1, WbsStatus.TODO);
+		WbsItem second = WbsItem.create(roomId, null, "보완 사항 반영", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(first, "id", firstId);
+		ReflectionTestUtils.setField(second, "id", secondId);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(first, second));
+
+		wbsItemService.applyToCalendar(userId, roomId, new ApplyWbsToCalendarCommand(
+				Instant.parse("2026-07-03T00:00:00Z"),
+				Instant.parse("2026-07-09T00:00:00Z"),
+				null,
+				0,
+				false,
+				true,
+				null
+		));
+
+		ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+		verify(schedulePublicService, times(2)).create(eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getAllValues().get(0).startsAt()).isEqualTo(Instant.parse("2026-07-03T00:00:00Z"));
+		assertThat(commandCaptor.getAllValues().get(0).endsAt()).isEqualTo(Instant.parse("2026-07-06T00:00:00Z"));
+		assertThat(commandCaptor.getAllValues().get(1).startsAt()).isEqualTo(Instant.parse("2026-07-06T00:00:00Z"));
+		assertThat(commandCaptor.getAllValues().get(1).endsAt()).isEqualTo(Instant.parse("2026-07-09T00:00:00Z"));
 	}
 }

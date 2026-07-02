@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,12 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 	Page<Task> findByRoomId(UUID roomId, Pageable pageable);
 
 	List<Task> findByRoomIdOrderByUpdatedAtDesc(UUID roomId);
+
+	List<Task> findByOwnerUserIdAndRoomIdIsNullOrderByUpdatedAtDesc(UUID ownerUserId);
+
+	List<Task> findByRoomIdOrderByDueAtAscUpdatedAtDesc(UUID roomId);
+
+	List<Task> findAllByIdIn(Collection<UUID> ids);
 
 	Page<Task> findByAssigneeUserId(UUID assigneeUserId, Pageable pageable);
 

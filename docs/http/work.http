@@ -9,6 +9,34 @@
 GET {{baseUrl}}/api/tasks?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
+### Apply current WBS items to calendar events - Google Calendar connection syncs them externally
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items/calendar-events
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "startsAt": "2026-07-03T00:00:00Z",
+  "endsAt": "2026-07-09T00:00:00Z",
+  "gapMinutes": 0,
+  "allDay": false,
+  "includeDone": true
+}
+
+### Apply selected WBS items to calendar events
+POST {{baseUrl}}/api/project-rooms/{{roomId}}/wbs-items/calendar-events
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "startsAt": "2026-07-03T01:00:00Z",
+  "itemDurationMinutes": 30,
+  "gapMinutes": 10,
+  "includeDone": false,
+  "wbsItemIds": [
+    "{{wbsItemId}}"
+  ]
+}
+
 ### 내가 담당자인 TODO 목록
 GET {{baseUrl}}/api/tasks?scope=assigned&page=0&size=20
 Authorization: Bearer {{accessToken}}

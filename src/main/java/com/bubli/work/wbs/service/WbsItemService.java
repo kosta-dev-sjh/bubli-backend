@@ -4,7 +4,11 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.wbs.dto.ApplyWbsToCalendarCommand;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
 import com.bubli.work.wbs.dto.ReorderWbsItemCommand;
 import com.bubli.work.wbs.dto.ReorderWbsItemsCommand;
@@ -13,12 +17,17 @@ import com.bubli.work.wbs.dto.WbsBoardResult;
 import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
+import com.bubli.work.wbs.type.WbsStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +44,7 @@ public class WbsItemService {
 	private final WbsItemRepository wbsItemRepository;
 	private final TaskPublicService taskPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final SchedulePublicService schedulePublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<WbsItemResult> getRoomWbsItems(UUID userId, UUID roomId, Pageable pageable) {
@@ -125,6 +135,33 @@ public class WbsItemService {
 		wbsItemRepository.delete(item);
 	}
 
+	@Transactional
+	public List<ScheduleResult> applyToCalendar(UUID userId, UUID roomId, ApplyWbsToCalendarCommand command) {
+		checkRoomMember(userId, roomId);
+		List<WbsItem> targets = resolveCalendarTargets(roomId, command);
+		if (targets.isEmpty()) {
+			return List.of();
+		}
+		Duration itemDuration = resolveItemDuration(command, targets.size());
+		Duration gap = Duration.ofMinutes(command.effectiveGapMinutes());
+		Instant cursor = command.startsAt();
+		List<ScheduleResult> schedules = new ArrayList<>();
+		for (WbsItem item : targets) {
+			Instant endsAt = cursor.plus(itemDuration);
+			schedules.add(schedulePublicService.create(userId, new CreateScheduleCommand(
+					roomId,
+					null,
+					item.getId(),
+					item.getTitle(),
+					cursor,
+					endsAt,
+					command.effectiveAllDay()
+			)));
+			cursor = endsAt.plus(gap);
+		}
+		return schedules;
+	}
+
 	private WbsItem getItem(UUID itemId) {
 		return wbsItemRepository.findById(itemId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.WORK_404_002));
@@ -142,6 +179,53 @@ public class WbsItemService {
 
 	private void checkRoomMember(UUID userId, UUID roomId) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
+	}
+
+	private List<WbsItem> resolveCalendarTargets(UUID roomId, ApplyWbsToCalendarCommand command) {
+		List<WbsItem> roomItems = wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId);
+		if (command.wbsItemIds() == null) {
+			return filterCalendarTargets(roomItems, command.effectiveIncludeDone());
+		}
+		LinkedHashSet<UUID> targetIds = new LinkedHashSet<>(command.wbsItemIds());
+		if (targetIds.isEmpty()) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+		Map<UUID, WbsItem> roomItemById = roomItems.stream()
+				.collect(Collectors.toMap(WbsItem::getId, Function.identity()));
+		List<WbsItem> targets = new ArrayList<>();
+		for (UUID targetId : targetIds) {
+			WbsItem item = roomItemById.get(targetId);
+			if (item == null) {
+				throw new BusinessException(ErrorCode.WORK_404_002);
+			}
+			targets.add(item);
+		}
+		return filterCalendarTargets(targets, command.effectiveIncludeDone());
+	}
+
+	private List<WbsItem> filterCalendarTargets(List<WbsItem> items, boolean includeDone) {
+		if (includeDone) {
+			return items;
+		}
+		return items.stream()
+				.filter(item -> item.getStatus() != WbsStatus.DONE)
+				.toList();
+	}
+
+	private Duration resolveItemDuration(ApplyWbsToCalendarCommand command, int targetCount) {
+		if (command.endsAt() == null) {
+			return Duration.ofMinutes(command.effectiveItemDurationMinutes());
+		}
+		if (!command.endsAt().isAfter(command.startsAt())) {
+			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+		}
+		Duration total = Duration.between(command.startsAt(), command.endsAt());
+		Duration totalGap = Duration.ofMinutes(command.effectiveGapMinutes()).multipliedBy(Math.max(0, targetCount - 1));
+		Duration available = total.minus(totalGap);
+		if (available.isZero() || available.isNegative()) {
+			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+		}
+		return available.dividedBy(targetCount);
 	}
 
 	private Map<UUID, ReorderWbsItemCommand> toRequestMap(

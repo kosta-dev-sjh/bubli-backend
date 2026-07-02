@@ -2,6 +2,9 @@ package com.bubli.work.task.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.ApplyTasksToCalendarCommand;
 import com.bubli.work.task.dto.CreatePersonalTaskRequest;
 import com.bubli.work.task.dto.CreateRoomTaskRequest;
 import com.bubli.work.task.dto.TaskResult;
@@ -20,6 +23,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +31,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +47,9 @@ class TaskServiceTest {
 
 	@Mock
 	WbsItemPublicService wbsItemPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@InjectMocks
 	TaskService taskService;
@@ -144,5 +153,29 @@ class TaskServiceTest {
 		verify(taskRepository).save(taskCaptor.capture());
 		assertThat(taskCaptor.getValue().getRoomId()).isEqualTo(roomId);
 		assertThat(taskCaptor.getValue().getStatus()).isEqualTo(TaskStatus.TODO);
+	}
+
+	@Test
+	void applyPersonalTasksToCalendarCreatesSchedulesFromDueAt() {
+		UUID userId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		Instant dueAt = Instant.parse("2026-07-03T02:00:00Z");
+		Task task = Task.createPersonal(userId, "계약서 검토", null, TaskStatus.TODO, dueAt);
+		ReflectionTestUtils.setField(task, "id", taskId);
+		given(taskRepository.findByOwnerUserIdAndRoomIdIsNullOrderByUpdatedAtDesc(userId))
+				.willReturn(List.of(task));
+
+		taskService.applyPersonalTasksToCalendar(userId, new ApplyTasksToCalendarCommand(
+				45,
+				false,
+				null
+		));
+
+		ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+		verify(schedulePublicService, times(1)).create(eq(userId), commandCaptor.capture());
+		assertThat(commandCaptor.getValue().taskId()).isEqualTo(taskId);
+		assertThat(commandCaptor.getValue().title()).isEqualTo("계약서 검토");
+		assertThat(commandCaptor.getValue().startsAt()).isEqualTo(Instant.parse("2026-07-03T01:15:00Z"));
+		assertThat(commandCaptor.getValue().endsAt()).isEqualTo(dueAt);
 	}
 }

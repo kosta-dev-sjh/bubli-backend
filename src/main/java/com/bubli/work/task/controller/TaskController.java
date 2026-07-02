@@ -4,6 +4,8 @@ import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import com.bubli.work.schedule.dto.ScheduleResponse;
+import com.bubli.work.task.dto.ApplyTasksToCalendarRequest;
 import com.bubli.work.task.dto.CreatePersonalTaskRequest;
 import com.bubli.work.task.dto.CreateRoomTaskRequest;
 import com.bubli.work.task.dto.TaskResponse;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -59,6 +62,16 @@ public class TaskController {
 		return ApiResponse.success(TaskResponse.from(taskService.createPersonalTask(authUser.userId(), request.toCommand())));
 	}
 
+	@PostMapping("/api/tasks/calendar-events")
+	public ApiResponse<List<ScheduleResponse>> applyPersonalTasksToCalendar(
+			@CurrentUser AuthUser authUser,
+			@Valid @RequestBody ApplyTasksToCalendarRequest request
+	) {
+		return ApiResponse.success(taskService.applyPersonalTasksToCalendar(authUser.userId(), request.toCommand()).stream()
+				.map(ScheduleResponse::from)
+				.toList());
+	}
+
 	@GetMapping("/api/project-rooms/{roomId}/tasks")
 	public ApiResponse<PageResponse<TaskResponse>> getRoomTasks(
 			@CurrentUser AuthUser authUser,
@@ -75,6 +88,17 @@ public class TaskController {
 			@Valid @RequestBody CreateRoomTaskRequest request
 	) {
 		return ApiResponse.success(TaskResponse.from(taskService.createRoomTask(authUser.userId(), roomId, request.toCommand())));
+	}
+
+	@PostMapping("/api/project-rooms/{roomId}/tasks/calendar-events")
+	public ApiResponse<List<ScheduleResponse>> applyRoomTasksToCalendar(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@Valid @RequestBody ApplyTasksToCalendarRequest request
+	) {
+		return ApiResponse.success(taskService.applyRoomTasksToCalendar(authUser.userId(), roomId, request.toCommand()).stream()
+				.map(ScheduleResponse::from)
+				.toList());
 	}
 
 	@PatchMapping("/api/tasks/{taskId}")

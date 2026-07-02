@@ -4,6 +4,8 @@ import com.bubli.global.response.ApiResponse;
 import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
+import com.bubli.work.schedule.dto.ScheduleResponse;
+import com.bubli.work.wbs.dto.ApplyWbsToCalendarRequest;
 import com.bubli.work.wbs.dto.CreateWbsItemRequest;
 import com.bubli.work.wbs.dto.ReorderWbsItemsRequest;
 import com.bubli.work.wbs.dto.UpdateWbsItemRequest;
@@ -56,6 +58,17 @@ public class WbsItemController {
 			@Valid @RequestBody CreateWbsItemRequest request
 	) {
 		return ApiResponse.success(WbsItemResponse.from(wbsItemService.create(authUser.userId(), roomId, request.toCommand())));
+	}
+
+	@PostMapping("/api/project-rooms/{roomId}/wbs-items/calendar-events")
+	public ApiResponse<List<ScheduleResponse>> applyWbsItemsToCalendar(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId,
+			@Valid @RequestBody ApplyWbsToCalendarRequest request
+	) {
+		return ApiResponse.success(wbsItemService.applyToCalendar(authUser.userId(), roomId, request.toCommand()).stream()
+				.map(ScheduleResponse::from)
+				.toList());
 	}
 
 	@PatchMapping("/api/project-rooms/{roomId}/wbs-items/reorder")
