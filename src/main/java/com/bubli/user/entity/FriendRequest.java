@@ -55,6 +55,11 @@ public class FriendRequest {
 		this.respondedAt = Instant.now();
 	}
 
+	public void resend() {
+		this.status = FriendRequestStatus.PENDING;
+		this.respondedAt = null;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		this.createdAt = Instant.now();
