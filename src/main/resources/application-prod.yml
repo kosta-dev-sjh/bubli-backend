@@ -14,7 +14,7 @@ spring:
 
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:https://bubli.n-e.kr,localhost}
+      host: ${SPRING_DATA_REDIS_HOST:redis}
       port: ${SPRING_DATA_REDIS_PORT:6379}
 
   ai:
