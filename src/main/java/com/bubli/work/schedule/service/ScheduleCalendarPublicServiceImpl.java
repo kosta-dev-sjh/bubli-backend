@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -82,6 +83,22 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 		schedule.update(normalizeTitle(title), startsAt, endsAt, false, null, null);
 		schedule.markSynced(googleEventId);
 		return ScheduleResult.from(scheduleRepository.save(schedule));
+	}
+
+	@Override
+	@Transactional
+	public void deleteGoogleEventSchedules(UUID userId, Collection<String> googleEventIds) {
+		if (googleEventIds == null || googleEventIds.isEmpty()) {
+			return;
+		}
+		List<String> ids = googleEventIds.stream()
+				.filter(id -> id != null && !id.isBlank())
+				.distinct()
+				.toList();
+		if (ids.isEmpty()) {
+			return;
+		}
+		scheduleRepository.deleteAll(scheduleRepository.findByOwnerUserIdAndGoogleEventIdIn(userId, ids));
 	}
 
 	@Override

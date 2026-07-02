@@ -7,6 +7,7 @@ import com.bubli.personal.calendar.dto.GoogleCalendarTokenResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarUserInfoResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -111,6 +112,11 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.retrieve()
 					.toBodilessEntity();
+		} catch (RestClientResponseException exception) {
+			if (exception.getStatusCode() == HttpStatus.NOT_FOUND || exception.getStatusCode() == HttpStatus.GONE) {
+				return;
+			}
+			throw calendarException(exception);
 		} catch (RestClientException exception) {
 			throw calendarException(exception);
 		}
@@ -125,6 +131,7 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 							.host("www.googleapis.com")
 							.path("/calendar/v3/calendars/primary/events")
 							.queryParam("singleEvents", true)
+							.queryParam("showDeleted", true)
 							.queryParam("orderBy", "startTime")
 							.queryParam("timeMin", timeMin)
 							.queryParam("timeMax", timeMax)
