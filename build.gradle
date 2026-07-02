@@ -126,4 +126,8 @@ clean {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Docker Desktop(Mac) API v1.32 거부 대응: docker-java가 최신 버전 경로 사용
+	systemProperty 'api.version', '1.47'
+	// docker.raw.sock은 볼륨 마운트 불가 → Ryuk 비활성화 (컨테이너 수동 정리)
+	environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
 }
