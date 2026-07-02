@@ -7,6 +7,7 @@ import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,6 +22,8 @@ public interface ScheduleCalendarPublicService {
 	void deleteEvent(UUID userId, UUID scheduleId);
 
 	ScheduleResult upsertGoogleEvent(UUID userId, String googleEventId, String title, Instant startsAt, Instant endsAt);
+
+	void deleteGoogleEventSchedules(UUID userId, Collection<String> googleEventIds);
 
 	List<ScheduleResult> pushUnsyncedEvents(UUID userId, Instant from, Instant to);
 }

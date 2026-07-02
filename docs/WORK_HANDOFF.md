@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-07-02 09:39 KST
+Last checked: 2026-07-03 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -10,7 +10,7 @@ Last checked: 2026-07-02 09:39 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/backend-auth-livekit-config-20260702` |
+| 현재 확인 브랜치 | `codex/google-calendar-delete-sync-20260703` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,26 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### Google Calendar 외부 삭제 일정 동기화 보강
+
+처리 시각: 2026-07-03 KST
+
+변경 내용:
+
+- `POST /api/calendar/sync`가 Google Calendar 이벤트 목록을 가져올 때 `showDeleted=true`를 함께 보내도록 수정했다.
+- Google Calendar 응답의 `status=cancelled` 이벤트를 읽을 수 있도록 `GoogleCalendarEventPayload`에 `status`와 `isCancelled()`를 추가했다.
+- Google Calendar에서 사용자가 직접 삭제한 일정은 같은 `googleEventId`를 가진 로컬 `schedules` row를 삭제한다.
+- 단순히 Google 목록에 없다는 이유로 로컬 일정을 지우지는 않는다. 기간 밖으로 이동한 일정까지 지워지는 위험을 막기 위해 `cancelled` 상태가 명시된 이벤트만 삭제 대상으로 본다.
+- WBS 기간 삭제 API(`DELETE /api/schedules/{scheduleId}`)와 별개로, 외부 Google Calendar 삭제가 다음 sync 때 Bubli DB에 반영되는 흐름을 보강했다.
+
+검증 결과:
+
+- `./gradlew test --tests 'com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest'` 통과
+
+남은 작업:
+
+- 실제 Google 계정에서 WBS 기간 일정을 만든 뒤 Google Calendar에서 직접 삭제하고, `POST /api/calendar/sync` 후 Bubli 화면에서 사라지는지 수동 확인한다.
 
 ### Google OAuth, JWT, LiveKit 운영 설정 연결
 

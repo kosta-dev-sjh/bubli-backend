@@ -18,6 +18,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID>, JpaSp
 
 	Optional<Schedule> findByOwnerUserIdAndGoogleEventId(UUID ownerUserId, String googleEventId);
 
+	List<Schedule> findByOwnerUserIdAndGoogleEventIdIn(UUID ownerUserId, List<String> googleEventIds);
+
 	List<Schedule> findByOwnerUserIdAndSyncStatusInAndStartsAtBetweenOrderByStartsAtAsc(
 			UUID ownerUserId,
 			List<ScheduleSyncStatus> syncStatuses,

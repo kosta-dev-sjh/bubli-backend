@@ -125,6 +125,7 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 							.host("www.googleapis.com")
 							.path("/calendar/v3/calendars/primary/events")
 							.queryParam("singleEvents", true)
+							.queryParam("showDeleted", true)
 							.queryParam("orderBy", "startTime")
 							.queryParam("timeMin", timeMin)
 							.queryParam("timeMax", timeMax)

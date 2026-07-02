@@ -61,7 +61,15 @@ public class GoogleCalendarEventService {
 				from.toString(),
 				to.toString()
 		);
+		scheduleCalendarPublicService.deleteGoogleEventSchedules(
+				userId,
+				events.stream()
+						.filter(GoogleCalendarEventPayload::isCancelled)
+						.map(GoogleCalendarEventPayload::id)
+						.toList()
+		);
 		return events.stream()
+				.filter(event -> !event.isCancelled())
 				.filter(event -> event.id() != null && event.start() != null && event.start().dateTime() != null)
 				.map(event -> upsertSyncedEvent(userId, event))
 				.toList();
