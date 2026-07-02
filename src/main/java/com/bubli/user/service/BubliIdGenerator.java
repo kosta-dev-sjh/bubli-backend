@@ -8,30 +8,38 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.List;
-import java.util.Locale;
 
 @Component
 public class BubliIdGenerator {
 
-	private static final List<String> WORDS = List.of(
-			"milo", "nora", "lumi", "juno", "tavo", "runi", "sora", "navi",
-			"zelo", "luna", "kiri", "mori", "ravi", "tomi", "yuna", "pico",
-			"nilo", "dori", "vivi", "kano", "mira", "rino", "tori", "zuni",
-			"lino", "momo", "naru", "puri", "ruka", "sumi", "tala", "yori"
-	);
+	private static final String SPECIAL_CHARS = "!@#$*-_+";
+	private static final String LETTERS = "abcdefghijklmnopqrstuvwxyz";
+	private static final String DIGITS = "0123456789";
 
-	private static final int NUMBER_LIMIT = 10_000;
+	private static final int MAX_ATTEMPTS = 100_000;
 
+	// 특수기호1 + 영문4 + 숫자4 형태로 생성 (예: @abcd1234)
 	public String generate(String seed, int attempt) {
-		String hash = hash(seed);
-		int wordIndex = Math.floorMod(Integer.parseUnsignedInt(hash.substring(0, 8), 16) + attempt, WORDS.size());
-		int numberSeed = Integer.parseUnsignedInt(hash.substring(8, 12), 16);
-		return WORDS.get(wordIndex) + String.format(Locale.ROOT, "%04d", (numberSeed + attempt) % NUMBER_LIMIT);
+		String hash = hash(seed + ":" + attempt);
+		char special = pick(hash, 0, SPECIAL_CHARS);
+		char l1     = pick(hash, 4, LETTERS);
+		char l2     = pick(hash, 8, LETTERS);
+		char l3     = pick(hash, 12, LETTERS);
+		char l4     = pick(hash, 16, LETTERS);
+		char d1     = pick(hash, 20, DIGITS);
+		char d2     = pick(hash, 24, DIGITS);
+		char d3     = pick(hash, 28, DIGITS);
+		char d4     = pick(hash, 32, DIGITS);
+		return "" + special + l1 + l2 + l3 + l4 + d1 + d2 + d3 + d4;
 	}
 
 	public int maxAttempts() {
-		return WORDS.size() * NUMBER_LIMIT;
+		return MAX_ATTEMPTS;
+	}
+
+	private char pick(String hash, int offset, String charset) {
+		int idx = Math.floorMod(Integer.parseUnsignedInt(hash.substring(offset, offset + 4), 16), charset.length());
+		return charset.charAt(idx);
 	}
 
 	private String hash(String value) {
