@@ -2,6 +2,7 @@ package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.auth.service.AuthSessionPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.dto.UpdateNotificationPreferencesCommand;
 import com.bubli.user.dto.UpdatePrivacyConsentsCommand;
@@ -45,18 +46,17 @@ public class UserService {
 	private final UserNotificationPreferenceRepository userNotificationPreferenceRepository;
 	private final UserPrivacyConsentRepository userPrivacyConsentRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final AuthSessionPublicService authSessionPublicService;
 
 	@Transactional(readOnly = true)
 	public UserResult getMe(UUID userId) {
-		User user = userRepository.findById(userId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		User user = getActiveUser(userId);
 		return UserResult.from(user);
 	}
 
 	@Transactional
 	public UserResult updateMe(UUID userId, UpdateUserProfileCommand command) {
-		User user = userRepository.findById(userId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		User user = getActiveUser(userId);
 		user.updateProfile(
 				command.name(),
 				command.avatarUrl(),
@@ -64,6 +64,13 @@ public class UserService {
 				command.timezone()
 		);
 		return UserResult.from(user);
+	}
+
+	@Transactional
+	public void withdrawMe(UUID userId) {
+		User user = getActiveUser(userId);
+		user.withdraw();
+		authSessionPublicService.revokeAllUserSessions(userId);
 	}
 
 	private String normalizeLocaleForUpdate(String locale) {
@@ -197,5 +204,14 @@ public class UserService {
 				})
 				.toList();
 		return new UserPrivacyConsentsResult(userId, items);
+	}
+
+	private User getActiveUser(UUID userId) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		if (!user.isActive()) {
+			throw new BusinessException(ErrorCode.USER_410_001);
+		}
+		return user;
 	}
 }

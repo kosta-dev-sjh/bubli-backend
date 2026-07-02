@@ -3,6 +3,7 @@ package com.bubli.voice.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
+import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.voice.config.LiveKitProperties;
@@ -38,6 +39,7 @@ public class VoiceRoomService {
     private final VoiceRoomRepository voiceRoomRepository;
     private final VoiceParticipantRepository voiceParticipantRepository;
     private final ProjectRoomAccessPublicService projectRoomAccessPublicService;
+    private final ProjectRoomEventPublicService projectRoomEventPublicService;
     private final UserPublicService userPublicService;
     private final LiveKitProperties liveKitProperties;
 
@@ -51,6 +53,19 @@ public class VoiceRoomService {
 
         VoiceRoom voiceRoom = voiceRoomRepository.save(VoiceRoom.create(roomId, userId));
         VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
+        projectRoomEventPublicService.recordVoiceRoomCreated(
+                userId,
+                roomId,
+                voiceRoom.getId(),
+                voiceRoom.getLivekitRoomName()
+        );
+        projectRoomEventPublicService.recordVoiceParticipantJoined(
+                userId,
+                roomId,
+                voiceRoom.getId(),
+                participant.getId(),
+                participant.getUserId()
+        );
 
         UserResult user = userPublicService.getUser(userId);
         List<VoiceParticipantResponse> participants = List.of(toParticipantResponse(participant, user.name()));
@@ -84,9 +99,22 @@ public class VoiceRoomService {
             projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
         }
 
+        boolean[] joined = {false};
         VoiceParticipant participant = voiceParticipantRepository
                 .findByVoiceRoomIdAndUserId(voiceRoomId, userId)
-                .orElseGet(() -> voiceParticipantRepository.save(VoiceParticipant.join(voiceRoomId, userId)));
+                .orElseGet(() -> {
+                    joined[0] = true;
+                    return voiceParticipantRepository.save(VoiceParticipant.join(voiceRoomId, userId));
+                });
+        if (joined[0] && voiceRoom.getRoomId() != null) {
+            projectRoomEventPublicService.recordVoiceParticipantJoined(
+                    userId,
+                    voiceRoom.getRoomId(),
+                    voiceRoom.getId(),
+                    participant.getId(),
+                    participant.getUserId()
+            );
+        }
 
         Instant expiresAt = Instant.now().plusSeconds(3600);
         String token = generateLiveKitToken(userId, voiceRoom.getLivekitRoomName(), expiresAt);
@@ -106,6 +134,17 @@ public class VoiceRoomService {
         VoiceParticipant participant = voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
         participant.updateMicStatus(micStatus);
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        if (voiceRoom.getRoomId() != null) {
+            projectRoomEventPublicService.recordVoiceParticipantMicUpdated(
+                    userId,
+                    voiceRoom.getRoomId(),
+                    voiceRoom.getId(),
+                    participant.getId(),
+                    participant.getUserId(),
+                    micStatus
+            );
+        }
         UserResult user = userPublicService.getUser(userId);
         return toParticipantResponse(participant, user.name());
     }
@@ -114,7 +153,18 @@ public class VoiceRoomService {
     public VoiceRoomResponse leaveVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
         voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
-                .ifPresent(VoiceParticipant::leave);
+                .ifPresent(participant -> {
+                    participant.leave();
+                    if (voiceRoom.getRoomId() != null) {
+                        projectRoomEventPublicService.recordVoiceParticipantLeft(
+                                userId,
+                                voiceRoom.getRoomId(),
+                                voiceRoom.getId(),
+                                participant.getId(),
+                                participant.getUserId()
+                        );
+                    }
+                });
 
         List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
@@ -134,6 +184,9 @@ public class VoiceRoomService {
                 .forEach(VoiceParticipant::leave);
 
         voiceRoom.end();
+        if (voiceRoom.getRoomId() != null) {
+            projectRoomEventPublicService.recordVoiceRoomEnded(userId, voiceRoom.getRoomId(), voiceRoom.getId());
+        }
 
         List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());

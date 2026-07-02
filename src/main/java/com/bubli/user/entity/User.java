@@ -80,6 +80,15 @@ public class User {
 		}
 	}
 
+	public void withdraw() {
+		this.status = UserStatus.DELETED;
+		this.deletedAt = Instant.now();
+	}
+
+	public boolean isActive() {
+		return status == UserStatus.ACTIVE;
+	}
+
 	@PrePersist
 	private void onCreate() {
 		Instant now = Instant.now();

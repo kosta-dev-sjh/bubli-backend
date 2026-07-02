@@ -36,6 +36,14 @@ public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<WbsItemResult> getRoomItemsForBoard(UUID roomId) {
+		return wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId).stream()
+				.map(WbsItemResult::from)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<WbsItemResult> getRoomContextItems(UUID roomId, int limit) {
 		return wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId).stream()
 				.limit(Math.max(1, Math.min(limit, 20)))

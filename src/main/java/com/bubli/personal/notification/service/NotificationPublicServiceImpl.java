@@ -7,9 +7,13 @@ import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.personal.notification.type.NotificationStatus;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -56,5 +60,19 @@ public class NotificationPublicServiceImpl implements NotificationPublicService 
 	@Transactional(readOnly = true)
 	public long countUnread(UUID userId) {
 		return notificationRepository.countByUserIdAndStatus(userId, NotificationStatus.UNREAD);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<NotificationResponse> getNotificationsBetween(UUID userId, Instant from, Instant to, int limit) {
+		int size = Math.max(1, Math.min(limit, 20));
+		return notificationRepository.findAllByUserIdAndCreatedAtBetween(
+						userId,
+						from,
+						to,
+						PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+				).stream()
+				.map(NotificationResponse::from)
+				.toList();
 	}
 }

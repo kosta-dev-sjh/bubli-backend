@@ -1,5 +1,6 @@
 package com.bubli.resource.service;
 
+import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 
@@ -15,7 +16,13 @@ public interface ResourcePublicService {
 
 	List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit);
 
+	List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit);
+
 	Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords);
 
 	Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId);
+
+	ResourceResult createPersonalResource(UUID userId, String title);
+
+	void deletePersonalResource(UUID userId, UUID resourceId);
 }
