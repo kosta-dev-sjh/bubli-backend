@@ -120,7 +120,7 @@ public class WbsItemService {
 		checkRoomMember(userId, item.getRoomId());
 		taskPublicService.assertNoTaskLinkedToWbsItem(itemId);
 		if (wbsItemRepository.existsByParentId(itemId)) {
-			throw new BusinessException(ErrorCode.COMMON_400_002);
+			throw new BusinessException(ErrorCode.WORK_400_002);
 		}
 		wbsItemRepository.delete(item);
 	}
