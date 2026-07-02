@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:8080
-@accessToken = replace-with-local-access-token
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MWM3ZDJmMC0zZjFkLTQxZWMtYTUzZi1mYTg4MWI4NjM3NjYiLCJpYXQiOjE3ODI4NzI4MDAsImV4cCI6MTc4Mjk1OTIwMH0.t_OADNgnqShxxZay9EHmEuUklZ71gx5Wg0gRviglwGM
 
 ### 내 프로필 조회
 GET {{baseUrl}}/api/me

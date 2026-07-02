@@ -29,6 +29,7 @@ import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.storage.StorageDownloadUrl;
 import com.bubli.resource.storage.StorageDownloadUrlProvider;
 import com.bubli.resource.type.AnalysisStatus;
+import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.storage.dto.FileUploadResult;
@@ -48,6 +49,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -168,6 +170,59 @@ public class ResourceService {
 				})
 				.filter(result -> result != null)
 				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords) {
+		validateRoomResourceAccess(userId, roomId);
+		List<String> keywords = normalizeTitleKeywords(titleKeywords);
+		if (keywords.isEmpty()) {
+			return Optional.empty();
+		}
+		return resourceRepository.findLatestRoomResourceCandidates(
+						roomId,
+						ResourceVisibility.ROOM_SHARED,
+						List.of(ResourceStatus.READY, ResourceStatus.ANALYZED),
+						keywords.get(0),
+						keywords.get(1),
+						keywords.get(2),
+						PageRequest.of(0, 1)
+				).stream()
+				.findFirst()
+				.map(ResourceResult::from);
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId) {
+		validateRoomResourceAccess(userId, roomId);
+		return resourceRepository.findByRoomIdAndVisibilityAndKindAndDeletedAtIsNullAndStatusIn(
+						roomId,
+						ResourceVisibility.ROOM_SHARED,
+						ResourceKind.FILE,
+						List.of(ResourceStatus.READY, ResourceStatus.ANALYZED),
+						PageRequest.of(0, 1, Sort.by("createdAt").descending().and(Sort.by("id").descending()))
+				).stream()
+				.findFirst()
+				.map(ResourceResult::from);
+	}
+
+	private List<String> normalizeTitleKeywords(List<String> titleKeywords) {
+		List<String> keywords = titleKeywords == null ? List.of() : titleKeywords.stream()
+				.filter(StringUtils::hasText)
+				.map(String::trim)
+				.distinct()
+				.limit(3)
+				.toList();
+		if (keywords.isEmpty()) {
+			return List.of();
+		}
+		if (keywords.size() == 1) {
+			return List.of(keywords.get(0), keywords.get(0), keywords.get(0));
+		}
+		if (keywords.size() == 2) {
+			return List.of(keywords.get(0), keywords.get(1), keywords.get(1));
+		}
+		return keywords;
 	}
 
 	@Transactional(readOnly = true)

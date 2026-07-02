@@ -32,7 +32,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/bubli-backend:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/bubli-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/bubli-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

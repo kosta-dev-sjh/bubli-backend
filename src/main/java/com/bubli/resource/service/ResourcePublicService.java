@@ -4,8 +4,8 @@ import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 
-import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ResourcePublicService {
@@ -18,7 +18,13 @@ public interface ResourcePublicService {
 
 	List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit);
 
+	Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords);
+
+	Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId);
+
 	ResourceResult createPersonalResource(UUID userId, String title);
+
+	ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title);
 
 	void deletePersonalResource(UUID userId, UUID resourceId);
 }

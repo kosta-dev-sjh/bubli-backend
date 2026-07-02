@@ -45,6 +45,14 @@ public class LocalFileSyncService {
                     resourcePublicService.deletePersonalResource(userId, event.resourceId());
                     yield new LocalFileSyncResult("DELETED", event.resourceId(), "SYNCED");
                 }
+                case "UPDATED" -> {
+                    if (event.resourceId() == null) {
+                        yield new LocalFileSyncResult("UPDATED", null, "SKIPPED");
+                    }
+                    String title = event.fileName() != null ? event.fileName() : "untitled";
+                    ResourceResult resource = resourcePublicService.updatePersonalResource(userId, event.resourceId(), title);
+                    yield new LocalFileSyncResult("UPDATED", resource.id(), "SYNCED");
+                }
                 default -> {
                     log.warn("Unknown local file event type: {}", event.eventType());
                     yield new LocalFileSyncResult(event.eventType(), event.resourceId(), "SKIPPED");

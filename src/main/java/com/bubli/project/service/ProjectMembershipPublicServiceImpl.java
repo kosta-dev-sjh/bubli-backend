@@ -48,6 +48,15 @@ public class ProjectMembershipPublicServiceImpl implements ProjectMembershipPubl
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<UUID> findActiveMemberIds(UUID roomId) {
+		return roomMemberRepository.findByRoomIdAndStatus(roomId, RoomMemberStatus.ACTIVE)
+				.stream()
+				.map(RoomMember::getUserId)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public void assertProjectLeader(UUID userId, UUID roomId) {
 		RoomMember member = roomMemberRepository.findByRoomIdAndUserIdAndStatus(
 				roomId,
