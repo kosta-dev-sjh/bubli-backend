@@ -25,6 +25,12 @@ public class ProjectRoomPublicServiceImpl implements ProjectRoomPublicService {
 				.getItems();
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public ProjectRoomResult getProjectRoom(UUID userId, UUID roomId) {
+		return projectRoomService.getProjectRoom(userId, roomId);
+	}
+
 	private int boundedLimit(int limit) {
 		if (limit <= 0) {
 			return DEFAULT_LIMIT;

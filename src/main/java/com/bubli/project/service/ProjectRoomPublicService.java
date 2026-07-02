@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface ProjectRoomPublicService {
 
 	List<ProjectRoomResult> getAccessibleRooms(UUID userId, int limit);
+
+	ProjectRoomResult getProjectRoom(UUID userId, UUID roomId);
 }
