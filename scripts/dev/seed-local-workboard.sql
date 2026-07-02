@@ -67,6 +67,9 @@ DELETE FROM widget_context_settings
 WHERE user_id IN (
     '00000000-0000-4000-8000-000000000132',
     '00000000-0000-4000-8000-000000000133'
+)
+OR selected_room_id IN (
+    SELECT id FROM seed_room_ids
 );
 
 DELETE FROM notifications
@@ -140,6 +143,27 @@ WHERE room_id IN (SELECT id FROM seed_room_ids)
 OR requested_by_user_id IN (
     '00000000-0000-4000-8000-000000000132',
     '00000000-0000-4000-8000-000000000133'
+);
+
+DELETE FROM room_memory_summaries
+WHERE room_id IN (SELECT id FROM seed_room_ids)
+OR created_by_user_id IN (
+    '00000000-0000-4000-8000-000000000132',
+    '00000000-0000-4000-8000-000000000133'
+);
+
+UPDATE chat_room_members
+SET last_read_message_id = NULL,
+    last_read_at = NULL,
+    updated_at = now()
+WHERE chat_room_id IN (
+    SELECT id
+    FROM chat_rooms
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR id IN (
+        '00000000-0000-4000-8000-000000000801',
+        '00000000-0000-4000-8000-000000000802'
+    )
 );
 
 DELETE FROM chat_messages
@@ -311,6 +335,12 @@ WHERE user_id IN (
     '00000000-0000-4000-8000-000000000133'
 );
 
+DELETE FROM daily_summaries
+WHERE user_id IN (
+    '00000000-0000-4000-8000-000000000132',
+    '00000000-0000-4000-8000-000000000133'
+);
+
 DELETE FROM friendships
 WHERE user_id IN (
     '00000000-0000-4000-8000-000000000132',
@@ -368,15 +398,16 @@ VALUES
 
 INSERT INTO user_notification_preferences (user_id, notification_type, enabled)
 VALUES
-    ('00000000-0000-4000-8000-000000000132', 'PROJECT_ROOM', true),
-    ('00000000-0000-4000-8000-000000000132', 'CHAT', true),
-    ('00000000-0000-4000-8000-000000000132', 'SCHEDULE', true),
-    ('00000000-0000-4000-8000-000000000132', 'WIDGET', true);
+    ('00000000-0000-4000-8000-000000000132', 'MESSAGE', true),
+    ('00000000-0000-4000-8000-000000000132', 'COMMENT', true),
+    ('00000000-0000-4000-8000-000000000132', 'RESOURCE', true),
+    ('00000000-0000-4000-8000-000000000132', 'AGENT', true),
+    ('00000000-0000-4000-8000-000000000132', 'STORAGE', true);
 
 INSERT INTO user_privacy_consents (user_id, consent_type, enabled, updated_at)
 VALUES
     ('00000000-0000-4000-8000-000000000132', 'ACTIVITY_CONTEXT', true, now()),
-    ('00000000-0000-4000-8000-000000000132', 'WINDOW_TITLE', true, now());
+    ('00000000-0000-4000-8000-000000000132', 'MANAGED_FOLDER', true, now());
 
 INSERT INTO friendships (id, user_id, friend_user_id, accepted_at, created_at)
 VALUES
