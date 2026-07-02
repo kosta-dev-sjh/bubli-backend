@@ -52,6 +52,12 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional
+	public ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title) {
+		return resourceService.updateResource(userId, resourceId, title);
+	}
+
+	@Override
+	@Transactional
 	public void deletePersonalResource(UUID userId, UUID resourceId) {
 		resourceService.deleteResource(userId, resourceId);
 	}
