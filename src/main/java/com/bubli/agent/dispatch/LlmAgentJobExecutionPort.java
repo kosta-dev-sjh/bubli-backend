@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-@Profile("ai")
+@Profile({"ai", "prod"})
 @Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "agent.execution.mode", havingValue = "llm")
