@@ -27,9 +27,13 @@ import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceVisibility;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,6 +46,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @RestController
@@ -169,6 +175,42 @@ public class ResourceController {
 		return ApiResponse.success(ResourceDownloadUrlResponse.from(
 				resourceService.getResourceDownloadUrl(authUser.userId(), resourceId)
 		));
+	}
+
+	@GetMapping("/api/resources/{resourceId}/file")
+	public ResponseEntity<InputStreamResource> downloadResourceFile(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId
+	) {
+		ResourceService.ResourceFileStream fileStream = resourceService.openResourceFile(authUser.userId(), resourceId);
+		MediaType mediaType = resolveMediaType(fileStream.mimeType());
+		String disposition = contentDisposition(fileStream.originalName());
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.CONTENT_DISPOSITION, disposition);
+		if (fileStream.sizeBytes() != null) {
+			headers.setContentLength(fileStream.sizeBytes());
+		}
+		return ResponseEntity.ok()
+				.headers(headers)
+				.contentType(mediaType)
+				.body(new InputStreamResource(fileStream.inputStream()));
+	}
+
+	private static MediaType resolveMediaType(String mimeType) {
+		if (StringUtils.hasText(mimeType)) {
+			try {
+				return MediaType.parseMediaType(mimeType);
+			} catch (Exception ignored) {}
+		}
+		return MediaType.APPLICATION_OCTET_STREAM;
+	}
+
+	private static String contentDisposition(String originalName) {
+		if (!StringUtils.hasText(originalName)) {
+			return "attachment";
+		}
+		String encoded = URLEncoder.encode(originalName, StandardCharsets.UTF_8).replace("+", "%20");
+		return "attachment; filename=\"" + originalName + "\"; filename*=UTF-8''" + encoded;
 	}
 
 	@PostMapping("/api/resources/{resourceId}/versions")

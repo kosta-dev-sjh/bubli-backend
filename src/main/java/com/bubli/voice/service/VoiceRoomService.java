@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,9 +48,15 @@ public class VoiceRoomService {
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId) {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
 
-        voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN).ifPresent(r -> {
-            throw new BusinessException(ErrorCode.VOICE_409_002);
-        });
+        Optional<VoiceRoom> existing = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN);
+        if (existing.isPresent()) {
+            VoiceRoom room = existing.get();
+            List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(room.getId());
+            Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+            return toRoomResponse(room, participants.stream()
+                    .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                    .toList());
+        }
 
         VoiceRoom voiceRoom = voiceRoomRepository.save(VoiceRoom.create(roomId, userId));
         VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
