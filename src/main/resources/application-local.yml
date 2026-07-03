@@ -24,6 +24,11 @@ storage:
   local:
     base-path: ./local-storage
 
+livekit:
+  api-key: ${LIVEKIT_API_KEY:local-development-livekit-api-key}
+  api-secret: ${LIVEKIT_API_SECRET:local-development-livekit-secret-key-32-bytes-minimum}
+  server-url: ${LIVEKIT_SERVER_URL:wss://local-development.livekit.invalid}
+
 agent:
   execution:
     mode: ${AGENT_EXECUTION_MODE:local}
