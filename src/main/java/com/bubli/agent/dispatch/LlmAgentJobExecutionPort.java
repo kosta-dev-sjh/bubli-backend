@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
@@ -33,6 +34,7 @@ import java.util.Optional;
 
 @Component
 @Profile({"ai", "prod"})
+@Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "agent.execution.mode", havingValue = "llm")
 public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
