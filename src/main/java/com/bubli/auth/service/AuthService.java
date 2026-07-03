@@ -37,7 +37,8 @@ public class AuthService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
 	private static final String GOOGLE_LOGIN_SCOPE =
-			"openid profile email https://www.googleapis.com/auth/calendar.events "
+			"openid profile email https://www.googleapis.com/auth/calendar "
+					+ "https://www.googleapis.com/auth/calendar.events "
 					+ "https://www.googleapis.com/auth/calendar.readonly";
 
 	private final GoogleOAuthClient googleOAuthClient;

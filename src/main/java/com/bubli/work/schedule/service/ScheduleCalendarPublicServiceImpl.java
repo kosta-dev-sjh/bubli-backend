@@ -145,7 +145,11 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 			schedule.markSyncFailed();
 			return;
 		}
-		schedule.markSynced(syncResult.googleEventId());
+		schedule.markSynced(
+				syncResult.googleCalendarId(),
+				syncResult.googleCalendarSummary(),
+				syncResult.googleEventId()
+		);
 	}
 
 	private String normalizeTitle(String title) {

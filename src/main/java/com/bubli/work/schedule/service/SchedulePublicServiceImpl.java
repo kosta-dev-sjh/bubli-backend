@@ -75,7 +75,11 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 		if (!syncResult.succeeded()) {
 			savedSchedule.markSyncFailed();
 		} else {
-			savedSchedule.markSynced(syncResult.googleEventId());
+			savedSchedule.markSynced(
+					syncResult.googleCalendarId(),
+					syncResult.googleCalendarSummary(),
+					syncResult.googleEventId()
+			);
 		}
 		return ScheduleResult.from(savedSchedule);
 	}
