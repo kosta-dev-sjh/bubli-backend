@@ -29,6 +29,7 @@ services:
       - AGENT_EXECUTION_MODE=${AGENT_EXECUTION_MODE:-noop}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - STORAGE_TYPE=s3
+      - AWS_S3_BUCKET=${S3_BUCKET_NAME}
     depends_on:
       - redis
     expose:
