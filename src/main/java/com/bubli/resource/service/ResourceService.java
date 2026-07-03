@@ -262,6 +262,19 @@ public class ResourceService {
 		);
 	}
 
+	public record ResourceFileStream(java.io.InputStream inputStream, String originalName, String mimeType, Long sizeBytes) {}
+
+	@Transactional(readOnly = true)
+	public ResourceFileStream openResourceFile(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		ResourceVersion version = resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		ResourceFile file = resourceFileRepository.findById(version.getFileId())
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
+		java.io.InputStream stream = storagePublicService.open(file.getStorageKey());
+		return new ResourceFileStream(stream, file.getOriginalName(), file.getMimeType(), file.getSizeBytes());
+	}
+
 	@Transactional
 	public ResourceResult create(UUID userId, CreateResourceCommand command) {
 		validateCreateCommand(userId, command);
