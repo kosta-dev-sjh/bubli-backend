@@ -2,4 +2,11 @@ package com.bubli.widget.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record UpdateWidgetItemStateRequest(@NotBlank String state) {}
+import java.util.UUID;
+
+public record UpdateWidgetItemStateRequest(
+        String bubbleType,
+        UUID itemId,
+        String itemType,
+        @NotBlank String state
+) {}

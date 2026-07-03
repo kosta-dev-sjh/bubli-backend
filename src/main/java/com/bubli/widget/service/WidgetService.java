@@ -24,6 +24,7 @@ import com.bubli.widget.repository.WidgetDailySummaryRepository;
 import com.bubli.widget.repository.WidgetItemStateRepository;
 import com.bubli.widget.type.BubbleType;
 import com.bubli.widget.type.WidgetItemStateValue;
+import com.bubli.widget.type.WidgetItemType;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
@@ -147,12 +148,32 @@ public class WidgetService implements WidgetPublicService {
     }
 
     @Transactional
-    public void updateItemState(UUID userId, UUID itemStateId, String stateStr) {
+    public void updateItemState(
+            UUID userId,
+            UUID itemStateId,
+            String bubbleTypeStr,
+            UUID itemId,
+            String itemTypeStr,
+            String stateStr
+    ) {
         WidgetItemStateValue state = parseItemState(stateStr);
         WidgetItemState itemState = itemStateRepository.findById(itemStateId)
                 .filter(s -> s.getUserId().equals(userId))
-                .orElseThrow(() -> new BusinessException(ErrorCode.WIDGET_404_001));
+                .orElseGet(() -> findOrCreateItemState(userId, bubbleTypeStr, itemTypeStr, itemId));
         itemState.updateState(state);
+    }
+
+    private WidgetItemState findOrCreateItemState(UUID userId, String bubbleTypeStr, String itemTypeStr, UUID itemId) {
+        if (bubbleTypeStr == null || itemTypeStr == null || itemId == null) {
+            throw new BusinessException(ErrorCode.WIDGET_404_001);
+        }
+
+        BubbleType bubbleType = parseBubbleType(bubbleTypeStr);
+        WidgetItemType itemType = parseItemType(itemTypeStr);
+        return itemStateRepository.findByUserIdAndBubbleTypeAndItemTypeAndItemId(
+                        userId, bubbleType, itemType, itemId)
+                .orElseGet(() -> itemStateRepository.save(
+                        WidgetItemState.create(userId, bubbleType, itemType, itemId)));
     }
 
     @Transactional
@@ -211,6 +232,14 @@ public class WidgetService implements WidgetPublicService {
     private WidgetItemStateValue parseItemState(String value) {
         try {
             return WidgetItemStateValue.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.WIDGET_400_001);
+        }
+    }
+
+    private WidgetItemType parseItemType(String value) {
+        try {
+            return WidgetItemType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.WIDGET_400_001);
         }

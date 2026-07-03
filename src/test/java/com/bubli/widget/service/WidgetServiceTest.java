@@ -10,11 +10,14 @@ import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.widget.dto.WidgetSummaryResponse;
 import com.bubli.widget.entity.WidgetBubbleSetting;
 import com.bubli.widget.entity.WidgetContextSetting;
+import com.bubli.widget.entity.WidgetItemState;
 import com.bubli.widget.repository.WidgetBubbleSettingRepository;
 import com.bubli.widget.repository.WidgetContextSettingRepository;
 import com.bubli.widget.repository.WidgetDailySummaryRepository;
 import com.bubli.widget.repository.WidgetItemStateRepository;
 import com.bubli.widget.type.BubbleType;
+import com.bubli.widget.type.WidgetItemStateValue;
+import com.bubli.widget.type.WidgetItemType;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.schedule.type.ScheduleSyncStatus;
@@ -24,6 +27,7 @@ import com.bubli.work.task.type.TaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -158,6 +163,41 @@ class WidgetServiceTest {
 		assertThat(response.schedules()).containsExactly(schedule);
 		assertThat(response.unreadNotificationCount()).isEqualTo(1);
 		assertThat(response.runningTimer()).isNull();
+	}
+
+	@Test
+	void updateItemStateUpdatesExistingStateById() {
+		UUID userId = UUID.randomUUID();
+		UUID itemStateId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		WidgetItemState itemState = WidgetItemState.create(userId, BubbleType.TODO, WidgetItemType.TASK, taskId);
+		given(itemStateRepository.findById(itemStateId)).willReturn(Optional.of(itemState));
+
+		widgetService.updateItemState(userId, itemStateId, null, null, null, "PINNED");
+
+		assertThat(itemState.getState()).isEqualTo(WidgetItemStateValue.PINNED);
+		verify(itemStateRepository, never()).save(any());
+	}
+
+	@Test
+	void updateItemStateCreatesStateFromItemTupleWhenStateIdIsNotKnown() {
+		UUID userId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		given(itemStateRepository.findById(taskId)).willReturn(Optional.empty());
+		given(itemStateRepository.findByUserIdAndBubbleTypeAndItemTypeAndItemId(
+				userId, BubbleType.TODO, WidgetItemType.TASK, taskId
+		)).willReturn(Optional.empty());
+		given(itemStateRepository.save(any(WidgetItemState.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+		widgetService.updateItemState(userId, taskId, "TODO", taskId, "TASK", "CONFIRMED");
+
+		ArgumentCaptor<WidgetItemState> savedState = ArgumentCaptor.forClass(WidgetItemState.class);
+		verify(itemStateRepository).save(savedState.capture());
+		assertThat(savedState.getValue().getUserId()).isEqualTo(userId);
+		assertThat(savedState.getValue().getBubbleType()).isEqualTo(BubbleType.TODO);
+		assertThat(savedState.getValue().getItemType()).isEqualTo(WidgetItemType.TASK);
+		assertThat(savedState.getValue().getItemId()).isEqualTo(taskId);
+		assertThat(savedState.getValue().getState()).isEqualTo(WidgetItemStateValue.CONFIRMED);
 	}
 
 	private TaskResult task(UUID userId, UUID roomId, TaskStatus status, Instant dueAt) {

@@ -75,7 +75,14 @@ public class WidgetController {
             @PathVariable UUID id,
             @RequestBody @Valid UpdateWidgetItemStateRequest request
     ) {
-        widgetService.updateItemState(authUser.userId(), id, request.state());
+        widgetService.updateItemState(
+                authUser.userId(),
+                id,
+                request.bubbleType(),
+                request.itemId(),
+                request.itemType(),
+                request.state()
+        );
         return ApiResponse.success(null);
     }
 
