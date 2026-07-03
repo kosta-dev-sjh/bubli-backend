@@ -5,6 +5,7 @@ import com.bubli.widget.type.BubbleType;
 import com.bubli.widget.type.WidgetItemType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,4 +13,6 @@ public interface WidgetItemStateRepository extends JpaRepository<WidgetItemState
 
     Optional<WidgetItemState> findByUserIdAndBubbleTypeAndItemTypeAndItemId(
             UUID userId, BubbleType bubbleType, WidgetItemType itemType, UUID itemId);
+
+    List<WidgetItemState> findByUserIdAndItemIdIn(UUID userId, List<UUID> itemIds);
 }

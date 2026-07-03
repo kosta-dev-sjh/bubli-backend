@@ -11,6 +11,7 @@ import com.bubli.widget.dto.BubbleSettingUpdate;
 import com.bubli.widget.dto.WidgetBubbleSettingResponse;
 import com.bubli.widget.dto.WidgetContextResponse;
 import com.bubli.widget.dto.WidgetDailySummaryResponse;
+import com.bubli.widget.dto.WidgetItemStateResponse;
 import com.bubli.widget.dto.WidgetSettingsResponse;
 import com.bubli.widget.dto.WidgetSummaryResponse;
 import com.bubli.widget.dto.WidgetTodaySummaryResponse;
@@ -85,6 +86,17 @@ public class WidgetService implements WidgetPublicService {
         return contextSettingRepository.findByUserId(userId)
                 .map(c -> new WidgetContextResponse(c.getSelectedRoomId(), c.getMode().name()))
                 .orElse(new WidgetContextResponse(null, "PERSONAL"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<WidgetItemStateResponse> getItemStates(UUID userId, List<UUID> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return List.of();
+        }
+        return itemStateRepository.findByUserIdAndItemIdIn(userId, itemIds.stream().distinct().toList())
+                .stream()
+                .map(WidgetItemStateResponse::from)
+                .toList();
     }
 
     @Transactional

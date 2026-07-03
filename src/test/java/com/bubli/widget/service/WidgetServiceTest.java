@@ -166,6 +166,22 @@ class WidgetServiceTest {
 	}
 
 	@Test
+	void getItemStatesReturnsOnlyRequestedUserStates() {
+		UUID userId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		WidgetItemState itemState = WidgetItemState.create(userId, BubbleType.TODO, WidgetItemType.TASK, taskId);
+		itemState.updateState(WidgetItemStateValue.PINNED);
+		given(itemStateRepository.findByUserIdAndItemIdIn(eq(userId), any())).willReturn(List.of(itemState));
+
+		var response = widgetService.getItemStates(userId, List.of(taskId, taskId));
+
+		assertThat(response).hasSize(1);
+		assertThat(response.getFirst().itemId()).isEqualTo(taskId);
+		assertThat(response.getFirst().state()).isEqualTo("PINNED");
+		verify(itemStateRepository).findByUserIdAndItemIdIn(eq(userId), eq(List.of(taskId)));
+	}
+
+	@Test
 	void updateItemStateUpdatesExistingStateById() {
 		UUID userId = UUID.randomUUID();
 		UUID itemStateId = UUID.randomUUID();
