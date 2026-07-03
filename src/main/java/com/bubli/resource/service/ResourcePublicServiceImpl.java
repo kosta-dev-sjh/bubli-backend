@@ -2,8 +2,10 @@ package com.bubli.resource.service;
 
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
+import com.bubli.resource.dto.ResourceExtractedTextResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
+import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceVisibility;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +69,18 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 	@Transactional
 	public ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title) {
 		return resourceService.updateResource(userId, resourceId, title);
+	}
+
+	@Override
+	@Transactional
+	public ResourceResult startAnalysis(UUID userId, UUID resourceId) {
+		return resourceService.startAnalysis(userId, resourceId);
+	}
+
+	@Override
+	@Transactional
+	public ResourceExtractedTextResult storeExtractedText(UUID userId, StoreResourceExtractedTextCommand command) {
+		return resourceService.storeExtractedText(userId, command);
 	}
 
 	@Override

@@ -87,15 +87,17 @@ public class ResourceSummary extends BaseTimeEntity {
     }
 
     public static ResourceSummary analyzed(UUID resourceId, UUID jobId, Map<String, Object> summaryJson) {
+        Map<String, Object> analysis = nestedMap(summaryJson, "analysis");
+        Map<String, Object> model = nestedMap(analysis, "model");
         return new ResourceSummary(
                 resourceId,
                 jobId,
                 AnalysisStatus.ANALYZED,
                 summaryJson,
                 null,
-                null,
-                null,
-                null
+                text(model, "promptVersion"),
+                text(analysis, "schemaVersion"),
+                text(model, "name")
         );
     }
 
@@ -126,6 +128,29 @@ public class ResourceSummary extends BaseTimeEntity {
             throw new IllegalArgumentException(field + " is required.");
         }
         return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nestedMap(Map<String, Object> source, String key) {
+        if (source == null) {
+            return Map.of();
+        }
+        Object value = source.get(key);
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return Map.of();
+    }
+
+    private static String text(Map<String, Object> source, String key) {
+        if (source == null) {
+            return null;
+        }
+        Object value = source.get(key);
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        return value.toString();
     }
 
     private static Map<String, Object> immutableJsonMap(Map<String, Object> value) {
