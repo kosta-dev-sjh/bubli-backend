@@ -33,13 +33,29 @@ public class AgentJobDispatchWorker {
 	}
 
 	private boolean process(AgentJobQueueMessage message) {
+		log.info(
+				"Polled agent job queue message. jobId={}, jobType={}, roomId={}, resourceId={}, enqueuedAt={}",
+				message.jobId(),
+				message.jobType(),
+				message.roomId(),
+				message.resourceId(),
+				message.enqueuedAt()
+		);
 		return agentJobRepository.findById(message.jobId())
-				.filter(agentJob -> agentJob.getStatus() == AgentJobStatus.PENDING)
+				.filter(this::isPending)
 				.map(agentJob -> markStartedAndExecute(agentJob, message))
 				.orElse(false);
 	}
 
 	private boolean markStartedAndExecute(AgentJob agentJob, AgentJobQueueMessage message) {
+		log.info(
+				"Starting agent job execution. jobId={}, jobType={}, roomId={}, resourceId={}, retryCount={}",
+				agentJob.getId(),
+				agentJob.getJobType(),
+				agentJob.getRoomId(),
+				agentJob.getResourceId(),
+				agentJob.getRetryCount()
+		);
 		markStarted(agentJob);
 		executionPort.execute(message)
 				.ifPresent(outcome -> recordOutcome(agentJob, outcome));
@@ -47,6 +63,16 @@ public class AgentJobDispatchWorker {
 	}
 
 	private void recordOutcome(AgentJob agentJob, AgentJobExecutionOutcome outcome) {
+		log.info(
+				"Agent job execution outcome received. jobId={}, jobType={}, successful={}, suggestionCount={}, modelCallLogCount={}, errorCode={}, errorMessage={}",
+				agentJob.getId(),
+				agentJob.getJobType(),
+				outcome.successful(),
+				outcome.suggestionDrafts().size(),
+				outcome.modelCallLogs().size(),
+				outcome.errorCode(),
+				truncate(outcome.errorMessage())
+		);
 		recordModelCallLogs(agentJob, outcome);
 		if (outcome.successful()) {
 			if (!recordSuggestions(agentJob, outcome)) {
@@ -102,5 +128,28 @@ public class AgentJobDispatchWorker {
 				STARTED_EVENT_TYPE,
 				STARTED_EVENT_MESSAGE
 		));
+	}
+
+	private boolean isPending(AgentJob agentJob) {
+		if (agentJob.getStatus() == AgentJobStatus.PENDING) {
+			return true;
+		}
+		log.warn(
+				"Skipping queued agent job because status is not PENDING. jobId={}, jobType={}, status={}, retryCount={}, errorCode={}, errorMessage={}",
+				agentJob.getId(),
+				agentJob.getJobType(),
+				agentJob.getStatus(),
+				agentJob.getRetryCount(),
+				agentJob.getErrorCode(),
+				truncate(agentJob.getErrorMessage())
+		);
+		return false;
+	}
+
+	private String truncate(String value) {
+		if (value == null || value.length() <= 300) {
+			return value;
+		}
+		return value.substring(0, 300) + "...";
 	}
 }
