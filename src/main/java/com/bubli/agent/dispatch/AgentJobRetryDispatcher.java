@@ -32,13 +32,39 @@ public class AgentJobRetryDispatcher {
 		int dispatchedCount = 0;
 		for (AgentJob agentJob : retryableJobs) {
 			AgentJobDispatchCommand command = AgentJobDispatchCommand.from(agentJob);
+			log.info(
+					"Dispatching retryable agent job. jobId={}, jobType={}, roomId={}, resourceId={}, retryCount={}, maxRetryCount={}, errorCode={}, errorMessage={}",
+					agentJob.getId(),
+					agentJob.getJobType(),
+					agentJob.getRoomId(),
+					agentJob.getResourceId(),
+					agentJob.getRetryCount(),
+					maxRetryCount,
+					agentJob.getErrorCode(),
+					truncate(agentJob.getErrorMessage())
+			);
 			try {
 				agentJobDispatchPort.dispatch(command);
 			} catch (RuntimeException exception) {
+				log.warn(
+						"Failed to dispatch retryable agent job. jobId={}, jobType={}, retryCount={}, maxRetryCount={}",
+						agentJob.getId(),
+						agentJob.getJobType(),
+						agentJob.getRetryCount(),
+						maxRetryCount,
+						exception
+				);
 				failureRecorder.recordEnqueueFailure(command, exception);
 				continue;
 			}
 			agentJob.markRetryQueued();
+			log.info(
+					"Retryable agent job queued. jobId={}, jobType={}, retryCount={}, status={}",
+					agentJob.getId(),
+					agentJob.getJobType(),
+					agentJob.getRetryCount(),
+					agentJob.getStatus()
+			);
 			try {
 				successRecorder.recordQueued(command);
 			} catch (RuntimeException exception) {
@@ -47,5 +73,12 @@ public class AgentJobRetryDispatcher {
 			dispatchedCount++;
 		}
 		return dispatchedCount;
+	}
+
+	private String truncate(String value) {
+		if (value == null || value.length() <= 300) {
+			return value;
+		}
+		return value.substring(0, 300) + "...";
 	}
 }

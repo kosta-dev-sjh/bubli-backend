@@ -11,6 +11,7 @@ import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AgentJobExecutionResultRecorder {
 
@@ -41,7 +43,10 @@ public class AgentJobExecutionResultRecorder {
         return agentJobRepository.findById(jobId)
                 .filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
                 .map(this::markSucceeded)
-                .orElse(false);
+                .orElseGet(() -> {
+                    log.warn("Skipped marking agent job succeeded because job is missing or not RUNNING. jobId={}", jobId);
+                    return false;
+                });
     }
 
     @Transactional
@@ -49,12 +54,28 @@ public class AgentJobExecutionResultRecorder {
         return agentJobRepository.findById(jobId)
                 .filter(agentJob -> agentJob.getStatus() == AgentJobStatus.RUNNING)
                 .map(agentJob -> markFailed(agentJob, errorCode, errorMessage))
-                .orElse(false);
+                .orElseGet(() -> {
+                    log.warn(
+                            "Skipped marking agent job failed because job is missing or not RUNNING. jobId={}, errorCode={}, errorMessage={}",
+                            jobId,
+                            errorCode,
+                            truncate(errorMessage)
+                    );
+                    return false;
+                });
     }
 
     private boolean markSucceeded(AgentJob agentJob) {
         Locale locale = locale(agentJob.getRequestedByUserId());
         String message = message("agent.job.succeeded.event", locale, SUCCEEDED_EVENT_MESSAGE);
+        log.info(
+                "Marking agent job succeeded. jobId={}, jobType={}, roomId={}, resourceId={}, retryCount={}",
+                agentJob.getId(),
+                agentJob.getJobType(),
+                agentJob.getRoomId(),
+                agentJob.getResourceId(),
+                agentJob.getRetryCount()
+        );
         agentJob.markSucceeded();
         agentJobEventRepository.save(AgentJobEvent.create(
                 agentJob.getId(),
@@ -75,7 +96,26 @@ public class AgentJobExecutionResultRecorder {
     private boolean markFailed(AgentJob agentJob, String errorCode, String errorMessage) {
         Locale locale = locale(agentJob.getRequestedByUserId());
         String message = failureMessage(errorMessage, locale);
+        log.warn(
+                "Marking agent job failed. jobId={}, jobType={}, roomId={}, resourceId={}, retryCountBefore={}, errorCode={}, errorMessage={}",
+                agentJob.getId(),
+                agentJob.getJobType(),
+                agentJob.getRoomId(),
+                agentJob.getResourceId(),
+                agentJob.getRetryCount(),
+                errorCode,
+                truncate(message)
+        );
         agentJob.markFailed(errorCode, message);
+        log.warn(
+                "Agent job failed state saved. jobId={}, jobType={}, status={}, retryCountAfter={}, errorCode={}, errorMessage={}",
+                agentJob.getId(),
+                agentJob.getJobType(),
+                agentJob.getStatus(),
+                agentJob.getRetryCount(),
+                agentJob.getErrorCode(),
+                truncate(agentJob.getErrorMessage())
+        );
         agentJobEventRepository.save(AgentJobEvent.create(
                 agentJob.getId(),
                 FAILED_EVENT_TYPE,
@@ -132,5 +172,12 @@ public class AgentJobExecutionResultRecorder {
 
     private String message(String key, Locale locale, String defaultMessage) {
         return messageSource.getMessage(key, null, defaultMessage, locale);
+    }
+
+    private String truncate(String value) {
+        if (value == null || value.length() <= 300) {
+            return value;
+        }
+        return value.substring(0, 300) + "...";
     }
 }
