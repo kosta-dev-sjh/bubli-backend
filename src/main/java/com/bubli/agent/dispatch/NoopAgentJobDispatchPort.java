@@ -4,7 +4,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "noop", matchIfMissing = true)
+@ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "noop")
 public class NoopAgentJobDispatchPort implements AgentJobDispatchPort {
 
 	@Override

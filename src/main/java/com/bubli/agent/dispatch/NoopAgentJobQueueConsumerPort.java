@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 @Component
-@ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "noop", matchIfMissing = true)
+@ConditionalOnProperty(name = "agent.dispatch.adapter", havingValue = "noop")
 public class NoopAgentJobQueueConsumerPort implements AgentJobQueueConsumerPort {
 
 	@Override

@@ -8,9 +8,11 @@ import com.bubli.resource.dto.ResourceAnalysisSource;
 import com.bubli.resource.dto.ResourceAnalysisTarget;
 import com.bubli.resource.entity.AiDocument;
 import com.bubli.resource.entity.Resource;
+import com.bubli.resource.entity.ResourceExtractedText;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.repository.AiDocumentRepository;
+import com.bubli.resource.repository.ResourceExtractedTextRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
@@ -49,6 +51,7 @@ public class ResourceAnalysisPublicService {
 
     private final ResourceRepository resourceRepository;
     private final ResourceFileRepository resourceFileRepository;
+    private final ResourceExtractedTextRepository resourceExtractedTextRepository;
     private final ResourceSummaryRepository resourceSummaryRepository;
     private final AiDocumentRepository aiDocumentRepository;
     private final ResourceEmbeddingIndexPublicService resourceEmbeddingIndexService;
@@ -79,14 +82,16 @@ public class ResourceAnalysisPublicService {
     public Optional<Map<String, Object>> findReusableAnalysisForJob(UUID resourceId) {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
-        ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
-        if (resourceFile.getChecksum() == null || resourceFile.getChecksum().isBlank()) {
+        Optional<ResourceFile> resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId());
+        if (resourceFile.isEmpty()) {
+            return Optional.empty();
+        }
+        if (resourceFile.get().getChecksum() == null || resourceFile.get().getChecksum().isBlank()) {
             return Optional.empty();
         }
         return resourceSummaryRepository.findReusableAnalysisSummaries(
                         resource.getId(),
-                        resourceFile.getChecksum(),
+                        resourceFile.get().getChecksum(),
                         resource.getRoomId(),
                         resource.getVisibility(),
                         PageRequest.of(0, 5)
@@ -111,6 +116,11 @@ public class ResourceAnalysisPublicService {
             resource = resourceRepository.findById(resourceId)
                     .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
             resource.startAnalysis();
+
+            Optional<ResourceAnalysisSource> extractedTextSource = loadExtractedTextSource(resource);
+            if (extractedTextSource.isPresent()) {
+                return extractedTextSource.get();
+            }
 
             ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
@@ -147,8 +157,7 @@ public class ResourceAnalysisPublicService {
         try {
             resource = resourceRepository.findById(source.resourceId())
                     .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
-            ResourceFile resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Resource file not found."));
+            Optional<ResourceFile> resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId());
             List<TextChunker.TextPage> pages = source.pages().stream()
                     .map(page -> new TextChunker.TextPage(page.pageNumber(), page.text()))
                     .toList();
@@ -157,7 +166,7 @@ public class ResourceAnalysisPublicService {
             resourceSummaryRepository.save(ResourceSummary.analyzed(
                     resource.getId(),
                     jobId,
-                    summaryJson(resourceFile, extracted, source.documentType(), aiAnalysisJson)
+                    summaryJson(source.originalName(), source.mimeType(), extracted, source.documentType(), aiAnalysisJson)
             ));
 
             UUID analyzedResourceId = resource.getId();
@@ -170,8 +179,17 @@ public class ResourceAnalysisPublicService {
                             aiAnalysisJson == null ? new BigDecimal("0.5000") : new BigDecimal("0.8000")
                     )));
 
-            ResourceEmbeddingIndexPublicService.IndexResult indexResult =
-                    resourceEmbeddingIndexService.index(resource, resourceFile, pages);
+            ResourceEmbeddingIndexPublicService.IndexResult indexResult;
+            if (resourceFile.isPresent()) {
+                indexResult = resourceEmbeddingIndexService.index(resource, resourceFile.get(), pages);
+            } else {
+                indexResult = resourceEmbeddingIndexService.indexExtractedText(
+                        resource,
+                        source.originalName(),
+                        source.mimeType(),
+                        pages
+                );
+            }
             if (indexResult.indexed()) {
                 resourceRelationIndexService.rebuildRelations(resource);
             }
@@ -292,8 +310,35 @@ public class ResourceAnalysisPublicService {
         return resourceFile.getOriginalName() == null ? "" : resourceFile.getOriginalName().toLowerCase(Locale.ROOT);
     }
 
+    private Optional<ResourceAnalysisSource> loadExtractedTextSource(Resource resource) {
+        return resourceExtractedTextRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resource.getId())
+                .map(extractedText -> extractedTextSource(resource, extractedText));
+    }
+
+    private ResourceAnalysisSource extractedTextSource(Resource resource, ResourceExtractedText extractedText) {
+        String text = extractedText.getCombinedText();
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Extracted text is empty.");
+        }
+        String originalName = resource.getTitle();
+        String mimeType = "text/plain";
+        DocumentType documentType = detectDocumentType(originalName, text);
+        return new ResourceAnalysisSource(
+                resource.getId(),
+                resource.getRoomId(),
+                originalName,
+                mimeType,
+                documentType,
+                List.of(new ResourceAnalysisPage(null, text)),
+                text,
+                1,
+                text.length()
+        );
+    }
+
     private Map<String, Object> summaryJson(
-            ResourceFile resourceFile,
+            String originalName,
+            String mimeType,
             ExtractedDocument extracted,
             DocumentType documentType,
             Map<String, Object> aiAnalysisJson
@@ -303,8 +348,8 @@ public class ResourceAnalysisPublicService {
         summary.put("summary", aiSummary(aiAnalysisJson, normalized));
         summary.put("source", aiAnalysisJson == null ? "LOCAL_EXTRACTOR" : "LLM_ANALYZER");
         summary.put("documentType", documentType.name());
-        summary.put("originalName", resourceFile.getOriginalName());
-        summary.put("mimeType", resourceFile.getMimeType());
+        summary.put("originalName", originalName);
+        summary.put("mimeType", mimeType);
         summary.put("pageCount", extracted.pageCount());
         summary.put("characterCount", extracted.text().length());
         summary.put("lineCount", extracted.text().lines().count());
@@ -347,7 +392,11 @@ public class ResourceAnalysisPublicService {
     }
 
     private DocumentType detectDocumentType(ResourceFile resourceFile, String text) {
-        String source = (resourceFile.getOriginalName() + " " + preview(text))
+        return detectDocumentType(resourceFile.getOriginalName(), text);
+    }
+
+    private DocumentType detectDocumentType(String originalName, String text) {
+        String source = ((originalName == null ? "" : originalName) + " " + preview(text))
                 .toLowerCase(Locale.ROOT);
         if (source.contains("contract") || source.contains("계약")) {
             return DocumentType.CONTRACT;

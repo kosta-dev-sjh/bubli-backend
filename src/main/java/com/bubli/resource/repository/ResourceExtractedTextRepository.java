@@ -8,6 +8,8 @@ import java.util.UUID;
 
 public interface ResourceExtractedTextRepository extends JpaRepository<ResourceExtractedText, UUID> {
 
+    Optional<ResourceExtractedText> findFirstByResourceIdOrderByUpdatedAtDescIdDesc(UUID resourceId);
+
     Optional<ResourceExtractedText> findFirstByResourceIdAndLocalFileIdAndExtractionMethodOrderByUpdatedAtDescIdDesc(
             UUID resourceId,
             String localFileId,
