@@ -1,0 +1,158 @@
+spring:
+  application:
+    name: bubli-backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bubli}
+    driver-class-name: org.postgresql.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:${DATASOURCE_USERNAME:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DATASOURCE_PASSWORD:}}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+  ai:
+    model:
+      chat: bedrock-converse
+      embedding: bedrock-titan
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-northeast-2}
+        timeout: ${BEDROCK_TIMEOUT:2m}
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+        session-token: ${AWS_SESSION_TOKEN:}
+      converse:
+        chat:
+          options:
+            model: ${BEDROCK_CHAT_MODEL_ID:apac.anthropic.claude-3-haiku-20240307-v1:0}
+            temperature: ${BEDROCK_CHAT_TEMPERATURE:0.2}
+            max-tokens: ${BEDROCK_CHAT_MAX_TOKENS:1200}
+      titan:
+        embedding:
+          model: ${BEDROCK_EMBEDDING_MODEL_ID:amazon.titan-embed-text-v2:0}
+          input-type: TEXT
+    vectorstore:
+      type: pgvector
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: ${BEDROCK_EMBEDDING_DIMENSIONS:1024}
+        schema-name: public
+        table-name: vector_store
+        schema-validation: false
+        max-document-batch-size: 100
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET:CHANGE_ME_AT_LEAST_32_BYTES_RANDOM_STRING}
+  access-token-expire-ms: ${JWT_ACCESS_TOKEN_EXPIRE_MS:3600000}
+  refresh-token-expire-ms: ${JWT_REFRESH_TOKEN_EXPIRE_MS:1209600000}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  access-key: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
+  bedrock:
+    chat-model: ${BEDROCK_CHAT_MODEL_ID:anthropic.claude-haiku-4-5}
+    embedding-model: ${BEDROCK_EMBEDDING_MODEL_ID:amazon.titan-embed-text-v2:0}
+
+livekit:
+  api-key: ${LIVEKIT_API_KEY:}
+  api-secret: ${LIVEKIT_API_SECRET:}
+  server-url: ${LIVEKIT_SERVER_URL:}
+
+google:
+  oauth:
+    client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+    client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:}
+  calendar:
+    client-id: ${GOOGLE_CALENDAR_CLIENT_ID:}
+    client-secret: ${GOOGLE_CALENDAR_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_CALENDAR_REDIRECT_URI:}
+
+cors:
+  allowed-origin-patterns: https://bubli.n-e.kr
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  default-produces-media-type: application/json
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    disable-swagger-default-url: true
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.bubli: DEBUG
+
+bubli:
+  ai:
+    retry:
+      max-attempts: ${AI_RETRY_MAX_ATTEMPTS:3}
+      initial-delay: ${AI_RETRY_INITIAL_DELAY:1s}
+  rag:
+    smoke:
+      enabled: ${RAG_SMOKE_ENABLED:true}
+
+agent:
+  model-usage:
+    user-daily-limit: ${AGENT_MODEL_USER_DAILY_LIMIT:0}
+    job-type-daily-limit: ${AGENT_MODEL_JOB_TYPE_DAILY_LIMIT:0}
+  execution:
+    mode: ${AGENT_EXECUTION_MODE:llm}
+  dispatch:
+    adapter: ${AGENT_DISPATCH_ADAPTER:redis}
+    redis:
+      queue-key: ${AGENT_REDIS_QUEUE_KEY:bubli:agent-jobs}
+    worker:
+      scheduler:
+        enabled: ${AGENT_WORKER_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_WORKER_SCHEDULER_FIXED_DELAY_MS:1000}
+      max-jobs-per-tick: ${AGENT_WORKER_MAX_JOBS_PER_TICK:5}
+    outbox:
+      scheduler:
+        enabled: ${AGENT_OUTBOX_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_OUTBOX_SCHEDULER_FIXED_DELAY_MS:5000}
+      max-retry-count: ${AGENT_OUTBOX_MAX_RETRY_COUNT:3}
+    retry:
+      scheduler:
+        enabled: ${AGENT_RETRY_SCHEDULER_ENABLED:true}
+        fixed-delay-ms: ${AGENT_RETRY_SCHEDULER_FIXED_DELAY_MS:60000}
+      max-retry-count: ${AGENT_JOB_MAX_RETRY_COUNT:3}

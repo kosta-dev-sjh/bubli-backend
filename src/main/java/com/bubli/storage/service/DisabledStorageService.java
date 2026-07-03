@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "storage.type", havingValue = "disabled", matchIfMissing = true)
+@ConditionalOnProperty(name = "storage.type", havingValue = "disabled", matchIfMissing = false)
 public class DisabledStorageService implements StoragePublicService {
 
 	@Override

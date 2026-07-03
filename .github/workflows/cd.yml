@@ -51,7 +51,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/bubli-backend
-            git pull origin develop
+            git fetch origin
+            git reset --hard origin/develop
             docker compose -f docker-compose.prod.yml pull backend
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build backend
             docker image prune -f

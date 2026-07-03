@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record GoogleCalendarEventPayload(
 		String id,
+		String status,
 		String summary,
 		EventDateTime start,
 		EventDateTime end
@@ -11,10 +12,15 @@ public record GoogleCalendarEventPayload(
 	public static GoogleCalendarEventPayload from(String title, Instant startsAt, Instant endsAt) {
 		return new GoogleCalendarEventPayload(
 				null,
+				null,
 				title,
 				new EventDateTime(startsAt.toString()),
 				endsAt == null ? null : new EventDateTime(endsAt.toString())
 		);
+	}
+
+	public boolean isCancelled() {
+		return "cancelled".equalsIgnoreCase(status);
 	}
 
 	public record EventDateTime(

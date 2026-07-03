@@ -8,6 +8,7 @@ import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -16,6 +17,7 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarClient googleCalendarClient;
+	private final GoogleCalendarDeleteRequestService deleteRequestService;
 
 	@Override
 	public GoogleCalendarSyncResult syncCreatedOrUpdatedSchedule(UUID userId, ScheduleSyncTarget schedule) {
@@ -29,11 +31,21 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 		if (schedule.googleEventId() == null || schedule.googleEventId().isBlank()) {
 			return;
 		}
-		connectionService.getActiveConnectionWithFreshToken(userId)
-				.ifPresent(connection -> googleCalendarClient.deleteEvent(
-						connection.getAccessToken(),
-						schedule.googleEventId()
-				));
+		try {
+			Optional<GoogleCalendarConnection> connection = connectionService.getActiveConnectionWithFreshToken(userId);
+			if (connection.isEmpty()) {
+				deleteRequestService.rememberFailedAttempt(userId, schedule.googleEventId());
+				return;
+			}
+			googleCalendarClient.deleteEvent(
+					connection.get().getAccessToken(),
+					schedule.googleEventId()
+			);
+			deleteRequestService.markSucceeded(userId, schedule.googleEventId());
+		} catch (BusinessException exception) {
+			// 외부 캘린더 삭제 실패가 Bubli 일정/WBS 삭제를 막지 않게 한다.
+			deleteRequestService.rememberFailedAttempt(userId, schedule.googleEventId());
+		}
 	}
 
 	private GoogleCalendarSyncResult syncToGoogle(GoogleCalendarConnection connection, ScheduleSyncTarget schedule) {
