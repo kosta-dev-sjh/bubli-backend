@@ -2,10 +2,6 @@ spring:
   application:
     name: bubli-backend
 
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
-    include: secret,ai
-
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bubli}
     driver-class-name: org.postgresql.Driver
