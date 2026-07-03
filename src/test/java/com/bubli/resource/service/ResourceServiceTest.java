@@ -898,6 +898,30 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void getResourceReturnsResourceDetailForOwner() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"상세 조회 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		ResourceResult result = resourceService.getResource(userId, resourceId);
+
+		assertThat(result.id()).isEqualTo(resourceId);
+		assertThat(result.ownerId()).isEqualTo(userId);
+		assertThat(result.title()).isEqualTo("상세 조회 자료");
+		assertThat(result.visibility()).isEqualTo(ResourceVisibility.PERSONAL);
+		assertThat(result.status()).isEqualTo(ResourceStatus.READY);
+	}
+
+	@Test
 	void getResourceRejectsOtherUserPersonalResource() {
 		UUID ownerId = UUID.randomUUID();
 		UUID otherUserId = UUID.randomUUID();
