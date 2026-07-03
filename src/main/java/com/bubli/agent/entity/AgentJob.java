@@ -177,6 +177,7 @@ public class AgentJob extends BaseTimeEntity {
         if (status != AgentJobStatus.RUNNING && status != AgentJobStatus.PENDING) {
             throw new IllegalStateException("대기 또는 실행 중인 작업만 실패 처리할 수 있습니다.");
         }
+        retryCount++;
         status = AgentJobStatus.FAILED;
         this.errorCode = requireText(errorCode, "errorCode");
         this.errorMessage = requireText(errorMessage, "errorMessage");
@@ -188,7 +189,6 @@ public class AgentJob extends BaseTimeEntity {
     }
 
     public void markDispatchFailed(String errorCode, String errorMessage) {
-        retryCount++;
         fail(errorCode, errorMessage);
     }
 
