@@ -10,5 +10,6 @@ public record VoiceRoomResponse(
         String livekitRoomName,
         String status,
         List<VoiceParticipantResponse> participants,
-        Instant createdAt
+        Instant createdAt,
+        UUID createdByUserId
 ) {}

@@ -241,7 +241,8 @@ public class VoiceRoomService {
                 room.getLivekitRoomName(),
                 room.getStatus().name(),
                 participants,
-                room.getCreatedAt()
+                room.getCreatedAt(),
+                room.getCreatedByUserId()
         );
     }
 
