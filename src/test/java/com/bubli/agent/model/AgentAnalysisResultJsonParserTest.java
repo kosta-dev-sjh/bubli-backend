@@ -124,6 +124,38 @@ class AgentAnalysisResultJsonParserTest {
         assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.TASK);
     }
 
+    @Test
+    void parsesModelJsonWithUnescapedLineBreaksInsideStringValues() {
+        String response = """
+                {
+                  "schemaVersion": "analysis.v1",
+                  "resourceId": "24cf02d3-eb51-4a2c-86f9-428feece0ce6",
+                  "model": {"name": "test", "promptVersion": "p1"},
+                  "analysis": {
+                    "summary": "작업 제안 요약",
+                    "keywords": ["작업"],
+                    "risks": [],
+                    "checklist": []
+                  },
+                  "suggestions": [
+                    {
+                      "type": "REVIEW_ITEM",
+                      "title": "계약 조건 확인",
+                      "description": "계약 조건을 검토합니다.",
+                      "sourceText": "첫 번째 근거 문장입니다.
+                두 번째 근거 문장입니다.",
+                      "confidence": 0.8
+                    }
+                  ]
+                }
+                """;
+
+        AgentAnalysisResult result = parser.parse(response);
+
+        assertThat(result.suggestions()).hasSize(1);
+        assertThat(result.suggestions().getFirst().sourceText()).contains("두 번째 근거");
+    }
+
     private static String readFixture(String filename) throws IOException {
         String path = "/fixtures/agent/" + filename;
         try (InputStream inputStream = AgentAnalysisResultJsonParserTest.class.getResourceAsStream(path)) {

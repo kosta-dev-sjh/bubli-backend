@@ -29,12 +29,21 @@ public class AiJobCommandService {
 
 	@Transactional
 	public AgentJobResult createAnalyzeResourceJob(UUID userId, UUID resourceId) {
+		return createAnalyzeResourceJob(userId, resourceId, Map.of());
+	}
+
+	@Transactional
+	public AgentJobResult createAnalyzeResourceJob(UUID userId, UUID resourceId, Map<String, Object> payload) {
 		ResourceResult resource = resourcePublicService.getReadableResource(userId, resourceId);
+		Map<String, Object> requestPayload = localePayload(userId);
+		if (payload != null) {
+			requestPayload.putAll(payload);
+		}
 		return agentJobService.create(userId, new CreateAgentJobCommand(
 				resource.roomId(),
 				resource.id(),
 				AgentJobType.ANALYZE_RESOURCE,
-				localePayload(userId)
+				requestPayload
 		));
 	}
 
