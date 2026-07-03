@@ -9,18 +9,22 @@ import com.bubli.resource.dto.CreateResourceVersionCommand;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceCommentResult;
 import com.bubli.resource.dto.ResourceDownloadUrlResult;
+import com.bubli.resource.dto.ResourceExtractedTextResult;
 import com.bubli.resource.dto.ResourceRelatedResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
+import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
 import com.bubli.resource.dto.UploadResourceCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
+import com.bubli.resource.entity.ResourceExtractedText;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.entity.ResourceRelation;
 import com.bubli.resource.entity.ResourceSummary;
 import com.bubli.resource.entity.ResourceVersion;
 import com.bubli.resource.repository.ResourceCommentRepository;
+import com.bubli.resource.repository.ResourceExtractedTextRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRelationRepository;
 import com.bubli.resource.repository.ResourceRepository;
@@ -64,6 +68,7 @@ public class ResourceService {
 
 	private final ResourceRepository resourceRepository;
 	private final ResourceCommentRepository resourceCommentRepository;
+	private final ResourceExtractedTextRepository resourceExtractedTextRepository;
 	private final ResourceFileRepository resourceFileRepository;
 	private final ResourceRelationRepository resourceRelationRepository;
 	private final ResourceSummaryRepository resourceSummaryRepository;
@@ -339,6 +344,63 @@ public class ResourceService {
 		}
 		resource.updateTitle(title);
 		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public ResourceResult startAnalysis(UUID userId, UUID resourceId) {
+		Resource resource = getReadableResource(userId, resourceId);
+		resource.startAnalysis();
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public ResourceExtractedTextResult storeExtractedText(UUID userId, StoreResourceExtractedTextCommand command) {
+		Resource resource = getReadableResource(userId, command.resourceId());
+		if (resource.getVisibility() != ResourceVisibility.PERSONAL) {
+			throw new BusinessException(ErrorCode.RESOURCE_403_001);
+		}
+
+		ResourceExtractedText extractedText = findExistingExtractedText(command)
+				.orElseGet(() -> ResourceExtractedText.create(
+						resource.getId(),
+						command.localFileId(),
+						command.checksum(),
+						command.extractionMethod(),
+						command.sourceCharCount(),
+						command.analyzedCharCount(),
+						command.combinedText(),
+						command.sentencesJson(),
+						command.textTruncated()
+				));
+		if (extractedText.getId() != null) {
+			extractedText.replaceWith(
+					command.checksum(),
+					command.sourceCharCount(),
+					command.analyzedCharCount(),
+					command.combinedText(),
+					command.sentencesJson(),
+					command.textTruncated()
+			);
+		}
+		return ResourceExtractedTextResult.from(resourceExtractedTextRepository.save(extractedText));
+	}
+
+	private Optional<ResourceExtractedText> findExistingExtractedText(StoreResourceExtractedTextCommand command) {
+		Optional<ResourceExtractedText> existing = resourceExtractedTextRepository
+				.findFirstByResourceIdAndLocalFileIdAndExtractionMethodOrderByUpdatedAtDescIdDesc(
+						command.resourceId(),
+						command.localFileId().trim(),
+						command.extractionMethod().trim()
+				);
+		if (existing.isPresent() || !StringUtils.hasText(command.checksum())) {
+			return existing;
+		}
+		return resourceExtractedTextRepository
+				.findFirstByResourceIdAndChecksumAndExtractionMethodOrderByUpdatedAtDescIdDesc(
+						command.resourceId(),
+						command.checksum().trim(),
+						command.extractionMethod().trim()
+				);
 	}
 
 	@Transactional

@@ -74,6 +74,8 @@ class GoogleCalendarEventServiceTest {
 				null,
 				null,
 				"google-active",
+				"primary",
+				"Primary",
 				"검토 회의",
 				Instant.parse("2026-07-10T01:00:00Z"),
 				Instant.parse("2026-07-10T02:00:00Z"),
@@ -85,15 +87,18 @@ class GoogleCalendarEventServiceTest {
 		);
 
 		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
-		given(googleCalendarClient.getEvents("access-token", from.toString(), to.toString()))
+		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(cancelled, active));
 		given(deleteRequestService.findPendingGoogleEventIds(userId, List.of("google-active"))).willReturn(Set.of());
 		given(scheduleCalendarPublicService.upsertGoogleEvent(
 				userId,
+				"primary",
+				"Primary",
 				"google-active",
 				"검토 회의",
 				Instant.parse("2026-07-10T01:00:00Z"),
-				Instant.parse("2026-07-10T02:00:00Z")
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
 		)).willReturn(synced);
 
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
@@ -103,10 +108,13 @@ class GoogleCalendarEventServiceTest {
 		verify(deleteRequestService).markSucceeded(userId, List.of("google-deleted"));
 		verify(scheduleCalendarPublicService).upsertGoogleEvent(
 				userId,
+				"primary",
+				"Primary",
 				"google-active",
 				"검토 회의",
 				Instant.parse("2026-07-10T01:00:00Z"),
-				Instant.parse("2026-07-10T02:00:00Z")
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
 		);
 	}
 
@@ -131,7 +139,7 @@ class GoogleCalendarEventServiceTest {
 		);
 
 		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
-		given(googleCalendarClient.getEvents("access-token", from.toString(), to.toString()))
+		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(cancelled));
 
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
@@ -163,7 +171,7 @@ class GoogleCalendarEventServiceTest {
 		);
 
 		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
-		given(googleCalendarClient.getEvents("access-token", from.toString(), to.toString()))
+		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(active));
 		given(deleteRequestService.findPendingGoogleEventIds(userId, List.of("google-pending-delete")))
 				.willReturn(Set.of("google-pending-delete"));
@@ -171,7 +179,7 @@ class GoogleCalendarEventServiceTest {
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
 
 		assertThat(results).isEmpty();
-		verify(googleCalendarClient).deleteEvent("access-token", "google-pending-delete");
+		verify(googleCalendarClient).deleteEvent("access-token", "primary", "google-pending-delete");
 		verify(deleteRequestService).markSucceeded(userId, "google-pending-delete");
 		verify(scheduleCalendarPublicService, never()).upsertGoogleEvent(any(), any(), any(), any(), any());
 	}

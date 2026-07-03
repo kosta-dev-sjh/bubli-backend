@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "agent.dispatch.worker.scheduler.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "agent.dispatch.worker.scheduler.enabled", havingValue = "true", matchIfMissing = true)
 public class AgentJobWorkerScheduler {
 
 	private final AgentJobDispatchWorker dispatchWorker;

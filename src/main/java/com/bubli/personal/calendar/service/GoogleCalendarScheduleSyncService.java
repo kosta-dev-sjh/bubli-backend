@@ -39,6 +39,7 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 			}
 			googleCalendarClient.deleteEvent(
 					connection.get().getAccessToken(),
+					schedule.googleCalendarId(),
 					schedule.googleEventId()
 			);
 			deleteRequestService.markSucceeded(userId, schedule.googleEventId());
@@ -57,7 +58,12 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 			);
 			GoogleCalendarEventPayload synced = schedule.googleEventId() == null
 					? googleCalendarClient.createEvent(connection.getAccessToken(), payload)
-					: googleCalendarClient.updateEvent(connection.getAccessToken(), schedule.googleEventId(), payload);
+					: googleCalendarClient.updateEvent(
+							connection.getAccessToken(),
+							schedule.googleCalendarId(),
+							schedule.googleEventId(),
+							payload
+					);
 			if (synced == null || synced.id() == null || synced.id().isBlank()) {
 				return GoogleCalendarSyncResult.failed();
 			}

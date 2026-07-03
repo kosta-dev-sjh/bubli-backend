@@ -8,7 +8,6 @@ import com.bubli.agent.type.AgentJobStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -27,7 +26,6 @@ public class AgentJobDispatchWorker {
 	private final AgentJobExecutionSuggestionRecorder suggestionRecorder;
 	private final AgentJobExecutionModelCallLogRecorder modelCallLogRecorder;
 
-	@Transactional
 	public boolean processNextQueuedJob() {
 		return queueConsumer.poll()
 				.map(this::process)
@@ -98,6 +96,7 @@ public class AgentJobDispatchWorker {
 
 	private void markStarted(AgentJob agentJob) {
 		agentJob.markRunning();
+		agentJobRepository.save(agentJob);
 		agentJobEventRepository.save(AgentJobEvent.create(
 				agentJob.getId(),
 				STARTED_EVENT_TYPE,

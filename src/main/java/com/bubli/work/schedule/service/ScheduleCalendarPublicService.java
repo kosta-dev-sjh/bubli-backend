@@ -23,6 +23,17 @@ public interface ScheduleCalendarPublicService {
 
 	ScheduleResult upsertGoogleEvent(UUID userId, String googleEventId, String title, Instant startsAt, Instant endsAt);
 
+	ScheduleResult upsertGoogleEvent(
+			UUID userId,
+			String googleCalendarId,
+			String googleCalendarSummary,
+			String googleEventId,
+			String title,
+			Instant startsAt,
+			Instant endsAt,
+			boolean allDay
+	);
+
 	void deleteGoogleEventSchedules(UUID userId, Collection<String> googleEventIds);
 
 	List<ScheduleResult> pushUnsyncedEvents(UUID userId, Instant from, Instant to);

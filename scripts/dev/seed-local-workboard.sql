@@ -287,6 +287,79 @@ WHERE resource_id IN (
     )
 );
 
+DO $$
+BEGIN
+    IF to_regclass('public.resource_extracted_texts') IS NOT NULL THEN
+        DELETE FROM resource_extracted_texts
+        WHERE resource_id IN (
+            SELECT id
+            FROM resources
+            WHERE room_id IN (SELECT id FROM seed_room_ids)
+            OR owner_id IN (
+                '00000000-0000-4000-8000-000000000132',
+                '00000000-0000-4000-8000-000000000133'
+            )
+        );
+    END IF;
+END $$;
+
+DELETE FROM resource_embeddings
+WHERE resource_id IN (
+    SELECT id
+    FROM resources
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR owner_id IN (
+        '00000000-0000-4000-8000-000000000132',
+        '00000000-0000-4000-8000-000000000133'
+    )
+);
+
+DELETE FROM resource_comments
+WHERE resource_id IN (
+    SELECT id
+    FROM resources
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR owner_id IN (
+        '00000000-0000-4000-8000-000000000132',
+        '00000000-0000-4000-8000-000000000133'
+    )
+)
+OR author_id IN (
+    '00000000-0000-4000-8000-000000000132',
+    '00000000-0000-4000-8000-000000000133'
+);
+
+DELETE FROM resource_relations
+WHERE resource_id IN (
+    SELECT id
+    FROM resources
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR owner_id IN (
+        '00000000-0000-4000-8000-000000000132',
+        '00000000-0000-4000-8000-000000000133'
+    )
+)
+OR related_resource_id IN (
+    SELECT id
+    FROM resources
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR owner_id IN (
+        '00000000-0000-4000-8000-000000000132',
+        '00000000-0000-4000-8000-000000000133'
+    )
+);
+
+DELETE FROM ai_documents
+WHERE resource_id IN (
+    SELECT id
+    FROM resources
+    WHERE room_id IN (SELECT id FROM seed_room_ids)
+    OR owner_id IN (
+        '00000000-0000-4000-8000-000000000132',
+        '00000000-0000-4000-8000-000000000133'
+    )
+);
+
 DELETE FROM resources
 WHERE room_id IN (SELECT id FROM seed_room_ids)
 OR owner_id IN (
@@ -830,7 +903,7 @@ VALUES
         date_trunc('day', now()) + interval '15 hours',
         date_trunc('day', now()) + interval '16 hours',
         false,
-        'PENDING',
+        'LOCAL_ONLY',
         NULL,
         now() - interval '1 day',
         now()
@@ -846,7 +919,7 @@ VALUES
         date_trunc('day', now()) + interval '2 days 18 hours',
         date_trunc('day', now()) + interval '2 days 19 hours',
         false,
-        'PENDING',
+        'LOCAL_ONLY',
         NULL,
         now() - interval '1 day',
         now()
@@ -862,7 +935,7 @@ VALUES
         date_trunc('day', now()) + interval '1 day 10 hours',
         date_trunc('day', now()) + interval '1 day 11 hours',
         false,
-        'PENDING',
+        'LOCAL_ONLY',
         NULL,
         now() - interval '5 hours',
         now()

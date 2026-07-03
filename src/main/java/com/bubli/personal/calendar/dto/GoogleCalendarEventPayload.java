@@ -24,7 +24,12 @@ public record GoogleCalendarEventPayload(
 	}
 
 	public record EventDateTime(
-			String dateTime
+			String dateTime,
+			String date,
+			String timeZone
 	) {
+		public EventDateTime(String dateTime) {
+			this(dateTime, null, null);
+		}
 	}
 }

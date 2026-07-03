@@ -37,6 +37,7 @@ public class ResourceRelationIndexPublicService {
 		List<ResourceEmbedding> sourceEmbeddings = resourceEmbeddingRepository
 				.findAllByResourceIdOrderByChunkIndex(resource.getId());
 		resourceRelationRepository.deleteByResourceIdOrRelatedResourceId(resource.getId(), resource.getId());
+		resourceRelationRepository.flush();
 
 		if (sourceEmbeddings.isEmpty()) {
 			return RelationIndexResult.indexed(0);

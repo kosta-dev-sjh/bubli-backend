@@ -186,6 +186,8 @@ class WidgetServiceTest {
 				null,
 				null,
 				null,
+				null,
+				null,
 				"일정",
 				now.plusSeconds(3600),
 				now.plusSeconds(7200),

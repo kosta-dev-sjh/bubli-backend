@@ -8,7 +8,7 @@ import java.time.Duration;
 import java.util.function.Supplier;
 
 @Component
-@Profile("ai")
+@Profile({"ai", "prod"})
 public class AiCallExecutor {
 
     private final int maxAttempts;

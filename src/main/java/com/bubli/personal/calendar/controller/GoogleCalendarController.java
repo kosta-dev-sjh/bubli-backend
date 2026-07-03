@@ -5,13 +5,16 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.personal.calendar.dto.CalendarEventRequest;
+import com.bubli.personal.calendar.dto.CalendarEventGroupResponse;
 import com.bubli.personal.calendar.dto.CalendarEventResponse;
 import com.bubli.personal.calendar.dto.CalendarEventUpdateRequest;
 import com.bubli.personal.calendar.dto.GoogleCalendarCallbackRequest;
 import com.bubli.personal.calendar.dto.GoogleCalendarConnectResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarConnectionResponse;
+import com.bubli.personal.calendar.dto.GoogleCalendarListEntry;
 import com.bubli.personal.calendar.service.GoogleCalendarConnectionService;
 import com.bubli.personal.calendar.service.GoogleCalendarEventService;
+import com.bubli.personal.calendar.service.GoogleCalendarGroupService;
 import com.bubli.work.schedule.dto.ScheduleResponse;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import jakarta.validation.Valid;
@@ -38,6 +41,7 @@ public class GoogleCalendarController {
 
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarEventService eventService;
+	private final GoogleCalendarGroupService groupService;
 
 	@GetMapping("/api/calendar/google/connect")
 	public ApiResponse<GoogleCalendarConnectResponse> connectUrl(
@@ -64,6 +68,30 @@ public class GoogleCalendarController {
 	public ApiResponse<Void> disconnect(@CurrentUser AuthUser authUser) {
 		connectionService.disconnect(authUser.userId());
 		return ApiResponse.success(null);
+	}
+
+	@GetMapping("/api/calendar/google/calendars")
+	public ApiResponse<List<GoogleCalendarListEntry>> getGoogleCalendars(@CurrentUser AuthUser authUser) {
+		return ApiResponse.success(eventService.getGoogleCalendars(authUser.userId()));
+	}
+
+	@GetMapping("/api/calendar/groups")
+	public ApiResponse<List<CalendarEventGroupResponse>> getGroupedEvents(
+			@CurrentUser AuthUser authUser,
+			@RequestParam(required = false) UUID roomId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+			@RequestParam(required = false) List<String> googleCalendarIds,
+			@RequestParam(required = false) Integer localLimit
+	) {
+		return ApiResponse.success(groupService.getGroupedEvents(
+				authUser.userId(),
+				roomId,
+				from,
+				to,
+				googleCalendarIds,
+				localLimit
+		));
 	}
 
 	@GetMapping("/api/calendar/events")
@@ -109,9 +137,10 @@ public class GoogleCalendarController {
 	public ApiResponse<List<ScheduleResponse>> syncEvents(
 			@CurrentUser AuthUser authUser,
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
-			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+			@RequestParam(required = false) List<String> calendarIds
 	) {
-		return ApiResponse.success(eventService.syncEvents(authUser.userId(), from, to).stream()
+		return ApiResponse.success(eventService.syncEvents(authUser.userId(), from, to, calendarIds).stream()
 				.map(ScheduleResponse::from)
 				.toList());
 	}

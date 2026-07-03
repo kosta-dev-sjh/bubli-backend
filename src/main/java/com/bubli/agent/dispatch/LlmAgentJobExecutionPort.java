@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
@@ -32,7 +33,8 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-@Profile("ai")
+@Profile({"ai", "prod"})
+@Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "agent.execution.mode", havingValue = "llm")
 public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
@@ -163,7 +165,18 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 					operationName + "-json-repair",
 					() -> chatModel.call(repairPrompt)
 			);
-			return new ParsedModelResult(resultJsonParser.parse(repairedResponse), repairedResponse, repairPrompt);
+			try {
+				return new ParsedModelResult(resultJsonParser.parse(repairedResponse), repairedResponse, repairPrompt);
+			} catch (AgentContractValidationException secondFailure) {
+				log.warn(
+						"Agent analysis response was not valid JSON after repair. operationName={}, firstResponsePreview={}, repairedResponsePreview={}",
+						operationName,
+						truncate(response, RESPONSE_PREVIEW_LIMIT),
+						truncate(repairedResponse, RESPONSE_PREVIEW_LIMIT),
+						secondFailure
+				);
+				throw secondFailure;
+			}
 		}
 	}
 
