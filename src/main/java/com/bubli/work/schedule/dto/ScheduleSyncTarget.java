@@ -5,6 +5,7 @@ import com.bubli.work.schedule.entity.Schedule;
 import java.time.Instant;
 
 public record ScheduleSyncTarget(
+		String googleCalendarId,
 		String googleEventId,
 		String title,
 		Instant startsAt,
@@ -12,6 +13,7 @@ public record ScheduleSyncTarget(
 ) {
 	public static ScheduleSyncTarget from(Schedule schedule) {
 		return new ScheduleSyncTarget(
+				schedule.getGoogleCalendarId(),
 				schedule.getGoogleEventId(),
 				schedule.getTitle(),
 				schedule.getStartsAt(),

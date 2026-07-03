@@ -162,6 +162,8 @@ class AgentJobContextCollectorTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 title,
                 startsAt,
                 endsAt,
