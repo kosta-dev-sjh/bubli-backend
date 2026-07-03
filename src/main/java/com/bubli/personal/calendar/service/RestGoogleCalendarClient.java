@@ -3,6 +3,7 @@ package com.bubli.personal.calendar.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.personal.calendar.dto.GoogleCalendarEventPayload;
+import com.bubli.personal.calendar.dto.GoogleCalendarListEntry;
 import com.bubli.personal.calendar.dto.GoogleCalendarTokenResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarUserInfoResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +27,8 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	private static final String TOKEN_URI = "https://oauth2.googleapis.com/token";
 	private static final String USERINFO_URI = "https://openidconnect.googleapis.com/v1/userinfo";
-	private static final String EVENTS_URI = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+	private static final String EVENTS_PATH = "/calendar/v3/calendars/{calendarId}/events";
+	private static final String CALENDAR_LIST_PATH = "/calendar/v3/users/me/calendarList";
 
 	private final RestClient restClient;
 
@@ -76,9 +78,16 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	@Override
 	public GoogleCalendarEventPayload createEvent(String accessToken, GoogleCalendarEventPayload payload) {
+		return createEvent(accessToken, "primary", payload);
+	}
+
+	@Override
+	public GoogleCalendarEventPayload createEvent(String accessToken, String calendarId, GoogleCalendarEventPayload payload) {
 		try {
 			return restClient.post()
-					.uri(EVENTS_URI)
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(EVENTS_PATH)
+							.build(normalizeCalendarId(calendarId)))
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
 					.body(payload)
@@ -91,9 +100,22 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	@Override
 	public GoogleCalendarEventPayload updateEvent(String accessToken, String googleEventId, GoogleCalendarEventPayload payload) {
+		return updateEvent(accessToken, "primary", googleEventId, payload);
+	}
+
+	@Override
+	public GoogleCalendarEventPayload updateEvent(
+			String accessToken,
+			String calendarId,
+			String googleEventId,
+			GoogleCalendarEventPayload payload
+	) {
 		try {
 			return restClient.patch()
-					.uri(EVENTS_URI + "/{eventId}", googleEventId)
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(EVENTS_PATH)
+							.path("/{eventId}")
+							.build(normalizeCalendarId(calendarId), googleEventId))
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
 					.body(payload)
@@ -106,9 +128,17 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	@Override
 	public void deleteEvent(String accessToken, String googleEventId) {
+		deleteEvent(accessToken, "primary", googleEventId);
+	}
+
+	@Override
+	public void deleteEvent(String accessToken, String calendarId, String googleEventId) {
 		try {
 			restClient.delete()
-					.uri(EVENTS_URI + "/{eventId}", googleEventId)
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(EVENTS_PATH)
+							.path("/{eventId}")
+							.build(normalizeCalendarId(calendarId), googleEventId))
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.retrieve()
 					.toBodilessEntity();
@@ -123,19 +153,44 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 	}
 
 	@Override
+	public List<GoogleCalendarListEntry> getCalendars(String accessToken) {
+		try {
+			GoogleCalendarListResponse response = restClient.get()
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(CALENDAR_LIST_PATH)
+							.queryParam("minAccessRole", "reader")
+							.build())
+					.headers(headers -> headers.setBearerAuth(accessToken))
+					.retrieve()
+					.body(GoogleCalendarListResponse.class);
+			return response == null || response.items() == null ? List.of() : response.items();
+		} catch (RestClientException exception) {
+			throw calendarException(exception);
+		}
+	}
+
+	@Override
 	public List<GoogleCalendarEventPayload> getEvents(String accessToken, String timeMin, String timeMax) {
+		return getEvents(accessToken, "primary", timeMin, timeMax);
+	}
+
+	@Override
+	public List<GoogleCalendarEventPayload> getEvents(
+			String accessToken,
+			String calendarId,
+			String timeMin,
+			String timeMax
+	) {
 		try {
 			GoogleCalendarEventsResponse response = restClient.get()
-					.uri(uriBuilder -> uriBuilder
-							.scheme("https")
-							.host("www.googleapis.com")
-							.path("/calendar/v3/calendars/primary/events")
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(EVENTS_PATH)
 							.queryParam("singleEvents", true)
 							.queryParam("showDeleted", true)
 							.queryParam("orderBy", "startTime")
 							.queryParam("timeMin", timeMin)
 							.queryParam("timeMax", timeMax)
-							.build())
+							.build(normalizeCalendarId(calendarId)))
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.retrieve()
 					.body(GoogleCalendarEventsResponse.class);
@@ -169,6 +224,21 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 			log.warn("Google Calendar request failed.", exception);
 		}
 		return new BusinessException(ErrorCode.CALENDAR_502_001);
+	}
+
+	private org.springframework.web.util.UriBuilder googleCalendarUri(org.springframework.web.util.UriBuilder uriBuilder) {
+		return uriBuilder
+				.scheme("https")
+				.host("www.googleapis.com");
+	}
+
+	private String normalizeCalendarId(String calendarId) {
+		return calendarId == null || calendarId.isBlank() ? "primary" : calendarId;
+	}
+
+	private record GoogleCalendarListResponse(
+			List<GoogleCalendarListEntry> items
+	) {
 	}
 
 	private record GoogleCalendarEventsResponse(

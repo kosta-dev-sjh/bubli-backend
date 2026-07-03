@@ -4,6 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarEventPayload;
+import com.bubli.personal.calendar.dto.GoogleCalendarListEntry;
 import com.bubli.personal.calendar.entity.GoogleCalendarConnection;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -57,10 +60,38 @@ public class GoogleCalendarEventService {
 
 	@Transactional
 	public List<ScheduleResult> syncEvents(UUID userId, Instant from, Instant to) {
+		return syncEvents(userId, from, to, List.of("primary"));
+	}
+
+	@Transactional
+	public List<ScheduleResult> syncEvents(UUID userId, Instant from, Instant to, List<String> calendarIds) {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		List<GoogleCalendarListEntry> calendars = resolveCalendars(connection.getAccessToken(), calendarIds);
+		List<ScheduleResult> results = new ArrayList<>();
+		for (GoogleCalendarListEntry calendar : calendars) {
+			results.addAll(syncCalendarEvents(userId, connection.getAccessToken(), calendar, from, to));
+		}
+		return results;
+	}
+
+	@Transactional(readOnly = true)
+	public List<GoogleCalendarListEntry> getGoogleCalendars(UUID userId) {
+		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		return googleCalendarClient.getCalendars(connection.getAccessToken());
+	}
+
+	private List<ScheduleResult> syncCalendarEvents(
+			UUID userId,
+			String accessToken,
+			GoogleCalendarListEntry calendar,
+			Instant from,
+			Instant to
+	) {
 		List<GoogleCalendarEventPayload> events = googleCalendarClient.getEvents(
-				connection.getAccessToken(),
+				accessToken,
+				calendar.id(),
 				from.toString(),
 				to.toString()
 		);
@@ -75,7 +106,7 @@ public class GoogleCalendarEventService {
 		deleteRequestService.markSucceeded(userId, cancelledIds);
 		List<GoogleCalendarEventPayload> activeEvents = events.stream()
 				.filter(event -> !event.isCancelled())
-				.filter(event -> event.id() != null && event.start() != null && event.start().dateTime() != null)
+				.filter(event -> event.id() != null && hasStartTime(event))
 				.toList();
 		Set<String> pendingDeleteIds = deleteRequestService.findPendingGoogleEventIds(
 				userId,
@@ -86,10 +117,10 @@ public class GoogleCalendarEventService {
 		List<ScheduleResult> results = new ArrayList<>();
 		for (GoogleCalendarEventPayload event : activeEvents) {
 			if (pendingDeleteIds.contains(event.id())) {
-				retryPendingDelete(userId, connection.getAccessToken(), event.id());
+				retryPendingDelete(userId, accessToken, calendar.id(), event.id());
 				continue;
 			}
-			results.add(upsertSyncedEvent(userId, event));
+			results.add(upsertSyncedEvent(userId, calendar, event));
 		}
 		return results;
 	}
@@ -109,26 +140,73 @@ public class GoogleCalendarEventService {
 		return connectionService.hasActiveConnection(userId);
 	}
 
-	private ScheduleResult upsertSyncedEvent(UUID userId, GoogleCalendarEventPayload event) {
-		Instant startsAt = Instant.parse(event.start().dateTime());
-		Instant endsAt = event.end() == null || event.end().dateTime() == null
-				? null
-				: Instant.parse(event.end().dateTime());
+	private ScheduleResult upsertSyncedEvent(UUID userId, GoogleCalendarListEntry calendar, GoogleCalendarEventPayload event) {
+		EventTimeRange range = EventTimeRange.from(event);
 		return scheduleCalendarPublicService.upsertGoogleEvent(
 				userId,
+				calendar.id(),
+				calendar.displayName(),
 				event.id(),
 				event.summary(),
-				startsAt,
-				endsAt
+				range.startsAt(),
+				range.endsAt(),
+				range.allDay()
 		);
 	}
 
-	private void retryPendingDelete(UUID userId, String accessToken, String googleEventId) {
+	private void retryPendingDelete(UUID userId, String accessToken, String googleCalendarId, String googleEventId) {
 		try {
-			googleCalendarClient.deleteEvent(accessToken, googleEventId);
+			googleCalendarClient.deleteEvent(accessToken, googleCalendarId, googleEventId);
 			deleteRequestService.markSucceeded(userId, googleEventId);
 		} catch (BusinessException exception) {
 			deleteRequestService.rememberFailedAttempt(userId, googleEventId);
+		}
+	}
+
+	private List<GoogleCalendarListEntry> resolveCalendars(String accessToken, List<String> calendarIds) {
+		List<String> normalizedIds = calendarIds == null || calendarIds.isEmpty()
+				? List.of("primary")
+				: calendarIds.stream()
+						.filter(id -> id != null && !id.isBlank())
+						.distinct()
+						.toList();
+		if (normalizedIds.equals(List.of("primary"))) {
+			return List.of(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
+		}
+		List<GoogleCalendarListEntry> calendars = googleCalendarClient.getCalendars(accessToken);
+		List<GoogleCalendarListEntry> resolved = new ArrayList<>();
+		if (normalizedIds.contains("primary")) {
+			resolved.add(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
+		}
+		resolved.addAll(calendars.stream()
+				.filter(calendar -> normalizedIds.contains(calendar.id()))
+				.toList());
+		return resolved;
+	}
+
+	private boolean hasStartTime(GoogleCalendarEventPayload event) {
+		if (event.start() == null) {
+			return false;
+		}
+		return event.start().dateTime() != null || event.start().date() != null;
+	}
+
+	private record EventTimeRange(Instant startsAt, Instant endsAt, boolean allDay) {
+		private static EventTimeRange from(GoogleCalendarEventPayload event) {
+			GoogleCalendarEventPayload.EventDateTime start = event.start();
+			GoogleCalendarEventPayload.EventDateTime end = event.end();
+			if (start.dateTime() != null) {
+				return new EventTimeRange(
+						Instant.parse(start.dateTime()),
+						end == null || end.dateTime() == null ? null : Instant.parse(end.dateTime()),
+						false
+				);
+			}
+			Instant startsAt = LocalDate.parse(start.date()).atStartOfDay().toInstant(ZoneOffset.UTC);
+			Instant endsAt = end == null || end.date() == null
+					? null
+					: LocalDate.parse(end.date()).atStartOfDay().toInstant(ZoneOffset.UTC);
+			return new EventTimeRange(startsAt, endsAt, true);
 		}
 	}
 }

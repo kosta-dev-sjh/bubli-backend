@@ -187,6 +187,8 @@ class DashboardServiceTest {
 				null,
 				null,
 				null,
+				null,
+				null,
 				"오늘 일정",
 				now,
 				now.plusSeconds(3600),

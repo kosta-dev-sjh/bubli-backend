@@ -32,8 +32,14 @@ public class Schedule {
 	@Column(name = "wbs_item_id")
 	private UUID wbsItemId;
 
-	@Column(name = "google_event_id", unique = true, length = 255)
+	@Column(name = "google_event_id", length = 255)
 	private String googleEventId;
+
+	@Column(name = "google_calendar_id", length = 255)
+	private String googleCalendarId;
+
+	@Column(name = "google_calendar_summary", length = 255)
+	private String googleCalendarSummary;
 
 	@Column(nullable = false, length = 200)
 	private String title;
@@ -93,6 +99,12 @@ public class Schedule {
 	}
 
 	public void markSynced(String googleEventId) {
+		markSynced("primary", null, googleEventId);
+	}
+
+	public void markSynced(String googleCalendarId, String googleCalendarSummary, String googleEventId) {
+		this.googleCalendarId = googleCalendarId == null || googleCalendarId.isBlank() ? "primary" : googleCalendarId;
+		this.googleCalendarSummary = googleCalendarSummary;
 		this.googleEventId = googleEventId;
 		this.syncStatus = ScheduleSyncStatus.SYNCED;
 		this.lastSyncedAt = Instant.now();

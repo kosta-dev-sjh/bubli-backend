@@ -69,7 +69,24 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 			Instant startsAt,
 			Instant endsAt
 	) {
-		Schedule schedule = scheduleRepository.findByOwnerUserIdAndGoogleEventId(userId, googleEventId)
+		return upsertGoogleEvent(userId, "primary", null, googleEventId, title, startsAt, endsAt, false);
+	}
+
+	@Override
+	@Transactional
+	public ScheduleResult upsertGoogleEvent(
+			UUID userId,
+			String googleCalendarId,
+			String googleCalendarSummary,
+			String googleEventId,
+			String title,
+			Instant startsAt,
+			Instant endsAt,
+			boolean allDay
+	) {
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		Schedule schedule = scheduleRepository
+				.findByOwnerUserIdAndGoogleCalendarIdAndGoogleEventId(userId, normalizedCalendarId, googleEventId)
 				.orElseGet(() -> Schedule.create(
 						userId,
 						null,
@@ -78,10 +95,10 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 						normalizeTitle(title),
 						startsAt,
 						endsAt,
-						false
+						allDay
 				));
-		schedule.update(normalizeTitle(title), startsAt, endsAt, false, null, null);
-		schedule.markSynced(googleEventId);
+		schedule.update(normalizeTitle(title), startsAt, endsAt, allDay, null, null);
+		schedule.markSynced(normalizedCalendarId, googleCalendarSummary, googleEventId);
 		return ScheduleResult.from(scheduleRepository.save(schedule));
 	}
 
@@ -133,5 +150,9 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 
 	private String normalizeTitle(String title) {
 		return title == null || title.isBlank() ? UNTITLED_EVENT : title.trim();
+	}
+
+	private String normalizeCalendarId(String googleCalendarId) {
+		return googleCalendarId == null || googleCalendarId.isBlank() ? "primary" : googleCalendarId;
 	}
 }
