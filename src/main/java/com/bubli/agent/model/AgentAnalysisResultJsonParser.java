@@ -5,6 +5,7 @@ import com.bubli.agent.validation.AgentAnalysisResultValidator;
 import com.bubli.agent.validation.AgentContractError;
 import com.bubli.agent.validation.AgentContractValidationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ public class AgentAnalysisResultJsonParser {
             AgentAnalysisResultValidator resultValidator
     ) {
         this.strictObjectMapper = objectMapper.copy()
+                .enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         this.resultValidator = resultValidator;
     }
@@ -39,9 +41,10 @@ public class AgentAnalysisResultJsonParser {
             resultValidator.validateOrThrow(result);
             return result;
         } catch (JsonProcessingException exception) {
+            String reason = exception.getOriginalMessage();
             throw new AgentContractValidationException(
-                    "Agent analysis result is not readable JSON.",
-                    List.of(new AgentContractError("$", exception.getOriginalMessage()))
+                    "Agent analysis result is not readable JSON. reason=" + reason,
+                    List.of(new AgentContractError("$", reason))
             );
         }
     }

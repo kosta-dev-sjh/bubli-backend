@@ -65,6 +65,26 @@ public class ResourceEmbeddingIndexPublicService {
         return IndexResult.indexed(embeddings.size());
     }
 
+    public IndexResult indexExtractedText(
+            Resource resource,
+            String originalName,
+            String mimeType,
+            List<TextChunker.TextPage> pages
+    ) {
+        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
+        if (embeddingModel == null) {
+            return IndexResult.skipped();
+        }
+        List<TextChunker.TextChunk> chunks = textChunker.splitPages(pages);
+        resourceEmbeddingRepository.deleteAllByResourceId(resource.getId());
+
+        List<ResourceEmbedding> embeddings = chunks.stream()
+                .map(chunk -> toEmbedding(resource, originalName, mimeType, chunk, embeddingModel.embed(chunk.text())))
+                .toList();
+        embeddings.forEach(this::insertEmbedding);
+        return IndexResult.indexed(embeddings.size());
+    }
+
     private void insertEmbedding(ResourceEmbedding embedding) {
         resourceEmbeddingRepository.insertEmbedding(
                 UUID.randomUUID(),
@@ -97,10 +117,33 @@ public class ResourceEmbeddingIndexPublicService {
         );
     }
 
+    private ResourceEmbedding toEmbedding(
+            Resource resource,
+            String originalName,
+            String mimeType,
+            TextChunker.TextChunk chunk,
+            float[] embedding
+    ) {
+        return ResourceEmbedding.create(
+                resource.getId(),
+                resource.getOwnerId(),
+                resource.getRoomId(),
+                resource.getVisibility(),
+                chunk.index(),
+                chunk.text(),
+                embeddingVectorFormatter.toVectorLiteral(embedding),
+                metadata(originalName, mimeType, chunk)
+        );
+    }
+
     private Map<String, Object> metadata(ResourceFile resourceFile, TextChunker.TextChunk chunk) {
+        return metadata(resourceFile.getOriginalName(), resourceFile.getMimeType(), chunk);
+    }
+
+    private Map<String, Object> metadata(String originalName, String mimeType, TextChunker.TextChunk chunk) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("originalName", resourceFile.getOriginalName());
-        metadata.put("mimeType", resourceFile.getMimeType());
+        metadata.put("originalName", originalName);
+        metadata.put("mimeType", mimeType);
         metadata.put("pageNumber", chunk.pageNumber());
         metadata.put("startOffset", chunk.startOffset());
         metadata.put("endOffset", chunk.endOffset());
