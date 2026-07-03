@@ -53,7 +53,7 @@ class AgentJobExecutionResultRecorderTest {
 	}
 
 	@Test
-	void recordFailedMarksRunningJobFailedAndStoresEventWithoutRetryCountIncrement() {
+	void recordFailedMarksRunningJobFailedAndIncrementsRetryCountAndStoresEvent() {
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
 		AgentJobExecutionResultRecorder recorder = recorder(agentJobRepository, agentJobEventRepository);
@@ -67,7 +67,7 @@ class AgentJobExecutionResultRecorderTest {
 		assertThat(agentJob.getStatus()).isEqualTo(AgentJobStatus.FAILED);
 		assertThat(agentJob.getErrorCode()).isEqualTo("MODEL_TIMEOUT");
 		assertThat(agentJob.getErrorMessage()).isEqualTo("모델 응답 시간이 초과되었습니다.");
-		assertThat(agentJob.getRetryCount()).isZero();
+		assertThat(agentJob.getRetryCount()).isEqualTo(1);
 		assertThat(agentJob.getFinishedAt()).isNotNull();
 		ArgumentCaptor<AgentJobEvent> eventCaptor = ArgumentCaptor.forClass(AgentJobEvent.class);
 		verify(agentJobEventRepository).save(eventCaptor.capture());
