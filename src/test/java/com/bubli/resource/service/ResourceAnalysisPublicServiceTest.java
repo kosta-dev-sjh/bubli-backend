@@ -6,6 +6,7 @@ import com.bubli.resource.dto.ResourceAnalysisSource;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.repository.AiDocumentRepository;
+import com.bubli.resource.repository.ResourceExtractedTextRepository;
 import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
 import com.bubli.resource.repository.ResourceSummaryRepository;
@@ -89,12 +90,41 @@ class ResourceAnalysisPublicServiceTest {
         assertThat(resource.getStatus()).isEqualTo(ResourceStatus.FAILED);
     }
 
+    @Test
+    void returnsEmptyReusableAnalysisWhenResourceHasNoStoredFile() {
+        UUID resourceId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        Resource resource = resource(resourceId, roomId);
+        ResourceRepository resourceRepository = mock(ResourceRepository.class);
+        ResourceFileRepository resourceFileRepository = mock(ResourceFileRepository.class);
+
+        when(resourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
+        when(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resourceId))
+                .thenReturn(Optional.empty());
+
+        ResourceAnalysisPublicService service = new ResourceAnalysisPublicService(
+                resourceRepository,
+                resourceFileRepository,
+                mock(ResourceExtractedTextRepository.class),
+                mock(ResourceSummaryRepository.class),
+                mock(AiDocumentRepository.class),
+                mock(ResourceEmbeddingIndexPublicService.class),
+                mock(ResourceRelationIndexPublicService.class),
+                mock(StoragePublicService.class)
+        );
+
+        assertThat(service.findReusableAnalysisForJob(resourceId)).isEmpty();
+    }
+
     private ResourceAnalysisPublicService service(Resource resource, ResourceFile file, byte[] content) {
         ResourceRepository resourceRepository = mock(ResourceRepository.class);
         ResourceFileRepository resourceFileRepository = mock(ResourceFileRepository.class);
+        ResourceExtractedTextRepository resourceExtractedTextRepository = mock(ResourceExtractedTextRepository.class);
         StoragePublicService storageService = mock(StoragePublicService.class);
 
         when(resourceRepository.findById(resource.getId())).thenReturn(Optional.of(resource));
+        when(resourceExtractedTextRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resource.getId()))
+                .thenReturn(Optional.empty());
         when(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId()))
                 .thenReturn(Optional.of(file));
         when(storageService.open(file.getStorageKey())).thenReturn(new ByteArrayInputStream(content));
@@ -102,6 +132,7 @@ class ResourceAnalysisPublicServiceTest {
         return new ResourceAnalysisPublicService(
                 resourceRepository,
                 resourceFileRepository,
+                resourceExtractedTextRepository,
                 mock(ResourceSummaryRepository.class),
                 mock(AiDocumentRepository.class),
                 mock(ResourceEmbeddingIndexPublicService.class),

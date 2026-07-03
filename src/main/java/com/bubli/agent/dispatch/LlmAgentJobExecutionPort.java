@@ -165,7 +165,18 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 					operationName + "-json-repair",
 					() -> chatModel.call(repairPrompt)
 			);
-			return new ParsedModelResult(resultJsonParser.parse(repairedResponse), repairedResponse, repairPrompt);
+			try {
+				return new ParsedModelResult(resultJsonParser.parse(repairedResponse), repairedResponse, repairPrompt);
+			} catch (AgentContractValidationException secondFailure) {
+				log.warn(
+						"Agent analysis response was not valid JSON after repair. operationName={}, firstResponsePreview={}, repairedResponsePreview={}",
+						operationName,
+						truncate(response, RESPONSE_PREVIEW_LIMIT),
+						truncate(repairedResponse, RESPONSE_PREVIEW_LIMIT),
+						secondFailure
+				);
+				throw secondFailure;
+			}
 		}
 	}
 

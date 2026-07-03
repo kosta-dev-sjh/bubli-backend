@@ -1,6 +1,7 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dto.AgentJobTicket;
+import com.bubli.agent.dto.AgentJobResult;
 import com.bubli.agent.dto.CreateAgentJobCommand;
 import com.bubli.agent.type.AgentJobType;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +26,22 @@ public class AgentJobPublicService {
             UUID resourceId,
             Map<String, Object> requestPayload
     ) {
+        var result = createAnalyzeResourceJobResult(requestedByUserId, roomId, resourceId, requestPayload);
+        return new AgentJobTicket(result.id(), result.status());
+    }
+
+    public AgentJobResult createAnalyzeResourceJobResult(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            Map<String, Object> requestPayload
+    ) {
         var result = agentJobService.create(requestedByUserId, new CreateAgentJobCommand(
                 roomId,
                 resourceId,
                 AgentJobType.ANALYZE_RESOURCE,
                 requestPayload
         ));
-        return new AgentJobTicket(result.id(), result.status());
+        return result;
     }
 }
