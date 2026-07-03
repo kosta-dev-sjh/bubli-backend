@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-@Profile("ai")
+@Profile({"ai", "prod"})
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "agent.execution.mode", havingValue = "llm")
 public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
