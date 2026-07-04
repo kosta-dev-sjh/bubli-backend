@@ -3,6 +3,7 @@ package com.bubli.project.service;
 import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
 import com.bubli.project.entity.Invitation;
@@ -64,6 +65,9 @@ class ProjectRoomMemberServiceTest {
 
 	@Mock
 	RoomChatPublicService roomChatPublicService;
+
+	@Mock
+	TimeLogPublicService timeLogPublicService;
 
 	@InjectMocks
 	ProjectRoomMemberService projectRoomMemberService;
@@ -399,6 +403,7 @@ class ProjectRoomMemberServiceTest {
 		projectRoomMemberService.removeMember(leaderId, roomId, memberId);
 
 		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.REMOVED);
+		verify(timeLogPublicService).stopRunningRoomTimer(memberId, roomId);
 	}
 
 	@Test
@@ -413,6 +418,7 @@ class ProjectRoomMemberServiceTest {
 		projectRoomMemberService.removeMember(memberId, roomId, memberId);
 
 		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.LEFT);
+		verify(timeLogPublicService).stopRunningRoomTimer(memberId, roomId);
 	}
 
 	@Test

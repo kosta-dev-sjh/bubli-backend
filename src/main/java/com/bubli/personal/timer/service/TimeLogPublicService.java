@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface TimeLogPublicService {
 
 	Optional<TimeLogResult> getRunningTimer(UUID userId);
+
+	void stopRunningRoomTimer(UUID userId, UUID roomId);
 }

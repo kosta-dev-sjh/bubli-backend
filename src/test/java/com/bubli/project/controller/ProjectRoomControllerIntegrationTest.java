@@ -2,6 +2,10 @@ package com.bubli.project.controller;
 
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.personal.timer.entity.TimeLog;
+import com.bubli.personal.timer.repository.TimeLogRepository;
+import com.bubli.personal.timer.type.TimeLogStatus;
+import com.bubli.personal.timer.type.TimerType;
 import com.bubli.project.entity.Invitation;
 import com.bubli.project.entity.ProjectRoom;
 import com.bubli.project.entity.ProjectRoomEvent;
@@ -71,10 +75,14 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	@Autowired
 	ProjectRoomEventRepository projectRoomEventRepository;
 
+	@Autowired
+	TimeLogRepository timeLogRepository;
+
 	@BeforeEach
 	void setUp() {
 		projectRoomEventRepository.deleteAll();
 		invitationRepository.deleteAll();
+		timeLogRepository.deleteAll();
 		roomMemberRepository.deleteAll();
 		projectRoomRepository.deleteAll();
 		userRepository.deleteAll();
@@ -617,6 +625,33 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), member.getId()).orElseThrow().getStatus())
 				.isEqualTo(RoomMemberStatus.REMOVED);
+	}
+
+	@Test
+	void removingMemberStopsTheirRunningRoomTimer() throws Exception {
+		User leader = createUser("google-sub-remove-timer-leader", "미연");
+		User member = createUser("google-sub-remove-timer-member", "정현");
+		ProjectRoom room = saveRoom(leader.getId(), "멤버 제거 타이머 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		roomMemberRepository.save(RoomMember.createMember(room.getId(), member.getId()));
+		TimeLog timeLog = timeLogRepository.save(TimeLog.start(
+				member.getId(),
+				room.getId(),
+				TimerType.WORK,
+				"key-remove-member-running-room-timer",
+				null,
+				Instant.now().minusSeconds(60)
+		));
+
+		mockMvc.perform(delete("/api/project-rooms/{roomId}/members/{userId}", room.getId(), member.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true));
+
+		TimeLog stopped = timeLogRepository.findById(timeLog.getId()).orElseThrow();
+		assertThat(stopped.getStatus()).isEqualTo(TimeLogStatus.ENDED);
+		assertThat(stopped.getEndedAt()).isNotNull();
+		assertThat(stopped.getDurationSeconds()).isGreaterThanOrEqualTo(60);
 	}
 
 	@Test
