@@ -470,6 +470,26 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void updateResourceRejectsMissingTitle() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"이전 제목",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		assertThatThrownBy(() -> resourceService.updateResource(userId, resourceId, null))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+		assertThat(resource.getTitle()).isEqualTo("이전 제목");
+	}
+
+	@Test
 	void deleteResourceSetsDeletedAtWithoutChangingStatus() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -680,6 +700,33 @@ class ResourceServiceTest {
 		assertThat(result.versionNo()).isEqualTo(3);
 		assertThat(result.createdBy()).isEqualTo(userId);
 		assertThat(result.originalName()).isEqualTo("계약서-v3.pdf");
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 1024L);
+	}
+
+	@Test
+	void createVersionRejectsStorageKeyOutsideResourcePrefix() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+
+		assertThatThrownBy(() -> resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
+				"resources/%s/v3.pdf".formatted(UUID.randomUUID()),
+				"계약서-v3.pdf",
+				"application/pdf",
+				1024L,
+				"checksum"
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_400_001));
+
+		verifyNoInteractions(resourceFileRepository, resourceVersionRepository, storageUsagePublicService);
 	}
 
 	@Test

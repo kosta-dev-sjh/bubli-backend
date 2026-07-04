@@ -114,7 +114,8 @@ public class StorageUsageService implements StorageUsagePublicService {
 	}
 
 	private void increaseUsage(StorageUsage usage, long sizeBytes) {
-		if (usage.getUsedBytes() + sizeBytes > usage.getLimitBytes()) {
+		long remainingBytes = usage.getLimitBytes() - usage.getUsedBytes();
+		if (remainingBytes < 0 || sizeBytes > remainingBytes) {
 			throw new BusinessException(ErrorCode.STORAGE_400_002);
 		}
 		usage.increaseUsedBytes(sizeBytes);

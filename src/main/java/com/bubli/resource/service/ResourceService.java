@@ -342,10 +342,10 @@ public class ResourceService {
 	@Transactional
 	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
 		Resource resource = getReadableResource(userId, resourceId);
-		if (title != null && title.isBlank()) {
+		if (!StringUtils.hasText(title)) {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
-		resource.updateTitle(title);
+		resource.updateTitle(title.trim());
 		return ResourceResult.from(resource);
 	}
 
@@ -437,7 +437,9 @@ public class ResourceService {
 
 	@Transactional
 	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
-		getReadableResource(userId, resourceId);
+		Resource resource = getReadableResource(userId, resourceId);
+		validateCreateVersionCommand(resourceId, command);
+		recordStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), command.sizeBytes());
 		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
 				resourceId,
 				command.storageKey(),
@@ -506,6 +508,18 @@ public class ResourceService {
 		validateCreateCommand(userId, command.toCreateResourceCommand());
 	}
 
+	private void validateCreateVersionCommand(UUID resourceId, CreateResourceVersionCommand command) {
+		if (command == null || !StringUtils.hasText(command.storageKey())
+				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())
+				|| command.sizeBytes() == null || command.sizeBytes() <= 0) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		String expectedPrefix = "resources/%s/".formatted(resourceId);
+		if (!command.storageKey().startsWith(expectedPrefix)) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+	}
+
 	private boolean isAllowedMimeType(String mimeType) {
 		if (!StringUtils.hasText(allowedMimeTypes)) {
 			return true;
@@ -563,10 +577,16 @@ public class ResourceService {
 	}
 
 	private void recordStorageUsage(UUID userId, UUID roomId, UploadResourceCommand command) {
-		long sizeBytes = command.content().length;
-		if (command.visibility() == ResourceVisibility.PERSONAL) {
+		recordStorageUsage(userId, roomId, command.visibility(), command.content().length);
+	}
+
+	private void recordStorageUsage(UUID userId, UUID roomId, ResourceVisibility visibility, long sizeBytes) {
+		if (visibility == ResourceVisibility.PERSONAL) {
 			storageUsagePublicService.recordPersonalUpload(userId, sizeBytes);
 			return;
+		}
+		if (visibility != ResourceVisibility.ROOM_SHARED || roomId == null) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
 		storageUsagePublicService.recordRoomUpload(roomId, sizeBytes);
 	}
