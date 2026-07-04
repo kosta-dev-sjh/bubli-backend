@@ -11,6 +11,45 @@ public record Suggestion(
         String sourceText,
         @DecimalMin("0.0") @DecimalMax("1.0") Double confidence,
         String fieldKey,
-        String value
+        String value,
+        String assigneeUserId,
+        String wbsItemId,
+        String parentId,
+        Integer orderNo,
+        String status,
+        String startsAt,
+        String dueAt,
+        String endsAt,
+        Boolean allDay,
+        String scheduleTitle
 ) {
+    public Suggestion(
+            SuggestionType type,
+            String title,
+            String description,
+            String sourceText,
+            Double confidence,
+            String fieldKey,
+            String value
+    ) {
+        this(
+                type,
+                title,
+                description,
+                sourceText,
+                confidence,
+                fieldKey,
+                value,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 }

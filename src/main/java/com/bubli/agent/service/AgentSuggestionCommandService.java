@@ -5,6 +5,7 @@ import com.bubli.agent.contract.v1.Suggestion;
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
+import com.bubli.agent.repository.GeneratedDocumentRepository;
 import com.bubli.agent.type.AgentSuggestionReviewAction;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class AgentSuggestionCommandService {
 
     private final AgentSuggestionRepository agentSuggestionRepository;
+    private final GeneratedDocumentRepository generatedDocumentRepository;
     private final ProjectMembershipPublicService projectMembershipPublicService;
     private final AgentSuggestionDomainApplyService agentSuggestionDomainApplyService;
     private final ProjectRoomEventPublicService projectRoomEventPublicService;
@@ -50,6 +52,7 @@ public class AgentSuggestionCommandService {
                 case HOLD -> suggestion.hold(reviewerId);
                 case REJECT -> suggestion.reject(reviewerId);
                 case DELETE -> {
+                    rejectDeleteWhenGeneratedDocumentExists(suggestion);
                     AgentSuggestionResponse response = AgentSuggestionResponse.from(suggestion);
                     agentSuggestionRepository.delete(suggestion);
                     recordReviewEvent(reviewerId, suggestion, action);
@@ -129,6 +132,12 @@ public class AgentSuggestionCommandService {
         }
         if (!suggestion.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.AGENT_404_002);
+        }
+    }
+
+    private void rejectDeleteWhenGeneratedDocumentExists(AgentSuggestion suggestion) {
+        if (generatedDocumentRepository.existsBySuggestionId(suggestion.getId())) {
+            throw new BusinessException(ErrorCode.AGENT_400_001);
         }
     }
 

@@ -7,6 +7,7 @@ import com.bubli.agent.contract.v1.Suggestion;
 import com.bubli.agent.contract.v1.SuggestionType;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
+import com.bubli.agent.repository.GeneratedDocumentRepository;
 import com.bubli.agent.type.AgentSuggestionReviewAction;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +43,7 @@ class AgentSuggestionCommandServiceTest {
 
         var response = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -61,6 +64,7 @@ class AgentSuggestionCommandServiceTest {
 
         assertThatThrownBy(() -> new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -80,6 +84,7 @@ class AgentSuggestionCommandServiceTest {
 
         var response = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -97,10 +102,12 @@ class AgentSuggestionCommandServiceTest {
         UUID reviewerId = UUID.randomUUID();
         AgentSuggestion suggestion = suggestion(suggestionId);
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        GeneratedDocumentRepository generatedDocumentRepository = mock(GeneratedDocumentRepository.class);
         when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
 
         new AgentSuggestionCommandService(
                 repository,
+                generatedDocumentRepository,
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -111,6 +118,30 @@ class AgentSuggestionCommandServiceTest {
     }
 
     @Test
+    void rejectsDeletingSuggestionLinkedToGeneratedDocument() {
+        UUID suggestionId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        GeneratedDocumentRepository generatedDocumentRepository = mock(GeneratedDocumentRepository.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
+        when(generatedDocumentRepository.existsBySuggestionId(suggestionId)).thenReturn(true);
+
+        assertThatThrownBy(() -> new AgentSuggestionCommandService(
+                repository,
+                generatedDocumentRepository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
+        )
+                .review(suggestionId, reviewerId, AgentSuggestionReviewAction.DELETE, null))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+
+        verify(repository, never()).delete(suggestion);
+    }
+
+    @Test
     void createsDraftSuggestionsFromAnalysisResult() {
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
         when(repository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -118,6 +149,7 @@ class AgentSuggestionCommandServiceTest {
 
         List<com.bubli.agent.dto.AgentSuggestionResponse> responses = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -148,6 +180,7 @@ class AgentSuggestionCommandServiceTest {
 
         new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 eventPublicService

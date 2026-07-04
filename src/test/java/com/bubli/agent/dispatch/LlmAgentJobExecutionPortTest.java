@@ -174,6 +174,59 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
+	void preservesWbsScheduleFieldsFromLlmContractResult() {
+		UUID roomId = UUID.randomUUID();
+		given(chatModel.call(contains("GENERATE_WBS"))).willReturn("""
+				{
+				  "schemaVersion": "analysis.v1",
+				  "resourceId": "00000000-0000-0000-0000-000000000000",
+				  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+				  "analysis": {
+				    "summary": "WBS 후보를 생성했습니다.",
+				    "keywords": ["wbs", "calendar"],
+				    "risks": [],
+				    "checklist": []
+				  },
+				  "suggestions": [
+				    {
+				      "type": "WBS",
+				      "title": "프로젝트룸 일정 정리",
+				      "description": "중간 리뷰 전에 WBS 일정을 정리합니다.",
+				      "sourceText": "7월 10일 중간 리뷰 전 일정 정리",
+				      "confidence": 0.91,
+				      "status": "TODO",
+				      "scheduleTitle": "중간 리뷰 준비",
+				      "startsAt": "2026-07-10T01:00:00Z",
+				      "endsAt": "2026-07-10T02:00:00Z",
+				      "allDay": false
+				    }
+				  ]
+				}
+				""");
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				roomId,
+				null,
+				AgentJobType.GENERATE_WBS,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+				.contains(
+						"프로젝트룸 일정 정리",
+						"scheduleTitle",
+						"중간 리뷰 준비",
+						"startsAt",
+						"2026-07-10T01:00:00Z",
+						roomId.toString()
+				);
+	}
+
+	@Test
 	void promptUsesJapaneseInstructionWhenRequestLocaleIsJapanese() {
 		given(chatModel.call(contains("natural Japanese"))).willReturn("""
 				{
