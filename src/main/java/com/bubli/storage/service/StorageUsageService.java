@@ -38,6 +38,7 @@ public class StorageUsageService implements StorageUsagePublicService {
 		List<StorageUsageResult> usages = new ArrayList<>();
 		storageUsageRepository.findByUserIdAndStorageScope(userId, StorageScope.PERSONAL)
 				.map(StorageUsageResult::from)
+				.or(() -> java.util.Optional.of(defaultPersonalUsage(userId)))
 				.ifPresent(usages::add);
 
 		List<UUID> activeRoomIds = projectMembershipPublicService.findActiveRoomIds(userId);
@@ -48,6 +49,19 @@ public class StorageUsageService implements StorageUsagePublicService {
 		}
 
 		return StorageUsageSummaryResult.from(usages);
+	}
+
+	private StorageUsageResult defaultPersonalUsage(UUID userId) {
+		return new StorageUsageResult(
+				null,
+				userId,
+				null,
+				StorageScope.PERSONAL,
+				0L,
+				defaultPersonalLimitBytes,
+				defaultPersonalLimitBytes,
+				null
+		);
 	}
 
 	@Transactional

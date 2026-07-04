@@ -62,8 +62,9 @@ class StorageUsageServiceTest {
 	}
 
 	@Test
-	void getMyStorageUsageReturnsEmptySummaryWhenNoRowsExist() {
+	void getMyStorageUsageReturnsDefaultPersonalLimitWhenNoRowsExist() {
 		UUID userId = UUID.randomUUID();
+		ReflectionTestUtils.setField(storageUsageService, "defaultPersonalLimitBytes", 1000L);
 		given(storageUsageRepository.findByUserIdAndStorageScope(userId, StorageScope.PERSONAL))
 				.willReturn(Optional.empty());
 		given(projectMembershipPublicService.findActiveRoomIds(userId))
@@ -71,10 +72,11 @@ class StorageUsageServiceTest {
 
 		var result = storageUsageService.getMyStorageUsage(userId);
 
-		assertThat(result.usages()).isEmpty();
+		assertThat(result.usages()).hasSize(1);
 		assertThat(result.totalUsedBytes()).isZero();
-		assertThat(result.totalLimitBytes()).isZero();
-		assertThat(result.totalRemainingBytes()).isZero();
+		assertThat(result.totalLimitBytes()).isEqualTo(1000L);
+		assertThat(result.totalRemainingBytes()).isEqualTo(1000L);
+		assertThat(result.usages().get(0).storageScope()).isEqualTo(StorageScope.PERSONAL);
 	}
 
 	@Test
