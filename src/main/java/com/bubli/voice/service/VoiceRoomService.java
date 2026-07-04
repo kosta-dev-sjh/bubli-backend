@@ -19,6 +19,7 @@ import com.bubli.voice.type.VoiceRoomStatus;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -82,12 +82,10 @@ public class VoiceRoomService {
     @Transactional(readOnly = true)
     public VoiceRoomResponse getVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
         List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
 
-        List<UUID> userIds = participants.stream().map(VoiceParticipant::getUserId).toList();
-        Map<UUID, String> nameMap = userPublicService.getUser(userId) != null
-                ? fetchUserNames(userIds)
-                : Map.of();
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
 
         List<VoiceParticipantResponse> participantResponses = participants.stream()
                 .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
@@ -137,11 +135,11 @@ public class VoiceRoomService {
 
     @Transactional
     public VoiceParticipantResponse updateMicStatus(UUID userId, UUID voiceRoomId, String micStatus) {
-        findRoom(voiceRoomId);
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
         VoiceParticipant participant = voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
         participant.updateMicStatus(micStatus);
-        VoiceRoom voiceRoom = findRoom(voiceRoomId);
         if (voiceRoom.getRoomId() != null) {
             projectRoomEventPublicService.recordVoiceParticipantMicUpdated(
                     userId,
@@ -159,6 +157,7 @@ public class VoiceRoomService {
     @Transactional
     public VoiceRoomResponse leaveVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
         voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
                 .ifPresent(participant -> {
                     participant.leave();
@@ -207,19 +206,28 @@ public class VoiceRoomService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
     }
 
+    private void requireRoomMemberIfRoomVoice(UUID userId, VoiceRoom voiceRoom) {
+        if (voiceRoom.getRoomId() != null) {
+            projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
+        }
+    }
+
     private Map<UUID, String> fetchUserNames(List<UUID> userIds) {
-        return userIds.stream()
+        List<UUID> distinctUserIds = userIds.stream()
                 .distinct()
+                .toList();
+        if (distinctUserIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return userPublicService.getUsers(new PageImpl<>(distinctUserIds)).values().stream()
                 .collect(Collectors.toMap(
-                        Function.identity(),
-                        id -> {
-                            try {
-                                return userPublicService.getUser(id).name();
-                            } catch (Exception e) {
-                                return "";
-                            }
-                        }
+                        UserResult::id,
+                        user -> Optional.ofNullable(user.name()).orElse("")
                 ));
+        } catch (RuntimeException exception) {
+            return Map.of();
+        }
     }
 
     private String generateLiveKitToken(UUID userId, String roomName, Instant expiresAt) {

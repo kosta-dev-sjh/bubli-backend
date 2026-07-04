@@ -21,12 +21,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,6 +94,29 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void getVoiceRoomRequiresRoomMemberAndFetchesParticipantNamesInBatch() {
+		UUID requesterId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(requesterId, roomId);
+		VoiceParticipant requester = participant(voiceRoom.getId(), requesterId);
+		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(userPublicService.getUsers(any())).willReturn(Map.of(
+				requesterId, user(requesterId, "미연"),
+				otherUserId, user(otherUserId, "수진")
+		));
+
+		VoiceRoomResponse response = voiceRoomService.getVoiceRoom(requesterId, voiceRoom.getId());
+
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, requesterId);
+		verify(userPublicService, times(1)).getUsers(any());
+		verify(userPublicService, never()).getUser(any());
+		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
+	}
+
+	@Test
 	void updateMicStatusRecordsParticipantMicEvent() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -123,7 +149,7 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUser(userId)).willReturn(user(userId));
+		given(userPublicService.getUsers(any())).willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.leaveVoiceRoom(userId, voiceRoom.getId());
 
@@ -147,7 +173,7 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
 				.willReturn(List.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUser(userId)).willReturn(user(userId));
+		given(userPublicService.getUsers(any())).willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.endVoiceRoom(userId, voiceRoom.getId());
 
@@ -175,6 +201,10 @@ class VoiceRoomServiceTest {
 	}
 
 	private UserResult user(UUID userId) {
-		return new UserResult(userId, "bubli-id", "미연", null, "ko-KR", "Asia/Seoul");
+		return user(userId, "미연");
+	}
+
+	private UserResult user(UUID userId, String name) {
+		return new UserResult(userId, "bubli-id", name, null, "ko-KR", "Asia/Seoul");
 	}
 }
