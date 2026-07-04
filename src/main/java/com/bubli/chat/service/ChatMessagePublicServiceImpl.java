@@ -8,6 +8,7 @@ import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.repository.ChatMessageRepository;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
+import com.bubli.chat.type.ChatMemberStatus;
 import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.project.service.ProjectMembershipPublicService;
@@ -59,13 +60,7 @@ public class ChatMessagePublicServiceImpl implements ChatMessagePublicService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		ChatRoom chatRoom = chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)
 				.orElseGet(() -> chatRoomRepository.save(ChatRoom.createRoom(roomId, "프로젝트룸 채팅")));
-		if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
-				chatRoom.getId(),
-				userId,
-				com.bubli.chat.type.ChatMemberStatus.ACTIVE
-		)) {
-			chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), userId));
-		}
+		ensureActiveChatRoomMember(chatRoom.getId(), userId);
 		long nextSequence = chatMessageRepository.findMaxRoomSequence(chatRoom.getId()) + 1;
 		ChatMessage message = chatMessageRepository.save(ChatMessage.create(
 				chatRoom.getId(),
@@ -91,6 +86,18 @@ public class ChatMessagePublicServiceImpl implements ChatMessagePublicService {
 		);
 		webSocketPublishPublicService.publishChatMessage(result);
 		return result;
+	}
+
+	private void ensureActiveChatRoomMember(UUID chatRoomId, UUID userId) {
+		chatRoomMemberRepository.findByChatRoomIdAndUserId(chatRoomId, userId)
+				.ifPresentOrElse(
+						member -> {
+							if (member.getStatus() != ChatMemberStatus.ACTIVE) {
+								member.reactivate();
+							}
+						},
+						() -> chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, userId))
+				);
 	}
 
 	private String writeBody(JsonNode body) {
