@@ -196,6 +196,22 @@ class FriendControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void sendReciprocalPendingFriendRequestReturns409() throws Exception {
+		User requester = createUser("google-sub-req-reciprocal", "정현");
+		User receiver = createUser("google-sub-req-reciprocal-recv", "미연");
+		friendRequestRepository.save(FriendRequest.create(receiver.getId(), requester.getId()));
+
+		mockMvc.perform(post("/api/friend-requests")
+						.header(AUTHORIZATION, bearer(requester.getId()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{ "bubliId": "%s" }
+								""".formatted(receiver.getBubliId())))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("USER_409_001"));
+	}
+
+	@Test
 	void sendFriendRequestToAlreadyFriendReturns409() throws Exception {
 		User user = createUser("google-sub-req-already-friend", "정현");
 		User friend = createUser("google-sub-req-already-friend-recv", "미연");
@@ -246,6 +262,26 @@ class FriendControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.error").value(nullValue()));
 
 		assertThat(friendshipRepository.findAll()).hasSize(2);
+	}
+
+	@Test
+	void acceptFriendRequestAlsoAcceptsReversePendingRequestWithoutDuplicatingFriendship() throws Exception {
+		User first = createUser("google-sub-accept-reciprocal-a", "정현");
+		User second = createUser("google-sub-accept-reciprocal-b", "미연");
+		FriendRequest firstToSecond = friendRequestRepository.save(FriendRequest.create(first.getId(), second.getId()));
+		FriendRequest secondToFirst = friendRequestRepository.save(FriendRequest.create(second.getId(), first.getId()));
+
+		mockMvc.perform(patch("/api/friend-requests/{id}/accept", firstToSecond.getId())
+						.header(AUTHORIZATION, bearer(second.getId())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.status").value("ACCEPTED"));
+
+		assertThat(friendshipRepository.findAll()).hasSize(2);
+		assertThat(friendRequestRepository.findById(firstToSecond.getId()).orElseThrow().getStatus().name())
+				.isEqualTo("ACCEPTED");
+		assertThat(friendRequestRepository.findById(secondToFirst.getId()).orElseThrow().getStatus().name())
+				.isEqualTo("ACCEPTED");
 	}
 
 	@Test
