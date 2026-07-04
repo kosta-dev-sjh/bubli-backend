@@ -756,6 +756,7 @@ class ResourceServiceTest {
 				ResourceStatus.READY
 		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(storagePublicService.exists("resources/%s/v3.pdf".formatted(resourceId))).willReturn(true);
 		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
 			ResourceFile file = invocation.getArgument(0);
 			ReflectionTestUtils.setField(file, "id", fileId);
@@ -798,6 +799,7 @@ class ResourceServiceTest {
 				ResourceStatus.READY
 		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(storagePublicService.exists("resources/%s/v3.pdf".formatted(resourceId))).willReturn(true);
 		given(resourceFileRepository.save(any(ResourceFile.class))).willThrow(new IllegalStateException("db down"));
 
 		assertThatThrownBy(() -> resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
@@ -826,6 +828,7 @@ class ResourceServiceTest {
 				ResourceStatus.READY
 		);
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(storagePublicService.exists("resources/%s/v3.pdf".formatted(resourceId))).willReturn(true);
 		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
 			ResourceFile file = invocation.getArgument(0);
 			ReflectionTestUtils.setField(file, "id", fileId);
@@ -846,6 +849,34 @@ class ResourceServiceTest {
 		verify(resourceRepository).lockById(resourceId);
 		verify(storageUsagePublicService).recordPersonalUpload(userId, 1024L);
 		verify(storageUsagePublicService).releasePersonalUsage(userId, 1024L);
+	}
+
+	@Test
+	void createVersionRejectsMissingStoredObjectBeforeRecordingMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 객체 없음 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(storagePublicService.exists("resources/%s/missing.pdf".formatted(resourceId))).willReturn(false);
+
+		assertThatThrownBy(() -> resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
+				"resources/%s/missing.pdf".formatted(resourceId),
+				"계약서-v3.pdf",
+				"application/pdf",
+				1024L,
+				"checksum"
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_404_003));
+
+		verify(resourceRepository, never()).lockById(resourceId);
+		verifyNoInteractions(resourceFileRepository, resourceVersionRepository, storageUsagePublicService);
 	}
 
 	@Test
