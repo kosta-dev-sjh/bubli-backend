@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -234,12 +235,26 @@ public class AgentSuggestionDomainApplyService {
 
     private UUID uuid(Object value) {
         String text = text(value);
-        return text == null || text.isBlank() ? null : UUID.fromString(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException exception) {
+            throw invalidPayload();
+        }
     }
 
     private Instant instant(Object value) {
         String text = text(value);
-        return text == null || text.isBlank() ? null : Instant.parse(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(text);
+        } catch (DateTimeParseException exception) {
+            throw invalidPayload();
+        }
     }
 
     private Instant firstInstant(Object... values) {
@@ -259,7 +274,14 @@ public class AgentSuggestionDomainApplyService {
 
     private LocalDate localDate(Object value, LocalDate defaultValue) {
         String text = text(value);
-        return text == null || text.isBlank() ? defaultValue : LocalDate.parse(text);
+        if (text == null || text.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException exception) {
+            throw invalidPayload();
+        }
     }
 
     private String summaryJson(Map<String, Object> payload) {
@@ -279,7 +301,14 @@ public class AgentSuggestionDomainApplyService {
             return number.intValue();
         }
         String text = text(value);
-        return text == null || text.isBlank() ? null : Integer.parseInt(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException exception) {
+            throw invalidPayload();
+        }
     }
 
     private boolean bool(Object value) {
@@ -292,6 +321,17 @@ public class AgentSuggestionDomainApplyService {
 
     private <E extends Enum<E>> E enumValue(Class<E> type, Object value, E defaultValue) {
         String text = text(value);
-        return text == null || text.isBlank() ? defaultValue : Enum.valueOf(type, text);
+        if (text == null || text.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Enum.valueOf(type, text);
+        } catch (IllegalArgumentException exception) {
+            throw invalidPayload();
+        }
+    }
+
+    private BusinessException invalidPayload() {
+        return new BusinessException(ErrorCode.AGENT_400_001);
     }
 }
