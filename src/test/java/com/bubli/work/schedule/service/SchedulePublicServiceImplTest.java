@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +54,72 @@ class SchedulePublicServiceImplTest {
 
 	@InjectMocks
 	SchedulePublicServiceImpl schedulePublicService;
+
+	@Test
+	void getSchedulesBetweenReturnsPersonalAndActiveRoomSchedules() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		Instant from = Instant.parse("2026-07-10T00:00:00Z");
+		Instant to = Instant.parse("2026-07-11T00:00:00Z");
+		Schedule personalSchedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		);
+		Schedule roomSchedule = Schedule.create(
+				UUID.randomUUID(),
+				roomId,
+				null,
+				null,
+				"프로젝트룸 일정",
+				Instant.parse("2026-07-10T03:00:00Z"),
+				Instant.parse("2026-07-10T04:00:00Z"),
+				false
+		);
+		given(projectMembershipPublicService.findActiveRoomIds(userId)).willReturn(List.of(roomId));
+		given(scheduleRepository.findVisibleBetweenForUser(userId, List.of(roomId), from, to))
+				.willReturn(List.of(personalSchedule, roomSchedule));
+
+		List<ScheduleResult> results = schedulePublicService.getSchedulesBetween(userId, from, to);
+
+		assertThat(results)
+				.extracting(ScheduleResult::title)
+				.containsExactly("개인 일정", "프로젝트룸 일정");
+		verify(scheduleRepository).findVisibleBetweenForUser(userId, List.of(roomId), from, to);
+		verify(scheduleRepository, never()).findPersonalBetweenForUser(any(), any(), any());
+	}
+
+	@Test
+	void getSchedulesBetweenUsesPersonalQueryWhenUserHasNoActiveRooms() {
+		UUID userId = UUID.randomUUID();
+		Instant from = Instant.parse("2026-07-10T00:00:00Z");
+		Instant to = Instant.parse("2026-07-11T00:00:00Z");
+		Schedule personalSchedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		);
+		given(projectMembershipPublicService.findActiveRoomIds(userId)).willReturn(List.of());
+		given(scheduleRepository.findPersonalBetweenForUser(userId, from, to)).willReturn(List.of(personalSchedule));
+
+		List<ScheduleResult> results = schedulePublicService.getSchedulesBetween(userId, from, to);
+
+		assertThat(results)
+				.extracting(ScheduleResult::title)
+				.containsExactly("개인 일정");
+		verify(scheduleRepository).findPersonalBetweenForUser(userId, from, to);
+		verify(scheduleRepository, never()).findVisibleBetweenForUser(any(), any(), any(), any());
+	}
 
 	@Test
 	void createRoomScheduleValidatesLinkedTaskAndWbsScope() {
