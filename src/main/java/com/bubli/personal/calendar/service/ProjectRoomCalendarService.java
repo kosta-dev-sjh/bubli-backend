@@ -1,5 +1,6 @@
 package com.bubli.personal.calendar.service;
 
+import com.bubli.global.error.BusinessException;
 import com.bubli.personal.calendar.dto.RoomCalendarResponse;
 import com.bubli.personal.calendar.entity.GoogleCalendarConnection;
 import com.bubli.personal.calendar.entity.ProjectRoomGoogleCalendar;
@@ -43,7 +44,13 @@ public class ProjectRoomCalendarService {
 			return Optional.empty();
 		}
 		ProjectRoomResult room = projectRoomPublicService.getProjectRoom(userId, roomId);
-		String googleCalendarId = googleCalendarClient.insertCalendar(connection.get().getAccessToken(), room.name());
+		String googleCalendarId;
+		try {
+			googleCalendarId = googleCalendarClient.insertCalendar(connection.get().getAccessToken(), room.name());
+		} catch (BusinessException exception) {
+			// 기존 토큰에 캘린더 생성 권한이 없거나 Google 호출이 실패해도 Bubli 일정 저장은 유지한다.
+			return Optional.empty();
+		}
 		if (googleCalendarId == null || googleCalendarId.isBlank()) {
 			return Optional.empty();
 		}
@@ -54,7 +61,11 @@ public class ProjectRoomCalendarService {
 				googleCalendarId,
 				room.name()
 		);
-		return roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
+		Optional<ProjectRoomGoogleCalendar> created = roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
+		if (created.isEmpty()) {
+			return Optional.empty();
+		}
+		return created;
 	}
 
 	@Transactional(readOnly = true)
@@ -89,6 +100,9 @@ public class ProjectRoomCalendarService {
 			} catch (RuntimeException exception) {
 				// 기존 연동 토큰에 캘린더 생성 권한(scope)이 없으면 Google이 거부한다.
 				// 500 대신 재동의 필요 플래그를 내려 프론트가 재연결을 안내하게 한다.
+				return RoomCalendarResponse.reconsentRequired(room.name());
+			}
+			if (mapping.isEmpty()) {
 				return RoomCalendarResponse.reconsentRequired(room.name());
 			}
 		} else {
