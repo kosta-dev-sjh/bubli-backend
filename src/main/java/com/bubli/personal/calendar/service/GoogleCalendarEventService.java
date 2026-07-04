@@ -19,7 +19,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -31,6 +33,7 @@ public class GoogleCalendarEventService {
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarClient googleCalendarClient;
 	private final GoogleCalendarDeleteRequestService deleteRequestService;
+	private final ProjectRoomCalendarService projectRoomCalendarService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ScheduleResult> getEvents(
@@ -119,8 +122,11 @@ public class GoogleCalendarEventService {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
 		List<GoogleCalendarListEntry> calendars = resolveCalendars(connection.getAccessToken(), calendarIds);
+		Set<String> managedRoomCalendarIds = projectRoomCalendarService.findManagedGoogleCalendarIds(userId);
 		List<ScheduleResult> results = new ArrayList<>();
-		for (GoogleCalendarListEntry calendar : calendars) {
+		for (GoogleCalendarListEntry calendar : calendars.stream()
+				.filter(calendar -> !managedRoomCalendarIds.contains(calendar.id()))
+				.toList()) {
 			results.addAll(syncCalendarEvents(userId, connection.getAccessToken(), calendar, from, to));
 		}
 		return results;
@@ -225,14 +231,14 @@ public class GoogleCalendarEventService {
 			return List.of(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
 		}
 		List<GoogleCalendarListEntry> calendars = googleCalendarClient.getCalendars(accessToken);
-		List<GoogleCalendarListEntry> resolved = new ArrayList<>();
+		Map<String, GoogleCalendarListEntry> resolved = new LinkedHashMap<>();
 		if (normalizedIds.contains("primary")) {
-			resolved.add(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
+			resolved.put("primary", new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
 		}
-		resolved.addAll(calendars.stream()
+		calendars.stream()
 				.filter(calendar -> normalizedIds.contains(calendar.id()))
-				.toList());
-		return resolved;
+				.forEach(calendar -> resolved.put(calendar.id(), calendar));
+		return List.copyOf(resolved.values());
 	}
 
 	private void validateGoogleEventReference(String googleCalendarId, String googleEventId) {

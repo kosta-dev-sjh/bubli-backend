@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/wbs-schedule-delete-guard-20260705` |
+| 현재 확인 브랜치 | `codex/calendar-room-google-dedupe-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,26 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 Google 캘린더 중복 표시와 역수입 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- Bubli가 프로젝트룸 일정용으로 생성한 Google 캘린더가 일반 Google 캘린더 그룹에도 다시 잡히면, 같은 일정이 프로젝트룸 그룹과 Google 캘린더 그룹에 중복 표시될 수 있었다.
+- 프로젝트룸 전용 Google 캘린더 ID를 사용자별 관리 캘린더 목록으로 조회하게 했다.
+- 캘린더 그룹 조회에서는 관리 캘린더를 외부 Google 캘린더 그룹에서 제외한다.
+- Google Calendar sync에서도 관리 캘린더를 가져오기 대상에서 제외해, 프로젝트룸 일정이 개인 일정처럼 역수입되는 위험을 줄였다.
+- `primary`를 명시 선택했을 때 Google calendar list에도 `primary`가 들어오면 같은 캘린더가 두 번 처리될 수 있어, 동기화 대상 캘린더를 ID 기준으로 중복 제거한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.service.GoogleCalendarGroupServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncServiceTest` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### WBS 일정 연결 삭제 가드 보강
 
