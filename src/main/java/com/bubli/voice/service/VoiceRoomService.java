@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class VoiceRoomService {
 
+    private static final String DEFAULT_MIC_STATUS = "UNMUTED";
+
     private final VoiceRoomRepository voiceRoomRepository;
     private final VoiceParticipantRepository voiceParticipantRepository;
     private final ProjectRoomAccessPublicService projectRoomAccessPublicService;
@@ -91,6 +93,20 @@ public class VoiceRoomService {
                 .toList();
 
         return toRoomResponse(voiceRoom, participantResponses);
+    }
+
+    @Transactional(readOnly = true)
+    public VoiceRoomResponse getOpenVoiceRoomByProjectRoom(UUID userId, UUID roomId) {
+        projectRoomAccessPublicService.requireRoomMember(roomId, userId);
+
+        VoiceRoom voiceRoom = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId());
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+
+        return toRoomResponse(voiceRoom, participants.stream()
+                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                .toList());
     }
 
     @Transactional
@@ -267,7 +283,8 @@ public class VoiceRoomService {
                 userName,
                 p.getStatus().name(),
                 p.getJoinedAt(),
-                p.getLeftAt()
+                p.getLeftAt(),
+                Optional.ofNullable(p.getMicStatus()).orElse(DEFAULT_MIC_STATUS)
         );
     }
 }
