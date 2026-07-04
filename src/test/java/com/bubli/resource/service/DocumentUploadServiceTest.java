@@ -16,6 +16,7 @@ import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.DocumentType;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -42,8 +43,10 @@ class DocumentUploadServiceTest {
         ResourceVersionRepository resourceVersionRepository = mock(ResourceVersionRepository.class);
         AgentJobPublicService agentJobService = mock(AgentJobPublicService.class);
         StoragePublicService storageService = mock(StoragePublicService.class);
+        StorageUsagePublicService storageUsagePublicService = mock(StorageUsagePublicService.class);
         ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
         DocumentFileInspector inspector = new DocumentFileInspector();
+        UUID roomId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
         UUID jobId = UUID.randomUUID();
@@ -70,10 +73,11 @@ class DocumentUploadServiceTest {
                 resourceVersionRepository,
                 agentJobService,
                 storageService,
+                storageUsagePublicService,
                 inspector,
                 membershipService
         ).uploadContractDocument(
-                UUID.randomUUID(),
+                roomId,
                 UUID.randomUUID(),
                 DocumentType.REQUIREMENT,
                 textFile()
@@ -86,6 +90,7 @@ class DocumentUploadServiceTest {
         verify(resourceRepository).saveAndFlush(org.mockito.ArgumentMatchers.argThat(resource ->
                 resource.getStatus() == ResourceStatus.ANALYZING
         ));
+        verify(storageUsagePublicService).recordRoomUpload(roomId, textFile().getSize());
         verify(agentJobService).createAnalyzeResourceJob(any(), any(), eq(resourceId), any());
     }
 
@@ -96,6 +101,7 @@ class DocumentUploadServiceTest {
         ResourceVersionRepository resourceVersionRepository = mock(ResourceVersionRepository.class);
         AgentJobPublicService agentJobService = mock(AgentJobPublicService.class);
         StoragePublicService storageService = mock(StoragePublicService.class);
+        StorageUsagePublicService storageUsagePublicService = mock(StorageUsagePublicService.class);
 
         when(resourceFileRepository.existsActiveRoomFileByChecksum(any(), anyString())).thenReturn(true);
 
@@ -105,6 +111,7 @@ class DocumentUploadServiceTest {
                 resourceVersionRepository,
                 agentJobService,
                 storageService,
+                storageUsagePublicService,
                 new DocumentFileInspector(),
                 mock(ProjectMembershipPublicService.class)
         );
@@ -120,8 +127,42 @@ class DocumentUploadServiceTest {
         );
 
         verify(storageService, never()).store(anyString(), any());
+        verify(storageUsagePublicService, never()).recordRoomUpload(any(), org.mockito.ArgumentMatchers.anyLong());
         verify(resourceRepository, never()).saveAndFlush(any());
         verify(agentJobService, never()).createAnalyzeResourceJob(any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsWhenRoomStorageQuotaWouldBeExceededBeforeWritingFile() {
+        ResourceFileRepository resourceFileRepository = mock(ResourceFileRepository.class);
+        StoragePublicService storageService = mock(StoragePublicService.class);
+        StorageUsagePublicService storageUsagePublicService = mock(StorageUsagePublicService.class);
+        UUID roomId = UUID.randomUUID();
+        when(resourceFileRepository.existsActiveRoomFileByChecksum(any(), anyString())).thenReturn(false);
+        BusinessException quotaExceeded = new BusinessException(ErrorCode.STORAGE_400_002);
+        org.mockito.Mockito.doThrow(quotaExceeded)
+                .when(storageUsagePublicService)
+                .recordRoomUpload(eq(roomId), org.mockito.ArgumentMatchers.anyLong());
+
+        DocumentUploadService service = new DocumentUploadService(
+                mock(ResourceRepository.class),
+                resourceFileRepository,
+                mock(ResourceVersionRepository.class),
+                mock(AgentJobPublicService.class),
+                storageService,
+                storageUsagePublicService,
+                new DocumentFileInspector(),
+                mock(ProjectMembershipPublicService.class)
+        );
+
+        assertThatThrownBy(() -> service.uploadContractDocument(
+                roomId,
+                UUID.randomUUID(),
+                DocumentType.REQUIREMENT,
+                textFile()
+        )).isSameAs(quotaExceeded);
+
+        verify(storageService, never()).store(anyString(), any());
     }
 
     @Test
@@ -132,6 +173,7 @@ class DocumentUploadServiceTest {
                 mock(ResourceVersionRepository.class),
                 mock(AgentJobPublicService.class),
                 mock(StoragePublicService.class),
+                mock(StorageUsagePublicService.class),
                 new DocumentFileInspector(),
                 mock(ProjectMembershipPublicService.class)
         );

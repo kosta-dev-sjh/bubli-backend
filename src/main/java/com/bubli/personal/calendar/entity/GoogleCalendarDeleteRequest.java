@@ -28,6 +28,9 @@ public class GoogleCalendarDeleteRequest {
 	@Column(name = "user_id", nullable = false)
 	private UUID userId;
 
+	@Column(name = "google_calendar_id", nullable = false, length = 255)
+	private String googleCalendarId;
+
 	@Column(name = "google_event_id", nullable = false, length = 255)
 	private String googleEventId;
 
@@ -43,9 +46,10 @@ public class GoogleCalendarDeleteRequest {
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
-	public static GoogleCalendarDeleteRequest create(UUID userId, String googleEventId) {
+	public static GoogleCalendarDeleteRequest create(UUID userId, String googleCalendarId, String googleEventId) {
 		GoogleCalendarDeleteRequest request = new GoogleCalendarDeleteRequest();
 		request.userId = userId;
+		request.googleCalendarId = googleCalendarId;
 		request.googleEventId = googleEventId;
 		return request;
 	}

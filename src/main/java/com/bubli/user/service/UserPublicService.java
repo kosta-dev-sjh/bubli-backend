@@ -5,6 +5,7 @@ import com.bubli.user.dto.UserResult;
 import com.bubli.user.type.ConsentType;
 import org.springframework.data.domain.Page;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 
@@ -14,7 +15,11 @@ public interface UserPublicService {
 
 	UserResult upsertGoogleUser(UpsertGoogleUserCommand command);
 
-	Map<UUID, UserResult> getUsers(Page<UUID> userIds);
+	Map<UUID, UserResult> getUsers(Collection<UUID> userIds);
+
+	default Map<UUID, UserResult> getUsers(Page<UUID> userIds) {
+		return getUsers(userIds.getContent());
+	}
 
 	void assertExists(UUID userId);
 

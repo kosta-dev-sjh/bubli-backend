@@ -12,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,9 +83,9 @@ class StorageUsageServiceTest {
 	void recordPersonalUploadCreatesDefaultUsageAndIncreasesUsedBytes() {
 		UUID userId = UUID.randomUUID();
 		ReflectionTestUtils.setField(storageUsageService, "defaultPersonalLimitBytes", 1000L);
-		given(storageUsageRepository.findByUserIdAndStorageScope(userId, StorageScope.PERSONAL))
+		given(storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL))
 				.willReturn(Optional.empty());
-		given(storageUsageRepository.save(any(StorageUsage.class))).willAnswer(invocation -> {
+		given(storageUsageRepository.saveAndFlush(any(StorageUsage.class))).willAnswer(invocation -> {
 			StorageUsage usage = invocation.getArgument(0);
 			ReflectionTestUtils.setField(usage, "id", UUID.randomUUID());
 			ReflectionTestUtils.setField(usage, "updatedAt", Instant.now());
@@ -99,15 +101,45 @@ class StorageUsageServiceTest {
 		assertThat(result.remainingBytes()).isEqualTo(700L);
 
 		ArgumentCaptor<StorageUsage> usageCaptor = ArgumentCaptor.forClass(StorageUsage.class);
-		verify(storageUsageRepository).save(usageCaptor.capture());
+		verify(storageUsageRepository).saveAndFlush(usageCaptor.capture());
 		assertThat(usageCaptor.getValue().getUsedBytes()).isEqualTo(300L);
+	}
+
+	@Test
+	void recordPersonalUploadUsesExistingUsageWhenConcurrentCreateWins() {
+		UUID userId = UUID.randomUUID();
+		StorageUsage existingUsage = storageUsage(userId, null, StorageScope.PERSONAL, 100L, 1000L);
+		given(storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL))
+				.willReturn(Optional.empty(), Optional.of(existingUsage));
+		given(storageUsageRepository.saveAndFlush(any(StorageUsage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate storage usage"));
+
+		var result = storageUsageService.recordPersonalUpload(userId, 300L);
+
+		assertThat(result.usedBytes()).isEqualTo(400L);
+		assertThat(result.remainingBytes()).isEqualTo(600L);
+		verify(storageUsageRepository).saveAndFlush(any(StorageUsage.class));
+	}
+
+	@Test
+	void recordRoomUploadLocksExistingUsageBeforeIncrease() {
+		UUID roomId = UUID.randomUUID();
+		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 100L, 1000L);
+		given(storageUsageRepository.findByRoomIdAndStorageScopeForUpdate(roomId, StorageScope.ROOM))
+				.willReturn(Optional.of(usage));
+
+		var result = storageUsageService.recordRoomUpload(roomId, 200L);
+
+		assertThat(result.usedBytes()).isEqualTo(300L);
+		verify(storageUsageRepository, times(1))
+				.findByRoomIdAndStorageScopeForUpdate(roomId, StorageScope.ROOM);
 	}
 
 	@Test
 	void recordRoomUploadRejectsWhenLimitWouldBeExceeded() {
 		UUID roomId = UUID.randomUUID();
 		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 900L, 1000L);
-		given(storageUsageRepository.findByRoomIdAndStorageScope(roomId, StorageScope.ROOM))
+		given(storageUsageRepository.findByRoomIdAndStorageScopeForUpdate(roomId, StorageScope.ROOM))
 				.willReturn(Optional.of(usage));
 
 		assertThatThrownBy(() -> storageUsageService.recordRoomUpload(roomId, 200L))
@@ -117,10 +149,23 @@ class StorageUsageServiceTest {
 	}
 
 	@Test
+	void recordRoomUploadRejectsWhenSizeWouldOverflowLimitCheck() {
+		UUID roomId = UUID.randomUUID();
+		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 900L, 1000L);
+		given(storageUsageRepository.findByRoomIdAndStorageScopeForUpdate(roomId, StorageScope.ROOM))
+				.willReturn(Optional.of(usage));
+
+		assertThatThrownBy(() -> storageUsageService.recordRoomUpload(roomId, Long.MAX_VALUE))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.STORAGE_400_002));
+		assertThat(usage.getUsedBytes()).isEqualTo(900L);
+	}
+
+	@Test
 	void releaseRoomUsageDoesNotGoBelowZero() {
 		UUID roomId = UUID.randomUUID();
 		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 100L, 1000L);
-		given(storageUsageRepository.findByRoomIdAndStorageScope(roomId, StorageScope.ROOM))
+		given(storageUsageRepository.findByRoomIdAndStorageScopeForUpdate(roomId, StorageScope.ROOM))
 				.willReturn(Optional.of(usage));
 
 		var result = storageUsageService.releaseRoomUsage(roomId, 300L);

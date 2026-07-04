@@ -7,7 +7,6 @@ import com.bubli.agent.type.AgentJobType;
 import com.bubli.resource.service.ResourceAnalysisPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,7 +18,6 @@ public class AnalyzeResourceJobService {
     private final AgentJobRepository agentJobRepository;
     private final ResourceAnalysisPublicService resourceAnalysisService;
 
-    @Transactional
     public AgentJob process(UUID jobId) {
         AgentJob job = agentJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Agent job not found."));
@@ -33,16 +31,19 @@ public class AnalyzeResourceJobService {
 
         try {
             job.start();
+            agentJobRepository.save(job);
             resourceAnalysisService.analyzeResourceForJob(job.getResourceId(), job.getId());
             job.succeed();
+            agentJobRepository.save(job);
             return job;
         } catch (RuntimeException e) {
+            markResourceAnalysisFailed(job.getResourceId(), e);
             job.fail("RESOURCE_ANALYSIS_FAILED", safeMessage(e));
+            agentJobRepository.save(job);
             return job;
         }
     }
 
-    @Transactional
     public int processPendingBatch() {
         List<AgentJob> jobs = agentJobRepository.findTop20ByJobTypeAndStatusOrderByCreatedAtAsc(
                 AgentJobType.ANALYZE_RESOURCE,
@@ -50,6 +51,17 @@ public class AnalyzeResourceJobService {
         );
         jobs.forEach(job -> process(job.getId()));
         return jobs.size();
+    }
+
+    private void markResourceAnalysisFailed(UUID resourceId, RuntimeException originalException) {
+        if (resourceId == null) {
+            return;
+        }
+        try {
+            resourceAnalysisService.markAnalysisFailed(resourceId);
+        } catch (RuntimeException failure) {
+            originalException.addSuppressed(failure);
+        }
     }
 
     private String safeMessage(RuntimeException e) {

@@ -149,6 +149,26 @@ class TimeLogControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void resumeTimeLogRejectsWhenAnotherTimerIsAlreadyRunning() throws Exception {
+		User user = createUser("google-sub-timelog-resume-conflict", "수진");
+		UUID pausedTimeLogId = startTimeLog(user, "key-resume-conflict-paused");
+		mockMvc.perform(patch("/api/time-logs/{timeLogId}/pause", pausedTimeLogId)
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isOk());
+		startTimeLog(user, "key-resume-conflict-running");
+
+		mockMvc.perform(patch("/api/time-logs/{timeLogId}/resume", pausedTimeLogId)
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PERSONAL_409_001"));
+
+		assertThat(timeLogRepository.findById(pausedTimeLogId).orElseThrow().getStatus())
+				.isEqualTo(TimeLogStatus.PAUSED);
+	}
+
+	@Test
 	void pauseTimeLogRejectsOtherUsersTimeLog() throws Exception {
 		User owner = createUser("google-sub-timelog-owner", "서현");
 		User other = createUser("google-sub-timelog-intruder", "지우");

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -19,6 +20,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ProjectRoomEventRecorder {
+
+	private static final int EVENT_SEQUENCE_SAVE_MAX_ATTEMPTS = 3;
 
 	static final String ROOM_UPDATED = "ROOM_UPDATED";
 	static final String ROOM_PAYMENT_UPDATED = "ROOM_PAYMENT_UPDATED";
@@ -183,8 +186,25 @@ public class ProjectRoomEventRecorder {
 	}
 
 	private void save(UUID actorUserId, UUID roomId, String eventType, ObjectNode payload) {
+		DataIntegrityViolationException lastException = null;
+		for (int attempt = 0; attempt < EVENT_SEQUENCE_SAVE_MAX_ATTEMPTS; attempt++) {
+			try {
+				ProjectRoomEvent event = saveWithNextSequence(actorUserId, roomId, eventType, payload);
+				publish(event);
+				return;
+			} catch (DataIntegrityViolationException exception) {
+				lastException = exception;
+			}
+		}
+		if (lastException != null) {
+			throw lastException;
+		}
+		throw new IllegalStateException("Project room event was not saved.");
+	}
+
+	private ProjectRoomEvent saveWithNextSequence(UUID actorUserId, UUID roomId, String eventType, ObjectNode payload) {
 		Long sequence = nextSequence(roomId);
-		ProjectRoomEvent event = projectRoomEventRepository.save(ProjectRoomEvent.create(
+		return projectRoomEventRepository.save(ProjectRoomEvent.create(
 				roomId,
 				sequence,
 				eventType,
@@ -192,6 +212,9 @@ public class ProjectRoomEventRecorder {
 				payload.toString(),
 				Instant.now()
 		));
+	}
+
+	private void publish(ProjectRoomEvent event) {
 		webSocketPublishPublicService.publishProjectRoomEvent(
 				event.getId(),
 				event.getEventType(),

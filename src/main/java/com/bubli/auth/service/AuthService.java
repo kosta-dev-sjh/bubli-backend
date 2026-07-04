@@ -101,7 +101,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.AUTH_401_006);
 		}
 
-		UserSession session = userSessionRepository.findByRefreshTokenAndClientType(
+		UserSession session = userSessionRepository.findByRefreshTokenAndClientTypeForUpdate(
 						hashToken(command.refreshToken()),
 						command.clientType()
 				)
@@ -131,7 +131,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.AUTH_401_006);
 		}
 
-		UserSession session = userSessionRepository.findByRefreshTokenAndClientType(
+		UserSession session = userSessionRepository.findByRefreshTokenAndClientTypeForUpdate(
 						hashToken(command.refreshToken()),
 						command.clientType()
 				)
@@ -148,10 +148,13 @@ public class AuthService {
 		String refreshToken = jwtTokenProvider.createRefreshToken(authUser);
 		Instant refreshTokenExpiresAt = Instant.now().plusMillis(jwtTokenProvider.getRefreshTokenExpireMs());
 
-		UserSession session = userSessionRepository.findByUserIdAndClientType(user.id(), clientType)
-				.orElseGet(() -> UserSession.create(user.id(), hashToken(refreshToken), clientType, refreshTokenExpiresAt));
-		session.rotate(hashToken(refreshToken), refreshTokenExpiresAt);
-		userSessionRepository.save(session);
+		userSessionRepository.upsertActiveSession(
+				UUID.randomUUID(),
+				user.id(),
+				hashToken(refreshToken),
+				clientType.name(),
+				refreshTokenExpiresAt
+		);
 
 		return toTokenResponse(user, accessToken, refreshToken, refreshTokenExpiresAt);
 	}

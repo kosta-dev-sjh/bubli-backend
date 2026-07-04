@@ -26,17 +26,21 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ public class ChatService {
 
 	private static final String USER_SENDER_TYPE = "USER";
 	private static final String UNKNOWN_USER_NAME = "알 수 없음";
+	private static final int MESSAGE_SEQUENCE_SAVE_MAX_ATTEMPTS = 3;
 
 	private final ChatRoomRepository chatRoomRepository;
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
@@ -129,12 +134,8 @@ public class ChatService {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
 
-		memberIds.forEach(memberId -> {
-			userPublicService.getUser(memberId);
-			if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(chatRoomId, memberId, ChatMemberStatus.ACTIVE)) {
-				chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
-			}
-		});
+		memberIds.forEach(userPublicService::getUser);
+		syncChatRoomMembers(chatRoomId, memberIds);
 
 		return ChatRoomResult.from(chatRoom);
 	}
@@ -179,18 +180,16 @@ public class ChatService {
 	public ChatMessageResult sendMessage(UUID senderUserId, UUID chatRoomId, SendChatMessageCommand command) {
 		checkActiveMember(senderUserId, chatRoomId);
 
-		boolean newMessage = false;
 		ChatMessage message = chatMessageRepository
 				.findByChatRoomIdAndClientMessageId(chatRoomId, command.clientMessageId())
 				.orElse(null);
-		if (message == null) {
-			message = createMessage(senderUserId, chatRoomId, command);
-			newMessage = true;
-		}
+		MessageSaveResult saveResult = message == null
+				? createMessageWithRetry(senderUserId, chatRoomId, command)
+				: new MessageSaveResult(message, false);
 
 		UserResult sender = userPublicService.getUser(senderUserId);
-		ChatMessageResult result = toResult(message, sender);
-		if (newMessage) {
+		ChatMessageResult result = toResult(saveResult.message(), sender);
+		if (saveResult.created()) {
 			webSocketPublishPublicService.publishChatMessage(result);
 		}
 		return result;
@@ -226,7 +225,29 @@ public class ChatService {
 				writeBody(command.body()),
 				command.resourceId()
 		);
-		return chatMessageRepository.save(message);
+		return chatMessageRepository.saveAndFlush(message);
+	}
+
+	private MessageSaveResult createMessageWithRetry(UUID senderUserId, UUID chatRoomId,
+			SendChatMessageCommand command) {
+		DataIntegrityViolationException lastException = null;
+		for (int attempt = 0; attempt < MESSAGE_SEQUENCE_SAVE_MAX_ATTEMPTS; attempt++) {
+			try {
+				return new MessageSaveResult(createMessage(senderUserId, chatRoomId, command), true);
+			} catch (DataIntegrityViolationException exception) {
+				ChatMessage existingMessage = chatMessageRepository
+						.findByChatRoomIdAndClientMessageId(chatRoomId, command.clientMessageId())
+						.orElse(null);
+				if (existingMessage != null) {
+					return new MessageSaveResult(existingMessage, false);
+				}
+				lastException = exception;
+			}
+		}
+		if (lastException == null) {
+			throw new IllegalStateException("Message save retry attempts must be positive.");
+		}
+		throw lastException;
 	}
 
 	private ChatRoomResult createNewDirectRoom(UUID requesterId, UserResult targetUser) {
@@ -237,16 +258,37 @@ public class ChatService {
 	}
 
 	private void addActiveProjectMembers(UUID chatRoomId, UUID roomId) {
-		projectMembershipPublicService.findActiveMemberIds(roomId)
-				.forEach(memberId -> {
-					if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
-							chatRoomId,
-							memberId,
-							ChatMemberStatus.ACTIVE
-					)) {
-						chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
-					}
-				});
+		syncChatRoomMembers(chatRoomId, projectMembershipPublicService.findActiveMemberIds(roomId));
+	}
+
+	private void syncChatRoomMembers(UUID chatRoomId, Collection<UUID> userIds) {
+		List<UUID> memberIds = userIds.stream()
+				.filter(Objects::nonNull)
+				.distinct()
+				.toList();
+		if (memberIds.isEmpty()) {
+			return;
+		}
+
+		Map<UUID, ChatRoomMember> existingMemberByUserId = chatRoomMemberRepository
+				.findByChatRoomIdAndUserIdIn(chatRoomId, memberIds)
+				.stream()
+				.collect(Collectors.toMap(
+						ChatRoomMember::getUserId,
+						member -> member,
+						(first, second) -> first
+				));
+
+		memberIds.forEach(memberId -> {
+			ChatRoomMember existingMember = existingMemberByUserId.get(memberId);
+			if (existingMember == null) {
+				chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
+				return;
+			}
+			if (existingMember.getStatus() != ChatMemberStatus.ACTIVE) {
+				existingMember.reactivate();
+			}
+		});
 	}
 
 	private Set<UUID> normalizedMemberIds(UUID requesterId, List<UUID> memberUserIds) {
@@ -303,6 +345,9 @@ public class ChatService {
 		} catch (JsonProcessingException exception) {
 			throw new IllegalStateException(exception);
 		}
+	}
+
+	private record MessageSaveResult(ChatMessage message, boolean created) {
 	}
 
 }

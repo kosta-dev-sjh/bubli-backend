@@ -116,6 +116,41 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void getSchedulesReturnsEventsOverlappingRequestedWindow() throws Exception {
+		User user = createUser("google-sub-schedule-overlap", "미연");
+		User otherUser = createUser("google-sub-schedule-overlap-other", "준화");
+		ProjectRoom room = saveRoom(user.getId(), "앱 UI 개선");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+		saveSchedule(
+				user.getId(),
+				null,
+				"전날 시작해 겹치는 개인 일정",
+				"2026-07-01T23:00:00Z",
+				"2026-07-02T01:00:00Z"
+		);
+		saveSchedule(
+				otherUser.getId(),
+				room.getId(),
+				"전날 시작해 겹치는 룸 일정",
+				"2026-07-01T22:00:00Z",
+				"2026-07-02T00:30:00Z"
+		);
+		saveSchedule(user.getId(), null, "조회일 개인 일정", "2026-07-02T03:00:00Z", "2026-07-02T04:00:00Z");
+		saveSchedule(user.getId(), null, "전날 끝난 일정", "2026-07-01T22:00:00Z", "2026-07-02T00:00:00Z");
+
+		mockMvc.perform(get("/api/schedules?page=0&size=20&from=2026-07-02T00:00:00Z&to=2026-07-03T00:00:00Z")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "miyeon@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(3)))
+				.andExpect(jsonPath("$.data.items[0].title").value("전날 시작해 겹치는 룸 일정"))
+				.andExpect(jsonPath("$.data.items[1].title").value("전날 시작해 겹치는 개인 일정"))
+				.andExpect(jsonPath("$.data.items[2].title").value("조회일 개인 일정"))
+				.andExpect(jsonPath("$.data.totalElements").value(3))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
 	void createRoomScheduleRejectsUserWithoutActiveMembership() throws Exception {
 		User user = createUser("google-sub-schedule-no-member", "민서");
 		User leader = createUser("google-sub-schedule-leader", "리더");
@@ -170,6 +205,37 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		assertThat(scheduleRepository.findById(schedule.getId())).isEmpty();
 	}
 
+	@Test
+	void updateScheduleTitleOnlyPreservesExistingEndTime() throws Exception {
+		User user = createUser("google-sub-schedule-title-only", "재민");
+		Schedule schedule = saveSchedule(
+				user.getId(),
+				null,
+				"기존 일정",
+				"2026-07-02T01:00:00Z",
+				"2026-07-02T02:00:00Z"
+		);
+
+		mockMvc.perform(patch("/api/schedules/{scheduleId}", schedule.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "title": "제목만 수정"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.title").value("제목만 수정"))
+				.andExpect(jsonPath("$.data.startsAt").value("2026-07-02T01:00:00Z"))
+				.andExpect(jsonPath("$.data.endsAt").value("2026-07-02T02:00:00Z"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		Schedule updated = scheduleRepository.findById(schedule.getId()).orElseThrow();
+		assertThat(updated.getStartsAt()).isEqualTo(Instant.parse("2026-07-02T01:00:00Z"));
+		assertThat(updated.getEndsAt()).isEqualTo(Instant.parse("2026-07-02T02:00:00Z"));
+	}
+
 	private User createUser(String googleSub, String name) {
 		return userRepository.save(User.createGoogleUser(
 				googleSub,
@@ -195,6 +261,10 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	private Schedule saveSchedule(UUID userId, UUID roomId, String title, String startsAt) {
+		return saveSchedule(userId, roomId, title, startsAt, null);
+	}
+
+	private Schedule saveSchedule(UUID userId, UUID roomId, String title, String startsAt, String endsAt) {
 		return scheduleRepository.save(Schedule.create(
 				userId,
 				roomId,
@@ -202,7 +272,7 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				null,
 				title,
 				Instant.parse(startsAt),
-				null,
+				endsAt == null ? null : Instant.parse(endsAt),
 				false
 		));
 	}
