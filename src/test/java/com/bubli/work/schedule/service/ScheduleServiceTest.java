@@ -225,6 +225,68 @@ class ScheduleServiceTest {
 	}
 
 	@Test
+	void updateTitleOnlyPreservesExistingEndTime() {
+		UUID userId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Instant startsAt = Instant.parse("2026-07-02T01:00:00Z");
+		Instant endsAt = Instant.parse("2026-07-02T02:00:00Z");
+		Schedule schedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				startsAt,
+				endsAt,
+				false
+		);
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+		ScheduleResult result = scheduleService.update(userId, scheduleId, new UpdateScheduleCommand(
+				"제목만 수정",
+				null,
+				null,
+				null,
+				null,
+				null
+		));
+
+		assertThat(result.title()).isEqualTo("제목만 수정");
+		assertThat(result.startsAt()).isEqualTo(startsAt);
+		assertThat(result.endsAt()).isEqualTo(endsAt);
+		assertThat(schedule.getEndsAt()).isEqualTo(endsAt);
+	}
+
+	@Test
+	void updateStartTimeRejectsRangeAgainstExistingEndTime() {
+		UUID userId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				userId,
+				null,
+				null,
+				null,
+				"개인 일정",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				Instant.parse("2026-07-02T02:00:00Z"),
+				false
+		);
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+		assertThatThrownBy(() -> scheduleService.update(userId, scheduleId, new UpdateScheduleCommand(
+				null,
+				Instant.parse("2026-07-02T03:00:00Z"),
+				null,
+				null,
+				null,
+				null
+		))).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SCHEDULE_400_001));
+	}
+
+	@Test
 	void updateRoomScheduleSyncsGoogleWithScheduleOwnerWhenMemberEdits() {
 		UUID ownerId = UUID.randomUUID();
 		UUID editorId = UUID.randomUUID();

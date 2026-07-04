@@ -170,6 +170,37 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 		assertThat(scheduleRepository.findById(schedule.getId())).isEmpty();
 	}
 
+	@Test
+	void updateScheduleTitleOnlyPreservesExistingEndTime() throws Exception {
+		User user = createUser("google-sub-schedule-title-only", "재민");
+		Schedule schedule = saveSchedule(
+				user.getId(),
+				null,
+				"기존 일정",
+				"2026-07-02T01:00:00Z",
+				"2026-07-02T02:00:00Z"
+		);
+
+		mockMvc.perform(patch("/api/schedules/{scheduleId}", schedule.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "title": "제목만 수정"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.title").value("제목만 수정"))
+				.andExpect(jsonPath("$.data.startsAt").value("2026-07-02T01:00:00Z"))
+				.andExpect(jsonPath("$.data.endsAt").value("2026-07-02T02:00:00Z"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		Schedule updated = scheduleRepository.findById(schedule.getId()).orElseThrow();
+		assertThat(updated.getStartsAt()).isEqualTo(Instant.parse("2026-07-02T01:00:00Z"));
+		assertThat(updated.getEndsAt()).isEqualTo(Instant.parse("2026-07-02T02:00:00Z"));
+	}
+
 	private User createUser(String googleSub, String name) {
 		return userRepository.save(User.createGoogleUser(
 				googleSub,
@@ -195,6 +226,10 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	private Schedule saveSchedule(UUID userId, UUID roomId, String title, String startsAt) {
+		return saveSchedule(userId, roomId, title, startsAt, null);
+	}
+
+	private Schedule saveSchedule(UUID userId, UUID roomId, String title, String startsAt, String endsAt) {
 		return scheduleRepository.save(Schedule.create(
 				userId,
 				roomId,
@@ -202,7 +237,7 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				null,
 				title,
 				Instant.parse(startsAt),
-				null,
+				endsAt == null ? null : Instant.parse(endsAt),
 				false
 		));
 	}
