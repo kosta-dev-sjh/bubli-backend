@@ -77,6 +77,8 @@ public class ProjectRoomMemberService {
 				});
 		friendshipPublicService.assertAcceptedFriend(inviterUserId, invitee.id());
 
+		Instant now = Instant.now();
+		expirePendingInvitationsForPair(roomId, invitee.id(), now);
 		if (invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
 				roomId,
 				invitee.id(),
@@ -88,8 +90,11 @@ public class ProjectRoomMemberService {
 		UUID invitationId = UUID.randomUUID();
 		RoomMemberRole role = command.role() == null ? RoomMemberRole.MEMBER : command.role();
 		Instant expiresAt = command.expiresAt() == null
-				? Instant.now().plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
+				? now.plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
 				: command.expiresAt();
+		if (!expiresAt.isAfter(now)) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
 
 		int inserted = invitationRepository.insertPendingIfAbsent(
 				invitationId,
@@ -108,10 +113,11 @@ public class ProjectRoomMemberService {
 		return InvitationResult.from(invitation, invitee);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public PageResponse<InvitationResult> getInvitations(UUID requesterId, UUID roomId, Pageable pageable) {
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 
+		expirePendingInvitationsForRoom(roomId, Instant.now());
 		Page<Invitation> page = invitationRepository.findByRoomId(roomId, pageable);
 		Map<UUID, UserResult> invitees = userPublicService.getUsers(page.map(Invitation::getInviteeUserId));
 
@@ -127,12 +133,13 @@ public class ProjectRoomMemberService {
 		);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public PageResponse<InvitationResult> getReceivedInvitations(
 			UUID inviteeUserId,
 			InvitationStatus status,
 			Pageable pageable
 	) {
+		expirePendingInvitationsForInvitee(inviteeUserId, Instant.now());
 		Page<Invitation> page = invitationRepository.findByInviteeUserIdAndStatus(inviteeUserId, status, pageable);
 		Map<UUID, UserResult> inviters = userPublicService.getUsers(page.map(Invitation::getInviterUserId));
 		UserResult invitee = userPublicService.getUser(inviteeUserId);
@@ -249,6 +256,34 @@ public class ProjectRoomMemberService {
 		assertProjectRoomKeepsLeader(member);
 		member.remove();
 		roomChatPublicService.removeMember(roomId, memberUserId);
+	}
+
+	private void expirePendingInvitationsForPair(UUID roomId, UUID inviteeUserId, Instant now) {
+		invitationRepository.expirePendingByRoomIdAndInviteeUserId(
+				roomId,
+				inviteeUserId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
+	}
+
+	private void expirePendingInvitationsForRoom(UUID roomId, Instant now) {
+		invitationRepository.expirePendingByRoomId(
+				roomId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
+	}
+
+	private void expirePendingInvitationsForInvitee(UUID inviteeUserId, Instant now) {
+		invitationRepository.expirePendingByInviteeUserId(
+				inviteeUserId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
 	}
 
 	private RoomMemberRole normalizeRole(RoomMemberRole role) {

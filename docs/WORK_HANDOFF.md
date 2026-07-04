@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/public-schedule-visible-rooms-20260705` |
+| 현재 확인 브랜치 | `codex/invitation-expiry-cleanup-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,34 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 친구 초대 만료 정리 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- v15 기준에서 프로젝트룸 초대는 수락된 친구를 선택하는 `invitations` 흐름만 사용한다.
+- `InviteLinkController`는 컨트롤러 누락으로 되살릴 대상이 아니다. 링크 초대, 이메일 주소 입력 초대, 비회원 게스트 초대는 현재 기획에서 제외된 흐름이다.
+- 기존 친구 초대는 만료된 `PENDING` 초대가 그대로 남아 있으면 같은 친구에게 새 초대를 만들 때 `이미 대기 중인 초대`처럼 막힐 수 있었다.
+- 초대 생성 전에 같은 room/invitee의 만료된 `PENDING` 초대를 `EXPIRED`로 정리하게 했다.
+- 초대 목록 조회와 내 초대 조회도 조회 전에 만료된 `PENDING` 초대를 `EXPIRED`로 정리해, 화면에 오래된 초대가 대기 상태로 남지 않게 했다.
+- 만료 시각이 이미 지난 초대 생성 요청은 `COMMON_400_002`로 거절한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomMemberServiceTest` 통과
+- `./gradlew test --tests com.bubli.project.repository.InvitationRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest --tests com.bubli.project.service.ProjectRoomMemberServiceTest --tests com.bubli.project.repository.InvitationRepositoryIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 링크 초대 잔재(`InviteLinkService`, `InviteLinkRepository`, `InviteLink` 엔티티, DTO)는 프론트의 링크 초대 제거와 맞춰 별도 정리한다. 기존 DB에 적용된 V12 migration 파일은 Flyway 이력 때문에 삭제하지 않는다.
 
 ### 공개 일정 조회의 개인 + 프로젝트룸 통합 표시 기준 보정
 
