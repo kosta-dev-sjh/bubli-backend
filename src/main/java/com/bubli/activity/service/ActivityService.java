@@ -39,10 +39,20 @@ public class ActivityService implements ActivityPublicService {
 		if (command.roomId() != null) {
 			projectMembershipPublicService.assertActiveMember(userId, command.roomId());
 		}
+		if (command.localActivityId() != null) {
+			return activityLogRepository.findByUserIdAndLocalActivityId(userId, command.localActivityId())
+					.map(ActivityLogResult::from)
+					.orElseGet(() -> createActivityLog(userId, command));
+		}
+		return createActivityLog(userId, command);
+	}
+
+	private ActivityLogResult createActivityLog(UUID userId, RecordCurrentAppActivityCommand command) {
 		long durationSeconds = durationSeconds(command);
 		ActivityLog activityLog = ActivityLog.create(
 				userId,
 				command.roomId(),
+				command.localActivityId(),
 				command.appName(),
 				command.windowTitle(),
 				command.startedAt(),
