@@ -104,7 +104,8 @@ class VoiceRoomServiceTest {
 		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
 		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN))
 				.willReturn(Optional.of(voiceRoom));
-		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(participant));
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
 				.willReturn(Map.of(userId, user(userId)));
 
@@ -131,7 +132,8 @@ class VoiceRoomServiceTest {
 		VoiceParticipant requester = participant(voiceRoom.getId(), requesterId);
 		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
-		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(requester, other));
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
 				requesterId, user(requesterId, "미연"),
 				otherUserId, user(otherUserId, "수진")
@@ -156,7 +158,8 @@ class VoiceRoomServiceTest {
 		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
 		other.updateMicStatus("MUTED");
 		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)).willReturn(Optional.of(voiceRoom));
-		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(requester, other));
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
 				requesterId, user(requesterId, "미연"),
 				otherUserId, user(otherUserId, "수진")
@@ -191,6 +194,55 @@ class VoiceRoomServiceTest {
 				participant.getId(),
 				userId,
 				"MUTED"
+		);
+	}
+
+	@Test
+	void issueTokenRejoinsLeftParticipantAndReturnsToken() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
+		participant.leave();
+
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
+				.willReturn(Optional.of(participant));
+
+		assertThat(voiceRoomService.issueToken(userId, voiceRoom.getId()).roomId()).isEqualTo(voiceRoom.getId());
+
+		assertThat(participant.getStatus()).isEqualTo(VoiceParticipantStatus.JOINED);
+		assertThat(participant.getLeftAt()).isNull();
+		verify(projectRoomEventPublicService).recordVoiceParticipantJoined(
+				userId,
+				roomId,
+				voiceRoom.getId(),
+				participant.getId(),
+				userId
+		);
+	}
+
+	@Test
+	void issueTokenCreatesParticipantWhenNotExist() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID anotherUserId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceParticipant saved = participant(voiceRoom.getId(), anotherUserId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), anotherUserId))
+				.willReturn(Optional.empty());
+		given(voiceParticipantRepository.save(any(VoiceParticipant.class))).willReturn(saved);
+
+		voiceRoomService.issueToken(anotherUserId, voiceRoom.getId());
+
+		verify(voiceParticipantRepository).save(any(VoiceParticipant.class));
+		verify(projectRoomEventPublicService).recordVoiceParticipantJoined(
+				anotherUserId,
+				roomId,
+				voiceRoom.getId(),
+				saved.getId(),
+				anotherUserId
 		);
 	}
 

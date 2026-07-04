@@ -53,7 +53,7 @@ public class VoiceRoomService {
         Optional<VoiceRoom> existing = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN);
         if (existing.isPresent()) {
             VoiceRoom room = existing.get();
-            List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(room.getId());
+            List<VoiceParticipant> participants = currentParticipants(room.getId());
             Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
             return toRoomResponse(room, participants.stream()
                     .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
@@ -89,7 +89,7 @@ public class VoiceRoomService {
     public VoiceRoomResponse getVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
         requireRoomMemberIfRoomVoice(userId, voiceRoom);
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
+        List<VoiceParticipant> participants = currentParticipants(voiceRoomId);
 
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
 
@@ -106,7 +106,7 @@ public class VoiceRoomService {
 
         VoiceRoom voiceRoom = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId());
+        List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
 
         return toRoomResponse(voiceRoom, participants.stream()
@@ -126,11 +126,15 @@ public class VoiceRoomService {
 
         boolean[] joined = {false};
         VoiceParticipant participant = voiceParticipantRepository
-                .findByVoiceRoomIdAndUserId(voiceRoomId, userId)
+                .findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoomId, userId)
                 .orElseGet(() -> {
                     joined[0] = true;
                     return voiceParticipantRepository.save(VoiceParticipant.join(voiceRoomId, userId));
                 });
+        if (participant.getStatus() != VoiceParticipantStatus.JOINED) {
+            joined[0] = true;
+            participant.rejoin();
+        }
         if (joined[0] && voiceRoom.getRoomId() != null) {
             projectRoomEventPublicService.recordVoiceParticipantJoined(
                     userId,
@@ -224,6 +228,10 @@ public class VoiceRoomService {
     private VoiceRoom findRoom(UUID voiceRoomId) {
         return voiceRoomRepository.findById(voiceRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+    }
+
+    private List<VoiceParticipant> currentParticipants(UUID voiceRoomId) {
+        return voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED);
     }
 
     private void requireRoomMemberIfRoomVoice(UUID userId, VoiceRoom voiceRoom) {

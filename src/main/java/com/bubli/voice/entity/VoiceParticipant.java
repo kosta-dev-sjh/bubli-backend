@@ -66,4 +66,10 @@ public class VoiceParticipant {
 		this.micStatus = micStatus;
 	}
 
+	public void rejoin() {
+		this.status = VoiceParticipantStatus.JOINED;
+		this.leftAt = null;
+		this.joinedAt = Instant.now();
+	}
+
 }
