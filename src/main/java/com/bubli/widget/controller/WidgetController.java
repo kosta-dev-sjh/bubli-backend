@@ -37,8 +37,11 @@ public class WidgetController {
     private final WidgetService widgetService;
 
     @GetMapping("/summary")
-    public ApiResponse<WidgetSummaryResponse> getSummary(@CurrentUser AuthUser authUser) {
-        return ApiResponse.success(widgetService.getSummary(authUser.userId()));
+    public ApiResponse<WidgetSummaryResponse> getSummary(
+            @CurrentUser AuthUser authUser,
+            @RequestParam(required = false) UUID selectedRoomId
+    ) {
+        return ApiResponse.success(widgetService.getSummary(authUser.userId(), selectedRoomId));
     }
 
     @GetMapping("/settings")
