@@ -133,7 +133,7 @@ public class GoogleCalendarEventService {
 		return results;
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<GoogleCalendarListEntry> getGoogleCalendars(UUID userId) {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
