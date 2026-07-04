@@ -16,6 +16,7 @@ import com.bubli.voice.entity.VoiceRoom;
 import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -88,6 +90,25 @@ class VoiceRoomControllerIntegrationTest extends PostgresIntegrationTestSupport 
 				.andExpect(jsonPath("$.data.participants[*].userName", containsInAnyOrder("미연", "수진")))
 				.andExpect(jsonPath("$.data.participants[*].micStatus", containsInAnyOrder("UNMUTED", "MUTED")))
 				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void databaseRejectsDuplicatedOpenVoiceRoomForSameProjectRoom() {
+		User requester = createUser("google-sub-voice-duplicate", "미연");
+		ProjectRoom projectRoom = projectRoomRepository.save(ProjectRoom.create(
+				requester.getId(),
+				"보이스 중복 방지룸",
+				null,
+				null,
+				PaymentStatus.NOT_RECORDED,
+				null,
+				null,
+				ProjectRoomStatus.ACTIVE
+		));
+		voiceRoomRepository.saveAndFlush(VoiceRoom.create(projectRoom.getId(), requester.getId()));
+
+		assertThatThrownBy(() -> voiceRoomRepository.saveAndFlush(VoiceRoom.create(projectRoom.getId(), requester.getId())))
+				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	private User createUser(String googleSub, String name) {

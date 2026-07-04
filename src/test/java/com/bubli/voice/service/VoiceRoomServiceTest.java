@@ -80,6 +80,7 @@ class VoiceRoomServiceTest {
 
 		assertThat(response.roomId()).isEqualTo(roomId);
 		verify(projectRoomAccessPublicService).requireRoomMember(roomId, userId);
+		verify(voiceRoomRepository).lockRoomOpenCreation("voice-room-open:" + roomId);
 		verify(projectRoomEventPublicService).recordVoiceRoomCreated(
 				userId,
 				roomId,
@@ -92,6 +93,32 @@ class VoiceRoomServiceTest {
 				response.id(),
 				response.participants().getFirst().id(),
 				userId
+		);
+	}
+
+	@Test
+	void createVoiceRoomReturnsExistingOpenRoomAfterLock() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
+		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN))
+				.willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(userId, user(userId)));
+
+		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId);
+
+		assertThat(response.id()).isEqualTo(voiceRoom.getId());
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, userId);
+		verify(voiceRoomRepository).lockRoomOpenCreation("voice-room-open:" + roomId);
+		verify(voiceRoomRepository, never()).save(any(VoiceRoom.class));
+		verify(projectRoomEventPublicService, never()).recordVoiceRoomCreated(
+				any(),
+				any(),
+				any(),
+				any()
 		);
 	}
 
