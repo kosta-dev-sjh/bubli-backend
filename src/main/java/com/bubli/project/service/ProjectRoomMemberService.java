@@ -220,7 +220,12 @@ public class ProjectRoomMemberService {
 				RoomMemberStatus.ACTIVE
 		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
 
-		member.updateRole(role);
+		RoomMemberRole nextRole = normalizeRole(role);
+		if (member.getRole() == RoomMemberRole.PROJECT_LEADER && nextRole != RoomMemberRole.PROJECT_LEADER) {
+			assertProjectRoomKeepsLeader(member);
+		}
+
+		member.updateRole(nextRole);
 		UserResult user = userPublicService.getUser(memberUserId);
 		return ProjectRoomMemberResult.from(member, user);
 	}
@@ -234,13 +239,36 @@ public class ProjectRoomMemberService {
 		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
 
 		if (requesterId.equals(memberUserId)) {
+			assertProjectRoomKeepsLeader(member);
 			member.leave();
 			roomChatPublicService.removeMember(roomId, memberUserId);
 			return;
 		}
 
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
+		assertProjectRoomKeepsLeader(member);
 		member.remove();
 		roomChatPublicService.removeMember(roomId, memberUserId);
+	}
+
+	private RoomMemberRole normalizeRole(RoomMemberRole role) {
+		return role == null ? RoomMemberRole.MEMBER : role;
+	}
+
+	private void assertProjectRoomKeepsLeader(RoomMember member) {
+		if (member.getRole() != RoomMemberRole.PROJECT_LEADER) {
+			return;
+		}
+
+		long activeLeaderCount = roomMemberRepository.findByRoomIdAndStatusForUpdate(
+						member.getRoomId(),
+						RoomMemberStatus.ACTIVE
+				).stream()
+				.filter(activeMember -> activeMember.getRole() == RoomMemberRole.PROJECT_LEADER)
+				.count();
+
+		if (activeLeaderCount <= 1) {
+			throw new BusinessException(ErrorCode.PROJECT_409_004);
+		}
 	}
 }

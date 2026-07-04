@@ -578,6 +578,29 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	}
 
 	@Test
+	void cannotDemoteLastProjectLeader() throws Exception {
+		User leader = createUser("google-sub-last-leader-demote", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "마지막 리더 강등 방지 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}/members/{userId}", room.getId(), leader.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "role": "MEMBER"
+								}
+								"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_409_004"));
+
+		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), leader.getId()).orElseThrow().getRole())
+				.isEqualTo(RoomMemberRole.PROJECT_LEADER);
+	}
+
+	@Test
 	void projectLeaderCanRemoveMember() throws Exception {
 		User leader = createUser("google-sub-remove-leader", "미연");
 		User member = createUser("google-sub-remove-member", "정현");
@@ -594,6 +617,23 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), member.getId()).orElseThrow().getStatus())
 				.isEqualTo(RoomMemberStatus.REMOVED);
+	}
+
+	@Test
+	void lastProjectLeaderCannotLeaveRoom() throws Exception {
+		User leader = createUser("google-sub-last-leader-leave", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "마지막 리더 나가기 방지 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(delete("/api/project-rooms/{roomId}/members/{userId}", room.getId(), leader.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com")))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_409_004"));
+
+		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), leader.getId()).orElseThrow().getStatus())
+				.isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
 	@Test

@@ -316,6 +316,52 @@ class ProjectRoomMemberServiceTest {
 	}
 
 	@Test
+	void cannotDemoteLastProjectLeader() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(leader));
+
+		assertThatThrownBy(() -> projectRoomMemberService.updateMemberRole(
+				leaderId,
+				roomId,
+				leaderId,
+				RoomMemberRole.MEMBER
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_004));
+		assertThat(leader.getRole()).isEqualTo(RoomMemberRole.PROJECT_LEADER);
+	}
+
+	@Test
+	void canDemoteProjectLeaderWhenAnotherLeaderRemains() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User targetUser = user(UUID.randomUUID(), "target-leader", "정현");
+		RoomMember requester = RoomMember.createLeader(roomId, leaderId);
+		RoomMember target = RoomMember.createLeader(roomId, targetUser.getId());
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, targetUser.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(target));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(requester, target));
+		given(userPublicService.getUser(targetUser.getId())).willReturn(userResult(targetUser));
+
+		var result = projectRoomMemberService.updateMemberRole(
+				leaderId,
+				roomId,
+				targetUser.getId(),
+				RoomMemberRole.MEMBER
+		);
+
+		assertThat(result.role()).isEqualTo(RoomMemberRole.MEMBER);
+		assertThat(target.getRole()).isEqualTo(RoomMemberRole.MEMBER);
+	}
+
+	@Test
 	void projectLeaderCanRemoveMember() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
@@ -342,6 +388,23 @@ class ProjectRoomMemberServiceTest {
 		projectRoomMemberService.removeMember(memberId, roomId, memberId);
 
 		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.LEFT);
+	}
+
+	@Test
+	void lastProjectLeaderCannotLeaveRoom() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(leader));
+
+		assertThatThrownBy(() -> projectRoomMemberService.removeMember(leaderId, roomId, leaderId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_004));
+		assertThat(leader.getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
 	private User user(UUID userId, String bubliId, String name) {
