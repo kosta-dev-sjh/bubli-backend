@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/agent-suggestion-payload-guards-20260705` |
+| 현재 확인 브랜치 | `codex/agent-suggestion-delete-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,33 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 에이전트 WBS 일정 필드 보존 및 생성 문서 연결 후보 삭제 가드
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 에이전트 `analysis.v1` 제안 계약이 `type/title/description/sourceText/confidence/fieldKey/value`만 받던 상태라, WBS 후보가 일정 정보를 판단해도 `startsAt`, `dueAt`, `endsAt`, `scheduleTitle`을 공식 payload로 넘길 수 없었다.
+- `Suggestion` 계약에 TASK/WBS 연결용 선택 필드(`assigneeUserId`, `wbsItemId`, `parentId`, `orderNo`, `status`, `startsAt`, `dueAt`, `endsAt`, `allDay`, `scheduleTitle`)를 추가했다.
+- LLM prompt와 payload mapping을 갱신해 WBS 날짜 필드가 버려지지 않게 했다.
+- 로컬 에이전트 모드도 `GENERATE_WBS` 요청 payload의 일정 힌트를 보존하게 했다.
+- 기존 승인 로직은 WBS payload에 `startsAt` 또는 `dueAt`가 있으면 같은 `roomId`와 새 `wbsItemId`로 일정을 만든다. 이 일정은 프로젝트룸 캘린더 동기화 경로를 그대로 탄다.
+- `DOCUMENT_DRAFT` 승인 후 생성된 `generated_documents`가 `agent_suggestions`를 FK로 물고 있을 때 후보 삭제가 500으로 터질 수 있어, 삭제 전에 연결 문서 존재 여부를 확인하고 `AGENT_400_001`로 거절하게 했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.agent.dispatch.LlmAgentJobExecutionPortTest --tests com.bubli.agent.dispatch.LocalAgentJobExecutionPortTest --tests com.bubli.agent.model.AgentAnalysisFixtureRegressionTest` 통과
+- `./gradlew test --tests com.bubli.agent.service.AgentSuggestionDomainApplyServiceTest --tests com.bubli.agent.service.AgentSuggestionCommandServiceTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 프론트에서 WBS를 캘린더 일정으로 만들려면 `startsAt` 또는 `dueAt`를 반드시 payload에 실어야 한다.
 
 ### 에이전트 후보 승인 payload 파싱 500 방지
 

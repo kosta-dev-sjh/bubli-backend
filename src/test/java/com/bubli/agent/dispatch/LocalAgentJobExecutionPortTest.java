@@ -163,6 +163,36 @@ class LocalAgentJobExecutionPortTest {
     }
 
     @Test
+    void preservesWbsScheduleHintsFromRequestPayload() {
+        LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
+                mock(ResourceAnalysisPublicService.class),
+                new ObjectMapper()
+        );
+
+        var outcome = executionPort.execute(new AgentJobQueueMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                AgentJobType.GENERATE_WBS,
+                Map.of(
+                        "scheduleTitle", "중간 리뷰 준비",
+                        "startsAt", "2026-07-10T01:00:00Z",
+                        "endsAt", "2026-07-10T02:00:00Z",
+                        "allDay", false
+                ),
+                Instant.now()
+        ));
+
+        assertThat(outcome).isPresent();
+        assertThat(outcome.get().successful()).isTrue();
+        assertThat(outcome.get().suggestionDrafts()).hasSize(1);
+        assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.WBS);
+        assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+                .contains("scheduleTitle", "중간 리뷰 준비", "startsAt", "2026-07-10T01:00:00Z");
+    }
+
+    @Test
     void generatesDocumentDraftSuggestionWithRequestPayload() {
         LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
                 mock(ResourceAnalysisPublicService.class),
