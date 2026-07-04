@@ -15,6 +15,7 @@ import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.DocumentFileType;
 import com.bubli.resource.type.DocumentType;
 import com.bubli.storage.service.StoragePublicService;
+import com.bubli.storage.service.StorageUsagePublicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class DocumentUploadService {
     private final ResourceVersionRepository resourceVersionRepository;
     private final AgentJobPublicService agentJobService;
     private final StoragePublicService storageService;
+    private final StorageUsagePublicService storageUsagePublicService;
     private final DocumentFileInspector fileInspector;
     private final ProjectMembershipPublicService projectMembershipPublicService;
 
@@ -68,6 +70,7 @@ public class DocumentUploadService {
 
         DocumentFileInspector.InspectedDocument inspected = fileInspector.inspect(file);
         rejectDuplicate(roomId, inspected.checksum());
+        storageUsagePublicService.recordRoomUpload(roomId, file.getSize());
 
         String storageKey = storageKey(roomId, inspected.fileType().name().toLowerCase());
         String storedStorageKey = store(file, storageKey);
