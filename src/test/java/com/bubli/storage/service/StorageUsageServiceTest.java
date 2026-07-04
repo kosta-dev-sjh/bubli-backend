@@ -115,6 +115,19 @@ class StorageUsageServiceTest {
 	}
 
 	@Test
+	void recordRoomUploadRejectsWhenSizeWouldOverflowLimitCheck() {
+		UUID roomId = UUID.randomUUID();
+		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 900L, 1000L);
+		given(storageUsageRepository.findByRoomIdAndStorageScope(roomId, StorageScope.ROOM))
+				.willReturn(Optional.of(usage));
+
+		assertThatThrownBy(() -> storageUsageService.recordRoomUpload(roomId, Long.MAX_VALUE))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.STORAGE_400_002));
+		assertThat(usage.getUsedBytes()).isEqualTo(900L);
+	}
+
+	@Test
 	void releaseRoomUsageDoesNotGoBelowZero() {
 		UUID roomId = UUID.randomUUID();
 		StorageUsage usage = storageUsage(null, roomId, StorageScope.ROOM, 100L, 1000L);
