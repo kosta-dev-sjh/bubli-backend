@@ -441,6 +441,14 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void timeLogsAllowOnlyOneRunningTimerPerUser() throws IOException {
+		assertThat(migrationSql())
+				.contains("CREATE UNIQUE INDEX IF NOT EXISTS uk_time_logs_user_running")
+				.contains("ON time_logs (user_id)")
+				.contains("WHERE status = 'RUNNING'");
+	}
+
+	@Test
 	void agentEnumsContainCurrentDataDictionaryValues() {
 		assertThat(enumNames(AiDocumentStatus.class))
 				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");
