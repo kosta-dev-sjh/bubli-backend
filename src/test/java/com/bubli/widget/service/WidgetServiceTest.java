@@ -224,6 +224,31 @@ class WidgetServiceTest {
 	}
 
 	@Test
+	void getSummaryUsesRequestedRoomWithoutStoredContextUpdate() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		TaskResult task = task(userId, roomId, TaskStatus.TODO, Instant.parse("2026-07-01T03:00:00Z"));
+		ScheduleResult schedule = schedule(userId, roomId);
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of());
+		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(taskPublicService.getRoomTasksForBoard(roomId)).willReturn(List.of(task));
+		given(schedulePublicService.getRoomSchedulesBetween(eq(roomId), any(Instant.class), any(Instant.class)))
+				.willReturn(List.of(schedule));
+		given(notificationPublicService.countUnread(userId)).willReturn(0L);
+		given(timeLogPublicService.getRunningTimer(userId)).willReturn(Optional.empty());
+		given(agentSuggestionPublicService.getReviewRequiredSummaries(userId, 5)).willReturn(List.of());
+
+		WidgetSummaryResponse response = widgetService.getSummary(userId, roomId);
+
+		verify(contextSettingRepository, never()).findByUserId(userId);
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		assertThat(response.context().selectedRoomId()).isEqualTo(roomId);
+		assertThat(response.context().mode()).isEqualTo("ROOM");
+		assertThat(response.tasks()).containsExactly(task);
+		assertThat(response.schedules()).containsExactly(schedule);
+	}
+
+	@Test
 	void getItemStatesReturnsOnlyRequestedUserStates() {
 		UUID userId = UUID.randomUUID();
 		UUID taskId = UUID.randomUUID();

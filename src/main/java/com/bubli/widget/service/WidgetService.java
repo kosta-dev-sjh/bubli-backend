@@ -115,7 +115,14 @@ public class WidgetService implements WidgetPublicService {
 
     @Transactional
     public WidgetSummaryResponse getSummary(UUID userId) {
-        WidgetContextResponse context = getContext(userId);
+        return getSummary(userId, null);
+    }
+
+    @Transactional
+    public WidgetSummaryResponse getSummary(UUID userId, UUID selectedRoomId) {
+        WidgetContextResponse context = selectedRoomId == null
+                ? getContext(userId)
+                : new WidgetContextResponse(selectedRoomId, "ROOM");
         List<WidgetBubbleSettingResponse> bubbles = getOrCreateBubbleSettings(userId)
                 .stream().map(this::toSettingResponse).toList();
         UUID roomId = context.selectedRoomId();
