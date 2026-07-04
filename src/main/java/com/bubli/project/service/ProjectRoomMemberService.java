@@ -17,6 +17,7 @@ import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.FriendshipPublicService;
 import com.bubli.user.service.UserPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -41,6 +42,7 @@ public class ProjectRoomMemberService {
 	private final ProjectRoomRepository projectRoomRepository;
 	private final InvitationRepository invitationRepository;
 	private final UserPublicService userPublicService;
+	private final FriendshipPublicService friendshipPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final RoomChatPublicService roomChatPublicService;
 
@@ -73,7 +75,10 @@ public class ProjectRoomMemberService {
 				.ifPresent(member -> {
 					throw new BusinessException(ErrorCode.PROJECT_409_001);
 				});
+		friendshipPublicService.assertAcceptedFriend(inviterUserId, invitee.id());
 
+		Instant now = Instant.now();
+		expirePendingInvitationsForPair(roomId, invitee.id(), now);
 		if (invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
 				roomId,
 				invitee.id(),
@@ -82,23 +87,37 @@ public class ProjectRoomMemberService {
 			throw new BusinessException(ErrorCode.PROJECT_409_003);
 		}
 
-		Invitation invitation = Invitation.create(
+		UUID invitationId = UUID.randomUUID();
+		RoomMemberRole role = command.role() == null ? RoomMemberRole.MEMBER : command.role();
+		Instant expiresAt = command.expiresAt() == null
+				? now.plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
+				: command.expiresAt();
+		if (!expiresAt.isAfter(now)) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		int inserted = invitationRepository.insertPendingIfAbsent(
+				invitationId,
 				roomId,
 				inviterUserId,
 				invitee.id(),
-				command.role() == null ? RoomMemberRole.MEMBER : command.role(),
-				command.expiresAt() == null
-						? Instant.now().plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
-						: command.expiresAt()
+				role.name(),
+				expiresAt
 		);
+		if (inserted == 0) {
+			throw new BusinessException(ErrorCode.PROJECT_409_003);
+		}
 
-		return InvitationResult.from(invitationRepository.save(invitation), invitee);
+		Invitation invitation = invitationRepository.findById(invitationId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
+		return InvitationResult.from(invitation, invitee);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public PageResponse<InvitationResult> getInvitations(UUID requesterId, UUID roomId, Pageable pageable) {
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 
+		expirePendingInvitationsForRoom(roomId, Instant.now());
 		Page<Invitation> page = invitationRepository.findByRoomId(roomId, pageable);
 		Map<UUID, UserResult> invitees = userPublicService.getUsers(page.map(Invitation::getInviteeUserId));
 
@@ -114,12 +133,13 @@ public class ProjectRoomMemberService {
 		);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public PageResponse<InvitationResult> getReceivedInvitations(
 			UUID inviteeUserId,
 			InvitationStatus status,
 			Pageable pageable
 	) {
+		expirePendingInvitationsForInvitee(inviteeUserId, Instant.now());
 		Page<Invitation> page = invitationRepository.findByInviteeUserIdAndStatus(inviteeUserId, status, pageable);
 		Map<UUID, UserResult> inviters = userPublicService.getUsers(page.map(Invitation::getInviterUserId));
 		UserResult invitee = userPublicService.getUser(inviteeUserId);
@@ -207,7 +227,12 @@ public class ProjectRoomMemberService {
 				RoomMemberStatus.ACTIVE
 		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
 
-		member.updateRole(role);
+		RoomMemberRole nextRole = normalizeRole(role);
+		if (member.getRole() == RoomMemberRole.PROJECT_LEADER && nextRole != RoomMemberRole.PROJECT_LEADER) {
+			assertProjectRoomKeepsLeader(member);
+		}
+
+		member.updateRole(nextRole);
 		UserResult user = userPublicService.getUser(memberUserId);
 		return ProjectRoomMemberResult.from(member, user);
 	}
@@ -221,13 +246,64 @@ public class ProjectRoomMemberService {
 		).orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_403_001));
 
 		if (requesterId.equals(memberUserId)) {
+			assertProjectRoomKeepsLeader(member);
 			member.leave();
 			roomChatPublicService.removeMember(roomId, memberUserId);
 			return;
 		}
 
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
+		assertProjectRoomKeepsLeader(member);
 		member.remove();
 		roomChatPublicService.removeMember(roomId, memberUserId);
+	}
+
+	private void expirePendingInvitationsForPair(UUID roomId, UUID inviteeUserId, Instant now) {
+		invitationRepository.expirePendingByRoomIdAndInviteeUserId(
+				roomId,
+				inviteeUserId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
+	}
+
+	private void expirePendingInvitationsForRoom(UUID roomId, Instant now) {
+		invitationRepository.expirePendingByRoomId(
+				roomId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
+	}
+
+	private void expirePendingInvitationsForInvitee(UUID inviteeUserId, Instant now) {
+		invitationRepository.expirePendingByInviteeUserId(
+				inviteeUserId,
+				InvitationStatus.PENDING,
+				InvitationStatus.EXPIRED,
+				now
+		);
+	}
+
+	private RoomMemberRole normalizeRole(RoomMemberRole role) {
+		return role == null ? RoomMemberRole.MEMBER : role;
+	}
+
+	private void assertProjectRoomKeepsLeader(RoomMember member) {
+		if (member.getRole() != RoomMemberRole.PROJECT_LEADER) {
+			return;
+		}
+
+		long activeLeaderCount = roomMemberRepository.findByRoomIdAndStatusForUpdate(
+						member.getRoomId(),
+						RoomMemberStatus.ACTIVE
+				).stream()
+				.filter(activeMember -> activeMember.getRole() == RoomMemberRole.PROJECT_LEADER)
+				.count();
+
+		if (activeLeaderCount <= 1) {
+			throw new BusinessException(ErrorCode.PROJECT_409_004);
+		}
 	}
 }

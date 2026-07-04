@@ -4,6 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
 import com.bubli.work.wbs.dto.ReorderWbsItemCommand;
@@ -14,6 +15,7 @@ import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,8 +34,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WbsItemService {
 
+	private static final int WBS_ORDER_SAVE_MAX_ATTEMPTS = 3;
+
 	private final WbsItemRepository wbsItemRepository;
 	private final TaskPublicService taskPublicService;
+	private final SchedulePublicService schedulePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
@@ -57,17 +62,10 @@ public class WbsItemService {
 	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command) {
 		checkRoomMember(userId, roomId);
 		checkParent(roomId, command.parentId());
-		int orderNo = command.orderNo() == null
-				? wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1
-				: command.orderNo();
-		WbsItem item = WbsItem.create(
-				roomId,
-				command.parentId(),
-				command.title(),
-				orderNo,
-				command.status()
-		);
-		return WbsItemResult.from(wbsItemRepository.save(item));
+		if (command.orderNo() != null) {
+			return WbsItemResult.from(createExplicitOrderItem(roomId, command));
+		}
+		return WbsItemResult.from(createAutoOrderItemWithRetry(roomId, command));
 	}
 
 	@Transactional
@@ -119,6 +117,7 @@ public class WbsItemService {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
 		taskPublicService.assertNoTaskLinkedToWbsItem(itemId);
+		schedulePublicService.assertNoScheduleLinkedToWbsItem(itemId);
 		if (wbsItemRepository.existsByParentId(itemId)) {
 			throw new BusinessException(ErrorCode.WORK_400_002);
 		}
@@ -128,6 +127,44 @@ public class WbsItemService {
 	private WbsItem getItem(UUID itemId) {
 		return wbsItemRepository.findById(itemId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.WORK_404_002));
+	}
+
+	private WbsItem createExplicitOrderItem(UUID roomId, CreateWbsItemCommand command) {
+		if (wbsItemRepository.existsSiblingOrder(roomId, command.parentId(), command.orderNo())) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+		try {
+			return saveItem(roomId, command, command.orderNo());
+		} catch (DataIntegrityViolationException exception) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+	}
+
+	private WbsItem createAutoOrderItemWithRetry(UUID roomId, CreateWbsItemCommand command) {
+		DataIntegrityViolationException lastException = null;
+		for (int attempt = 0; attempt < WBS_ORDER_SAVE_MAX_ATTEMPTS; attempt++) {
+			try {
+				int orderNo = wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1;
+				return saveItem(roomId, command, orderNo);
+			} catch (DataIntegrityViolationException exception) {
+				lastException = exception;
+			}
+		}
+		if (lastException == null) {
+			throw new IllegalStateException("WBS order save retry attempts must be positive.");
+		}
+		throw lastException;
+	}
+
+	private WbsItem saveItem(UUID roomId, CreateWbsItemCommand command, int orderNo) {
+		WbsItem item = WbsItem.create(
+				roomId,
+				command.parentId(),
+				command.title(),
+				orderNo,
+				command.status()
+		);
+		return wbsItemRepository.saveAndFlush(item);
 	}
 
 	private void checkParent(UUID roomId, UUID parentId) {

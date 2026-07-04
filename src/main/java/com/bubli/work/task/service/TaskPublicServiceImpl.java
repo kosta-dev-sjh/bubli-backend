@@ -72,6 +72,26 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId) {
+		if (taskId == null) {
+			return;
+		}
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.SCHEDULE_400_001));
+		if (task.getRoomId() == null) {
+			if (roomId != null || !userId.equals(task.getOwnerUserId())) {
+				throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+			}
+			return;
+		}
+		if (!task.getRoomId().equals(roomId)) {
+			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+		}
+		projectMembershipPublicService.assertActiveMember(userId, task.getRoomId());
+	}
+
+	@Override
 	@Transactional
 	public TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);

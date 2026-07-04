@@ -105,9 +105,16 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 	@Override
 	@Transactional
 	public void deleteGoogleEventSchedules(UUID userId, Collection<String> googleEventIds) {
+		deleteGoogleEventSchedules(userId, "primary", googleEventIds);
+	}
+
+	@Override
+	@Transactional
+	public void deleteGoogleEventSchedules(UUID userId, String googleCalendarId, Collection<String> googleEventIds) {
 		if (googleEventIds == null || googleEventIds.isEmpty()) {
 			return;
 		}
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
 		List<String> ids = googleEventIds.stream()
 				.filter(id -> id != null && !id.isBlank())
 				.distinct()
@@ -115,7 +122,11 @@ public class ScheduleCalendarPublicServiceImpl implements ScheduleCalendarPublic
 		if (ids.isEmpty()) {
 			return;
 		}
-		scheduleRepository.deleteAll(scheduleRepository.findByOwnerUserIdAndGoogleEventIdIn(userId, ids));
+		scheduleRepository.deleteAll(scheduleRepository.findByOwnerUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+				userId,
+				normalizedCalendarId,
+				ids
+		));
 	}
 
 	@Override

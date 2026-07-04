@@ -7,11 +7,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -58,6 +65,17 @@ public class S3StorageService implements StoragePublicService {
 	}
 
 	@Override
+	public InputStream open(String storageKey) {
+		validateBucket();
+		validateStorageKey(storageKey);
+		ResponseInputStream<GetObjectResponse> response = s3Client.getObject(GetObjectRequest.builder()
+				.bucket(bucket)
+				.key(storageKey)
+				.build());
+		return response;
+	}
+
+	@Override
 	public void delete(String storageKey) {
 		validateBucket();
 		validateStorageKey(storageKey);
@@ -65,6 +83,26 @@ public class S3StorageService implements StoragePublicService {
 				.bucket(bucket)
 				.key(storageKey)
 				.build());
+	}
+
+	@Override
+	public boolean exists(String storageKey) {
+		validateBucket();
+		validateStorageKey(storageKey);
+		try {
+			s3Client.headObject(HeadObjectRequest.builder()
+					.bucket(bucket)
+					.key(storageKey)
+					.build());
+			return true;
+		} catch (NoSuchKeyException exception) {
+			return false;
+		} catch (S3Exception exception) {
+			if (exception.statusCode() == 404) {
+				return false;
+			}
+			throw exception;
+		}
 	}
 
 	private void validateBucket() {

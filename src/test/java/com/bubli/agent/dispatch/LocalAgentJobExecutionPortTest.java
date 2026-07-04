@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -39,6 +40,33 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome).isPresent();
         assertThat(outcome.get().successful()).isTrue();
         verify(resourceAnalysisService).analyzeResourceForJob(resourceId, jobId);
+    }
+
+    @Test
+    void marksResourceFailedWhenAnalyzeResourceThrows() {
+        ResourceAnalysisPublicService resourceAnalysisService = mock(ResourceAnalysisPublicService.class);
+        LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
+                resourceAnalysisService,
+                new ObjectMapper()
+        );
+        UUID jobId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("Extracted text is empty."))
+                .when(resourceAnalysisService).analyzeResourceForJob(resourceId, jobId);
+
+        var outcome = executionPort.execute(new AgentJobQueueMessage(
+                jobId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                resourceId,
+                AgentJobType.ANALYZE_RESOURCE,
+                Instant.now()
+        ));
+
+        assertThat(outcome).isPresent();
+        assertThat(outcome.get().successful()).isFalse();
+        assertThat(outcome.get().errorCode()).isEqualTo("AGENT_EXECUTION_FAILED");
+        verify(resourceAnalysisService).markAnalysisFailed(resourceId);
     }
 
     @Test

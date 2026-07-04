@@ -19,7 +19,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -31,6 +33,7 @@ public class GoogleCalendarEventService {
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarClient googleCalendarClient;
 	private final GoogleCalendarDeleteRequestService deleteRequestService;
+	private final ProjectRoomCalendarService projectRoomCalendarService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ScheduleResult> getEvents(
@@ -54,8 +57,60 @@ public class GoogleCalendarEventService {
 	}
 
 	@Transactional
+	public ScheduleResult updateGoogleEvent(
+			UUID userId,
+			String googleCalendarId,
+			String googleEventId,
+			UpdateScheduleCommand command
+	) {
+		validateGoogleEventReference(googleCalendarId, googleEventId);
+		validateGoogleEventUpdate(command);
+		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		GoogleCalendarEventPayload updated = googleCalendarClient.updateEvent(
+				connection.getAccessToken(),
+				normalizedCalendarId,
+				googleEventId,
+				patchPayload(command)
+		);
+		EventTimeRange range = hasStartTime(updated) ? EventTimeRange.from(updated) : new EventTimeRange(
+				command.startsAt(),
+				command.endsAt(),
+				Boolean.TRUE.equals(command.allDay())
+		);
+		if (range.startsAt() == null) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		String title = updated == null || updated.summary() == null || updated.summary().isBlank()
+				? command.title()
+				: updated.summary();
+		return scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				normalizedCalendarId,
+				null,
+				googleEventId,
+				title,
+				range.startsAt(),
+				range.endsAt(),
+				range.allDay()
+		);
+	}
+
+	@Transactional
 	public void deleteEvent(UUID userId, UUID scheduleId) {
 		scheduleCalendarPublicService.deleteEvent(userId, scheduleId);
+	}
+
+	@Transactional
+	public void deleteGoogleEvent(UUID userId, String googleCalendarId, String googleEventId) {
+		validateGoogleEventReference(googleCalendarId, googleEventId);
+		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		googleCalendarClient.deleteEvent(connection.getAccessToken(), normalizedCalendarId, googleEventId);
+		scheduleCalendarPublicService.deleteGoogleEventSchedules(userId, normalizedCalendarId, List.of(googleEventId));
+		deleteRequestService.markSucceeded(userId, normalizedCalendarId, googleEventId);
 	}
 
 	@Transactional
@@ -68,14 +123,17 @@ public class GoogleCalendarEventService {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
 		List<GoogleCalendarListEntry> calendars = resolveCalendars(connection.getAccessToken(), calendarIds);
+		Set<String> managedRoomCalendarIds = projectRoomCalendarService.findManagedGoogleCalendarIds(userId);
 		List<ScheduleResult> results = new ArrayList<>();
-		for (GoogleCalendarListEntry calendar : calendars) {
+		for (GoogleCalendarListEntry calendar : calendars.stream()
+				.filter(calendar -> !managedRoomCalendarIds.contains(calendar.id()))
+				.toList()) {
 			results.addAll(syncCalendarEvents(userId, connection.getAccessToken(), calendar, from, to));
 		}
 		return results;
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<GoogleCalendarListEntry> getGoogleCalendars(UUID userId) {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
@@ -101,15 +159,17 @@ public class GoogleCalendarEventService {
 				.toList();
 		scheduleCalendarPublicService.deleteGoogleEventSchedules(
 				userId,
+				calendar.id(),
 				cancelledIds
 		);
-		deleteRequestService.markSucceeded(userId, cancelledIds);
+		deleteRequestService.markSucceeded(userId, calendar.id(), cancelledIds);
 		List<GoogleCalendarEventPayload> activeEvents = events.stream()
 				.filter(event -> !event.isCancelled())
 				.filter(event -> event.id() != null && hasStartTime(event))
 				.toList();
 		Set<String> pendingDeleteIds = deleteRequestService.findPendingGoogleEventIds(
 				userId,
+				calendar.id(),
 				activeEvents.stream()
 						.map(GoogleCalendarEventPayload::id)
 						.toList()
@@ -157,9 +217,9 @@ public class GoogleCalendarEventService {
 	private void retryPendingDelete(UUID userId, String accessToken, String googleCalendarId, String googleEventId) {
 		try {
 			googleCalendarClient.deleteEvent(accessToken, googleCalendarId, googleEventId);
-			deleteRequestService.markSucceeded(userId, googleEventId);
+			deleteRequestService.markSucceeded(userId, googleCalendarId, googleEventId);
 		} catch (BusinessException exception) {
-			deleteRequestService.rememberFailedAttempt(userId, googleEventId);
+			deleteRequestService.rememberFailedAttempt(userId, googleCalendarId, googleEventId);
 		}
 	}
 
@@ -174,18 +234,55 @@ public class GoogleCalendarEventService {
 			return List.of(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
 		}
 		List<GoogleCalendarListEntry> calendars = googleCalendarClient.getCalendars(accessToken);
-		List<GoogleCalendarListEntry> resolved = new ArrayList<>();
+		Map<String, GoogleCalendarListEntry> resolved = new LinkedHashMap<>();
 		if (normalizedIds.contains("primary")) {
-			resolved.add(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
+			resolved.put("primary", new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
 		}
-		resolved.addAll(calendars.stream()
+		calendars.stream()
 				.filter(calendar -> normalizedIds.contains(calendar.id()))
-				.toList());
-		return resolved;
+				.forEach(calendar -> resolved.put(calendar.id(), calendar));
+		return List.copyOf(resolved.values());
+	}
+
+	private void validateGoogleEventReference(String googleCalendarId, String googleEventId) {
+		if (googleCalendarId == null || googleCalendarId.isBlank()
+				|| googleEventId == null || googleEventId.isBlank()) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+	}
+
+	private void validateGoogleEventUpdate(UpdateScheduleCommand command) {
+		if (command == null) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		boolean empty = command.title() == null
+				&& command.startsAt() == null
+				&& command.endsAt() == null
+				&& command.allDay() == null;
+		if (empty || command.title() != null && command.title().isBlank()) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		if (command.startsAt() != null && command.endsAt() != null && !command.endsAt().isAfter(command.startsAt())) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+	}
+
+	private GoogleCalendarEventPayload patchPayload(UpdateScheduleCommand command) {
+		return new GoogleCalendarEventPayload(
+				null,
+				null,
+				command.title(),
+				command.startsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.startsAt().toString()),
+				command.endsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.endsAt().toString())
+		);
+	}
+
+	private String normalizeCalendarId(String googleCalendarId) {
+		return googleCalendarId == null || googleCalendarId.isBlank() ? "primary" : googleCalendarId;
 	}
 
 	private boolean hasStartTime(GoogleCalendarEventPayload event) {
-		if (event.start() == null) {
+		if (event == null || event.start() == null) {
 			return false;
 		}
 		return event.start().dateTime() != null || event.start().date() != null;

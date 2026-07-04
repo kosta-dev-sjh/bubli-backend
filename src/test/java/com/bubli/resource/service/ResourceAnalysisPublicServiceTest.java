@@ -3,6 +3,7 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.dto.ResourceAnalysisSource;
+import com.bubli.resource.entity.AiDocument;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceFile;
 import com.bubli.resource.repository.AiDocumentRepository;
@@ -23,12 +24,17 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ResourceAnalysisPublicServiceTest {
@@ -114,6 +120,57 @@ class ResourceAnalysisPublicServiceTest {
         );
 
         assertThat(service.findReusableAnalysisForJob(resourceId)).isEmpty();
+    }
+
+    @Test
+    void completeAnalysisUpdatesExistingAiDocument() {
+        UUID resourceId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Resource resource = resource(resourceId, roomId);
+        AiDocument aiDocument = AiDocument.analyzed(resourceId, roomId, DocumentType.REFERENCE, null);
+        ResourceRepository resourceRepository = mock(ResourceRepository.class);
+        ResourceFileRepository resourceFileRepository = mock(ResourceFileRepository.class);
+        ResourceSummaryRepository resourceSummaryRepository = mock(ResourceSummaryRepository.class);
+        AiDocumentRepository aiDocumentRepository = mock(AiDocumentRepository.class);
+        ResourceEmbeddingIndexPublicService embeddingIndexService = mock(ResourceEmbeddingIndexPublicService.class);
+        ResourceRelationIndexPublicService relationIndexService = mock(ResourceRelationIndexPublicService.class);
+
+        when(resourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
+        when(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resourceId)).thenReturn(Optional.empty());
+        when(aiDocumentRepository.findByResourceId(resourceId)).thenReturn(Optional.of(aiDocument));
+        when(embeddingIndexService.indexExtractedText(any(), any(), any(), any()))
+                .thenReturn(new ResourceEmbeddingIndexPublicService.IndexResult(false, 0));
+
+        ResourceAnalysisPublicService service = new ResourceAnalysisPublicService(
+                resourceRepository,
+                resourceFileRepository,
+                mock(ResourceExtractedTextRepository.class),
+                resourceSummaryRepository,
+                aiDocumentRepository,
+                embeddingIndexService,
+                relationIndexService,
+                mock(StoragePublicService.class)
+        );
+        ResourceAnalysisSource source = new ResourceAnalysisSource(
+                resourceId,
+                roomId,
+                "contract.txt",
+                "text/plain",
+                DocumentType.CONTRACT,
+                List.of(new com.bubli.resource.dto.ResourceAnalysisPage(null, "계약서 본문")),
+                "계약서 본문",
+                1,
+                6
+        );
+
+        service.completeAnalysisForJob(source, jobId, Map.of("summary", "계약 분석"));
+
+        assertThat(aiDocument.getDocumentType()).isEqualTo(DocumentType.CONTRACT);
+        assertThat(aiDocument.getStatus().name()).isEqualTo("ANALYZED");
+        assertThat(aiDocument.getDetectedConfidence()).isEqualByComparingTo("0.8000");
+        assertThat(resource.getStatus()).isEqualTo(ResourceStatus.ANALYZED);
+        verify(aiDocumentRepository, never()).save(any(AiDocument.class));
     }
 
     private ResourceAnalysisPublicService service(Resource resource, ResourceFile file, byte[] content) {

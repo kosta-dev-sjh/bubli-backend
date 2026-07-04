@@ -8,6 +8,7 @@ import com.bubli.project.type.ProjectRoomStatus;
 import com.bubli.websocket.service.WebSocketPublishPublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -19,9 +20,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("unchecked")
 class ProjectRoomEventRecorderTest {
 
 	private final ProjectRoomEventRepository projectRoomEventRepository = mock(ProjectRoomEventRepository.class);
@@ -118,6 +121,62 @@ class ProjectRoomEventRecorderTest {
 		assertThat(payload.get("contractAmount").decimalValue()).isEqualByComparingTo(BigDecimal.valueOf(2_000_000));
 		assertThat(payload.get("paymentDueDate").asText()).isEqualTo("2026-07-20");
 		assertThat(payload.get("paidAt").asText()).isEqualTo("2026-07-18");
+		verify(webSocketPublishPublicService).publishProjectRoomEvent(
+				savedEvent.getId(),
+				savedEvent.getEventType(),
+				savedEvent.getRoomId(),
+				savedEvent.getSequence(),
+				savedEvent.getOccurredAt(),
+				savedEvent.getActorUserId(),
+				savedEvent.getPayloadJson()
+		);
+	}
+
+	@Test
+	void recordRoomUpdatedRetriesWhenSequenceUniqueConstraintConflicts() {
+		UUID actorUserId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ProjectRoom projectRoom = ProjectRoom.create(
+				actorUserId,
+				"동시 수정 프로젝트",
+				null,
+				null,
+				PaymentStatus.NOT_RECORDED,
+				null,
+				null,
+				ProjectRoomStatus.ACTIVE
+		);
+		ReflectionTestUtils.setField(projectRoom, "id", roomId);
+		ProjectRoomEvent previousEvent = ProjectRoomEvent.create(
+				roomId,
+				2L,
+				"ROOM_CREATED",
+				actorUserId,
+				"{\"roomId\":\"" + roomId + "\"}",
+				null
+		);
+		ProjectRoomEvent concurrentEvent = ProjectRoomEvent.create(
+				roomId,
+				3L,
+				"ROOM_UPDATED",
+				actorUserId,
+				"{\"roomId\":\"" + roomId + "\"}",
+				null
+		);
+		when(projectRoomEventRepository.findTopByRoomIdOrderBySequenceDesc(roomId))
+				.thenReturn(Optional.of(previousEvent), Optional.of(concurrentEvent));
+		when(projectRoomEventRepository.save(any(ProjectRoomEvent.class)))
+				.thenThrow(new DataIntegrityViolationException("duplicate sequence"))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+
+		recorder.recordRoomUpdated(actorUserId, projectRoom);
+
+		ArgumentCaptor<ProjectRoomEvent> eventCaptor = ArgumentCaptor.forClass(ProjectRoomEvent.class);
+		verify(projectRoomEventRepository, times(2)).save(eventCaptor.capture());
+		assertThat(eventCaptor.getAllValues().get(0).getSequence()).isEqualTo(3L);
+		ProjectRoomEvent savedEvent = eventCaptor.getAllValues().get(1);
+		assertThat(savedEvent.getSequence()).isEqualTo(4L);
+		assertThat(savedEvent.getEventType()).isEqualTo(ProjectRoomEventRecorder.ROOM_UPDATED);
 		verify(webSocketPublishPublicService).publishProjectRoomEvent(
 				savedEvent.getId(),
 				savedEvent.getEventType(),

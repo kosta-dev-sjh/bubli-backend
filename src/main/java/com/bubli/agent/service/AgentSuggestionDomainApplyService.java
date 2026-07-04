@@ -103,7 +103,27 @@ public class AgentSuggestionDomainApplyService {
                 integer(payload.get("orderNo")),
                 enumValue(WbsStatus.class, payload.get("status"), WbsStatus.TODO)
         ));
-        return result == null ? Map.of() : Map.of("wbsItemId", result.id().toString());
+        if (result == null) {
+            return Map.of();
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("wbsItemId", result.id().toString());
+        Instant scheduleStartsAt = firstInstant(payload.get("startsAt"), payload.get("dueAt"));
+        if (scheduleStartsAt != null) {
+            var schedule = schedulePublicService.create(reviewerId, new CreateScheduleCommand(
+                    suggestion.getRoomId(),
+                    null,
+                    result.id(),
+                    scheduleTitle(payload, result.title()),
+                    scheduleStartsAt,
+                    instant(payload.get("endsAt")),
+                    bool(payload.get("allDay"))
+            ));
+            if (schedule != null) {
+                details.put("scheduleId", schedule.id().toString());
+            }
+        }
+        return details;
     }
 
     private Map<String, Object> createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
@@ -220,6 +240,21 @@ public class AgentSuggestionDomainApplyService {
     private Instant instant(Object value) {
         String text = text(value);
         return text == null || text.isBlank() ? null : Instant.parse(text);
+    }
+
+    private Instant firstInstant(Object... values) {
+        for (Object value : values) {
+            Instant instant = instant(value);
+            if (instant != null) {
+                return instant;
+            }
+        }
+        return null;
+    }
+
+    private String scheduleTitle(Map<String, Object> payload, String defaultTitle) {
+        String scheduleTitle = text(payload.get("scheduleTitle"));
+        return scheduleTitle == null || scheduleTitle.isBlank() ? defaultTitle : scheduleTitle;
     }
 
     private LocalDate localDate(Object value, LocalDate defaultValue) {

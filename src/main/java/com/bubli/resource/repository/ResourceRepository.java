@@ -4,9 +4,11 @@ import com.bubli.resource.entity.Resource;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -29,6 +31,14 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID> {
 	);
 
 	Optional<Resource> findByIdAndDeletedAtIsNull(UUID id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select resource
+			from Resource resource
+			where resource.id = :resourceId
+			""")
+	Optional<Resource> lockById(@Param("resourceId") UUID resourceId);
 
 	Page<Resource> findByRoomIdAndVisibilityAndKindAndDeletedAtIsNullAndStatusIn(
 			UUID roomId,

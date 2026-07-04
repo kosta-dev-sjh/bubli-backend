@@ -267,7 +267,7 @@ type TauriRefreshResponse = RefreshResponse & {
 |GET|/api/resources/{id}/ai-document|자료의 AI 문서 분류와 분석 상태|
 |GET|/api/resources/{id}/related|관련 문서|
 |GET|/api/resources/{id}/versions|버전 목록|
-|POST|/api/resources/{id}/versions|새 버전 등록|
+|POST|/api/resources/{id}/versions|새 버전 등록. 일반 웹 업로드는 `multipart/form-data`의 `file` 파트를 사용하고, 이미 저장된 객체를 연결하는 내부/확장 흐름은 JSON 메타 등록을 사용할 수 있음|
 |GET|/api/resources/{id}/comments|자료 댓글 목록|
 |POST|/api/resources/{id}/comments|자료 댓글 작성|
 |PATCH|/api/resource-comments/{id}|자료 댓글 수정|
@@ -586,11 +586,12 @@ LiveKit 접속 토큰은 서버에서만 만든다. 프론트와 Tauri 앱에는
 |---|---|---|
 |POST|/api/voice/rooms|프로젝트룸 보이스챗 방 생성. 1:1 보이스는 같은 구조를 재사용하는 확장 후보|
 |GET|/api/voice/rooms/{id}|보이스챗 방 상태와 참여자 조회|
+|GET|/api/voice/rooms?roomId={roomId}|프로젝트룸에서 현재 열린 보이스챗 방 조회|
 |POST|/api/voice/rooms/{id}/token|권한 확인 후 LiveKit 접속 토큰 발급|
 |PATCH|/api/voice/rooms/{id}/leave|통화 나가기와 참가 기록 종료|
 |PATCH|/api/voice/rooms/{id}/end|프로젝트 리더 등 권한 있는 멤버 또는 서버가 통화 종료 처리|
 
-보이스챗 방 상태는 `OPEN`, `ENDED`를 쓴다. 참가 기록은 `JOINED`, `LEFT`, `DISCONNECTED`를 기준으로 화면에 표시한다.
+보이스챗 방 상태는 `OPEN`, `ENDED`를 쓴다. 참가 기록은 `JOINED`, `LEFT`, `DISCONNECTED`를 기준으로 화면에 표시한다. 참여자 응답에는 `micStatus`를 포함해 소통 화면과 버블이 마이크 상태를 바로 표시할 수 있게 한다.
 
 ### 14.8 구현 확인 산출물
 

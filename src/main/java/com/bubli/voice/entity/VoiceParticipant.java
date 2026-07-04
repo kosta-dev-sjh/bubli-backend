@@ -53,6 +53,7 @@ public class VoiceParticipant {
 		p.userId = userId;
 		p.status = VoiceParticipantStatus.JOINED;
 		p.joinedAt = Instant.now();
+		p.micStatus = "UNMUTED";
 		return p;
 	}
 

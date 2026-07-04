@@ -375,6 +375,51 @@ class AgentJobDispatchWorkerTest {
 	}
 
 	@Test
+	void processNextQueuedJobMarksJobFailedWhenExecutionPortThrows() {
+		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		AgentJobExecutionPort executionPort = mock(AgentJobExecutionPort.class);
+		AgentJobExecutionResultRecorder executionResultRecorder = mock(AgentJobExecutionResultRecorder.class);
+		AgentJobExecutionSuggestionRecorder suggestionRecorder = mock(AgentJobExecutionSuggestionRecorder.class);
+		AgentJobExecutionModelCallLogRecorder modelCallLogRecorder =
+				mock(AgentJobExecutionModelCallLogRecorder.class);
+		AgentJobDispatchWorker worker = new AgentJobDispatchWorker(
+				queueConsumer,
+				agentJobRepository,
+				agentJobEventRepository,
+				executionPort,
+				executionResultRecorder,
+				suggestionRecorder,
+				modelCallLogRecorder
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJobQueueMessage message = message(jobId);
+		AgentJob agentJob = AgentJob.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				AgentJobType.ANALYZE_RESOURCE
+		);
+		ReflectionTestUtils.setField(agentJob, "id", jobId);
+		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(executionPort.execute(message)).thenThrow(new IllegalStateException("execution failed"));
+
+		boolean processed = worker.processNextQueuedJob();
+
+		assertThat(processed).isTrue();
+		assertThat(agentJob.getStatus()).isEqualTo(AgentJobStatus.RUNNING);
+		verify(executionResultRecorder, never()).recordSucceeded(any());
+		verify(executionResultRecorder).recordFailed(
+				jobId,
+				"AGENT_EXECUTION_FAILED",
+				"execution failed"
+		);
+		verifyNoInteractions(suggestionRecorder, modelCallLogRecorder);
+	}
+
+	@Test
 	void processNextQueuedJobIgnoresMissingJob() {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
