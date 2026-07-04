@@ -49,6 +49,10 @@ public class TimeLogService {
 				&& !TimeLogStatus.NEEDS_RECOVERY.equals(timeLog.getStatus())) {
 			throw new BusinessException(ErrorCode.PERSONAL_400_001);
 		}
+		timeLogRepository.findFirstByUserIdAndStatus(userId, TimeLogStatus.RUNNING)
+				.ifPresent(running -> {
+					throw new BusinessException(ErrorCode.PERSONAL_409_001);
+				});
 		timeLog.resume(Instant.now());
 		return TimeLogResponse.from(TimeLogResult.from(timeLog));
 	}

@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/calendar-token-refresh-transaction-20260705` |
+| 현재 확인 브랜치 | `codex/timelog-resume-running-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 타이머 재개 시 중복 RUNNING 500 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- DB에는 `uk_time_logs_user_running` partial unique index가 있어 사용자당 `RUNNING` 타이머는 하나만 허용된다.
+- 기존 `start`는 이미 실행 중인 타이머가 있으면 409로 막았지만, `resume`은 `PAUSED/NEEDS_RECOVERY` 타이머를 `RUNNING`으로 바꾸기 전에 다른 `RUNNING` 타이머 존재 여부를 확인하지 않았다.
+- 사용자가 일시정지된 타이머를 둔 상태에서 다른 타이머를 시작한 뒤 예전 타이머를 재개하면, flush 시 DB unique 충돌이 500으로 샐 수 있었다.
+- `resume` 전에 같은 사용자의 기존 `RUNNING` 타이머를 확인하고, 있으면 `PERSONAL_409_001`로 명확히 거절하게 했다.
+- 단위 테스트와 통합 테스트로 기존 `PAUSED -> RUNNING` 정상 흐름과 중복 재개 409 응답을 함께 확인했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.timer.service.TimeLogServiceTest --tests com.bubli.personal.timer.controller.TimeLogControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 후속 후보: 프로젝트룸 탈퇴/강퇴 시 해당 room RUNNING 타임로그 처리, WBS parent/order update 가드, 생성 문서가 연결된 agent suggestion 삭제 가드.
 
 ### Google Calendar 조회 중 토큰 갱신 트랜잭션 보정
 
