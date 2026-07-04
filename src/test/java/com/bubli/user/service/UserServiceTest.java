@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -265,12 +264,18 @@ class UserServiceTest {
 	@Test
 	void updateNotificationPreferencesUpsertsRequestedTypes() {
 		UUID userId = UUID.randomUUID();
-		UserNotificationPreference existingPreference = UserNotificationPreference.create(
+		UserNotificationPreference messagePreference = UserNotificationPreference.create(
 				userId,
 				NotificationType.MESSAGE,
+				false
+		);
+		UserNotificationPreference agentPreference = UserNotificationPreference.create(
+				userId,
+				NotificationType.AGENT,
 				true
 		);
-		given(userNotificationPreferenceRepository.findByIdUserId(userId)).willReturn(List.of(existingPreference));
+		given(userNotificationPreferenceRepository.findByIdUserId(userId))
+				.willReturn(List.of(messagePreference, agentPreference));
 
 		UserNotificationPreferencesResult result = userService.updateNotificationPreferences(
 				userId,
@@ -289,19 +294,9 @@ class UserServiceTest {
 				.singleElement()
 				.satisfies(item -> assertThat(item.enabled()).isTrue());
 		org.mockito.Mockito.verify(userNotificationPreferenceRepository)
-				.saveAll(ArgumentMatchers.argThat(preferences -> {
-					List<UserNotificationPreference> savedPreferences = StreamSupport.stream(
-							preferences.spliterator(),
-							false
-					).toList();
-					return savedPreferences.size() == 2
-							&& savedPreferences.stream()
-							.anyMatch(preference -> preference.getNotificationType() == NotificationType.MESSAGE
-									&& !preference.isEnabled())
-							&& savedPreferences.stream()
-							.anyMatch(preference -> preference.getNotificationType() == NotificationType.AGENT
-									&& preference.isEnabled());
-				}));
+				.upsertEnabled(userId, NotificationType.MESSAGE.name(), false);
+		org.mockito.Mockito.verify(userNotificationPreferenceRepository)
+				.upsertEnabled(userId, NotificationType.AGENT.name(), true);
 	}
 
 	@Test
@@ -325,12 +320,18 @@ class UserServiceTest {
 	@Test
 	void updatePrivacyConsentsUpsertsRequestedTypes() {
 		UUID userId = UUID.randomUUID();
-		UserPrivacyConsent existingConsent = UserPrivacyConsent.create(
+		UserPrivacyConsent activityContextConsent = UserPrivacyConsent.create(
 				userId,
 				ConsentType.ACTIVITY_CONTEXT,
+				true
+		);
+		UserPrivacyConsent managedFolderConsent = UserPrivacyConsent.create(
+				userId,
+				ConsentType.MANAGED_FOLDER,
 				false
 		);
-		given(userPrivacyConsentRepository.findByIdUserId(userId)).willReturn(List.of(existingConsent));
+		given(userPrivacyConsentRepository.findByIdUserId(userId))
+				.willReturn(List.of(activityContextConsent, managedFolderConsent));
 
 		UserPrivacyConsentsResult result = userService.updatePrivacyConsents(
 				userId,
@@ -355,18 +356,8 @@ class UserServiceTest {
 					assertThat(item.updatedAt()).isNotNull();
 				});
 		org.mockito.Mockito.verify(userPrivacyConsentRepository)
-				.saveAll(ArgumentMatchers.argThat(consents -> {
-					List<UserPrivacyConsent> savedConsents = StreamSupport.stream(
-							consents.spliterator(),
-							false
-					).toList();
-					return savedConsents.size() == 2
-							&& savedConsents.stream()
-							.anyMatch(consent -> consent.getConsentType() == ConsentType.ACTIVITY_CONTEXT
-									&& consent.isEnabled())
-							&& savedConsents.stream()
-							.anyMatch(consent -> consent.getConsentType() == ConsentType.MANAGED_FOLDER
-									&& !consent.isEnabled());
-				}));
+				.upsertEnabled(userId, ConsentType.ACTIVITY_CONTEXT.name(), true);
+		org.mockito.Mockito.verify(userPrivacyConsentRepository)
+				.upsertEnabled(userId, ConsentType.MANAGED_FOLDER.name(), false);
 	}
 }
