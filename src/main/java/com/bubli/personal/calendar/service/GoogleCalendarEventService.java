@@ -54,8 +54,59 @@ public class GoogleCalendarEventService {
 	}
 
 	@Transactional
+	public ScheduleResult updateGoogleEvent(
+			UUID userId,
+			String googleCalendarId,
+			String googleEventId,
+			UpdateScheduleCommand command
+	) {
+		validateGoogleEventReference(googleCalendarId, googleEventId);
+		validateGoogleEventUpdate(command);
+		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		GoogleCalendarEventPayload updated = googleCalendarClient.updateEvent(
+				connection.getAccessToken(),
+				normalizedCalendarId,
+				googleEventId,
+				patchPayload(command)
+		);
+		EventTimeRange range = hasStartTime(updated) ? EventTimeRange.from(updated) : new EventTimeRange(
+				command.startsAt(),
+				command.endsAt(),
+				Boolean.TRUE.equals(command.allDay())
+		);
+		if (range.startsAt() == null) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		String title = updated == null || updated.summary() == null || updated.summary().isBlank()
+				? command.title()
+				: updated.summary();
+		return scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				normalizedCalendarId,
+				null,
+				googleEventId,
+				title,
+				range.startsAt(),
+				range.endsAt(),
+				range.allDay()
+		);
+	}
+
+	@Transactional
 	public void deleteEvent(UUID userId, UUID scheduleId) {
 		scheduleCalendarPublicService.deleteEvent(userId, scheduleId);
+	}
+
+	@Transactional
+	public void deleteGoogleEvent(UUID userId, String googleCalendarId, String googleEventId) {
+		validateGoogleEventReference(googleCalendarId, googleEventId);
+		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
+		googleCalendarClient.deleteEvent(connection.getAccessToken(), normalizeCalendarId(googleCalendarId), googleEventId);
+		scheduleCalendarPublicService.deleteGoogleEventSchedules(userId, List.of(googleEventId));
+		deleteRequestService.markSucceeded(userId, googleEventId);
 	}
 
 	@Transactional
@@ -184,8 +235,45 @@ public class GoogleCalendarEventService {
 		return resolved;
 	}
 
+	private void validateGoogleEventReference(String googleCalendarId, String googleEventId) {
+		if (googleCalendarId == null || googleCalendarId.isBlank()
+				|| googleEventId == null || googleEventId.isBlank()) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+	}
+
+	private void validateGoogleEventUpdate(UpdateScheduleCommand command) {
+		if (command == null) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		boolean empty = command.title() == null
+				&& command.startsAt() == null
+				&& command.endsAt() == null
+				&& command.allDay() == null;
+		if (empty || command.title() != null && command.title().isBlank()) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+		if (command.startsAt() != null && command.endsAt() != null && !command.endsAt().isAfter(command.startsAt())) {
+			throw new BusinessException(ErrorCode.CALENDAR_400_001);
+		}
+	}
+
+	private GoogleCalendarEventPayload patchPayload(UpdateScheduleCommand command) {
+		return new GoogleCalendarEventPayload(
+				null,
+				null,
+				command.title(),
+				command.startsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.startsAt().toString()),
+				command.endsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.endsAt().toString())
+		);
+	}
+
+	private String normalizeCalendarId(String googleCalendarId) {
+		return googleCalendarId == null || googleCalendarId.isBlank() ? "primary" : googleCalendarId;
+	}
+
 	private boolean hasStartTime(GoogleCalendarEventPayload event) {
-		if (event.start() == null) {
+		if (event == null || event.start() == null) {
 			return false;
 		}
 		return event.start().dateTime() != null || event.start().date() != null;

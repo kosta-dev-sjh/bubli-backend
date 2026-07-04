@@ -3,13 +3,17 @@ package com.bubli.work.schedule.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.calendar.dto.GoogleCalendarSyncResult;
 import com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
+import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
+import com.bubli.work.wbs.service.WbsItemPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +43,12 @@ class ScheduleServiceTest {
 
 	@Mock
 	ScheduleRepository scheduleRepository;
+
+	@Mock
+	TaskPublicService taskPublicService;
+
+	@Mock
+	WbsItemPublicService wbsItemPublicService;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -93,6 +103,42 @@ class ScheduleServiceTest {
 				null,
 				null,
 				"클라이언트 중간 리뷰",
+				Instant.parse("2026-07-03T05:00:00Z"),
+				Instant.parse("2026-07-03T06:00:00Z"),
+				false
+		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void createScheduleRejectsWbsItemWithoutRoomId() {
+		UUID userId = UUID.randomUUID();
+		UUID wbsItemId = UUID.randomUUID();
+
+		assertThatThrownBy(() -> scheduleService.create(userId, new CreateScheduleCommand(
+				null,
+				null,
+				wbsItemId,
+				"WBS 일정",
+				Instant.parse("2026-07-03T05:00:00Z"),
+				Instant.parse("2026-07-03T06:00:00Z"),
+				false
+		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void createScheduleRejectsWbsItemFromDifferentRoom() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID wbsItemId = UUID.randomUUID();
+		willThrow(new BusinessException(ErrorCode.SCHEDULE_400_001))
+				.given(wbsItemPublicService)
+				.assertRoomWbsItem(roomId, wbsItemId);
+
+		assertThatThrownBy(() -> scheduleService.create(userId, new CreateScheduleCommand(
+				roomId,
+				null,
+				wbsItemId,
+				"WBS 일정",
 				Instant.parse("2026-07-03T05:00:00Z"),
 				Instant.parse("2026-07-03T06:00:00Z"),
 				false
@@ -176,6 +222,76 @@ class ScheduleServiceTest {
 				null,
 				null
 		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void updateRoomScheduleSyncsGoogleWithScheduleOwnerWhenMemberEdits() {
+		UUID ownerId = UUID.randomUUID();
+		UUID editorId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				ownerId,
+				roomId,
+				null,
+				null,
+				"중간 리뷰",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				Instant.parse("2026-07-02T02:00:00Z"),
+				false
+		);
+		schedule.markSynced("room-calendar", "프로젝트룸", "google-event-1");
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+		given(googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+				eq(ownerId),
+				any(ScheduleSyncTarget.class)
+		)).willReturn(GoogleCalendarSyncResult.succeeded("google-event-1", "room-calendar", "프로젝트룸"));
+
+		scheduleService.update(editorId, scheduleId, new UpdateScheduleCommand(
+				"수정된 중간 리뷰",
+				null,
+				null,
+				null,
+				null,
+				null
+		));
+
+		verify(projectMembershipPublicService).assertActiveMember(editorId, roomId);
+		verify(googleCalendarScheduleSyncPublicService).syncCreatedOrUpdatedSchedule(
+				eq(ownerId),
+				any(ScheduleSyncTarget.class)
+		);
+	}
+
+	@Test
+	void deleteRoomScheduleSyncsGoogleWithScheduleOwnerWhenMemberDeletes() {
+		UUID ownerId = UUID.randomUUID();
+		UUID editorId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID scheduleId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				ownerId,
+				roomId,
+				null,
+				null,
+				"삭제할 리뷰",
+				Instant.parse("2026-07-02T01:00:00Z"),
+				Instant.parse("2026-07-02T02:00:00Z"),
+				false
+		);
+		schedule.markSynced("room-calendar", "프로젝트룸", "google-event-1");
+		ReflectionTestUtils.setField(schedule, "id", scheduleId);
+		given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+		scheduleService.delete(editorId, scheduleId);
+
+		verify(projectMembershipPublicService).assertActiveMember(editorId, roomId);
+		verify(googleCalendarScheduleSyncPublicService).deleteSyncedSchedule(
+				eq(ownerId),
+				any(ScheduleSyncTarget.class)
+		);
+		verify(scheduleRepository).delete(schedule);
 	}
 
 	private Specification<Schedule> anyScheduleSpec() {

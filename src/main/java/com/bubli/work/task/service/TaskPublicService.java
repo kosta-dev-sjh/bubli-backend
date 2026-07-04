@@ -21,5 +21,7 @@ public interface TaskPublicService {
 
 	void assertNoTaskLinkedToWbsItem(UUID wbsItemId);
 
+	void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId);
+
 	TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command);
 }

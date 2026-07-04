@@ -80,8 +80,8 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 	}
 
 	/**
-	 * 새 이벤트를 생성할 때 룸 일정(WBS 포함)은 룸 이름으로 생성된 전용 Google Calendar로 라우팅한다.
-	 * 이미 Google에 존재하는 이벤트는 기존 캘린더 위치를 유지하고, 개인 일정은 primary를 사용한다.
+	 * 새 이벤트를 생성할 때 개인 일정은 기본 캘린더, 프로젝트룸 일정은 프로젝트룸 전용 Google Calendar로 라우팅한다.
+	 * 이미 Google에 존재하는 이벤트는 기존 캘린더 위치를 유지한다.
 	 */
 	private CalendarTarget resolveCalendarTarget(UUID userId, ScheduleSyncTarget schedule) {
 		if (schedule.googleEventId() != null && !schedule.googleEventId().isBlank()) {
