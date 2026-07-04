@@ -162,6 +162,31 @@ class ProjectRoomMemberServiceTest {
 	}
 
 	@Test
+	void createInvitationRejectsAlreadyExpiredExpiresAt() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		CreateInvitationCommand command = new CreateInvitationCommand(
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().minusSeconds(60)
+		);
+
+		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.empty());
+		given(invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
+				roomId,
+				invitee.getId(),
+				InvitationStatus.PENDING
+		)).willReturn(false);
+
+		assertThatThrownBy(() -> projectRoomMemberService.createInvitation(leaderId, roomId, command))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+	}
+
+	@Test
 	void ordinaryMemberCannotCreateInvitation() {
 		UUID roomId = UUID.randomUUID();
 		UUID memberId = UUID.randomUUID();

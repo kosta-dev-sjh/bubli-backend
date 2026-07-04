@@ -26,6 +26,56 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 	Optional<Invitation> findByIdAndInviteeUserId(UUID id, UUID inviteeUserId);
 
 	@Modifying
+	@Query("""
+			update Invitation invitation
+			set invitation.status = :expiredStatus,
+			    invitation.updatedAt = :now
+			where invitation.roomId = :roomId
+			  and invitation.inviteeUserId = :inviteeUserId
+			  and invitation.status = :pendingStatus
+			  and invitation.expiresAt <= :now
+			""")
+	int expirePendingByRoomIdAndInviteeUserId(
+			@Param("roomId") UUID roomId,
+			@Param("inviteeUserId") UUID inviteeUserId,
+			@Param("pendingStatus") InvitationStatus pendingStatus,
+			@Param("expiredStatus") InvitationStatus expiredStatus,
+			@Param("now") Instant now
+	);
+
+	@Modifying
+	@Query("""
+			update Invitation invitation
+			set invitation.status = :expiredStatus,
+			    invitation.updatedAt = :now
+			where invitation.roomId = :roomId
+			  and invitation.status = :pendingStatus
+			  and invitation.expiresAt <= :now
+			""")
+	int expirePendingByRoomId(
+			@Param("roomId") UUID roomId,
+			@Param("pendingStatus") InvitationStatus pendingStatus,
+			@Param("expiredStatus") InvitationStatus expiredStatus,
+			@Param("now") Instant now
+	);
+
+	@Modifying
+	@Query("""
+			update Invitation invitation
+			set invitation.status = :expiredStatus,
+			    invitation.updatedAt = :now
+			where invitation.inviteeUserId = :inviteeUserId
+			  and invitation.status = :pendingStatus
+			  and invitation.expiresAt <= :now
+			""")
+	int expirePendingByInviteeUserId(
+			@Param("inviteeUserId") UUID inviteeUserId,
+			@Param("pendingStatus") InvitationStatus pendingStatus,
+			@Param("expiredStatus") InvitationStatus expiredStatus,
+			@Param("now") Instant now
+	);
+
+	@Modifying
 	@Query(value = """
 		insert into invitations (
 			id,
