@@ -51,6 +51,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -410,13 +412,13 @@ public class ResourceService {
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
-		var files = resourceFileRepository.findByResourceId(resourceId);
+		List<ResourceFile> files = resourceFileRepository.findByResourceId(resourceId);
 		long usedBytes = files.stream()
 				.mapToLong(ResourceFile::getSizeBytes)
 				.sum();
 		resource.markDeleted(Instant.now());
-		deleteStoredFiles(files);
 		releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), usedBytes);
+		deleteStoredFilesAfterCommit(files);
 	}
 
 	@Transactional
@@ -640,6 +642,23 @@ public class ResourceService {
 				recordStorageDeleteRetry(file, exception);
 			}
 		}
+	}
+
+	private void deleteStoredFilesAfterCommit(List<ResourceFile> files) {
+		if (files.isEmpty()) {
+			return;
+		}
+		List<ResourceFile> filesToDelete = List.copyOf(files);
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			deleteStoredFiles(filesToDelete);
+			return;
+		}
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				deleteStoredFiles(filesToDelete);
+			}
+		});
 	}
 
 	private void recordStorageDeleteRetry(ResourceFile file, RuntimeException cause) {
