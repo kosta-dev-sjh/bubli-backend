@@ -34,7 +34,7 @@ public class AiJobCommandService {
 
 	@Transactional
 	public AgentJobResult createAnalyzeResourceJob(UUID userId, UUID resourceId, Map<String, Object> payload) {
-		ResourceResult resource = resourcePublicService.getReadableResource(userId, resourceId);
+		ResourceResult resource = resourcePublicService.startAnalysis(userId, resourceId);
 		Map<String, Object> requestPayload = localePayload(userId);
 		if (payload != null) {
 			requestPayload.putAll(payload);

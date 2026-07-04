@@ -66,6 +66,7 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome).isPresent();
         assertThat(outcome.get().successful()).isFalse();
         assertThat(outcome.get().errorCode()).isEqualTo("AGENT_EXECUTION_FAILED");
+        assertThat(outcome.get().errorMessage()).isEqualTo("Extracted text is empty.");
         verify(resourceAnalysisService).markAnalysisFailed(resourceId);
     }
 
