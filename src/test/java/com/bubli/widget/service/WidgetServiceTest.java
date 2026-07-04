@@ -8,6 +8,7 @@ import com.bubli.personal.timer.type.TimeLogStatus;
 import com.bubli.personal.timer.type.TimerType;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.widget.dto.WidgetSummaryResponse;
+import com.bubli.widget.dto.BubbleSettingUpdate;
 import com.bubli.widget.entity.WidgetBubbleSetting;
 import com.bubli.widget.entity.WidgetContextSetting;
 import com.bubli.widget.entity.WidgetItemState;
@@ -32,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -135,6 +138,26 @@ class WidgetServiceTest {
 		assertThat(response.unreadNotificationCount()).isEqualTo(3);
 		assertThat(response.runningTimer()).isEqualTo(timer);
 		assertThat(response.agentSuggestionSummary()).containsExactly("검토 필요");
+	}
+
+	@Test
+	void updateSettingsAcceptsResourceAndAlertBubbles() {
+		UUID userId = UUID.randomUUID();
+		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.RESOURCE)).willReturn(Optional.empty());
+		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.ALERT)).willReturn(Optional.empty());
+		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
+				WidgetBubbleSetting.create(userId, BubbleType.RESOURCE),
+				WidgetBubbleSetting.create(userId, BubbleType.ALERT)
+		));
+
+		var response = widgetService.updateSettings(userId, List.of(
+				new BubbleSettingUpdate("RESOURCE", true, 120, 160, 320, 420, false, BigDecimal.ONE, false, true),
+				new BubbleSettingUpdate("ALERT", true, 180, 220, 300, 360, true, BigDecimal.valueOf(0.80), false, true)
+		));
+
+		assertThat(response.bubbles()).extracting("bubbleType").containsExactly("RESOURCE", "ALERT");
+		verify(bubbleSettingRepository, times(2)).save(any(WidgetBubbleSetting.class));
 	}
 
 	@Test
