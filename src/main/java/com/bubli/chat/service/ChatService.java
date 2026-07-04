@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -131,12 +132,8 @@ public class ChatService {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
 
-		memberIds.forEach(memberId -> {
-			userPublicService.getUser(memberId);
-			if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(chatRoomId, memberId, ChatMemberStatus.ACTIVE)) {
-				chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
-			}
-		});
+		memberIds.forEach(userPublicService::getUser);
+		syncChatRoomMembers(chatRoomId, memberIds);
 
 		return ChatRoomResult.from(chatRoom);
 	}
@@ -239,7 +236,11 @@ public class ChatService {
 	}
 
 	private void addActiveProjectMembers(UUID chatRoomId, UUID roomId) {
-		List<UUID> memberIds = projectMembershipPublicService.findActiveMemberIds(roomId).stream()
+		syncChatRoomMembers(chatRoomId, projectMembershipPublicService.findActiveMemberIds(roomId));
+	}
+
+	private void syncChatRoomMembers(UUID chatRoomId, Collection<UUID> userIds) {
+		List<UUID> memberIds = userIds.stream()
 				.filter(Objects::nonNull)
 				.distinct()
 				.toList();
