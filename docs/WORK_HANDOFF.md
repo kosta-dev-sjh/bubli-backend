@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/user-preference-upsert-guard-20260705` |
+| 현재 확인 브랜치 | `codex/user-settings-upsert-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,29 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 사용자 알림/동의 설정 upsert 저장 안정화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `user_notification_preferences`, `user_privacy_consents`는 사용자와 설정 타입을 primary key로 쓰므로 첫 저장 요청이 동시에 들어오면 생성 충돌이 날 수 있다.
+- 알림 설정 저장은 `INSERT ... ON CONFLICT DO UPDATE`로 바꿔 기존 row가 있으면 바로 갱신하게 했다.
+- 개인정보 동의 저장도 같은 upsert 경로로 바꾸고, 생성/수정 시 `updated_at`을 DB 기준 현재 시각으로 갱신한다.
+- 저장 후 현재 DB row를 다시 읽어 응답을 만들게 해, 동시 저장 뒤에도 응답이 실제 저장 상태를 따르게 했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.user.service.UserServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 사용자 설정 생성 충돌 방지와 잠금 저장
 
