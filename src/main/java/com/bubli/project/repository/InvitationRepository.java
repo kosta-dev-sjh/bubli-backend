@@ -13,6 +13,8 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
 	Page<Invitation> findByRoomId(UUID roomId, Pageable pageable);
 
+	Page<Invitation> findByInviteeUserIdAndStatus(UUID inviteeUserId, InvitationStatus status, Pageable pageable);
+
 	boolean existsByRoomIdAndInviteeUserIdAndStatus(UUID roomId, UUID inviteeUserId, InvitationStatus status);
 
 	Optional<Invitation> findByIdAndInviteeUserId(UUID id, UUID inviteeUserId);
