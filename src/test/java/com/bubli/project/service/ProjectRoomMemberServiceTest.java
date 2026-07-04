@@ -204,7 +204,8 @@ class ProjectRoomMemberServiceTest {
 				InvitationStatus.PENDING,
 				pageable
 		)).willReturn(new PageImpl<>(List.of(invitation), pageable, 1));
-		given(userPublicService.getUsers(any())).willReturn(Map.of(inviter.getId(), userResult(inviter)));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<org.springframework.data.domain.Page<UUID>>any()))
+				.willReturn(Map.of(inviter.getId(), userResult(inviter)));
 		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
 		given(projectRoomRepository.findAllById(any())).willReturn(List.of(room));
 

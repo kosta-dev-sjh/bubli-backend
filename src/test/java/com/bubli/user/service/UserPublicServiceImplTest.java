@@ -14,6 +14,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class UserPublicServiceImplTest {
@@ -105,5 +109,41 @@ class UserPublicServiceImplTest {
 				"ko",
 				"Asia/Seoul"
 		))).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void getUsersDeduplicatesIdsAndFiltersInactiveUsers() {
+		UUID activeUserId = UUID.randomUUID();
+		UUID withdrawnUserId = UUID.randomUUID();
+		User activeUser = user(activeUserId, "active-sub", "active-id", "미연");
+		User withdrawnUser = user(withdrawnUserId, "withdrawn-sub", "withdrawn-id", "탈퇴");
+		withdrawnUser.withdraw();
+		given(userRepository.findAllById(List.of(activeUserId, withdrawnUserId)))
+				.willReturn(List.of(activeUser, withdrawnUser));
+
+		Map<UUID, UserResult> result = userPublicService.getUsers(Arrays.asList(
+				activeUserId,
+				null,
+				activeUserId,
+				withdrawnUserId
+		));
+
+		assertThat(result).containsOnlyKeys(activeUserId);
+		assertThat(result.get(activeUserId).name()).isEqualTo("미연");
+		verify(userRepository).findAllById(List.of(activeUserId, withdrawnUserId));
+	}
+
+	@Test
+	void getUsersReturnsEmptyMapWithoutRepositoryCallWhenNoValidIds() {
+		Map<UUID, UserResult> result = userPublicService.getUsers(Arrays.asList((UUID) null));
+
+		assertThat(result).isEmpty();
+		verifyNoInteractions(userRepository);
+	}
+
+	private User user(UUID userId, String googleSub, String bubliId, String name) {
+		User user = User.createGoogleUser(googleSub, bubliId, name, null, "ko", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		return user;
 	}
 }

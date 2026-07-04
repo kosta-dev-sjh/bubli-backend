@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -103,7 +104,7 @@ class VoiceRoomServiceTest {
 		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
-		given(userPublicService.getUsers(any())).willReturn(Map.of(
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
 				requesterId, user(requesterId, "미연"),
 				otherUserId, user(otherUserId, "수진")
 		));
@@ -111,7 +112,7 @@ class VoiceRoomServiceTest {
 		VoiceRoomResponse response = voiceRoomService.getVoiceRoom(requesterId, voiceRoom.getId());
 
 		verify(projectRoomAccessPublicService).requireRoomMember(roomId, requesterId);
-		verify(userPublicService, times(1)).getUsers(any());
+		verify(userPublicService, times(1)).getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any());
 		verify(userPublicService, never()).getUser(any());
 		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
 	}
@@ -149,7 +150,8 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUsers(any())).willReturn(Map.of(userId, user(userId)));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.leaveVoiceRoom(userId, voiceRoom.getId());
 
@@ -173,7 +175,8 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
 				.willReturn(List.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUsers(any())).willReturn(Map.of(userId, user(userId)));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.endVoiceRoom(userId, voiceRoom.getId());
 

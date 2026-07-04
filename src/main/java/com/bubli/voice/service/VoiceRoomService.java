@@ -19,7 +19,6 @@ import com.bubli.voice.type.VoiceRoomStatus;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -220,7 +219,7 @@ public class VoiceRoomService {
             return Map.of();
         }
         try {
-            return userPublicService.getUsers(new PageImpl<>(distinctUserIds)).values().stream()
+            return userPublicService.getUsers(distinctUserIds).values().stream()
                 .collect(Collectors.toMap(
                         UserResult::id,
                         user -> Optional.ofNullable(user.name()).orElse("")
