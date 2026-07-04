@@ -36,6 +36,7 @@ public class GoogleCalendarGroupService {
 	private final ProjectRoomPublicService projectRoomPublicService;
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarClient googleCalendarClient;
+	private final ProjectRoomCalendarService projectRoomCalendarService;
 
 	@Transactional(readOnly = true)
 	public List<CalendarEventGroupResponse> getGroupedEvents(
@@ -95,6 +96,7 @@ public class GoogleCalendarGroupService {
 				null,
 				sortEvents(personalEvents)
 		));
+		Map<UUID, String> roomCalendarIds = projectRoomCalendarService.findGoogleCalendarIds(userId, roomEvents.keySet());
 		for (Map.Entry<UUID, List<CalendarGroupEventResponse>> entry : roomEvents.entrySet()) {
 			UUID projectRoomId = entry.getKey();
 			groups.add(CalendarEventGroupResponse.of(
@@ -102,7 +104,7 @@ public class GoogleCalendarGroupService {
 					projectRoomId.toString(),
 					roomNames.getOrDefault(projectRoomId, projectRoomId.toString()),
 					projectRoomId,
-					null,
+					roomCalendarIds.get(projectRoomId),
 					sortEvents(entry.getValue())
 			));
 		}

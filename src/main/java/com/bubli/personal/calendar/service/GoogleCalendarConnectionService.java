@@ -24,7 +24,8 @@ import java.util.UUID;
 public class GoogleCalendarConnectionService implements GoogleCalendarConnectionPublicService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
-	private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events "
+	private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar "
+			+ "https://www.googleapis.com/auth/calendar.events "
 			+ "https://www.googleapis.com/auth/calendar.readonly";
 
 	private final GoogleCalendarConnectionRepository connectionRepository;

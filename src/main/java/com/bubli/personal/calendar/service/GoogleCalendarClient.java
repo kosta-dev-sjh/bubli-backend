@@ -15,6 +15,8 @@ public interface GoogleCalendarClient {
 
 	GoogleCalendarUserInfoResponse fetchUserInfo(String accessToken);
 
+	String insertCalendar(String accessToken, String summary);
+
 	GoogleCalendarEventPayload createEvent(String accessToken, GoogleCalendarEventPayload payload);
 
 	GoogleCalendarEventPayload createEvent(String accessToken, String calendarId, GoogleCalendarEventPayload payload);
