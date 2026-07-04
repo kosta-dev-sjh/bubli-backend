@@ -51,6 +51,16 @@ class ScheduleRepositoryIntegrationTest extends PostgresIntegrationTestSupport {
 						false
 				),
 				Schedule.create(
+						user.getId(),
+						null,
+						null,
+						null,
+						"전날 시작해 겹치는 개인 일정",
+						Instant.parse("2026-07-09T23:00:00Z"),
+						Instant.parse("2026-07-10T01:00:00Z"),
+						false
+				),
+				Schedule.create(
 						otherUser.getId(),
 						activeRoom.getId(),
 						null,
@@ -58,6 +68,16 @@ class ScheduleRepositoryIntegrationTest extends PostgresIntegrationTestSupport {
 						"활성 룸 일정",
 						Instant.parse("2026-07-10T03:00:00Z"),
 						Instant.parse("2026-07-10T04:00:00Z"),
+						false
+				),
+				Schedule.create(
+						otherUser.getId(),
+						activeRoom.getId(),
+						null,
+						null,
+						"전날 시작해 겹치는 룸 일정",
+						Instant.parse("2026-07-09T22:00:00Z"),
+						Instant.parse("2026-07-10T00:30:00Z"),
 						false
 				),
 				Schedule.create(
@@ -89,15 +109,38 @@ class ScheduleRepositoryIntegrationTest extends PostgresIntegrationTestSupport {
 						to,
 						Instant.parse("2026-07-11T01:00:00Z"),
 						false
+				),
+				Schedule.create(
+						user.getId(),
+						null,
+						null,
+						null,
+						"전날 끝난 일정",
+						Instant.parse("2026-07-09T22:00:00Z"),
+						from,
+						false
+				),
+				Schedule.create(
+						user.getId(),
+						null,
+						null,
+						null,
+						"종료 없는 과거 일정",
+						Instant.parse("2026-07-09T22:00:00Z"),
+						null,
+						false
 				)
 		));
 
 		assertThat(scheduleRepository.findVisibleBetweenForUser(user.getId(), List.of(activeRoom.getId()), from, to))
 				.extracting(Schedule::getTitle)
-				.containsExactly("개인 일정", "활성 룸 일정");
+				.containsExactly("전날 시작해 겹치는 룸 일정", "전날 시작해 겹치는 개인 일정", "개인 일정", "활성 룸 일정");
 		assertThat(scheduleRepository.findPersonalBetweenForUser(user.getId(), from, to))
 				.extracting(Schedule::getTitle)
-				.containsExactly("개인 일정");
+				.containsExactly("전날 시작해 겹치는 개인 일정", "개인 일정");
+		assertThat(scheduleRepository.findRoomOverlappingForRoom(activeRoom.getId(), from, to))
+				.extracting(Schedule::getTitle)
+				.containsExactly("전날 시작해 겹치는 룸 일정", "활성 룸 일정");
 	}
 
 	private User saveUser(String googleSub, String bubliId) {

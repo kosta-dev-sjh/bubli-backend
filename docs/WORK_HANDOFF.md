@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/resource-version-upload-20260705` |
+| 현재 확인 브랜치 | `codex/schedule-overlap-window-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 캘린더 범위 조회의 겹치는 일정 누락 보정
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 기존 일정 조회는 `startsAt`이 조회 범위 안에 있는 일정만 반환했다.
+- 전날 밤에 시작해 오늘 새벽까지 이어지는 일정처럼 조회 범위와 겹치지만 시작 시각이 범위 밖인 일정이 캘린더, 대시보드, 위젯에서 빠질 수 있었다.
+- 개인 일정과 active 프로젝트룸 일정 통합 조회, 프로젝트룸 일정 조회, `/api/schedules` 조회 조건을 모두 “조회 범위와 시간이 겹치는 일정” 기준으로 맞췄다.
+- 종료 시간이 있는 일정은 `startsAt < to`이고 `endsAt > from`이면 포함한다.
+- 종료 시간이 없는 일정은 기존처럼 `startsAt`이 조회 범위 안에 있을 때만 포함한다.
+- 범위 시작 시각에 정확히 끝난 일정과 범위 끝 시각에 시작한 일정은 중복 표시를 피하기 위해 제외한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.schedule.repository.ScheduleRepositoryIntegrationTest --tests com.bubli.work.schedule.controller.ScheduleControllerIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest --tests com.bubli.work.schedule.repository.ScheduleRepositoryIntegrationTest --tests com.bubli.work.schedule.controller.ScheduleControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 자료 버전 multipart 업로드와 사용량 롤백 보강
 
