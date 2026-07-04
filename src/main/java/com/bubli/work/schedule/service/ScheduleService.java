@@ -221,10 +221,27 @@ public class ScheduleService {
 				predicates.add(criteriaBuilder.equal(root.get("roomId"), roomId));
 			}
 			if (from != null) {
-				predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from));
+				if (to == null) {
+					predicates.add(criteriaBuilder.or(
+							criteriaBuilder.and(
+									criteriaBuilder.isNull(root.get("endsAt")),
+									criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from)
+							),
+							criteriaBuilder.greaterThan(root.get("endsAt"), from)
+					));
+				}
 			}
 			if (to != null) {
 				predicates.add(criteriaBuilder.lessThan(root.get("startsAt"), to));
+			}
+			if (from != null && to != null) {
+				predicates.add(criteriaBuilder.or(
+						criteriaBuilder.and(
+								criteriaBuilder.isNull(root.get("endsAt")),
+								criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from)
+						),
+						criteriaBuilder.greaterThan(root.get("endsAt"), from)
+				));
 			}
 			return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
 		};

@@ -17,15 +17,33 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID>, JpaSp
 
 	List<Schedule> findByOwnerUserIdAndStartsAtBetweenOrderByStartsAtAsc(UUID ownerUserId, Instant from, Instant to);
 
-	List<Schedule> findByRoomIdAndStartsAtBetweenOrderByStartsAtAsc(UUID roomId, Instant from, Instant to);
+	@Query("""
+			select schedule
+			from Schedule schedule
+			where schedule.roomId = :roomId
+			  and schedule.startsAt < :to
+			  and (
+			    (schedule.endsAt is null and schedule.startsAt >= :from)
+			    or schedule.endsAt > :from
+			  )
+			order by schedule.startsAt asc, schedule.createdAt asc
+			""")
+	List<Schedule> findRoomOverlappingForRoom(
+			@Param("roomId") UUID roomId,
+			@Param("from") Instant from,
+			@Param("to") Instant to
+	);
 
 	@Query("""
 			select schedule
 			from Schedule schedule
 			where schedule.roomId is null
 			  and schedule.ownerUserId = :userId
-			  and schedule.startsAt >= :from
 			  and schedule.startsAt < :to
+			  and (
+			    (schedule.endsAt is null and schedule.startsAt >= :from)
+			    or schedule.endsAt > :from
+			  )
 			order by schedule.startsAt asc, schedule.createdAt asc
 			""")
 	List<Schedule> findPersonalBetweenForUser(
@@ -37,8 +55,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID>, JpaSp
 	@Query("""
 			select schedule
 			from Schedule schedule
-			where schedule.startsAt >= :from
-			  and schedule.startsAt < :to
+			where schedule.startsAt < :to
+			  and (
+			    (schedule.endsAt is null and schedule.startsAt >= :from)
+			    or schedule.endsAt > :from
+			  )
 			  and (
 			    (schedule.roomId is null and schedule.ownerUserId = :userId)
 			    or schedule.roomId in :roomIds
