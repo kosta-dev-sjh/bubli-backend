@@ -79,7 +79,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID>, JpaSp
 			String googleEventId
 	);
 
-	List<Schedule> findByOwnerUserIdAndGoogleEventIdIn(UUID ownerUserId, List<String> googleEventIds);
+	List<Schedule> findByOwnerUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+			UUID ownerUserId,
+			String googleCalendarId,
+			List<String> googleEventIds
+	);
 
 	boolean existsByWbsItemId(UUID wbsItemId);
 

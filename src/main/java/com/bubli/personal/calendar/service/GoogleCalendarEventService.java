@@ -107,9 +107,10 @@ public class GoogleCalendarEventService {
 		validateGoogleEventReference(googleCalendarId, googleEventId);
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
-		googleCalendarClient.deleteEvent(connection.getAccessToken(), normalizeCalendarId(googleCalendarId), googleEventId);
-		scheduleCalendarPublicService.deleteGoogleEventSchedules(userId, List.of(googleEventId));
-		deleteRequestService.markSucceeded(userId, googleEventId);
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		googleCalendarClient.deleteEvent(connection.getAccessToken(), normalizedCalendarId, googleEventId);
+		scheduleCalendarPublicService.deleteGoogleEventSchedules(userId, normalizedCalendarId, List.of(googleEventId));
+		deleteRequestService.markSucceeded(userId, normalizedCalendarId, googleEventId);
 	}
 
 	@Transactional
@@ -158,15 +159,17 @@ public class GoogleCalendarEventService {
 				.toList();
 		scheduleCalendarPublicService.deleteGoogleEventSchedules(
 				userId,
+				calendar.id(),
 				cancelledIds
 		);
-		deleteRequestService.markSucceeded(userId, cancelledIds);
+		deleteRequestService.markSucceeded(userId, calendar.id(), cancelledIds);
 		List<GoogleCalendarEventPayload> activeEvents = events.stream()
 				.filter(event -> !event.isCancelled())
 				.filter(event -> event.id() != null && hasStartTime(event))
 				.toList();
 		Set<String> pendingDeleteIds = deleteRequestService.findPendingGoogleEventIds(
 				userId,
+				calendar.id(),
 				activeEvents.stream()
 						.map(GoogleCalendarEventPayload::id)
 						.toList()
@@ -214,9 +217,9 @@ public class GoogleCalendarEventService {
 	private void retryPendingDelete(UUID userId, String accessToken, String googleCalendarId, String googleEventId) {
 		try {
 			googleCalendarClient.deleteEvent(accessToken, googleCalendarId, googleEventId);
-			deleteRequestService.markSucceeded(userId, googleEventId);
+			deleteRequestService.markSucceeded(userId, googleCalendarId, googleEventId);
 		} catch (BusinessException exception) {
-			deleteRequestService.rememberFailedAttempt(userId, googleEventId);
+			deleteRequestService.rememberFailedAttempt(userId, googleCalendarId, googleEventId);
 		}
 	}
 
