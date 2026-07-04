@@ -75,9 +75,7 @@ public class WidgetService implements WidgetPublicService {
     public WidgetSettingsResponse updateSettings(UUID userId, List<BubbleSettingUpdate> bubbles) {
         for (BubbleSettingUpdate req : bubbles) {
             BubbleType type = parseBubbleType(req.bubbleType());
-            WidgetBubbleSetting setting = bubbleSettingRepository
-                    .findByUserIdAndBubbleType(userId, type)
-                    .orElseGet(() -> bubbleSettingRepository.save(WidgetBubbleSetting.create(userId, type)));
+            WidgetBubbleSetting setting = getOrCreateBubbleSetting(userId, type);
             setting.update(req.enabled(), req.x(), req.y(), req.width(), req.height(),
                     req.minimized(), req.opacity(), req.ghostMode(), req.alertEnabled());
         }
@@ -166,16 +164,36 @@ public class WidgetService implements WidgetPublicService {
             existingTypes.add(setting.getBubbleType());
         }
 
+        boolean insertedMissingDefault = false;
         for (BubbleType type : BubbleType.values()) {
             if (existingTypes.contains(type)) {
                 continue;
             }
-            settings.add(bubbleSettingRepository.save(WidgetBubbleSetting.create(userId, type)));
+            insertDefaultBubbleSettingIfAbsent(userId, type);
+            insertedMissingDefault = true;
         }
 
-        return settings.stream()
+        List<WidgetBubbleSetting> result = insertedMissingDefault
+                ? bubbleSettingRepository.findByUserId(userId)
+                : settings;
+
+        return result.stream()
                 .sorted(Comparator.comparingInt(setting -> setting.getBubbleType().ordinal()))
                 .toList();
+    }
+
+    private WidgetBubbleSetting getOrCreateBubbleSetting(UUID userId, BubbleType type) {
+        return bubbleSettingRepository.findByUserIdAndBubbleType(userId, type)
+                .orElseGet(() -> {
+                    insertDefaultBubbleSettingIfAbsent(userId, type);
+                    return bubbleSettingRepository.findByUserIdAndBubbleType(userId, type)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Failed to create widget bubble setting: " + userId + "/" + type));
+                });
+    }
+
+    private void insertDefaultBubbleSettingIfAbsent(UUID userId, BubbleType type) {
+        bubbleSettingRepository.insertDefaultIfAbsent(UUID.randomUUID(), userId, type.name());
     }
 
     private List<TaskResult> roomSummaryTasks(UUID roomId) {
