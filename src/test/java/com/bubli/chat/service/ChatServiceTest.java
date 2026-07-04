@@ -146,6 +146,8 @@ class ChatServiceTest {
 			return chatRoom;
 		});
 		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId, memberId));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(any(UUID.class), any()))
+				.willReturn(List.of());
 
 		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
 
@@ -172,16 +174,38 @@ class ChatServiceTest {
 		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
 		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
 		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId));
-		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+		ChatRoomMember existingMember = ChatRoomMember.create(existing.getId(), requesterId);
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(
 				existing.getId(),
-				requesterId,
-				ChatMemberStatus.ACTIVE
-		)).willReturn(true);
+				List.of(requesterId)
+		)).willReturn(List.of(existingMember));
 
 		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
 
 		assertThat(result.id()).isEqualTo(existing.getId());
 		verify(chatRoomRepository, never()).save(any(ChatRoom.class));
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
+	void createProjectRoomChatRoomReactivatesLeftChatMemberWithoutDuplicateSave() {
+		UUID requesterId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ProjectRoomResult projectRoom = projectRoom(roomId, "프로젝트룸");
+		ChatRoom existing = ChatRoom.createRoom(roomId, "프로젝트룸");
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ChatRoomMember leftMember = ChatRoomMember.create(existing.getId(), memberId);
+		leftMember.leave();
+		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
+		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(memberId));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(existing.getId(), List.of(memberId)))
+				.willReturn(List.of(leftMember));
+
+		chatService.createProjectRoomChatRoom(requesterId, roomId);
+
+		assertThat(leftMember.getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
 		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
 	}
 
