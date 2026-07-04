@@ -170,10 +170,31 @@ class TimeLogServiceTest {
 		ReflectionTestUtils.setField(timeLog, "id", timeLogId);
 		timeLog.pause(Instant.now());
 		given(timeLogRepository.findByIdAndUserId(timeLogId, userId)).willReturn(Optional.of(timeLog));
+		given(timeLogRepository.findFirstByUserIdAndStatus(userId, TimeLogStatus.RUNNING)).willReturn(Optional.empty());
 
 		TimeLogResponse result = timeLogService.resume(userId, timeLogId);
 
 		assertThat(result.status()).isEqualTo(TimeLogStatus.RUNNING);
+	}
+
+	@Test
+	void resumeRejectsWhenAnotherTimerIsAlreadyRunning() {
+		UUID userId = UUID.randomUUID();
+		UUID pausedTimeLogId = UUID.randomUUID();
+		TimeLog paused = TimeLog.start(userId, null, TimerType.GENERAL, "timer-key-paused", null, Instant.now());
+		ReflectionTestUtils.setField(paused, "id", pausedTimeLogId);
+		paused.pause(Instant.now());
+		TimeLog running = TimeLog.start(userId, null, TimerType.GENERAL, "timer-key-running-other", null, Instant.now());
+		ReflectionTestUtils.setField(running, "id", UUID.randomUUID());
+		given(timeLogRepository.findByIdAndUserId(pausedTimeLogId, userId)).willReturn(Optional.of(paused));
+		given(timeLogRepository.findFirstByUserIdAndStatus(userId, TimeLogStatus.RUNNING))
+				.willReturn(Optional.of(running));
+
+		assertThatThrownBy(() -> timeLogService.resume(userId, pausedTimeLogId))
+				.isInstanceOf(BusinessException.class)
+				.hasFieldOrPropertyWithValue("errorCode", ErrorCode.PERSONAL_409_001);
+
+		assertThat(paused.getStatus()).isEqualTo(TimeLogStatus.PAUSED);
 	}
 
 	@Test
