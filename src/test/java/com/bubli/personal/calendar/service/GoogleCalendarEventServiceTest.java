@@ -150,8 +150,8 @@ class GoogleCalendarEventServiceTest {
 		googleCalendarEventService.deleteGoogleEvent(userId, "primary", "google-event-1");
 
 		verify(googleCalendarClient).deleteEvent("access-token", "primary", "google-event-1");
-		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, List.of("google-event-1"));
-		verify(deleteRequestService).markSucceeded(userId, "google-event-1");
+		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, "primary", List.of("google-event-1"));
+		verify(deleteRequestService).markSucceeded(userId, "primary", "google-event-1");
 	}
 
 	@Test
@@ -203,7 +203,7 @@ class GoogleCalendarEventServiceTest {
 		given(projectRoomCalendarService.findManagedGoogleCalendarIds(userId)).willReturn(Set.of());
 		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(cancelled, active));
-		given(deleteRequestService.findPendingGoogleEventIds(userId, List.of("google-active"))).willReturn(Set.of());
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "primary", List.of("google-active"))).willReturn(Set.of());
 		given(scheduleCalendarPublicService.upsertGoogleEvent(
 				userId,
 				"primary",
@@ -218,8 +218,8 @@ class GoogleCalendarEventServiceTest {
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
 
 		assertThat(results).containsExactly(synced);
-		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, List.of("google-deleted"));
-		verify(deleteRequestService).markSucceeded(userId, List.of("google-deleted"));
+		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, "primary", List.of("google-deleted"));
+		verify(deleteRequestService).markSucceeded(userId, "primary", List.of("google-deleted"));
 		verify(scheduleCalendarPublicService).upsertGoogleEvent(
 				userId,
 				"primary",
@@ -260,8 +260,8 @@ class GoogleCalendarEventServiceTest {
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
 
 		assertThat(results).isEmpty();
-		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, List.of("google-deleted"));
-		verify(deleteRequestService).markSucceeded(userId, List.of("google-deleted"));
+		verify(scheduleCalendarPublicService).deleteGoogleEventSchedules(userId, "primary", List.of("google-deleted"));
+		verify(deleteRequestService).markSucceeded(userId, "primary", List.of("google-deleted"));
 		verify(scheduleCalendarPublicService, never()).upsertGoogleEvent(any(), any(), any(), any(), any());
 	}
 
@@ -289,14 +289,14 @@ class GoogleCalendarEventServiceTest {
 		given(projectRoomCalendarService.findManagedGoogleCalendarIds(userId)).willReturn(Set.of());
 		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(active));
-		given(deleteRequestService.findPendingGoogleEventIds(userId, List.of("google-pending-delete")))
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "primary", List.of("google-pending-delete")))
 				.willReturn(Set.of("google-pending-delete"));
 
 		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
 
 		assertThat(results).isEmpty();
 		verify(googleCalendarClient).deleteEvent("access-token", "primary", "google-pending-delete");
-		verify(deleteRequestService).markSucceeded(userId, "google-pending-delete");
+		verify(deleteRequestService).markSucceeded(userId, "primary", "google-pending-delete");
 		verify(scheduleCalendarPublicService, never()).upsertGoogleEvent(any(), any(), any(), any(), any());
 	}
 
@@ -360,7 +360,7 @@ class GoogleCalendarEventServiceTest {
 		given(projectRoomCalendarService.findManagedGoogleCalendarIds(userId)).willReturn(Set.of("room-calendar-id"));
 		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
 				.willReturn(List.of(personalEvent));
-		given(deleteRequestService.findPendingGoogleEventIds(userId, List.of("personal-google-event"))).willReturn(Set.of());
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "primary", List.of("personal-google-event"))).willReturn(Set.of());
 		given(scheduleCalendarPublicService.upsertGoogleEvent(
 				userId,
 				"primary",

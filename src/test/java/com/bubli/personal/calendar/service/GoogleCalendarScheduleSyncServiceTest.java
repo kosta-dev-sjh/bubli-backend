@@ -91,4 +91,54 @@ class GoogleCalendarScheduleSyncServiceTest {
 				any(GoogleCalendarEventPayload.class)
 		);
 	}
+
+	@Test
+	void deleteSyncedScheduleRemembersFailedAttemptWithCalendarIdWhenConnectionMissing() {
+		UUID userId = UUID.randomUUID();
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.empty());
+
+		syncService.deleteSyncedSchedule(
+				userId,
+				new ScheduleSyncTarget(
+						null,
+						"room-calendar-id",
+						"프로젝트룸",
+						"google-event-1",
+						"삭제할 일정",
+						Instant.parse("2026-07-05T01:00:00Z"),
+						Instant.parse("2026-07-05T02:00:00Z")
+				)
+		);
+
+		verify(deleteRequestService).rememberFailedAttempt(userId, "room-calendar-id", "google-event-1");
+	}
+
+	@Test
+	void deleteSyncedScheduleNormalizesMissingCalendarIdToPrimary() {
+		UUID userId = UUID.randomUUID();
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-05T01:00:00Z")
+		);
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+
+		syncService.deleteSyncedSchedule(
+				userId,
+				new ScheduleSyncTarget(
+						null,
+						null,
+						null,
+						"google-event-1",
+						"삭제할 개인 일정",
+						Instant.parse("2026-07-05T01:00:00Z"),
+						Instant.parse("2026-07-05T02:00:00Z")
+				)
+		);
+
+		verify(googleCalendarClient).deleteEvent("access-token", "primary", "google-event-1");
+		verify(deleteRequestService).markSucceeded(userId, "primary", "google-event-1");
+	}
 }

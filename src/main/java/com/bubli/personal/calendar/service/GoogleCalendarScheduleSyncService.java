@@ -32,21 +32,22 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 		if (schedule.googleEventId() == null || schedule.googleEventId().isBlank()) {
 			return;
 		}
+		String calendarId = normalizeCalendarId(schedule.googleCalendarId());
 		try {
 			Optional<GoogleCalendarConnection> connection = connectionService.getActiveConnectionWithFreshToken(userId);
 			if (connection.isEmpty()) {
-				deleteRequestService.rememberFailedAttempt(userId, schedule.googleEventId());
+				deleteRequestService.rememberFailedAttempt(userId, calendarId, schedule.googleEventId());
 				return;
 			}
 			googleCalendarClient.deleteEvent(
 					connection.get().getAccessToken(),
-					schedule.googleCalendarId(),
+					calendarId,
 					schedule.googleEventId()
 			);
-			deleteRequestService.markSucceeded(userId, schedule.googleEventId());
+			deleteRequestService.markSucceeded(userId, calendarId, schedule.googleEventId());
 		} catch (BusinessException exception) {
 			// 외부 캘린더 삭제 실패가 Bubli 일정/WBS 삭제를 막지 않게 한다.
-			deleteRequestService.rememberFailedAttempt(userId, schedule.googleEventId());
+			deleteRequestService.rememberFailedAttempt(userId, calendarId, schedule.googleEventId());
 		}
 	}
 
