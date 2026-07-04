@@ -35,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,8 +118,7 @@ class WidgetServiceTest {
 		UUID userId = UUID.randomUUID();
 		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
 				WidgetBubbleSetting.create(userId, BubbleType.TODO)
-		));
-		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		), allBubbleSettings(userId));
 
 		WidgetSettingsResponse response = widgetService.getSettings(userId);
 
@@ -132,7 +132,31 @@ class WidgetServiceTest {
 				"RESOURCE",
 				"ALERT"
 		);
-		verify(bubbleSettingRepository, times(BubbleType.values().length - 1)).save(any(WidgetBubbleSetting.class));
+		verify(bubbleSettingRepository, times(BubbleType.values().length - 1))
+				.insertDefaultIfAbsent(any(UUID.class), eq(userId), any(String.class));
+	}
+
+	@Test
+	void getSettingsRereadsDefaultsWhenConcurrentInsertWins() {
+		UUID userId = UUID.randomUUID();
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(), allBubbleSettings(userId));
+		given(bubbleSettingRepository.insertDefaultIfAbsent(any(UUID.class), eq(userId), any(String.class)))
+				.willReturn(0);
+
+		WidgetSettingsResponse response = widgetService.getSettings(userId);
+
+		assertThat(response.bubbles()).extracting("bubbleType").containsExactly(
+				"TODO",
+				"AGENT",
+				"CHAT",
+				"TIMER",
+				"MEMO",
+				"SCHEDULE",
+				"RESOURCE",
+				"ALERT"
+		);
+		verify(bubbleSettingRepository, times(BubbleType.values().length))
+				.insertDefaultIfAbsent(any(UUID.class), eq(userId), any(String.class));
 	}
 
 	@Test
@@ -144,8 +168,7 @@ class WidgetServiceTest {
 		given(contextSettingRepository.findByUserId(userId)).willReturn(Optional.empty());
 		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
 				WidgetBubbleSetting.create(userId, BubbleType.TODO)
-		));
-		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		), allBubbleSettings(userId));
 		given(taskPublicService.getDueBetweenTasks(eq(userId), any(Instant.class), any(Instant.class)))
 				.willReturn(List.of(task));
 		given(schedulePublicService.getSchedulesBetween(eq(userId), any(Instant.class), any(Instant.class)))
@@ -168,13 +191,16 @@ class WidgetServiceTest {
 	@Test
 	void updateSettingsAcceptsResourceAndAlertBubbles() {
 		UUID userId = UUID.randomUUID();
-		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.RESOURCE)).willReturn(Optional.empty());
-		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.ALERT)).willReturn(Optional.empty());
-		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		WidgetBubbleSetting resource = WidgetBubbleSetting.create(userId, BubbleType.RESOURCE);
+		WidgetBubbleSetting alert = WidgetBubbleSetting.create(userId, BubbleType.ALERT);
+		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.RESOURCE))
+				.willReturn(Optional.empty(), Optional.of(resource));
+		given(bubbleSettingRepository.findByUserIdAndBubbleType(userId, BubbleType.ALERT))
+				.willReturn(Optional.empty(), Optional.of(alert));
 		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
-				WidgetBubbleSetting.create(userId, BubbleType.RESOURCE),
-				WidgetBubbleSetting.create(userId, BubbleType.ALERT)
-		));
+				resource,
+				alert
+		), allBubbleSettings(userId));
 
 		var response = widgetService.updateSettings(userId, List.of(
 				new BubbleSettingUpdate("RESOURCE", true, 120, 160, 320, 420, false, BigDecimal.ONE, false, true),
@@ -191,7 +217,8 @@ class WidgetServiceTest {
 				"RESOURCE",
 				"ALERT"
 		);
-		verify(bubbleSettingRepository, times(BubbleType.values().length)).save(any(WidgetBubbleSetting.class));
+		verify(bubbleSettingRepository, times(BubbleType.values().length))
+				.insertDefaultIfAbsent(any(UUID.class), eq(userId), any(String.class));
 	}
 
 	@Test
@@ -203,8 +230,7 @@ class WidgetServiceTest {
 		TaskResult doneTask = task(userId, roomId, TaskStatus.DONE, Instant.parse("2026-07-01T02:00:00Z"));
 		ScheduleResult schedule = schedule(userId, roomId);
 		given(contextSettingRepository.findByUserId(userId)).willReturn(Optional.of(context));
-		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of());
-		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(), allBubbleSettings(userId));
 		given(taskPublicService.getRoomTasksForBoard(roomId)).willReturn(List.of(doneTask, todoTask));
 		given(schedulePublicService.getRoomSchedulesBetween(eq(roomId), any(Instant.class), any(Instant.class)))
 				.willReturn(List.of(schedule));
@@ -229,8 +255,7 @@ class WidgetServiceTest {
 		UUID roomId = UUID.randomUUID();
 		TaskResult task = task(userId, roomId, TaskStatus.TODO, Instant.parse("2026-07-01T03:00:00Z"));
 		ScheduleResult schedule = schedule(userId, roomId);
-		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of());
-		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(), allBubbleSettings(userId));
 		given(taskPublicService.getRoomTasksForBoard(roomId)).willReturn(List.of(task));
 		given(schedulePublicService.getRoomSchedulesBetween(eq(roomId), any(Instant.class), any(Instant.class)))
 				.willReturn(List.of(schedule));
@@ -356,5 +381,11 @@ class WidgetServiceTest {
 				now,
 				now
 		);
+	}
+
+	private List<WidgetBubbleSetting> allBubbleSettings(UUID userId) {
+		return Arrays.stream(BubbleType.values())
+				.map(type -> WidgetBubbleSetting.create(userId, type))
+				.toList();
 	}
 }
