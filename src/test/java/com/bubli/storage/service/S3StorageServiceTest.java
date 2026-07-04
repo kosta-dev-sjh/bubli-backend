@@ -15,6 +15,9 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
@@ -98,6 +101,30 @@ class S3StorageServiceTest {
 
 		assertThat(request.bucket()).isEqualTo("bubli-test-bucket");
 		assertThat(request.key()).isEqualTo("resources/test-resource/v1.pdf");
+	}
+
+	@Test
+	void existsReturnsTrueWhenHeadObjectSucceeds() {
+		given(s3Client.headObject(any(HeadObjectRequest.class)))
+				.willReturn(HeadObjectResponse.builder().build());
+		S3StorageService storageService = new S3StorageService(s3Client, "bubli-test-bucket");
+
+		assertThat(storageService.exists("resources/test-resource/v1.pdf")).isTrue();
+
+		ArgumentCaptor<HeadObjectRequest> requestCaptor = ArgumentCaptor.forClass(HeadObjectRequest.class);
+		verify(s3Client).headObject(requestCaptor.capture());
+		HeadObjectRequest request = requestCaptor.getValue();
+		assertThat(request.bucket()).isEqualTo("bubli-test-bucket");
+		assertThat(request.key()).isEqualTo("resources/test-resource/v1.pdf");
+	}
+
+	@Test
+	void existsReturnsFalseWhenObjectIsMissing() {
+		given(s3Client.headObject(any(HeadObjectRequest.class)))
+				.willThrow(NoSuchKeyException.builder().message("missing").build());
+		S3StorageService storageService = new S3StorageService(s3Client, "bubli-test-bucket");
+
+		assertThat(storageService.exists("resources/test-resource/missing.pdf")).isFalse();
 	}
 
 	@Test

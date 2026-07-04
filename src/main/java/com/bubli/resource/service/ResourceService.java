@@ -445,6 +445,7 @@ public class ResourceService {
 	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
 		Resource resource = getReadableResource(userId, resourceId);
 		validateCreateVersionCommand(resourceId, command);
+		validateStoredObjectExists(command.storageKey());
 		lockResourceVersionSequence(resourceId);
 		boolean storageUsageRecorded = false;
 		try {
@@ -600,6 +601,12 @@ public class ResourceService {
 		}
 		if (command.sizeBytes() > maxUploadSizeBytes || !isAllowedMimeType(command.mimeType())) {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+	}
+
+	private void validateStoredObjectExists(String storageKey) {
+		if (!storagePublicService.exists(storageKey)) {
+			throw new BusinessException(ErrorCode.RESOURCE_404_003);
 		}
 	}
 

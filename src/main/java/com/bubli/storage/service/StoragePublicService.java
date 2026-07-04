@@ -21,6 +21,10 @@ public interface StoragePublicService extends StorageService {
         throw new BusinessException(ErrorCode.RESOURCE_501_002);
     }
 
+    default boolean exists(String storageKey) {
+        throw new BusinessException(ErrorCode.RESOURCE_501_002);
+    }
+
     @Override
     FileUploadResult save(String storageKey, String originalName, String mimeType, byte[] content);
 
