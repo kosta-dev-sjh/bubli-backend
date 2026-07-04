@@ -4,6 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
@@ -21,8 +22,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,10 +63,11 @@ public class WbsItemService {
 	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command) {
 		checkRoomMember(userId, roomId);
 		checkParent(roomId, command.parentId());
-		if (command.orderNo() != null) {
-			return WbsItemResult.from(createExplicitOrderItem(roomId, command));
-		}
-		return WbsItemResult.from(createAutoOrderItemWithRetry(roomId, command));
+		WbsItem item = command.orderNo() != null
+				? createExplicitOrderItem(roomId, command)
+				: createAutoOrderItemWithRetry(roomId, command);
+		createLinkedScheduleIfNeeded(userId, roomId, item, command);
+		return WbsItemResult.from(item);
 	}
 
 	@Transactional
@@ -168,6 +170,33 @@ public class WbsItemService {
 				command.status()
 		);
 		return wbsItemRepository.saveAndFlush(item);
+	}
+
+	private void createLinkedScheduleIfNeeded(
+			UUID userId,
+			UUID roomId,
+			WbsItem item,
+			CreateWbsItemCommand command
+	) {
+		if (command.startsAt() == null && command.dueAt() == null) {
+			return;
+		}
+		schedulePublicService.create(userId, new CreateScheduleCommand(
+				roomId,
+				null,
+				item.getId(),
+				scheduleTitle(command, item),
+				command.startsAt() == null ? command.dueAt() : command.startsAt(),
+				command.endsAt(),
+				command.allDay()
+		));
+	}
+
+	private String scheduleTitle(CreateWbsItemCommand command, WbsItem item) {
+		if (command.scheduleTitle() == null || command.scheduleTitle().isBlank()) {
+			return item.getTitle();
+		}
+		return command.scheduleTitle();
 	}
 
 	private void checkParent(UUID roomId, UUID parentId) {

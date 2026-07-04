@@ -162,11 +162,15 @@ class AgentSuggestionCommandServiceTest {
                         analysisResult(resourceId)
                 );
 
-        assertThat(responses).hasSize(2);
+        assertThat(responses).hasSize(3);
         assertThat(responses.get(0).suggestionType()).isEqualTo(AgentSuggestionType.TASK);
         assertThat(responses.get(0).payloadJson()).containsEntry("title", "로그인 구현");
         assertThat(responses.get(0).evidenceJson()).containsEntry("resourceId", resourceId.toString());
         assertThat(responses.get(1).suggestionType()).isEqualTo(AgentSuggestionType.CONTRACT_FIELD);
+        assertThat(responses.get(2).suggestionType()).isEqualTo(AgentSuggestionType.WBS);
+        assertThat(responses.get(2).payloadJson()).containsEntry("scheduleTitle", "중간 리뷰 준비");
+        assertThat(responses.get(2).payloadJson()).containsEntry("startsAt", "2026-07-10T01:00:00Z");
+        assertThat(responses.get(2).payloadJson()).containsEntry("endsAt", "2026-07-10T02:00:00Z");
     }
 
     @Test
@@ -235,6 +239,25 @@ class AgentSuggestionCommandServiceTest {
                                 0.8,
                                 "amount",
                                 "3000000"
+                        ),
+                        new Suggestion(
+                                SuggestionType.WBS,
+                                "중간 리뷰",
+                                "프로젝트룸 중간 리뷰를 준비한다.",
+                                "7월 10일 중간 리뷰",
+                                0.85,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                2,
+                                "TODO",
+                                "2026-07-10T01:00:00Z",
+                                null,
+                                "2026-07-10T02:00:00Z",
+                                false,
+                                "중간 리뷰 준비"
                         )
                 )
         );

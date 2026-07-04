@@ -118,6 +118,43 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void createWbsItemWithScheduleFieldsCreatesRoomSchedule() throws Exception {
+		User user = createUser("google-sub-wbs-create-schedule", "미연");
+		ProjectRoom room = saveRoom(user.getId(), "WBS 일정 생성 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+
+		mockMvc.perform(post("/api/project-rooms/{roomId}/wbs-items", room.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "title": "프로젝트룸 일정 정리",
+								  "status": "TODO",
+								  "scheduleTitle": "일정 후보",
+								  "startsAt": "2026-07-05T01:30:00Z",
+								  "endsAt": "2026-07-05T02:00:00Z",
+								  "allDay": false
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").isNotEmpty())
+				.andExpect(jsonPath("$.data.roomId").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.title").value("프로젝트룸 일정 정리"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		WbsItem item = wbsItemRepository.findAll().get(0);
+		Schedule schedule = scheduleRepository.findAll().get(0);
+		assertThat(schedule.getOwnerUserId()).isEqualTo(user.getId());
+		assertThat(schedule.getRoomId()).isEqualTo(room.getId());
+		assertThat(schedule.getWbsItemId()).isEqualTo(item.getId());
+		assertThat(schedule.getTaskId()).isNull();
+		assertThat(schedule.getTitle()).isEqualTo("일정 후보");
+		assertThat(schedule.getStartsAt()).isEqualTo(Instant.parse("2026-07-05T01:30:00Z"));
+		assertThat(schedule.getEndsAt()).isEqualTo(Instant.parse("2026-07-05T02:00:00Z"));
+	}
+
+	@Test
 	void updateWbsItemChangesTitle() throws Exception {
 		User user = createUser("google-sub-wbs-update", "준화");
 		ProjectRoom room = saveRoom(user.getId(), "WBS 수정 프로젝트");
