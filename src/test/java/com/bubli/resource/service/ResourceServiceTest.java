@@ -636,6 +636,39 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void deleteRoomSharedResourceReleasesRoomStorageUsage() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				UUID.randomUUID(),
+				roomId,
+				"삭제할 프로젝트룸 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.ROOM_SHARED,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				5L,
+				null
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(true);
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
+
+		runWithManualCommitSynchronization(() -> resourceService.deleteResource(userId, resourceId));
+
+		assertThat(resource.getDeletedAt()).isNotNull();
+		verify(storageUsagePublicService).releaseRoomUsage(roomId, 5L);
+		verify(storageUsagePublicService, never()).releasePersonalUsage(any(), org.mockito.ArgumentMatchers.anyLong());
+		verify(storagePublicService).delete("resources/%s/file.pdf".formatted(resourceId));
+	}
+
+	@Test
 	void createCommentRequiresReadableResourceAndStoresAuthor() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
