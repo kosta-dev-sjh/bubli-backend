@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/invitation-expiry-cleanup-20260705` |
+| 현재 확인 브랜치 | `codex/remove-invite-link-backend-residue-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -52,6 +52,30 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### 링크 초대 애플리케이션 코드 잔재 제거
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- v15 기준에서 프로젝트룸 초대는 수락된 친구를 선택하는 `invitations` 흐름만 사용한다.
+- 링크 초대, 이메일 주소 입력 초대, 비회원 게스트 초대는 현재 기획에서 제외된 흐름이다.
+- 컨트롤러가 없던 `InviteLinkService`, `InviteLinkRepository`, `InviteLink` 엔티티, 링크 초대 요청/응답 DTO를 제거했다.
+- 링크 초대 전용 에러 코드와 다국어 메시지도 제거해, 미노출 기능이 나중에 실수로 되살아날 여지를 줄였다.
+- 기존 DB에 이미 적용된 `V12__invite_links.sql`은 Flyway 이력 보존을 위해 삭제하지 않는다. 애플리케이션 JPA 매핑만 제거된 상태다.
+
+검증 결과:
+
+- `./gradlew compileTestJava` 통과
+- `./gradlew test --tests com.bubli.global.locale.LocaleMessageBundleTest --tests com.bubli.EntityMappingTest --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 프로젝트룸 친구 초대 만료 정리 보강
 
 처리 시각: 2026-07-05 KST
@@ -78,7 +102,7 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 남은 작업:
 
 - 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
-- 링크 초대 잔재(`InviteLinkService`, `InviteLinkRepository`, `InviteLink` 엔티티, DTO)는 프론트의 링크 초대 제거와 맞춰 별도 정리한다. 기존 DB에 적용된 V12 migration 파일은 Flyway 이력 때문에 삭제하지 않는다.
+- 링크 초대 잔재는 후속 작업에서 애플리케이션 코드 기준으로 제거했다. 기존 DB에 적용된 V12 migration 파일은 Flyway 이력 때문에 삭제하지 않는다.
 
 ### 공개 일정 조회의 개인 + 프로젝트룸 통합 표시 기준 보정
 
