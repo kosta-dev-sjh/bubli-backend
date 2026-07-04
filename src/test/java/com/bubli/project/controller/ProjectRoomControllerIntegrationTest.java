@@ -16,7 +16,9 @@ import com.bubli.project.type.ProjectRoomStatus;
 import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.support.PostgresIntegrationTestSupport;
+import com.bubli.user.entity.Friendship;
 import com.bubli.user.entity.User;
+import com.bubli.user.repository.FriendshipRepository;
 import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 	@Autowired
 	UserRepository userRepository;
+
+	@Autowired
+	FriendshipRepository friendshipRepository;
 
 	@Autowired
 	ProjectRoomRepository projectRoomRepository;
@@ -391,6 +396,7 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 		User invitee = createUser("google-sub-invite-target", "준화");
 		ProjectRoom room = saveRoom(leader.getId(), "초대 프로젝트");
 		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		makeFriends(leader.getId(), invitee.getId());
 
 		mockMvc.perform(post("/api/project-rooms/{roomId}/invitations", room.getId())
 						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
@@ -661,5 +667,10 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 	private String bearerToken(UUID userId, String ignored) {
 		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
+	}
+
+	private void makeFriends(UUID userId, UUID friendUserId) {
+		friendshipRepository.save(Friendship.create(userId, friendUserId));
+		friendshipRepository.save(Friendship.create(friendUserId, userId));
 	}
 }
