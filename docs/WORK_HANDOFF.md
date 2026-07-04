@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/schedule-public-create-guard-20260705` |
+| 현재 확인 브랜치 | `codex/public-schedule-visible-rooms-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 공개 일정 조회의 개인 + 프로젝트룸 통합 표시 기준 보정
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 대시보드, 위젯, 에이전트 컨텍스트가 쓰는 `SchedulePublicService.getSchedulesBetween`이 기존에는 `ownerUserId` 기준 일정만 조회했다.
+- 그 결과 개인 캘린더 화면에서 프로젝트룸 캘린더 일정이 빠지거나, 반대로 사용자가 만든 뒤 나간 프로젝트룸 일정이 계속 보일 위험이 있었다.
+- 공개 일정 조회는 개인 일정(`roomId is null`)과 사용자가 현재 active 멤버인 프로젝트룸 일정만 함께 내려주게 했다.
+- 룸이 없는 사용자는 개인 일정 전용 쿼리를 타게 해 빈 `IN` 조건을 피하고 불필요한 룸 조회를 줄였다.
+- 저장 귀속은 그대로 유지한다. 개인 일정은 개인 일정이고, 프로젝트룸 일정은 프로젝트룸 일정이다. 다만 개인 화면/위젯/에이전트 컨텍스트에서는 “내가 볼 수 있는 일정”으로 합쳐서 읽는다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest` 통과
+- `./gradlew test --tests com.bubli.work.schedule.repository.ScheduleRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest --tests com.bubli.work.schedule.repository.ScheduleRepositoryIntegrationTest --tests com.bubli.widget.service.WidgetServiceTest --tests com.bubli.personal.dashboard.service.DashboardServiceTest --tests com.bubli.agent.service.AgentJobContextCollectorTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 공개 일정 생성 경로 scope 검증과 동기화 실패 안정화
 

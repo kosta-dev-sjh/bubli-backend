@@ -33,7 +33,11 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<ScheduleResult> getSchedulesBetween(UUID userId, Instant from, Instant to) {
-		return scheduleRepository.findByOwnerUserIdAndStartsAtBetweenOrderByStartsAtAsc(userId, from, to)
+		List<UUID> activeRoomIds = projectMembershipPublicService.findActiveRoomIds(userId);
+		List<Schedule> schedules = activeRoomIds.isEmpty()
+				? scheduleRepository.findPersonalBetweenForUser(userId, from, to)
+				: scheduleRepository.findVisibleBetweenForUser(userId, activeRoomIds, from, to);
+		return schedules
 				.stream()
 				.map(ScheduleResult::from)
 				.toList();
