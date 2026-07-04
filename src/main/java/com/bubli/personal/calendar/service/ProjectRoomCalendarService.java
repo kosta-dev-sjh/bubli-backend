@@ -72,15 +72,24 @@ public class ProjectRoomCalendarService {
 	public RoomCalendarResponse getRoomCalendar(UUID userId, UUID roomId) {
 		ProjectRoomResult room = projectRoomPublicService.getProjectRoom(userId, roomId);
 		boolean connected = connectionService.hasActiveConnection(userId);
-		Optional<ProjectRoomGoogleCalendar> mapping = connected
-				? ensureRoomCalendar(userId, roomId)
-				: roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
+		Optional<ProjectRoomGoogleCalendar> mapping;
+		if (connected) {
+			try {
+				mapping = ensureRoomCalendar(userId, roomId);
+			} catch (RuntimeException exception) {
+				// 기존 연동 토큰에 캘린더 생성 권한(scope)이 없으면 Google이 거부한다.
+				// 500 대신 재동의 필요 플래그를 내려 프론트가 재연결을 안내하게 한다.
+				return RoomCalendarResponse.reconsentRequired(room.name());
+			}
+		} else {
+			mapping = roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
+		}
 		return mapping
-				.map(found -> new RoomCalendarResponse(
+				.map(found -> RoomCalendarResponse.of(
 						found.getGoogleCalendarId(),
 						found.getCalendarName() == null ? room.name() : found.getCalendarName(),
 						connected
 				))
-				.orElseGet(() -> new RoomCalendarResponse(null, room.name(), connected));
+				.orElseGet(() -> RoomCalendarResponse.of(null, room.name(), connected));
 	}
 }
