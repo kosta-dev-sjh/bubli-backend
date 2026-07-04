@@ -210,6 +210,57 @@ class ChatServiceTest {
 	}
 
 	@Test
+	void inviteMembersSavesMissingMember() {
+		UUID inviterId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ChatRoom chatRoom = ChatRoom.createGroup("그룹 채팅");
+		ReflectionTestUtils.setField(chatRoom, "id", chatRoomId);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				inviterId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
+				.willReturn(List.of());
+
+		chatService.inviteMembers(inviterId, chatRoomId, List.of(memberId));
+
+		ArgumentCaptor<ChatRoomMember> memberCaptor = ArgumentCaptor.forClass(ChatRoomMember.class);
+		verify(chatRoomMemberRepository).save(memberCaptor.capture());
+		assertThat(memberCaptor.getValue().getChatRoomId()).isEqualTo(chatRoomId);
+		assertThat(memberCaptor.getValue().getUserId()).isEqualTo(memberId);
+		assertThat(memberCaptor.getValue().getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void inviteMembersReactivatesLeftMemberWithoutDuplicateSave() {
+		UUID inviterId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ChatRoom chatRoom = ChatRoom.createGroup("그룹 채팅");
+		ReflectionTestUtils.setField(chatRoom, "id", chatRoomId);
+		ChatRoomMember leftMember = ChatRoomMember.create(chatRoomId, memberId);
+		leftMember.leave();
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				inviterId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
+				.willReturn(List.of(leftMember));
+
+		chatService.inviteMembers(inviterId, chatRoomId, List.of(memberId));
+
+		assertThat(leftMember.getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
 	void sendMessageStoresMessageWithNextRoomSequence() throws Exception {
 		UUID chatRoomId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
