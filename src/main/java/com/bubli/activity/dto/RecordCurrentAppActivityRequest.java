@@ -10,6 +10,9 @@ import java.util.UUID;
 public record RecordCurrentAppActivityRequest(
 		UUID roomId,
 
+		@Size(max = 120, message = "localActivityId must be 120 characters or fewer")
+		String localActivityId,
+
 		@Size(max = 120, message = "앱 이름은 120자 이하여야 합니다.")
 		String appName,
 
@@ -28,6 +31,7 @@ public record RecordCurrentAppActivityRequest(
 	public RecordCurrentAppActivityCommand toCommand() {
 		return new RecordCurrentAppActivityCommand(
 				roomId,
+				blankToNull(localActivityId),
 				blankToNull(appName),
 				blankToNull(windowTitle),
 				startedAt,
