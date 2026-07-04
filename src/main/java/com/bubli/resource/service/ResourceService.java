@@ -308,6 +308,7 @@ public class ResourceService {
 				command.visibility(),
 				ResourceStatus.READY
 		));
+		resourceRepository.flush();
 		FileUploadResult uploaded = null;
 		boolean storageUsageRecorded = false;
 		try {
@@ -327,6 +328,7 @@ public class ResourceService {
 					uploaded.sizeBytes(),
 					uploaded.checksum()
 			));
+			resourceFileRepository.flush();
 			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
 			resourceVersionRepository.save(ResourceVersion.create(
 					resource.getId(),
@@ -334,6 +336,7 @@ public class ResourceService {
 					file.getId(),
 					userId
 			));
+			resourceVersionRepository.flush();
 		} catch (RuntimeException e) {
 			deleteUploadedObject(uploaded, e);
 			releaseRecordedStorageUsage(storageUsageRecorded, userId, roomId, command, e);
@@ -442,6 +445,7 @@ public class ResourceService {
 	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
 		Resource resource = getReadableResource(userId, resourceId);
 		validateCreateVersionCommand(resourceId, command);
+		lockResourceVersionSequence(resourceId);
 		boolean storageUsageRecorded = false;
 		try {
 			recordStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), command.sizeBytes());
@@ -454,6 +458,7 @@ public class ResourceService {
 					command.sizeBytes(),
 					command.checksum()
 			));
+			resourceFileRepository.flush();
 			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
 			ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
 					resourceId,
@@ -461,6 +466,7 @@ public class ResourceService {
 					file.getId(),
 					userId
 			));
+			resourceVersionRepository.flush();
 			return ResourceVersionResult.from(version, file);
 		} catch (RuntimeException e) {
 			releaseRecordedStorageUsage(
@@ -479,6 +485,7 @@ public class ResourceService {
 	public ResourceVersionResult uploadVersion(UUID userId, UUID resourceId, UploadResourceVersionCommand command) {
 		Resource resource = getReadableResource(userId, resourceId);
 		validateUploadVersionCommand(command);
+		lockResourceVersionSequence(resourceId);
 		FileUploadResult uploaded = null;
 		boolean storageUsageRecorded = false;
 		try {
@@ -503,6 +510,7 @@ public class ResourceService {
 					uploaded.sizeBytes(),
 					uploaded.checksum()
 			));
+			resourceFileRepository.flush();
 			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
 			ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
 					resourceId,
@@ -510,6 +518,7 @@ public class ResourceService {
 					file.getId(),
 					userId
 			));
+			resourceVersionRepository.flush();
 			return ResourceVersionResult.from(version, file);
 		} catch (RuntimeException e) {
 			deleteUploadedObject(uploaded, e);
@@ -541,6 +550,10 @@ public class ResourceService {
 		getReadableResource(userId, comment.getResourceId());
 		checkCommentAuthor(userId, comment);
 		comment.markDeleted(Instant.now());
+	}
+
+	private void lockResourceVersionSequence(UUID resourceId) {
+		resourceRepository.lockById(resourceId);
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
