@@ -23,6 +23,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -44,13 +46,19 @@ class TimeLogServiceTest {
 	void startCreatesGeneralTimerWhenIdempotencyKeyIsNew() {
 		UUID userId = UUID.randomUUID();
 		UUID timeLogId = UUID.randomUUID();
-		given(timeLogRepository.findByIdempotencyKey("timer-key-1")).willReturn(Optional.empty());
-		given(timeLogRepository.existsByUserIdAndStatus(userId, TimeLogStatus.RUNNING)).willReturn(false);
-		given(timeLogRepository.save(any(TimeLog.class))).willAnswer(invocation -> {
-			TimeLog timeLog = invocation.getArgument(0);
-			ReflectionTestUtils.setField(timeLog, "id", timeLogId);
-			return timeLog;
-		});
+		TimeLog created = TimeLog.start(userId, null, TimerType.GENERAL, "timer-key-1", null, Instant.now());
+		ReflectionTestUtils.setField(created, "id", timeLogId);
+		given(timeLogRepository.findByIdempotencyKey("timer-key-1"))
+				.willReturn(Optional.empty(), Optional.of(created));
+		given(timeLogRepository.insertRunningIfNoConflict(
+				any(UUID.class),
+				eq(userId),
+				nullable(UUID.class),
+				eq(TimerType.GENERAL.name()),
+				eq("timer-key-1"),
+				nullable(UUID.class),
+				any(Instant.class)
+		)).willReturn(1);
 
 		TimeLogResponse result = timeLogService.start(new StartTimeLogCommand(
 				userId,
@@ -65,13 +73,31 @@ class TimeLogServiceTest {
 		assertThat(result.timerType()).isEqualTo(TimerType.GENERAL);
 		assertThat(result.status()).isEqualTo(TimeLogStatus.RUNNING);
 		assertThat(result.durationSeconds()).isZero();
+		verify(timeLogRepository).insertRunningIfNoConflict(
+				any(UUID.class),
+				eq(userId),
+				nullable(UUID.class),
+				eq(TimerType.GENERAL.name()),
+				eq("timer-key-1"),
+				nullable(UUID.class),
+				any(Instant.class)
+		);
 	}
 
 	@Test
 	void startThrowsWhenUserAlreadyHasRunningTimer() {
 		UUID userId = UUID.randomUUID();
-		given(timeLogRepository.findByIdempotencyKey("timer-key-running")).willReturn(Optional.empty());
-		given(timeLogRepository.existsByUserIdAndStatus(userId, TimeLogStatus.RUNNING)).willReturn(true);
+		given(timeLogRepository.findByIdempotencyKey("timer-key-running"))
+				.willReturn(Optional.empty(), Optional.empty());
+		given(timeLogRepository.insertRunningIfNoConflict(
+				any(UUID.class),
+				eq(userId),
+				nullable(UUID.class),
+				eq(TimerType.GENERAL.name()),
+				eq("timer-key-running"),
+				nullable(UUID.class),
+				any(Instant.class)
+		)).willReturn(0);
 
 		assertThatThrownBy(() -> timeLogService.start(new StartTimeLogCommand(
 				userId,
@@ -82,7 +108,15 @@ class TimeLogServiceTest {
 		)))
 				.isInstanceOf(BusinessException.class)
 				.hasFieldOrPropertyWithValue("errorCode", ErrorCode.PERSONAL_409_001);
-		verify(timeLogRepository, never()).save(any(TimeLog.class));
+		verify(timeLogRepository).insertRunningIfNoConflict(
+				any(UUID.class),
+				eq(userId),
+				nullable(UUID.class),
+				eq(TimerType.GENERAL.name()),
+				eq("timer-key-running"),
+				nullable(UUID.class),
+				any(Instant.class)
+		);
 	}
 
 	@Test
@@ -102,7 +136,15 @@ class TimeLogServiceTest {
 		));
 
 		assertThat(result.id()).isEqualTo(timeLogId);
-		verify(timeLogRepository, never()).save(any(TimeLog.class));
+		verify(timeLogRepository, never()).insertRunningIfNoConflict(
+				any(UUID.class),
+				any(UUID.class),
+				nullable(UUID.class),
+				any(String.class),
+				any(String.class),
+				nullable(UUID.class),
+				any(Instant.class)
+		);
 	}
 
 	@Test
@@ -167,7 +209,6 @@ class TimeLogServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		given(timeLogRepository.findByIdempotencyKey("timer-key-3")).willReturn(Optional.empty());
-		given(timeLogRepository.existsByUserIdAndStatus(userId, TimeLogStatus.RUNNING)).willReturn(false);
 		willThrow(BusinessException.class)
 				.given(projectMembershipPublicService)
 				.assertActiveMember(userId, roomId);
@@ -179,7 +220,15 @@ class TimeLogServiceTest {
 				"timer-key-3",
 				null
 		))).isInstanceOf(BusinessException.class);
-		verify(timeLogRepository, never()).save(any(TimeLog.class));
+		verify(timeLogRepository, never()).insertRunningIfNoConflict(
+				any(UUID.class),
+				any(UUID.class),
+				nullable(UUID.class),
+				any(String.class),
+				any(String.class),
+				nullable(UUID.class),
+				any(Instant.class)
+		);
 	}
 
 	@Test
