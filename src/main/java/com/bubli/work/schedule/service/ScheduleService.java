@@ -93,18 +93,21 @@ public class ScheduleService {
 	public ScheduleResult update(UUID userId, UUID scheduleId, UpdateScheduleCommand command) {
 		Schedule schedule = getAccessibleSchedule(userId, scheduleId);
 		Instant startsAt = command.startsAt() == null ? schedule.getStartsAt() : command.startsAt();
-		validateRange(startsAt, command.endsAt());
+		Instant endsAt = command.endsAt() == null ? schedule.getEndsAt() : command.endsAt();
+		UUID taskId = command.taskId() == null ? schedule.getTaskId() : command.taskId();
+		UUID wbsItemId = command.wbsItemId() == null ? schedule.getWbsItemId() : command.wbsItemId();
+		validateRange(startsAt, endsAt);
 		if (command.title() != null && command.title().isBlank()) {
 			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
 		}
-		validateLinkedWorkScope(userId, schedule.getRoomId(), command.taskId(), command.wbsItemId());
+		validateLinkedWorkScope(userId, schedule.getRoomId(), taskId, wbsItemId);
 		schedule.update(
 				command.title(),
 				command.startsAt(),
-				command.endsAt(),
+				endsAt,
 				command.allDay(),
-				command.taskId(),
-				command.wbsItemId()
+				taskId,
+				wbsItemId
 		);
 		markGoogleSyncResult(
 				schedule,

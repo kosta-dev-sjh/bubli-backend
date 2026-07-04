@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/project-room-leader-guard-20260705` |
+| 현재 확인 브랜치 | `codex/schedule-partial-update-preserve-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 일정 PATCH 부분 수정 기존 값 보존
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `PATCH /api/schedules/{scheduleId}`에서 제목만 수정해도 기존 `endsAt`, `taskId`, `wbsItemId`가 null로 덮일 수 있었다.
+- 종료 시각이 사라지면 Bubli 일정 화면과 Google Calendar 동기화 payload가 서로 어긋날 수 있다.
+- 일정 수정 시 요청에 빠진 종료 시각과 연결 작업 값은 기존 일정 값을 유지하게 했다.
+- 시작 시각만 바꾸는 요청도 기존 종료 시각과 함께 검증해, 종료보다 늦은 시작 시각이 저장되지 않게 했다.
+- Google 원본 이벤트 upsert 경로는 외부 원본을 반영하는 교체 흐름이라 그대로 두고, 사용자 PATCH 경로만 보존형으로 보정했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.schedule.service.ScheduleServiceTest` 통과
+- `./gradlew test --tests com.bubli.work.schedule.controller.ScheduleControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 프로젝트룸 마지막 리더 보호
 
