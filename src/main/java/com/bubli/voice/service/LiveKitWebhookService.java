@@ -63,7 +63,7 @@ public class LiveKitWebhookService {
         try {
             UUID userId = UUID.fromString(identity);
             voiceRoomRepository.findByLivekitRoomName(roomName).ifPresent(room -> {
-                voiceParticipantRepository.findByVoiceRoomIdAndUserId(room.getId(), userId)
+                voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(room.getId(), userId)
                         .ifPresent(VoiceParticipant::leave);
             });
         } catch (IllegalArgumentException e) {
