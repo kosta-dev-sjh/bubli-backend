@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/time-log-running-guard-20260705` |
+| 현재 확인 브랜치 | `codex/auth-session-upsert-lock-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,29 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 인증 세션 upsert와 refresh 잠금 처리
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `user_sessions`는 `(user_id, client_type)`이 유니크라 같은 사용자/클라이언트에서 동시 로그인하면 조회 후 생성 방식이 유니크 충돌로 실패할 수 있다.
+- 로그인 세션 저장을 `INSERT ... ON CONFLICT (user_id, client_type) DO UPDATE`로 바꿔 기존 row를 갱신하게 했다.
+- 기존 세션이 취소 상태였어도 새 로그인 시 `ACTIVE`, 새 refresh token, 새 만료 시각, `revoked_at = NULL`로 복구한다.
+- refresh와 logout은 refresh token row를 `PESSIMISTIC_WRITE` 잠금으로 읽게 해, 같은 refresh token 동시 사용이 같은 row를 동시에 회전시키는 위험을 줄였다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.auth.service.AuthServiceTest --tests com.bubli.auth.repository.UserSessionRepositoryIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 타이머 RUNNING 중복 생성 방지
 
