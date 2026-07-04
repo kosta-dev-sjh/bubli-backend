@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/task-schedule-delete-guard-20260705` |
+| 현재 확인 브랜치 | `codex/agent-job-exception-failure-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,25 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 에이전트 실행 포트 예외 실패 기록 보장
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 에이전트 잡은 `RUNNING` 상태로 저장한 뒤 실행 포트를 호출한다.
+- 기존에는 `executionPort.execute(...)`가 outcome을 반환하지 못하고 예외를 던지면 실패 기록기가 호출되지 않아, 잡이 `RUNNING` 상태에 남을 수 있었다.
+- 실행 포트 호출을 `try/catch`로 감싸고, 예외 발생 시 `AGENT_EXECUTION_FAILED`로 실패 기록을 보장하게 했다.
+- 예외 메시지가 비어 있으면 예외 클래스명을 실패 메시지로 쓰는 기존 `errorMessage` 규칙을 그대로 사용한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.agent.dispatch.AgentJobDispatchWorkerTest` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### TODO 일정 연결 삭제 가드 보강
 
