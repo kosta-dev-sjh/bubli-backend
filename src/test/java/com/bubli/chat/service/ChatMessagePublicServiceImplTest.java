@@ -21,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,7 +73,7 @@ class ChatMessagePublicServiceImplTest {
 		given(chatRoomMemberRepository.findByChatRoomIdAndUserId(chatRoom.getId(), userId))
 				.willReturn(Optional.empty());
 		given(chatMessageRepository.findMaxRoomSequence(chatRoom.getId())).willReturn(4L);
-		given(chatMessageRepository.save(any(ChatMessage.class))).willAnswer(invocation -> savedMessage(invocation.getArgument(0)));
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class))).willAnswer(invocation -> savedMessage(invocation.getArgument(0)));
 
 		ChatMessageResult result = chatMessagePublicService.createRoomAgentResponse(userId, roomId, body, null);
 
@@ -96,13 +98,36 @@ class ChatMessagePublicServiceImplTest {
 		given(chatRoomMemberRepository.findByChatRoomIdAndUserId(chatRoom.getId(), userId))
 				.willReturn(Optional.of(leftMember));
 		given(chatMessageRepository.findMaxRoomSequence(chatRoom.getId())).willReturn(4L);
-		given(chatMessageRepository.save(any(ChatMessage.class))).willAnswer(invocation -> savedMessage(invocation.getArgument(0)));
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class))).willAnswer(invocation -> savedMessage(invocation.getArgument(0)));
 
 		ChatMessageResult result = chatMessagePublicService.createRoomAgentResponse(userId, roomId, body, null);
 
 		assertThat(result.roomSequence()).isEqualTo(5L);
 		assertThat(leftMember.getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
 		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
+	void createRoomAgentResponseRetriesWhenRoomSequenceConflicts() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ChatRoom chatRoom = roomChat(roomId);
+		ChatRoomMember member = ChatRoomMember.create(chatRoom.getId(), userId);
+		JsonNode body = objectMapper.createObjectNode().put("text", "분석 결과");
+		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM))
+				.willReturn(Optional.of(chatRoom));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserId(chatRoom.getId(), userId))
+				.willReturn(Optional.of(member));
+		given(chatMessageRepository.findMaxRoomSequence(chatRoom.getId())).willReturn(4L, 5L);
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate room sequence"))
+				.willAnswer(invocation -> savedMessage(invocation.getArgument(0)));
+
+		ChatMessageResult result = chatMessagePublicService.createRoomAgentResponse(userId, roomId, body, null);
+
+		assertThat(result.roomSequence()).isEqualTo(6L);
+		verify(chatMessageRepository, times(2)).saveAndFlush(any(ChatMessage.class));
+		verify(webSocketPublishPublicService).publishChatMessage(result);
 	}
 
 	private ChatRoom roomChat(UUID roomId) {

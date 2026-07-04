@@ -29,6 +29,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -283,7 +284,7 @@ class ChatServiceTest {
 				.willReturn(Optional.empty());
 		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
 		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(7L);
-		given(chatMessageRepository.save(any(ChatMessage.class))).willAnswer(invocation -> {
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class))).willAnswer(invocation -> {
 			ChatMessage message = invocation.getArgument(0);
 			ReflectionTestUtils.setField(message, "id", UUID.randomUUID());
 			ReflectionTestUtils.setField(message, "createdAt", Instant.now());
@@ -300,10 +301,96 @@ class ChatServiceTest {
 		assertThat(result.body().get("text").asText()).isEqualTo("안녕하세요");
 
 		ArgumentCaptor<ChatMessage> captor = ArgumentCaptor.forClass(ChatMessage.class);
-		verify(chatMessageRepository).save(captor.capture());
+		verify(chatMessageRepository).saveAndFlush(captor.capture());
 		assertThat(captor.getValue().getClientMessageId()).isEqualTo("client-1");
 		assertThat(captor.getValue().getRoomSequence()).isEqualTo(8L);
 		verify(webSocketPublishPublicService).publishChatMessage(result);
+	}
+
+	@Test
+	void sendMessageRetriesWhenRoomSequenceConflicts() throws Exception {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UserResult sender = user(userId, "정현");
+		ChatRoom chatRoom = chatRoom(chatRoomId);
+		SendChatMessageCommand command = new SendChatMessageCommand(
+				"client-retry",
+				MessageType.TEXT,
+				objectMapper.readTree("""
+						{"text":"동시 메시지"}
+						"""),
+				null
+		);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatMessageRepository.findByChatRoomIdAndClientMessageId(chatRoomId, "client-retry"))
+				.willReturn(Optional.empty(), Optional.empty());
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(7L, 8L);
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate room sequence"))
+				.willAnswer(invocation -> {
+					ChatMessage message = invocation.getArgument(0);
+					ReflectionTestUtils.setField(message, "id", UUID.randomUUID());
+					ReflectionTestUtils.setField(message, "createdAt", Instant.now());
+					return message;
+				});
+		given(userPublicService.getUser(userId)).willReturn(sender);
+
+		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
+
+		assertThat(result.roomSequence()).isEqualTo(9L);
+		verify(chatMessageRepository, times(2)).saveAndFlush(any(ChatMessage.class));
+		verify(webSocketPublishPublicService).publishChatMessage(result);
+	}
+
+	@Test
+	void sendMessageReturnsExistingMessageWhenConcurrentClientMessageIdWasSaved() throws Exception {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UserResult sender = user(userId, "미연");
+		ChatRoom chatRoom = chatRoom(chatRoomId);
+		ChatMessage existing = ChatMessage.create(
+				chatRoomId,
+				userId,
+				"client-race",
+				5L,
+				MessageType.TEXT,
+				"{\"text\":\"동시에 저장됨\"}",
+				null
+		);
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
+		SendChatMessageCommand command = new SendChatMessageCommand(
+				"client-race",
+				MessageType.TEXT,
+				objectMapper.readTree("""
+						{"text":"동시에 저장됨"}
+						"""),
+				null
+		);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatMessageRepository.findByChatRoomIdAndClientMessageId(chatRoomId, "client-race"))
+				.willReturn(Optional.empty(), Optional.of(existing));
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(4L);
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate client message id"));
+		given(userPublicService.getUser(userId)).willReturn(sender);
+
+		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
+
+		assertThat(result.id()).isEqualTo(existing.getId());
+		assertThat(result.roomSequence()).isEqualTo(5L);
+		verify(chatMessageRepository).saveAndFlush(any(ChatMessage.class));
+		verify(webSocketPublishPublicService, never()).publishChatMessage(any(ChatMessageResult.class));
 	}
 
 	@Test
