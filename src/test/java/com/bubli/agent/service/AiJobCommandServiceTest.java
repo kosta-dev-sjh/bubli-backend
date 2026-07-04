@@ -57,12 +57,12 @@ class AiJobCommandServiceTest {
 	}
 
 	@Test
-	void createAnalyzeResourceJobChecksResourceAccessThenCreatesPendingAgentJob() {
+	void createAnalyzeResourceJobStartsResourceAnalysisThenCreatesPendingAgentJob() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		UUID jobId = UUID.randomUUID();
-		given(resourcePublicService.getReadableResource(userId, resourceId)).willReturn(new ResourceResult(
+		given(resourcePublicService.startAnalysis(userId, resourceId)).willReturn(new ResourceResult(
 				resourceId,
 				userId,
 				roomId,
@@ -97,6 +97,7 @@ class AiJobCommandServiceTest {
 		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
 
 		ArgumentCaptor<CreateAgentJobCommand> commandCaptor = ArgumentCaptor.forClass(CreateAgentJobCommand.class);
+		verify(resourcePublicService).startAnalysis(userId, resourceId);
 		verify(agentJobService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
 		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
 		assertThat(commandCaptor.getValue().resourceId()).isEqualTo(resourceId);

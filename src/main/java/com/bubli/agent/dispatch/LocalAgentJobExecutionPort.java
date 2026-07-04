@@ -35,6 +35,9 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             }
             return Optional.of(generateSuggestion(message));
         } catch (RuntimeException exception) {
+            if (message.jobType() == AgentJobType.ANALYZE_RESOURCE && message.resourceId() != null) {
+                resourceAnalysisService.markAnalysisFailed(message.resourceId());
+            }
             return Optional.of(AgentJobExecutionOutcome.failed(
                     "AGENT_EXECUTION_FAILED",
                     errorMessage(exception)
