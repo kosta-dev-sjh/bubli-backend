@@ -38,8 +38,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -61,9 +64,9 @@ public class WidgetService implements WidgetPublicService {
     private static final int SUMMARY_SCHEDULE_LIMIT = 5;
     private static final int SUMMARY_SUGGESTION_LIMIT = 5;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WidgetSettingsResponse getSettings(UUID userId) {
-        List<WidgetBubbleSettingResponse> bubbles = bubbleSettingRepository.findByUserId(userId)
+        List<WidgetBubbleSettingResponse> bubbles = getOrCreateBubbleSettings(userId)
                 .stream().map(this::toSettingResponse).toList();
         return new WidgetSettingsResponse(bubbles);
     }
@@ -110,10 +113,10 @@ public class WidgetService implements WidgetPublicService {
         return new WidgetContextResponse(context.getSelectedRoomId(), context.getMode().name());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WidgetSummaryResponse getSummary(UUID userId) {
         WidgetContextResponse context = getContext(userId);
-        List<WidgetBubbleSettingResponse> bubbles = bubbleSettingRepository.findByUserId(userId)
+        List<WidgetBubbleSettingResponse> bubbles = getOrCreateBubbleSettings(userId)
                 .stream().map(this::toSettingResponse).toList();
         UUID roomId = context.selectedRoomId();
         if (roomId != null) {
@@ -147,6 +150,25 @@ public class WidgetService implements WidgetPublicService {
                 runningTimer,
                 agentSuggestionPublicService.getReviewRequiredSummaries(userId, SUMMARY_SUGGESTION_LIMIT)
         );
+    }
+
+    private List<WidgetBubbleSetting> getOrCreateBubbleSettings(UUID userId) {
+        List<WidgetBubbleSetting> settings = new ArrayList<>(bubbleSettingRepository.findByUserId(userId));
+        Set<BubbleType> existingTypes = EnumSet.noneOf(BubbleType.class);
+        for (WidgetBubbleSetting setting : settings) {
+            existingTypes.add(setting.getBubbleType());
+        }
+
+        for (BubbleType type : BubbleType.values()) {
+            if (existingTypes.contains(type)) {
+                continue;
+            }
+            settings.add(bubbleSettingRepository.save(WidgetBubbleSetting.create(userId, type)));
+        }
+
+        return settings.stream()
+                .sorted(Comparator.comparingInt(setting -> setting.getBubbleType().ordinal()))
+                .toList();
     }
 
     private List<TaskResult> roomSummaryTasks(UUID roomId) {
