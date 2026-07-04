@@ -52,6 +52,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### 보이스챗 조회 권한과 참가자 이름 조회 최적화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸에 연결된 보이스챗 방 조회, 마이크 상태 변경, 나가기 흐름에서 프로젝트룸 멤버 권한을 다시 확인한다.
+- 보이스챗 참가자 이름을 참가자별 개별 조회하지 않고 한 번의 사용자 배치 조회로 가져오도록 바꿨다.
+- 참가자 이름 조회 실패 시 기존처럼 빈 이름으로 응답해 보이스챗 응답 전체가 실패하지 않게 유지했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.voice.service.VoiceRoomServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 채팅 타이핑 WebSocket 릴레이
 
 처리 시각: 2026-07-04 KST
