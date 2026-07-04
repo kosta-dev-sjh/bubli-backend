@@ -22,7 +22,9 @@ public interface TaskPublicService {
 
 	void assertNoTaskLinkedToWbsItem(UUID wbsItemId);
 
-	TaskResult createPersonalTask(UUID userId, CreatePersonalTaskCommand command);
+    TaskResult createPersonalTask(UUID userId, CreatePersonalTaskCommand command);
 
-	TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command);
+    void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId);
+
+    TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command);
 }

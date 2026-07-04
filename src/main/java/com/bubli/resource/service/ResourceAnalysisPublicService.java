@@ -171,12 +171,15 @@ public class ResourceAnalysisPublicService {
 
             UUID analyzedResourceId = resource.getId();
             UUID roomId = resource.getRoomId();
+            BigDecimal detectedConfidence = aiAnalysisJson == null ? new BigDecimal("0.5000") : new BigDecimal("0.8000");
             aiDocumentRepository.findByResourceId(analyzedResourceId)
-                    .orElseGet(() -> aiDocumentRepository.save(AiDocument.analyzed(
+                    .ifPresentOrElse(
+                            aiDocument -> aiDocument.markAnalyzed(source.documentType(), detectedConfidence),
+                            () -> aiDocumentRepository.save(AiDocument.analyzed(
                             analyzedResourceId,
                             roomId,
                             source.documentType(),
-                            aiAnalysisJson == null ? new BigDecimal("0.5000") : new BigDecimal("0.8000")
+                            detectedConfidence
                     )));
 
             ResourceEmbeddingIndexPublicService.IndexResult indexResult;

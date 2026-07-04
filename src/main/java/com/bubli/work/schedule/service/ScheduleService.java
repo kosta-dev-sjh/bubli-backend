@@ -6,12 +6,14 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarSyncResult;
 import com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import com.bubli.work.schedule.dto.UpdateScheduleCommand;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
+import com.bubli.work.wbs.service.WbsItemPublicService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +34,8 @@ import java.util.UUID;
 public class ScheduleService {
 
 	private final ScheduleRepository scheduleRepository;
+	private final TaskPublicService taskPublicService;
+	private final WbsItemPublicService wbsItemPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final GoogleCalendarScheduleSyncPublicService googleCalendarScheduleSyncPublicService;
 
@@ -63,6 +67,7 @@ public class ScheduleService {
 		if (command.roomId() != null) {
 			projectMembershipPublicService.assertActiveMember(userId, command.roomId());
 		}
+		validateLinkedWorkScope(userId, command.roomId(), command.taskId(), command.wbsItemId());
 		Schedule schedule = Schedule.create(
 				userId,
 				command.roomId(),
@@ -76,7 +81,7 @@ public class ScheduleService {
 		Schedule savedSchedule = scheduleRepository.save(schedule);
 		markGoogleSyncResult(
 				savedSchedule,
-				googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+				syncCreatedOrUpdatedSchedule(
 						userId,
 						ScheduleSyncTarget.from(savedSchedule)
 				)
@@ -88,22 +93,26 @@ public class ScheduleService {
 	public ScheduleResult update(UUID userId, UUID scheduleId, UpdateScheduleCommand command) {
 		Schedule schedule = getAccessibleSchedule(userId, scheduleId);
 		Instant startsAt = command.startsAt() == null ? schedule.getStartsAt() : command.startsAt();
-		validateRange(startsAt, command.endsAt());
+		Instant endsAt = command.endsAt() == null ? schedule.getEndsAt() : command.endsAt();
+		UUID taskId = command.taskId() == null ? schedule.getTaskId() : command.taskId();
+		UUID wbsItemId = command.wbsItemId() == null ? schedule.getWbsItemId() : command.wbsItemId();
+		validateRange(startsAt, endsAt);
 		if (command.title() != null && command.title().isBlank()) {
 			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
 		}
+		validateLinkedWorkScope(userId, schedule.getRoomId(), taskId, wbsItemId);
 		schedule.update(
 				command.title(),
 				command.startsAt(),
-				command.endsAt(),
+				endsAt,
 				command.allDay(),
-				command.taskId(),
-				command.wbsItemId()
+				taskId,
+				wbsItemId
 		);
 		markGoogleSyncResult(
 				schedule,
-				googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
-						userId,
+				syncCreatedOrUpdatedSchedule(
+						syncUserIdFor(schedule, userId),
 						ScheduleSyncTarget.from(schedule)
 				)
 		);
@@ -113,7 +122,10 @@ public class ScheduleService {
 	@Transactional
 	public void delete(UUID userId, UUID scheduleId) {
 		Schedule schedule = getAccessibleSchedule(userId, scheduleId);
-		googleCalendarScheduleSyncPublicService.deleteSyncedSchedule(userId, ScheduleSyncTarget.from(schedule));
+		deleteSyncedSchedule(
+				syncUserIdFor(schedule, userId),
+				ScheduleSyncTarget.from(schedule)
+		);
 		scheduleRepository.delete(schedule);
 	}
 
@@ -128,7 +140,37 @@ public class ScheduleService {
 			schedule.markSyncFailed();
 			return;
 		}
-		schedule.markSynced(syncResult.googleEventId());
+		schedule.markSynced(
+				syncResult.googleCalendarId(),
+				syncResult.googleCalendarSummary(),
+				syncResult.googleEventId()
+		);
+	}
+
+	private void validateLinkedWorkScope(UUID userId, UUID roomId, UUID taskId, UUID wbsItemId) {
+		if (wbsItemId != null) {
+			if (roomId == null) {
+				throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+			}
+			wbsItemPublicService.assertRoomWbsItem(roomId, wbsItemId);
+		}
+		taskPublicService.assertScheduleTaskScope(userId, roomId, taskId);
+	}
+
+	private GoogleCalendarSyncResult syncCreatedOrUpdatedSchedule(UUID userId, ScheduleSyncTarget schedule) {
+		try {
+			return googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(userId, schedule);
+		} catch (RuntimeException exception) {
+			return GoogleCalendarSyncResult.failed();
+		}
+	}
+
+	private void deleteSyncedSchedule(UUID userId, ScheduleSyncTarget schedule) {
+		try {
+			googleCalendarScheduleSyncPublicService.deleteSyncedSchedule(userId, schedule);
+		} catch (RuntimeException exception) {
+			// 외부 캘린더 삭제 실패가 Bubli 일정 삭제를 막지 않게 한다.
+		}
 	}
 
 	private Schedule getAccessibleSchedule(UUID userId, UUID scheduleId) {
@@ -136,6 +178,13 @@ public class ScheduleService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.SCHEDULE_404_001));
 		checkScheduleAccess(userId, schedule);
 		return schedule;
+	}
+
+	private UUID syncUserIdFor(Schedule schedule, UUID actorUserId) {
+		if (schedule.getRoomId() != null) {
+			return schedule.getOwnerUserId();
+		}
+		return actorUserId;
 	}
 
 	private void checkScheduleAccess(UUID userId, Schedule schedule) {
@@ -172,10 +221,27 @@ public class ScheduleService {
 				predicates.add(criteriaBuilder.equal(root.get("roomId"), roomId));
 			}
 			if (from != null) {
-				predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from));
+				if (to == null) {
+					predicates.add(criteriaBuilder.or(
+							criteriaBuilder.and(
+									criteriaBuilder.isNull(root.get("endsAt")),
+									criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from)
+							),
+							criteriaBuilder.greaterThan(root.get("endsAt"), from)
+					));
+				}
 			}
 			if (to != null) {
 				predicates.add(criteriaBuilder.lessThan(root.get("startsAt"), to));
+			}
+			if (from != null && to != null) {
+				predicates.add(criteriaBuilder.or(
+						criteriaBuilder.and(
+								criteriaBuilder.isNull(root.get("endsAt")),
+								criteriaBuilder.greaterThanOrEqualTo(root.get("startsAt"), from)
+						),
+						criteriaBuilder.greaterThan(root.get("endsAt"), from)
+				));
 			}
 			return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
 		};

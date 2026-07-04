@@ -11,6 +11,7 @@ import com.bubli.widget.dto.BubbleSettingUpdate;
 import com.bubli.widget.dto.WidgetBubbleSettingResponse;
 import com.bubli.widget.dto.WidgetContextResponse;
 import com.bubli.widget.dto.WidgetDailySummaryResponse;
+import com.bubli.widget.dto.WidgetItemStateResponse;
 import com.bubli.widget.dto.WidgetSettingsResponse;
 import com.bubli.widget.dto.WidgetSummaryResponse;
 import com.bubli.widget.dto.WidgetTodaySummaryResponse;
@@ -24,6 +25,7 @@ import com.bubli.widget.repository.WidgetDailySummaryRepository;
 import com.bubli.widget.repository.WidgetItemStateRepository;
 import com.bubli.widget.type.BubbleType;
 import com.bubli.widget.type.WidgetItemStateValue;
+import com.bubli.widget.type.WidgetItemType;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
@@ -36,8 +38,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -59,9 +64,9 @@ public class WidgetService implements WidgetPublicService {
     private static final int SUMMARY_SCHEDULE_LIMIT = 5;
     private static final int SUMMARY_SUGGESTION_LIMIT = 5;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WidgetSettingsResponse getSettings(UUID userId) {
-        List<WidgetBubbleSettingResponse> bubbles = bubbleSettingRepository.findByUserId(userId)
+        List<WidgetBubbleSettingResponse> bubbles = getOrCreateBubbleSettings(userId)
                 .stream().map(this::toSettingResponse).toList();
         return new WidgetSettingsResponse(bubbles);
     }
@@ -70,9 +75,7 @@ public class WidgetService implements WidgetPublicService {
     public WidgetSettingsResponse updateSettings(UUID userId, List<BubbleSettingUpdate> bubbles) {
         for (BubbleSettingUpdate req : bubbles) {
             BubbleType type = parseBubbleType(req.bubbleType());
-            WidgetBubbleSetting setting = bubbleSettingRepository
-                    .findByUserIdAndBubbleType(userId, type)
-                    .orElseGet(() -> bubbleSettingRepository.save(WidgetBubbleSetting.create(userId, type)));
+            WidgetBubbleSetting setting = getOrCreateBubbleSetting(userId, type);
             setting.update(req.enabled(), req.x(), req.y(), req.width(), req.height(),
                     req.minimized(), req.opacity(), req.ghostMode(), req.alertEnabled());
         }
@@ -86,6 +89,17 @@ public class WidgetService implements WidgetPublicService {
                 .orElse(new WidgetContextResponse(null, "PERSONAL"));
     }
 
+    @Transactional(readOnly = true)
+    public List<WidgetItemStateResponse> getItemStates(UUID userId, List<UUID> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return List.of();
+        }
+        return itemStateRepository.findByUserIdAndItemIdIn(userId, itemIds.stream().distinct().toList())
+                .stream()
+                .map(WidgetItemStateResponse::from)
+                .toList();
+    }
+
     @Transactional
     public WidgetContextResponse updateContext(UUID userId, UUID selectedRoomId) {
         if (selectedRoomId != null) {
@@ -97,10 +111,17 @@ public class WidgetService implements WidgetPublicService {
         return new WidgetContextResponse(context.getSelectedRoomId(), context.getMode().name());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WidgetSummaryResponse getSummary(UUID userId) {
-        WidgetContextResponse context = getContext(userId);
-        List<WidgetBubbleSettingResponse> bubbles = bubbleSettingRepository.findByUserId(userId)
+        return getSummary(userId, null);
+    }
+
+    @Transactional
+    public WidgetSummaryResponse getSummary(UUID userId, UUID selectedRoomId) {
+        WidgetContextResponse context = selectedRoomId == null
+                ? getContext(userId)
+                : new WidgetContextResponse(selectedRoomId, "ROOM");
+        List<WidgetBubbleSettingResponse> bubbles = getOrCreateBubbleSettings(userId)
                 .stream().map(this::toSettingResponse).toList();
         UUID roomId = context.selectedRoomId();
         if (roomId != null) {
@@ -136,6 +157,45 @@ public class WidgetService implements WidgetPublicService {
         );
     }
 
+    private List<WidgetBubbleSetting> getOrCreateBubbleSettings(UUID userId) {
+        List<WidgetBubbleSetting> settings = new ArrayList<>(bubbleSettingRepository.findByUserId(userId));
+        Set<BubbleType> existingTypes = EnumSet.noneOf(BubbleType.class);
+        for (WidgetBubbleSetting setting : settings) {
+            existingTypes.add(setting.getBubbleType());
+        }
+
+        boolean insertedMissingDefault = false;
+        for (BubbleType type : BubbleType.values()) {
+            if (existingTypes.contains(type)) {
+                continue;
+            }
+            insertDefaultBubbleSettingIfAbsent(userId, type);
+            insertedMissingDefault = true;
+        }
+
+        List<WidgetBubbleSetting> result = insertedMissingDefault
+                ? bubbleSettingRepository.findByUserId(userId)
+                : settings;
+
+        return result.stream()
+                .sorted(Comparator.comparingInt(setting -> setting.getBubbleType().ordinal()))
+                .toList();
+    }
+
+    private WidgetBubbleSetting getOrCreateBubbleSetting(UUID userId, BubbleType type) {
+        return bubbleSettingRepository.findByUserIdAndBubbleType(userId, type)
+                .orElseGet(() -> {
+                    insertDefaultBubbleSettingIfAbsent(userId, type);
+                    return bubbleSettingRepository.findByUserIdAndBubbleType(userId, type)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Failed to create widget bubble setting: " + userId + "/" + type));
+                });
+    }
+
+    private void insertDefaultBubbleSettingIfAbsent(UUID userId, BubbleType type) {
+        bubbleSettingRepository.insertDefaultIfAbsent(UUID.randomUUID(), userId, type.name());
+    }
+
     private List<TaskResult> roomSummaryTasks(UUID roomId) {
         return taskPublicService.getRoomTasksForBoard(roomId).stream()
                 .filter(task -> task.status() != TaskStatus.DONE)
@@ -147,12 +207,32 @@ public class WidgetService implements WidgetPublicService {
     }
 
     @Transactional
-    public void updateItemState(UUID userId, UUID itemStateId, String stateStr) {
+    public void updateItemState(
+            UUID userId,
+            UUID itemStateId,
+            String bubbleTypeStr,
+            UUID itemId,
+            String itemTypeStr,
+            String stateStr
+    ) {
         WidgetItemStateValue state = parseItemState(stateStr);
         WidgetItemState itemState = itemStateRepository.findById(itemStateId)
                 .filter(s -> s.getUserId().equals(userId))
-                .orElseThrow(() -> new BusinessException(ErrorCode.WIDGET_404_001));
+                .orElseGet(() -> findOrCreateItemState(userId, bubbleTypeStr, itemTypeStr, itemId));
         itemState.updateState(state);
+    }
+
+    private WidgetItemState findOrCreateItemState(UUID userId, String bubbleTypeStr, String itemTypeStr, UUID itemId) {
+        if (bubbleTypeStr == null || itemTypeStr == null || itemId == null) {
+            throw new BusinessException(ErrorCode.WIDGET_404_001);
+        }
+
+        BubbleType bubbleType = parseBubbleType(bubbleTypeStr);
+        WidgetItemType itemType = parseItemType(itemTypeStr);
+        return itemStateRepository.findByUserIdAndBubbleTypeAndItemTypeAndItemId(
+                        userId, bubbleType, itemType, itemId)
+                .orElseGet(() -> itemStateRepository.save(
+                        WidgetItemState.create(userId, bubbleType, itemType, itemId)));
     }
 
     @Transactional
@@ -211,6 +291,14 @@ public class WidgetService implements WidgetPublicService {
     private WidgetItemStateValue parseItemState(String value) {
         try {
             return WidgetItemStateValue.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.WIDGET_400_001);
+        }
+    }
+
+    private WidgetItemType parseItemType(String value) {
+        try {
+            return WidgetItemType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.WIDGET_400_001);
         }

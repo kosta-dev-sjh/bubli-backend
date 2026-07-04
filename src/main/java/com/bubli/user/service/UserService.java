@@ -89,14 +89,15 @@ public class UserService {
 		if (command.defaultProjectRoomId() != null) {
 			projectMembershipPublicService.assertActiveMember(userId, command.defaultProjectRoomId());
 		}
-		UserPreference preference = userPreferenceRepository.findByUserId(userId)
-				.orElseGet(() -> UserPreference.create(userId));
+		UserPreference preference = getOrCreatePreferenceForUpdate(userId);
 		preference.update(
 				command.theme(),
 				command.defaultHomeType(),
-				command.defaultProjectRoomId()
+				command.defaultProjectRoomId(),
+				command.jobRole(),
+				command.onboardingCompletedAt()
 		);
-		return UserPreferenceResult.from(userPreferenceRepository.save(preference));
+		return UserPreferenceResult.from(preference);
 	}
 
 	@Transactional(readOnly = true)
@@ -112,26 +113,15 @@ public class UserService {
 			UUID userId,
 			UpdateNotificationPreferencesCommand command
 	) {
-		Map<NotificationType, UserNotificationPreference> preferences =
-				userNotificationPreferenceRepository.findByIdUserId(userId).stream()
-						.collect(Collectors.toMap(
-								UserNotificationPreference::getNotificationType,
-								Function.identity()
-						));
-
-		List<UserNotificationPreference> changedPreferences = command.items().stream()
-				.map(item -> {
-					UserNotificationPreference preference = preferences.computeIfAbsent(
-							item.notificationType(),
-							notificationType -> UserNotificationPreference.create(userId, notificationType, true)
-					);
-					preference.updateEnabled(item.enabled());
-					return preference;
-				})
-				.toList();
-
-		userNotificationPreferenceRepository.saveAll(changedPreferences);
-		return toNotificationPreferencesResult(userId, preferences.values().stream().toList());
+		command.items().forEach(item -> userNotificationPreferenceRepository.upsertEnabled(
+				userId,
+				item.notificationType().name(),
+				item.enabled()
+		));
+		return toNotificationPreferencesResult(
+				userId,
+				userNotificationPreferenceRepository.findByIdUserId(userId)
+		);
 	}
 
 	private UserNotificationPreferencesResult toNotificationPreferencesResult(
@@ -165,26 +155,15 @@ public class UserService {
 
 	@Transactional
 	public UserPrivacyConsentsResult updatePrivacyConsents(UUID userId, UpdatePrivacyConsentsCommand command) {
-		Map<ConsentType, UserPrivacyConsent> consents =
-				userPrivacyConsentRepository.findByIdUserId(userId).stream()
-						.collect(Collectors.toMap(
-								UserPrivacyConsent::getConsentType,
-								Function.identity()
-						));
-
-		List<UserPrivacyConsent> changedConsents = command.items().stream()
-				.map(item -> {
-					UserPrivacyConsent consent = consents.computeIfAbsent(
-							item.consentType(),
-							consentType -> UserPrivacyConsent.create(userId, consentType, false)
-					);
-					consent.updateEnabled(item.enabled());
-					return consent;
-				})
-				.toList();
-
-		userPrivacyConsentRepository.saveAll(changedConsents);
-		return toPrivacyConsentsResult(userId, consents.values().stream().toList());
+		command.items().forEach(item -> userPrivacyConsentRepository.upsertEnabled(
+				userId,
+				item.consentType().name(),
+				item.enabled()
+		));
+		return toPrivacyConsentsResult(
+				userId,
+				userPrivacyConsentRepository.findByIdUserId(userId)
+		);
 	}
 
 	private UserPrivacyConsentsResult toPrivacyConsentsResult(UUID userId, List<UserPrivacyConsent> consents) {
@@ -204,6 +183,12 @@ public class UserService {
 				})
 				.toList();
 		return new UserPrivacyConsentsResult(userId, items);
+	}
+
+	private UserPreference getOrCreatePreferenceForUpdate(UUID userId) {
+		userPreferenceRepository.insertDefaultIfAbsent(UUID.randomUUID(), userId);
+		return userPreferenceRepository.findByUserIdForUpdate(userId)
+				.orElseThrow(() -> new IllegalStateException("User preference row was not created."));
 	}
 
 	private User getActiveUser(UUID userId) {

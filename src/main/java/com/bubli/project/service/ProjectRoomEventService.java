@@ -18,6 +18,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -56,9 +59,16 @@ public class ProjectRoomEventService {
 				.reduce((ignored, sequence) -> sequence)
 				.orElse(null);
 
+		List<ProjectRoomEvent> events = page.getContent();
+		Map<UUID, UserResult> actors = userPublicService.getUsers(events.stream()
+				.map(ProjectRoomEvent::getActorUserId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.toList());
+
 		return new SequenceListResponse<>(
-				page.getContent().stream()
-						.map(this::toResponse)
+				events.stream()
+						.map(event -> toResponse(event, actors))
 						.toList(),
 				lastReceivedSequence,
 				latestSequence,
@@ -66,28 +76,27 @@ public class ProjectRoomEventService {
 		);
 	}
 
-	private ProjectRoomEventResponse toResponse(ProjectRoomEvent event) {
+	private ProjectRoomEventResponse toResponse(ProjectRoomEvent event, Map<UUID, UserResult> actors) {
 		return new ProjectRoomEventResponse(
 				event.getId(),
 				event.getEventType(),
 				event.getRoomId(),
 				event.getSequence(),
 				event.getOccurredAt(),
-				actor(event),
+				actor(event, actors),
 				payload(event)
 		);
 	}
 
-	private ProjectRoomEventActorResponse actor(ProjectRoomEvent event) {
+	private ProjectRoomEventActorResponse actor(ProjectRoomEvent event, Map<UUID, UserResult> actors) {
 		if (event.getActorUserId() == null) {
 			return ProjectRoomEventActorResponse.system();
 		}
-		try {
-			UserResult user = userPublicService.getUser(event.getActorUserId());
-			return ProjectRoomEventActorResponse.user(user.id(), user.name());
-		} catch (BusinessException e) {
+		UserResult user = actors.get(event.getActorUserId());
+		if (user == null) {
 			return ProjectRoomEventActorResponse.user(event.getActorUserId(), "Unknown");
 		}
+		return ProjectRoomEventActorResponse.user(user.id(), user.name());
 	}
 
 	private JsonNode payload(ProjectRoomEvent event) {

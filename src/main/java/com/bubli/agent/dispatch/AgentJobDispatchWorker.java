@@ -57,8 +57,17 @@ public class AgentJobDispatchWorker {
 				agentJob.getRetryCount()
 		);
 		markStarted(agentJob);
-		executionPort.execute(message)
-				.ifPresent(outcome -> recordOutcome(agentJob, outcome));
+		try {
+			executionPort.execute(message)
+					.ifPresent(outcome -> recordOutcome(agentJob, outcome));
+		} catch (RuntimeException exception) {
+			log.warn("Agent job execution port threw an exception. jobId={}", agentJob.getId(), exception);
+			executionResultRecorder.recordFailed(
+					agentJob.getId(),
+					"AGENT_EXECUTION_FAILED",
+					errorMessage(exception)
+			);
+		}
 		return true;
 	}
 

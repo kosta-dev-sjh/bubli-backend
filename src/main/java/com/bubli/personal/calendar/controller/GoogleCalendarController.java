@@ -12,9 +12,11 @@ import com.bubli.personal.calendar.dto.GoogleCalendarCallbackRequest;
 import com.bubli.personal.calendar.dto.GoogleCalendarConnectResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarConnectionResponse;
 import com.bubli.personal.calendar.dto.GoogleCalendarListEntry;
+import com.bubli.personal.calendar.dto.RoomCalendarResponse;
 import com.bubli.personal.calendar.service.GoogleCalendarConnectionService;
 import com.bubli.personal.calendar.service.GoogleCalendarEventService;
 import com.bubli.personal.calendar.service.GoogleCalendarGroupService;
+import com.bubli.personal.calendar.service.ProjectRoomCalendarService;
 import com.bubli.work.schedule.dto.ScheduleResponse;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import jakarta.validation.Valid;
@@ -42,6 +44,7 @@ public class GoogleCalendarController {
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarEventService eventService;
 	private final GoogleCalendarGroupService groupService;
+	private final ProjectRoomCalendarService projectRoomCalendarService;
 
 	@GetMapping("/api/calendar/google/connect")
 	public ApiResponse<GoogleCalendarConnectResponse> connectUrl(
@@ -73,6 +76,14 @@ public class GoogleCalendarController {
 	@GetMapping("/api/calendar/google/calendars")
 	public ApiResponse<List<GoogleCalendarListEntry>> getGoogleCalendars(@CurrentUser AuthUser authUser) {
 		return ApiResponse.success(eventService.getGoogleCalendars(authUser.userId()));
+	}
+
+	@GetMapping("/api/calendar/rooms/{roomId}/calendar")
+	public ApiResponse<RoomCalendarResponse> getRoomCalendar(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID roomId
+	) {
+		return ApiResponse.success(projectRoomCalendarService.getRoomCalendar(authUser.userId(), roomId));
 	}
 
 	@GetMapping("/api/calendar/groups")
@@ -124,12 +135,38 @@ public class GoogleCalendarController {
 		return ApiResponse.success(CalendarEventResponse.from(schedule, eventService.hasActiveConnection(authUser.userId())));
 	}
 
+	@PatchMapping("/api/calendar/google/calendars/{googleCalendarId}/events/{googleEventId}")
+	public ApiResponse<CalendarEventResponse> updateGoogleEvent(
+			@CurrentUser AuthUser authUser,
+			@PathVariable String googleCalendarId,
+			@PathVariable String googleEventId,
+			@Valid @RequestBody CalendarEventUpdateRequest request
+	) {
+		ScheduleResult schedule = eventService.updateGoogleEvent(
+				authUser.userId(),
+				googleCalendarId,
+				googleEventId,
+				request.toCommand()
+		);
+		return ApiResponse.success(CalendarEventResponse.from(schedule, true));
+	}
+
 	@DeleteMapping("/api/calendar/events/{scheduleId}")
 	public ApiResponse<Void> deleteEvent(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID scheduleId
 	) {
 		eventService.deleteEvent(authUser.userId(), scheduleId);
+		return ApiResponse.success(null);
+	}
+
+	@DeleteMapping("/api/calendar/google/calendars/{googleCalendarId}/events/{googleEventId}")
+	public ApiResponse<Void> deleteGoogleEvent(
+			@CurrentUser AuthUser authUser,
+			@PathVariable String googleCalendarId,
+			@PathVariable String googleEventId
+	) {
+		eventService.deleteGoogleEvent(authUser.userId(), googleCalendarId, googleEventId);
 		return ApiResponse.success(null);
 	}
 

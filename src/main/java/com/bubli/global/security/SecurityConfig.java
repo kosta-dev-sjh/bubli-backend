@@ -48,7 +48,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/google/authorize").permitAll()
                         .requestMatchers(HttpMethod.GET, "/oauth2/authorization/google").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/google/callback", "/api/auth/refresh").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/voice/webhook/livekit").permitAll()

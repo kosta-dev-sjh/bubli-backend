@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record RecordCurrentAppActivityCommand(
 		UUID roomId,
+		String localActivityId,
 		String appName,
 		String windowTitle,
 		Instant startedAt,

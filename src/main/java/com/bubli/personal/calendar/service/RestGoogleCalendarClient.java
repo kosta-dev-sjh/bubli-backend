@@ -28,7 +28,9 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 	private static final String TOKEN_URI = "https://oauth2.googleapis.com/token";
 	private static final String USERINFO_URI = "https://openidconnect.googleapis.com/v1/userinfo";
 	private static final String EVENTS_PATH = "/calendar/v3/calendars/{calendarId}/events";
+	private static final String CALENDARS_PATH = "/calendar/v3/calendars";
 	private static final String CALENDAR_LIST_PATH = "/calendar/v3/users/me/calendarList";
+	private static final String DEFAULT_TIME_ZONE = "Asia/Seoul";
 
 	private final RestClient restClient;
 
@@ -71,6 +73,24 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.retrieve()
 					.body(GoogleCalendarUserInfoResponse.class);
+		} catch (RestClientException exception) {
+			throw calendarException(exception);
+		}
+	}
+
+	@Override
+	public String insertCalendar(String accessToken, String summary) {
+		try {
+			GoogleCalendarResource created = restClient.post()
+					.uri(uriBuilder -> googleCalendarUri(uriBuilder)
+							.path(CALENDARS_PATH)
+							.build())
+					.headers(headers -> headers.setBearerAuth(accessToken))
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(new GoogleCalendarInsertBody(summary, DEFAULT_TIME_ZONE))
+					.retrieve()
+					.body(GoogleCalendarResource.class);
+			return created == null ? null : created.id();
 		} catch (RestClientException exception) {
 			throw calendarException(exception);
 		}
@@ -234,6 +254,18 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	private String normalizeCalendarId(String calendarId) {
 		return calendarId == null || calendarId.isBlank() ? "primary" : calendarId;
+	}
+
+	private record GoogleCalendarInsertBody(
+			String summary,
+			String timeZone
+	) {
+	}
+
+	private record GoogleCalendarResource(
+			String id,
+			String summary
+	) {
 	}
 
 	private record GoogleCalendarListResponse(

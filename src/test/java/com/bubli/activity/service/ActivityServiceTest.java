@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -89,6 +90,33 @@ class ActivityServiceTest {
 	}
 
 	@Test
+	void recordCurrentAppReturnsExistingActivityWhenLocalActivityIdIsRetried() {
+		UUID userId = UUID.randomUUID();
+		UUID activityId = UUID.randomUUID();
+		String localActivityId = "activity-local-1";
+		ActivityLog existing = ActivityLog.create(
+				userId,
+				null,
+				localActivityId,
+				"IntelliJ IDEA",
+				"Bubli Backend",
+				Instant.parse("2026-07-01T01:00:00Z"),
+				Instant.parse("2026-07-01T01:30:00Z"),
+				1800L
+		);
+		ReflectionTestUtils.setField(existing, "id", activityId);
+		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.ACTIVITY_CONTEXT))
+				.willReturn(true);
+		given(activityLogRepository.findByUserIdAndLocalActivityId(userId, localActivityId))
+				.willReturn(Optional.of(existing));
+
+		var result = activityService.recordCurrentApp(userId, command(null, localActivityId));
+
+		assertThat(result.id()).isEqualTo(activityId);
+		verify(activityLogRepository, never()).save(any(ActivityLog.class));
+	}
+
+	@Test
 	void recordCurrentAppCalculatesDurationFromEndedAt() {
 		UUID userId = UUID.randomUUID();
 		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.ACTIVITY_CONTEXT))
@@ -96,6 +124,7 @@ class ActivityServiceTest {
 		given(activityLogRepository.save(any(ActivityLog.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		var result = activityService.recordCurrentApp(userId, new RecordCurrentAppActivityCommand(
+				null,
 				null,
 				"Chrome",
 				"요구사항 문서",
@@ -168,6 +197,7 @@ class ActivityServiceTest {
 		ActivityLog activityLog = ActivityLog.create(
 				ownerId,
 				null,
+				null,
 				"Figma",
 				"시안",
 				Instant.now(),
@@ -182,8 +212,13 @@ class ActivityServiceTest {
 	}
 
 	private RecordCurrentAppActivityCommand command(UUID roomId) {
+		return command(roomId, null);
+	}
+
+	private RecordCurrentAppActivityCommand command(UUID roomId, String localActivityId) {
 		return new RecordCurrentAppActivityCommand(
 				roomId,
+				localActivityId,
 				"IntelliJ IDEA",
 				"Bubli Backend",
 				Instant.parse("2026-07-01T01:00:00Z"),

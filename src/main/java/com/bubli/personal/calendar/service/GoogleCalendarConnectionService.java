@@ -24,7 +24,8 @@ import java.util.UUID;
 public class GoogleCalendarConnectionService implements GoogleCalendarConnectionPublicService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
-	private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events "
+	private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar "
+			+ "https://www.googleapis.com/auth/calendar.events "
 			+ "https://www.googleapis.com/auth/calendar.readonly";
 
 	private final GoogleCalendarConnectionRepository connectionRepository;
@@ -61,21 +62,14 @@ public class GoogleCalendarConnectionService implements GoogleCalendarConnection
 		}
 		GoogleCalendarUserInfoResponse userInfo = googleCalendarClient.fetchUserInfo(token.accessToken());
 		Instant expiresAt = expiresAt(token);
-		GoogleCalendarConnection connection = connectionRepository.findByUserId(userId)
-				.orElseGet(() -> GoogleCalendarConnection.create(
-						userId,
-						userInfo == null ? null : userInfo.email(),
-						token.accessToken(),
-						token.refreshToken(),
-						expiresAt
-				));
-		connection.updateTokens(
+		GoogleCalendarConnection connection = saveActiveConnection(
+				userId,
 				userInfo == null ? null : userInfo.email(),
 				token.accessToken(),
 				token.refreshToken(),
 				expiresAt
 		);
-		return GoogleCalendarConnectionResponse.from(connectionRepository.save(connection));
+		return GoogleCalendarConnectionResponse.from(connection);
 	}
 
 	@Override
@@ -91,16 +85,7 @@ public class GoogleCalendarConnectionService implements GoogleCalendarConnection
 			return;
 		}
 		Instant expiresAt = Instant.now().plusSeconds(expiresIn == null ? 3600L : expiresIn);
-		GoogleCalendarConnection connection = connectionRepository.findByUserId(userId)
-				.orElseGet(() -> GoogleCalendarConnection.create(
-						userId,
-						googleAccountEmail,
-						accessToken,
-						refreshToken,
-						expiresAt
-				));
-		connection.updateTokens(googleAccountEmail, accessToken, refreshToken, expiresAt);
-		connectionRepository.save(connection);
+		saveActiveConnection(userId, googleAccountEmail, accessToken, refreshToken, expiresAt);
 	}
 
 	@Transactional(readOnly = true)
@@ -152,6 +137,25 @@ public class GoogleCalendarConnectionService implements GoogleCalendarConnection
 	private Instant expiresAt(GoogleCalendarTokenResponse token) {
 		long expiresIn = token.expiresIn() == null ? 3600L : token.expiresIn();
 		return Instant.now().plusSeconds(expiresIn);
+	}
+
+	private GoogleCalendarConnection saveActiveConnection(
+			UUID userId,
+			String googleAccountEmail,
+			String accessToken,
+			String refreshToken,
+			Instant expiresAt
+	) {
+		connectionRepository.upsertActiveConnection(
+				UUID.randomUUID(),
+				userId,
+				googleAccountEmail,
+				accessToken,
+				refreshToken,
+				expiresAt
+		);
+		return connectionRepository.findByUserId(userId)
+				.orElseThrow(() -> new IllegalStateException("Google Calendar connection was not saved"));
 	}
 
 	private boolean hasText(String value) {

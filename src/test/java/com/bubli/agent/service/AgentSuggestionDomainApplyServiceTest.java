@@ -10,12 +10,15 @@ import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreatePersonalTaskCommand;
+import com.bubli.work.schedule.type.ScheduleSyncStatus;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
+import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.service.WbsItemPublicService;
 import com.bubli.work.wbs.type.WbsStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,6 +110,72 @@ class AgentSuggestionDomainApplyServiceTest {
         assertThat(commandCaptor.getValue().parentId()).isEqualTo(parentId);
         assertThat(commandCaptor.getValue().orderNo()).isEqualTo(3);
         assertThat(commandCaptor.getValue().status()).isEqualTo(WbsStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void appliesWbsSuggestionWithDateToRoomSchedule() {
+        WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
+        SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, schedulePublicService, mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        UUID reviewerId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID wbsItemId = UUID.randomUUID();
+        UUID scheduleId = UUID.randomUUID();
+        Instant startsAt = Instant.parse("2026-07-05T01:30:00Z");
+        Instant endsAt = Instant.parse("2026-07-05T02:00:00Z");
+        org.mockito.Mockito.when(wbsItemPublicService.create(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.eq(roomId),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new WbsItemResult(
+                wbsItemId,
+                roomId,
+                null,
+                "프로젝트룸 일정 정리",
+                1,
+                WbsStatus.TODO,
+                Instant.now(),
+                Instant.now()
+        ));
+        org.mockito.Mockito.when(schedulePublicService.create(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new ScheduleResult(
+                scheduleId,
+                reviewerId,
+                roomId,
+                null,
+                wbsItemId,
+                null,
+                null,
+                null,
+                "일정 후보",
+                startsAt,
+                endsAt,
+                false,
+                ScheduleSyncStatus.LOCAL_ONLY,
+                null,
+                Instant.now(),
+                Instant.now()
+        ));
+        AgentSuggestion suggestion = suggestion(roomId, AgentSuggestionType.WBS, Map.of(
+                "title", "프로젝트룸 일정 정리",
+                "scheduleTitle", "일정 후보",
+                "startsAt", startsAt.toString(),
+                "endsAt", endsAt.toString(),
+                "allDay", false
+        ));
+
+        service.applyApprovedSuggestion(reviewerId, suggestion);
+
+        ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+        verify(schedulePublicService).create(org.mockito.ArgumentMatchers.eq(reviewerId), commandCaptor.capture());
+        assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+        assertThat(commandCaptor.getValue().wbsItemId()).isEqualTo(wbsItemId);
+        assertThat(commandCaptor.getValue().title()).isEqualTo("일정 후보");
+        assertThat(commandCaptor.getValue().startsAt()).isEqualTo(startsAt);
+        assertThat(commandCaptor.getValue().endsAt()).isEqualTo(endsAt);
+        assertThat(appliedResult(suggestion).toString()).contains(wbsItemId.toString(), scheduleId.toString());
     }
 
     @Test

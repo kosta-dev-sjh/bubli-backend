@@ -10,6 +10,8 @@ import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.dto.ScheduleSyncTarget;
 import com.bubli.work.schedule.entity.Schedule;
 import com.bubli.work.schedule.repository.ScheduleRepository;
+import com.bubli.work.task.service.TaskPublicService;
+import com.bubli.work.wbs.service.WbsItemPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +26,18 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 
 	private final ScheduleRepository scheduleRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final TaskPublicService taskPublicService;
+	private final WbsItemPublicService wbsItemPublicService;
 	private final GoogleCalendarScheduleSyncPublicService googleCalendarScheduleSyncPublicService;
 
 	@Override
 	@Transactional(readOnly = true)
 	public List<ScheduleResult> getSchedulesBetween(UUID userId, Instant from, Instant to) {
-		return scheduleRepository.findByOwnerUserIdAndStartsAtBetweenOrderByStartsAtAsc(userId, from, to)
+		List<UUID> activeRoomIds = projectMembershipPublicService.findActiveRoomIds(userId);
+		List<Schedule> schedules = activeRoomIds.isEmpty()
+				? scheduleRepository.findPersonalBetweenForUser(userId, from, to)
+				: scheduleRepository.findVisibleBetweenForUser(userId, activeRoomIds, from, to);
+		return schedules
 				.stream()
 				.map(ScheduleResult::from)
 				.toList();
@@ -38,7 +46,7 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<ScheduleResult> getRoomSchedulesBetween(UUID roomId, Instant from, Instant to) {
-		return scheduleRepository.findByRoomIdAndStartsAtBetweenOrderByStartsAtAsc(roomId, from, to)
+		return scheduleRepository.findRoomOverlappingForRoom(roomId, from, to)
 				.stream()
 				.map(ScheduleResult::from)
 				.toList();
@@ -51,6 +59,7 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 		if (command.roomId() != null) {
 			projectMembershipPublicService.assertActiveMember(userId, command.roomId());
 		}
+		validateLinkedWorkScope(userId, command.roomId(), command.taskId(), command.wbsItemId());
 		Schedule schedule = Schedule.create(
 				userId,
 				command.roomId(),
@@ -62,10 +71,7 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 				command.allDay()
 		);
 		Schedule savedSchedule = scheduleRepository.save(schedule);
-		GoogleCalendarSyncResult syncResult = googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
-				userId,
-				ScheduleSyncTarget.from(savedSchedule)
-		);
+		GoogleCalendarSyncResult syncResult = syncCreatedOrUpdatedSchedule(userId, ScheduleSyncTarget.from(savedSchedule));
 		if (syncResult == null) {
 			return ScheduleResult.from(savedSchedule);
 		}
@@ -75,9 +81,47 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 		if (!syncResult.succeeded()) {
 			savedSchedule.markSyncFailed();
 		} else {
-			savedSchedule.markSynced(syncResult.googleEventId());
+			savedSchedule.markSynced(
+					syncResult.googleCalendarId(),
+					syncResult.googleCalendarSummary(),
+					syncResult.googleEventId()
+			);
 		}
 		return ScheduleResult.from(savedSchedule);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public void assertNoScheduleLinkedToWbsItem(UUID wbsItemId) {
+		if (scheduleRepository.existsByWbsItemId(wbsItemId)) {
+			throw new BusinessException(ErrorCode.WORK_400_003);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public void assertNoScheduleLinkedToTask(UUID taskId) {
+		if (scheduleRepository.existsByTaskId(taskId)) {
+			throw new BusinessException(ErrorCode.WORK_400_004);
+		}
+	}
+
+	private void validateLinkedWorkScope(UUID userId, UUID roomId, UUID taskId, UUID wbsItemId) {
+		if (wbsItemId != null) {
+			if (roomId == null) {
+				throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+			}
+			wbsItemPublicService.assertRoomWbsItem(roomId, wbsItemId);
+		}
+		taskPublicService.assertScheduleTaskScope(userId, roomId, taskId);
+	}
+
+	private GoogleCalendarSyncResult syncCreatedOrUpdatedSchedule(UUID userId, ScheduleSyncTarget schedule) {
+		try {
+			return googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(userId, schedule);
+		} catch (RuntimeException exception) {
+			return GoogleCalendarSyncResult.failed();
+		}
 	}
 
 	private void validateRange(Instant startsAt, Instant endsAt) {

@@ -5,6 +5,8 @@ import com.bubli.resource.entity.ResourceStorageDeleteRetryRecord;
 import com.bubli.resource.repository.ResourceStorageDeleteRetryRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -15,6 +17,7 @@ public class ResourceStorageDeleteRetryRecorder {
 
 	private final ResourceStorageDeleteRetryRecordRepository resourceStorageDeleteRetryRecordRepository;
 
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void recordFailedDelete(ResourceFile file, RuntimeException cause) {
 		resourceStorageDeleteRetryRecordRepository.save(ResourceStorageDeleteRetryRecord.create(
 				file.getResourceId(),

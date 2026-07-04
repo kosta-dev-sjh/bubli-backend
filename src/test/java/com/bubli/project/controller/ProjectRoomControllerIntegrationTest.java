@@ -16,7 +16,9 @@ import com.bubli.project.type.ProjectRoomStatus;
 import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.support.PostgresIntegrationTestSupport;
+import com.bubli.user.entity.Friendship;
 import com.bubli.user.entity.User;
+import com.bubli.user.repository.FriendshipRepository;
 import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,9 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 	@Autowired
 	UserRepository userRepository;
+
+	@Autowired
+	FriendshipRepository friendshipRepository;
 
 	@Autowired
 	ProjectRoomRepository projectRoomRepository;
@@ -391,6 +396,7 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 		User invitee = createUser("google-sub-invite-target", "준화");
 		ProjectRoom room = saveRoom(leader.getId(), "초대 프로젝트");
 		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		makeFriends(leader.getId(), invitee.getId());
 
 		mockMvc.perform(post("/api/project-rooms/{roomId}/invitations", room.getId())
 						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
@@ -457,6 +463,35 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].inviteeUserId").value(invitee.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void inviteeCanListReceivedInvitations() throws Exception {
+		User leader = createUser("google-sub-my-invite-leader", "미연");
+		User invitee = createUser("google-sub-my-invite-target", "민서");
+		ProjectRoom room = saveRoom(leader.getId(), "받은 초대 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		Invitation invitation = invitationRepository.save(Invitation.create(
+				room.getId(),
+				leader.getId(),
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				java.time.Instant.now().plusSeconds(3600)
+		));
+
+		mockMvc.perform(get("/api/me/invitations")
+						.header(AUTHORIZATION, bearerToken(invitee.getId(), "minseo@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(invitation.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].roomId").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].roomName").value("받은 초대 프로젝트"))
+				.andExpect(jsonPath("$.data.items[0].inviterUserId").value(leader.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].inviterName").value("미연"))
 				.andExpect(jsonPath("$.data.items[0].inviteeUserId").value(invitee.getId().toString()))
 				.andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
 				.andExpect(jsonPath("$.error").value(nullValue()));
@@ -543,6 +578,29 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	}
 
 	@Test
+	void cannotDemoteLastProjectLeader() throws Exception {
+		User leader = createUser("google-sub-last-leader-demote", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "마지막 리더 강등 방지 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}/members/{userId}", room.getId(), leader.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "role": "MEMBER"
+								}
+								"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_409_004"));
+
+		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), leader.getId()).orElseThrow().getRole())
+				.isEqualTo(RoomMemberRole.PROJECT_LEADER);
+	}
+
+	@Test
 	void projectLeaderCanRemoveMember() throws Exception {
 		User leader = createUser("google-sub-remove-leader", "미연");
 		User member = createUser("google-sub-remove-member", "정현");
@@ -559,6 +617,23 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), member.getId()).orElseThrow().getStatus())
 				.isEqualTo(RoomMemberStatus.REMOVED);
+	}
+
+	@Test
+	void lastProjectLeaderCannotLeaveRoom() throws Exception {
+		User leader = createUser("google-sub-last-leader-leave", "미연");
+		ProjectRoom room = saveRoom(leader.getId(), "마지막 리더 나가기 방지 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+
+		mockMvc.perform(delete("/api/project-rooms/{roomId}/members/{userId}", room.getId(), leader.getId())
+						.header(AUTHORIZATION, bearerToken(leader.getId(), "miyeon@example.com")))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("PROJECT_409_004"));
+
+		assertThat(roomMemberRepository.findByRoomIdAndUserId(room.getId(), leader.getId()).orElseThrow().getStatus())
+				.isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
 	@Test
@@ -632,5 +707,10 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 
 	private String bearerToken(UUID userId, String ignored) {
 		return "Bearer " + jwtTokenProvider.createAccessToken(new AuthUser(userId));
+	}
+
+	private void makeFriends(UUID userId, UUID friendUserId) {
+		friendshipRepository.save(Friendship.create(userId, friendUserId));
+		friendshipRepository.save(Friendship.create(friendUserId, userId));
 	}
 }
