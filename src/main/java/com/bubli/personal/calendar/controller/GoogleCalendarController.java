@@ -135,12 +135,38 @@ public class GoogleCalendarController {
 		return ApiResponse.success(CalendarEventResponse.from(schedule, eventService.hasActiveConnection(authUser.userId())));
 	}
 
+	@PatchMapping("/api/calendar/google/calendars/{googleCalendarId}/events/{googleEventId}")
+	public ApiResponse<CalendarEventResponse> updateGoogleEvent(
+			@CurrentUser AuthUser authUser,
+			@PathVariable String googleCalendarId,
+			@PathVariable String googleEventId,
+			@Valid @RequestBody CalendarEventUpdateRequest request
+	) {
+		ScheduleResult schedule = eventService.updateGoogleEvent(
+				authUser.userId(),
+				googleCalendarId,
+				googleEventId,
+				request.toCommand()
+		);
+		return ApiResponse.success(CalendarEventResponse.from(schedule, true));
+	}
+
 	@DeleteMapping("/api/calendar/events/{scheduleId}")
 	public ApiResponse<Void> deleteEvent(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID scheduleId
 	) {
 		eventService.deleteEvent(authUser.userId(), scheduleId);
+		return ApiResponse.success(null);
+	}
+
+	@DeleteMapping("/api/calendar/google/calendars/{googleCalendarId}/events/{googleEventId}")
+	public ApiResponse<Void> deleteGoogleEvent(
+			@CurrentUser AuthUser authUser,
+			@PathVariable String googleCalendarId,
+			@PathVariable String googleEventId
+	) {
+		eventService.deleteGoogleEvent(authUser.userId(), googleCalendarId, googleEventId);
 		return ApiResponse.success(null);
 	}
 

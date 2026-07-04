@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/auth-session-upsert-lock-20260705` |
+| 현재 확인 브랜치 | `codex/calendar-upsert-lock-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,42 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### Google Calendar 연결/프로젝트룸 캘린더 매핑 저장 안정화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `google_calendar_connections.user_id`는 유니크라 Google Calendar 연결 콜백이나 로그인 후 권한 저장이 동시에 들어오면 조회 후 생성 방식이 유니크 충돌로 실패할 수 있다.
+- Google Calendar 연결 저장을 `INSERT ... ON CONFLICT (user_id) DO UPDATE`로 바꿔 기존 row를 갱신하게 했다.
+- Google이 재인증 때 새 refresh token을 내려주지 않는 경우에는 기존 refresh token을 유지해, 연동이 끊기지 않게 했다.
+- `project_room_google_calendars`는 `(user_id, room_id)`가 유니크라 같은 룸 캘린더 생성 요청이 동시에 들어오면 중복 매핑 충돌과 외부 Google Calendar 중복 생성 위험이 있다.
+- 프로젝트룸 캘린더 매핑 생성 전에 PostgreSQL transaction advisory lock을 잡고 다시 조회해, 같은 사용자/룸 요청은 한 번씩만 캘린더 생성 경로로 들어가게 했다.
+- 매핑 저장은 `INSERT ... ON CONFLICT DO NOTHING`으로 처리해 동시 요청이 있어도 기존 매핑을 그대로 반환한다.
+- Google Calendar 원본 일정으로만 화면에 보이는 항목도 `googleCalendarId`와 `googleEventId`로 직접 수정/삭제할 수 있는 API를 추가했다.
+- 달력 화면은 하나지만, 개인 일정과 프로젝트룸 일정을 필터처럼 함께 보여주는 모델로 유지한다.
+- 개인 일정은 연결된 Google 계정의 기본 캘린더로 동기화하고, 프로젝트룸 일정은 같은 Google 계정 안의 프로젝트룸 이름 전용 캘린더로 동기화한다.
+- 프로젝트룸 일정은 소속 active 멤버 모두가 Bubli에서 조회/수정할 수 있고, Google 반영은 일정 owner의 연결 정보로 처리해 룸 일정이 수정자 개인 캘린더 기준으로 꼬이지 않게 했다.
+- WBS/칸반은 프로젝트룸 전용이므로 `wbsItemId`가 붙은 일정은 반드시 같은 `roomId`의 프로젝트룸 일정으로만 저장되게 막았다.
+- TODO 연결 일정도 개인 TODO와 프로젝트룸 TODO의 실제 소속이 일정의 `roomId`와 어긋나면 저장하지 않게 했다.
+- 프로젝트룸 TODO가 담당자 개인 화면에 보이더라도 원본은 룸 TODO이므로, 일정 연결 시 프로젝트룸 캘린더 기준으로 처리한다.
+- Google Calendar PATCH payload는 null 필드를 제외해, 제목만 수정할 때 시작/종료 시각을 비우는 위험을 줄였다.
+- Google Calendar 외부 반영이 실패해도 Bubli 일정 저장/수정/삭제 자체가 롤백되지 않게 하고, 저장/수정 실패는 `SYNC_FAILED`로 남겨 재시도할 수 있게 했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.repository.GoogleCalendarRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest' --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.work.task.service.TaskPublicServiceImplTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 인증 세션 upsert와 refresh 잠금 처리
 
