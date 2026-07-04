@@ -87,7 +87,7 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 							.build())
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
-					.body(new GoogleCalendarInsertRequest(summary, DEFAULT_TIME_ZONE))
+					.body(new GoogleCalendarInsertBody(summary, DEFAULT_TIME_ZONE))
 					.retrieve()
 					.body(GoogleCalendarResource.class);
 			return created == null ? null : created.id();
@@ -256,7 +256,7 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 		return calendarId == null || calendarId.isBlank() ? "primary" : calendarId;
 	}
 
-	private record GoogleCalendarInsertRequest(
+	private record GoogleCalendarInsertBody(
 			String summary,
 			String timeZone
 	) {
