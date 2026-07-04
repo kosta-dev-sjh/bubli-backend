@@ -40,6 +40,7 @@ public enum ErrorCode {
     WORK_400_001(HttpStatus.BAD_REQUEST, "WORK_400_001", "WBS 항목에 연결된 태스크가 있어 삭제할 수 없습니다."),
     WORK_400_002(HttpStatus.BAD_REQUEST, "WORK_400_002", "하위 WBS 항목이 있어 삭제할 수 없습니다."),
     WORK_400_003(HttpStatus.BAD_REQUEST, "WORK_400_003", "WBS 항목에 연결된 일정이 있어 삭제할 수 없습니다."),
+    WORK_400_004(HttpStatus.BAD_REQUEST, "WORK_400_004", "TODO에 연결된 일정이 있어 삭제할 수 없습니다."),
     WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),
     WORK_404_001(HttpStatus.NOT_FOUND, "WORK_404_001", "TODO를 찾을 수 없습니다."),
     WORK_404_002(HttpStatus.NOT_FOUND, "WORK_404_002", "WBS 항목을 찾을 수 없습니다."),

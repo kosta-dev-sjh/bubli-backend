@@ -83,6 +83,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID>, JpaSp
 
 	boolean existsByWbsItemId(UUID wbsItemId);
 
+	boolean existsByTaskId(UUID taskId);
+
 	List<Schedule> findByOwnerUserIdAndSyncStatusInAndStartsAtBetweenOrderByStartsAtAsc(
 			UUID ownerUserId,
 			List<ScheduleSyncStatus> syncStatuses,

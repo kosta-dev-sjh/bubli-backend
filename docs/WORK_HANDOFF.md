@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/calendar-room-google-dedupe-20260705` |
+| 현재 확인 브랜치 | `codex/task-schedule-delete-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,26 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### TODO 일정 연결 삭제 가드 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `schedules.task_id`가 `tasks.id`를 참조하지만, 기존 TODO 삭제 흐름은 연결된 일정 존재 여부를 확인하지 않았다.
+- 일정이 연결된 TODO를 삭제하면 DB FK 예외가 500으로 새거나, 프론트가 사용자에게 이유를 알기 어려운 실패를 볼 수 있었다.
+- `SchedulePublicService.assertNoScheduleLinkedToTask`를 추가하고, TODO 삭제 전에 연결 일정 존재 여부를 확인하게 했다.
+- 연결 일정이 있으면 `WORK_400_004`로 명확하게 거절한다.
+- 한국어, 영어, 일본어 메시지를 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.task.service.TaskServiceTest --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest --tests com.bubli.work.controller.WorkControllerIntegrationTest --tests com.bubli.global.locale.LocaleMessageBundleTest` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 프로젝트룸 Google 캘린더 중복 표시와 역수입 방지
 
