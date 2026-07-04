@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/voice-room-open-guard-20260705` |
+| 현재 확인 브랜치 | `codex/widget-upsert-race-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 위젯 첫 저장 unique race 500 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 위젯 기본 버블 설정은 이미 `insertDefaultIfAbsent`와 `ON CONFLICT (user_id, bubble_type) DO NOTHING`을 사용해 첫 호출 race를 흡수하고 있었다.
+- `widget_context_settings.user_id`, `widget_item_states(user_id, bubble_type, item_type, item_id)`, `widget_daily_summaries.rollup_key`/날짜별 집계 unique는 서비스에서 먼저 조회한 뒤 없으면 `save`하는 구조라 동시 첫 저장 시 DB unique 예외가 500으로 샐 수 있었다.
+- 위젯 컨텍스트 저장은 `upsertContext`로 바꿔 같은 사용자 컨텍스트를 DB 기준으로 삽입/갱신한다.
+- 위젯 항목 상태 저장은 natural key 기준 `upsertState`로 바꿔 같은 항목 상태를 동시에 저장해도 마지막 요청 상태로 수렴한다.
+- 위젯 사용 집계 저장은 `insertIfAbsent`와 재조회 방식으로 바꿔 같은 `rollupKey` 또는 같은 날짜/기기/버블 집계가 다시 와도 기존 집계를 반환한다.
+- PostgreSQL 통합 테스트를 추가해 실제 unique 제약에서 context, item state, daily summary upsert가 중복 첫 저장을 흡수하는지 확인했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.widget.service.WidgetServiceTest --tests com.bubli.widget.repository.WidgetRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 후속 후보: 초대 수락 동시 호출 가드, 보이스 참가자 재입장 시 `LEFT -> JOINED` 복귀 정책.
 
 ### 프로젝트룸 보이스룸 OPEN 중복 생성 방지
 

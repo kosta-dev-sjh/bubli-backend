@@ -12,6 +12,7 @@ import com.bubli.widget.dto.BubbleSettingUpdate;
 import com.bubli.widget.dto.WidgetSettingsResponse;
 import com.bubli.widget.entity.WidgetBubbleSetting;
 import com.bubli.widget.entity.WidgetContextSetting;
+import com.bubli.widget.entity.WidgetDailySummary;
 import com.bubli.widget.entity.WidgetItemState;
 import com.bubli.widget.repository.WidgetBubbleSettingRepository;
 import com.bubli.widget.repository.WidgetContextSettingRepository;
@@ -34,6 +35,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
@@ -103,12 +105,13 @@ class WidgetServiceTest {
 	void updateContextValidatesSelectedRoomMembership() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		WidgetContextSetting context = WidgetContextSetting.create(userId, null);
+		WidgetContextSetting context = WidgetContextSetting.create(userId, roomId);
 		given(contextSettingRepository.findByUserId(userId)).willReturn(Optional.of(context));
 
 		widgetService.updateContext(userId, roomId);
 
 		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(contextSettingRepository).upsertContext(any(UUID.class), eq(userId), eq(roomId), eq("ROOM"));
 		assertThat(context.getSelectedRoomId()).isEqualTo(roomId);
 		assertThat(context.getMode().name()).isEqualTo("ROOM");
 	}
@@ -308,20 +311,73 @@ class WidgetServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID taskId = UUID.randomUUID();
 		given(itemStateRepository.findById(taskId)).willReturn(Optional.empty());
-		given(itemStateRepository.findByUserIdAndBubbleTypeAndItemTypeAndItemId(
-				userId, BubbleType.TODO, WidgetItemType.TASK, taskId
-		)).willReturn(Optional.empty());
-		given(itemStateRepository.save(any(WidgetItemState.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		widgetService.updateItemState(userId, taskId, "TODO", taskId, "TASK", "CONFIRMED");
 
-		ArgumentCaptor<WidgetItemState> savedState = ArgumentCaptor.forClass(WidgetItemState.class);
-		verify(itemStateRepository).save(savedState.capture());
-		assertThat(savedState.getValue().getUserId()).isEqualTo(userId);
-		assertThat(savedState.getValue().getBubbleType()).isEqualTo(BubbleType.TODO);
-		assertThat(savedState.getValue().getItemType()).isEqualTo(WidgetItemType.TASK);
-		assertThat(savedState.getValue().getItemId()).isEqualTo(taskId);
-		assertThat(savedState.getValue().getState()).isEqualTo(WidgetItemStateValue.CONFIRMED);
+		verify(itemStateRepository).upsertState(
+				any(UUID.class),
+				eq(userId),
+				eq("TODO"),
+				eq("TASK"),
+				eq(taskId),
+				eq("CONFIRMED")
+		);
+		verify(itemStateRepository, never()).save(any());
+	}
+
+	@Test
+	void saveUsageSummaryRereadsExistingSummaryWhenConcurrentInsertWins() {
+		UUID userId = UUID.randomUUID();
+		UUID bubbleSettingId = UUID.randomUUID();
+		LocalDate summaryDate = LocalDate.parse("2026-07-05");
+		Instant syncedAt = Instant.parse("2026-07-05T01:00:00Z");
+		WidgetDailySummary existing = WidgetDailySummary.create(
+				userId,
+				"macbook",
+				"rollup-1",
+				summaryDate,
+				bubbleSettingId,
+				3,
+				7,
+				120,
+				syncedAt
+		);
+		given(dailySummaryRepository.findByRollupKey("rollup-1")).willReturn(Optional.empty());
+		given(dailySummaryRepository.findByUserIdAndDeviceIdAndSummaryDateAndBubbleSettingId(
+				userId,
+				"macbook",
+				summaryDate,
+				bubbleSettingId
+		)).willReturn(Optional.of(existing));
+
+		var response = widgetService.saveUsageSummary(
+				userId,
+				"macbook",
+				"rollup-1",
+				summaryDate,
+				bubbleSettingId,
+				3,
+				7,
+				120,
+				syncedAt
+		);
+
+		verify(dailySummaryRepository).insertIfAbsent(
+				any(UUID.class),
+				eq(userId),
+				eq("macbook"),
+				eq("rollup-1"),
+				eq(summaryDate),
+				eq(bubbleSettingId),
+				eq(3),
+				eq(7),
+				eq(120L),
+				eq(syncedAt)
+		);
+		verify(dailySummaryRepository, never()).save(any());
+		assertThat(response.deviceId()).isEqualTo("macbook");
+		assertThat(response.openCount()).isEqualTo(3);
+		assertThat(response.visibleSeconds()).isEqualTo(120);
 	}
 
 	private TaskResult task(UUID userId, UUID roomId, TaskStatus status, Instant dueAt) {

@@ -26,6 +26,7 @@ import com.bubli.widget.repository.WidgetItemStateRepository;
 import com.bubli.widget.type.BubbleType;
 import com.bubli.widget.type.WidgetItemStateValue;
 import com.bubli.widget.type.WidgetItemType;
+import com.bubli.widget.type.WidgetMode;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
@@ -105,9 +106,10 @@ public class WidgetService implements WidgetPublicService {
         if (selectedRoomId != null) {
             projectMembershipPublicService.assertActiveMember(userId, selectedRoomId);
         }
+        WidgetMode mode = selectedRoomId != null ? WidgetMode.ROOM : WidgetMode.PERSONAL;
+        contextSettingRepository.upsertContext(UUID.randomUUID(), userId, selectedRoomId, mode.name());
         WidgetContextSetting context = contextSettingRepository.findByUserId(userId)
-                .orElseGet(() -> contextSettingRepository.save(WidgetContextSetting.create(userId, selectedRoomId)));
-        context.updateRoom(selectedRoomId);
+                .orElseThrow(() -> new IllegalStateException("Failed to upsert widget context: " + userId));
         return new WidgetContextResponse(context.getSelectedRoomId(), context.getMode().name());
     }
 
@@ -218,37 +220,58 @@ public class WidgetService implements WidgetPublicService {
         WidgetItemStateValue state = parseItemState(stateStr);
         WidgetItemState itemState = itemStateRepository.findById(itemStateId)
                 .filter(s -> s.getUserId().equals(userId))
-                .orElseGet(() -> findOrCreateItemState(userId, bubbleTypeStr, itemTypeStr, itemId));
-        itemState.updateState(state);
+                .orElse(null);
+        if (itemState != null) {
+            itemState.updateState(state);
+            return;
+        }
+        upsertItemState(userId, bubbleTypeStr, itemTypeStr, itemId, state);
     }
 
-    private WidgetItemState findOrCreateItemState(UUID userId, String bubbleTypeStr, String itemTypeStr, UUID itemId) {
+    private void upsertItemState(
+            UUID userId,
+            String bubbleTypeStr,
+            String itemTypeStr,
+            UUID itemId,
+            WidgetItemStateValue state
+    ) {
         if (bubbleTypeStr == null || itemTypeStr == null || itemId == null) {
             throw new BusinessException(ErrorCode.WIDGET_404_001);
         }
 
         BubbleType bubbleType = parseBubbleType(bubbleTypeStr);
         WidgetItemType itemType = parseItemType(itemTypeStr);
-        return itemStateRepository.findByUserIdAndBubbleTypeAndItemTypeAndItemId(
-                        userId, bubbleType, itemType, itemId)
-                .orElseGet(() -> itemStateRepository.save(
-                        WidgetItemState.create(userId, bubbleType, itemType, itemId)));
+        itemStateRepository.upsertState(
+                UUID.randomUUID(),
+                userId,
+                bubbleType.name(),
+                itemType.name(),
+                itemId,
+                state.name()
+        );
     }
 
     @Transactional
     public WidgetDailySummaryResponse saveUsageSummary(UUID userId, String deviceId, String rollupKey,
             LocalDate summaryDate, UUID bubbleSettingId,
             int openCount, int interactionCount, long visibleSeconds, java.time.Instant syncedAt) {
-        return dailySummaryRepository.findByRollupKey(rollupKey)
-                .map(this::toSummaryResponse)
-                .orElseGet(() -> {
-                    WidgetDailySummary saved = dailySummaryRepository.save(
-                            WidgetDailySummary.create(userId, deviceId, rollupKey,
-                                    summaryDate, bubbleSettingId,
-                                    openCount, interactionCount, visibleSeconds, syncedAt)
-                    );
-                    return toSummaryResponse(saved);
-                });
+        dailySummaryRepository.insertIfAbsent(
+                UUID.randomUUID(),
+                userId,
+                deviceId,
+                rollupKey,
+                summaryDate,
+                bubbleSettingId,
+                openCount,
+                interactionCount,
+                visibleSeconds,
+                syncedAt
+        );
+        WidgetDailySummary summary = dailySummaryRepository.findByRollupKey(rollupKey)
+                .or(() -> dailySummaryRepository.findByUserIdAndDeviceIdAndSummaryDateAndBubbleSettingId(
+                        userId, deviceId, summaryDate, bubbleSettingId))
+                .orElseThrow(() -> new IllegalStateException("Failed to upsert widget usage summary: " + rollupKey));
+        return toSummaryResponse(summary);
     }
 
     @Transactional(readOnly = true)
