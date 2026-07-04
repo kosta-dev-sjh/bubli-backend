@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/room-schedule-calendar-sync-20260705` |
+| 현재 확인 브랜치 | `codex/stop-room-timer-on-member-removal-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 멤버 제거 시 RUNNING 룸 타이머 정리
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `time_logs`는 사용자당 `RUNNING` 타이머가 하나만 가능하도록 DB unique index를 둔다.
+- 기존에는 프로젝트룸 멤버가 탈퇴하거나 강퇴돼도 해당 룸의 `RUNNING` 작업 타이머가 그대로 남을 수 있었다.
+- 멤버십이 끊긴 뒤에는 해당 사용자가 그 룸 타이머를 `pause/stop` 할 때 active member 검사를 통과하지 못한다.
+- 이 상태가 되면 사용자는 기존 룸 타이머를 종료하지 못하면서 새 타이머 시작도 `PERSONAL_409_001`로 막힐 수 있었다.
+- `TimeLogPublicService.stopRunningRoomTimer(userId, roomId)`를 추가하고, 프로젝트룸 탈퇴/강퇴 처리 전에 해당 사용자의 룸 `RUNNING` 타이머를 `ENDED`로 종료하게 했다.
+- 컨트롤러 통합 테스트로 실제 멤버 제거 API 호출 후 `time_logs.status=ENDED`가 되는지 확인했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest --tests com.bubli.project.service.ProjectRoomMemberServiceTest --tests com.bubli.personal.timer.service.TimeLogPublicServiceImplTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 후속 후보: WBS `update/reorder`에서 sibling order 중복 500 방지와 descendant parent cycle 방지.
 
 ### 프로젝트룸 일정/WBS 캘린더 동기화 보강
 

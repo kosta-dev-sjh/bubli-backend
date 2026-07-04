@@ -21,6 +21,8 @@ public interface TimeLogRepository extends JpaRepository<TimeLog, UUID> {
 
 	Optional<TimeLog> findFirstByUserIdAndStatus(UUID userId, TimeLogStatus status);
 
+	Optional<TimeLog> findFirstByUserIdAndRoomIdAndStatus(UUID userId, UUID roomId, TimeLogStatus status);
+
 	Optional<TimeLog> findByIdempotencyKey(String idempotencyKey);
 
 	@Modifying

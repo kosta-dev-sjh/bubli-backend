@@ -4,6 +4,7 @@ import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
 import com.bubli.project.dto.ProjectRoomMemberResult;
@@ -45,6 +46,7 @@ public class ProjectRoomMemberService {
 	private final FriendshipPublicService friendshipPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final RoomChatPublicService roomChatPublicService;
+	private final TimeLogPublicService timeLogPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomMemberResult> getMembers(UUID requesterId, UUID roomId, Pageable pageable) {
@@ -247,6 +249,7 @@ public class ProjectRoomMemberService {
 
 		if (requesterId.equals(memberUserId)) {
 			assertProjectRoomKeepsLeader(member);
+			timeLogPublicService.stopRunningRoomTimer(memberUserId, roomId);
 			member.leave();
 			roomChatPublicService.removeMember(roomId, memberUserId);
 			return;
@@ -254,6 +257,7 @@ public class ProjectRoomMemberService {
 
 		projectMembershipPublicService.assertProjectLeader(requesterId, roomId);
 		assertProjectRoomKeepsLeader(member);
+		timeLogPublicService.stopRunningRoomTimer(memberUserId, roomId);
 		member.remove();
 		roomChatPublicService.removeMember(roomId, memberUserId);
 	}
