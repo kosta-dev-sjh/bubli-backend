@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/wbs-order-sequence-guard-20260705` |
+| 현재 확인 브랜치 | `codex/storage-usage-concurrency-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,30 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 저장 용량 사용량 중복 row 방지와 동시 증감 안정화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `storage_usage`의 기존 `(user_id, room_id, storage_scope)` 유니크 제약은 `NULL` 값 때문에 개인/룸 사용량 중복 row를 막지 못할 수 있다.
+- 개인 사용량은 `user_id`, 룸 사용량은 `room_id` 기준 부분 유니크 인덱스를 추가해 실제 DB에서 중복 row가 생기지 않게 했다.
+- 마이그레이션 시 기존 중복 row는 가장 오래된 row 하나로 합치고, `used_bytes`는 합산, `limit_bytes`는 최댓값으로 정리한다.
+- 사용량 증감은 쓰기용 잠금 조회를 거친 뒤 처리해 동시 업로드/삭제에서 값이 덮이는 위험을 줄였다.
+- 사용량 row 생성 중 유니크 충돌이 나면 이미 생성된 row를 다시 잠금 조회해서 이어서 증감한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.storage.service.StorageUsageServiceTest --tests com.bubli.schema.EntityFlywayAlignmentTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### WBS 형제 순서 중복 방지와 자동 순번 재시도
 

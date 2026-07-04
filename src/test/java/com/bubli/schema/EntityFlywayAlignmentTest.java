@@ -430,6 +430,17 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void storageUsageHasPartialUniqueIndexesForNullableScopes() throws IOException {
+		assertThat(migrationSql())
+				.contains("CREATE UNIQUE INDEX IF NOT EXISTS uk_storage_usage_personal_user")
+				.contains("ON storage_usage (user_id)")
+				.contains("WHERE storage_scope = 'PERSONAL'")
+				.contains("CREATE UNIQUE INDEX IF NOT EXISTS uk_storage_usage_room")
+				.contains("ON storage_usage (room_id)")
+				.contains("WHERE storage_scope = 'ROOM'");
+	}
+
+	@Test
 	void agentEnumsContainCurrentDataDictionaryValues() {
 		assertThat(enumNames(AiDocumentStatus.class))
 				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");
