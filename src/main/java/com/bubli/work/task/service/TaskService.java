@@ -29,7 +29,7 @@ public class TaskService {
 
 	@Transactional(readOnly = true)
 	public PageResponse<TaskResult> getPersonalTasks(UUID userId, Pageable pageable) {
-		return toPage(taskRepository.findByOwnerUserIdAndRoomIdIsNull(userId, pageable));
+		return toPage(taskRepository.findVisibleTasksForUser(userId, pageable));
 	}
 
 	@Transactional(readOnly = true)

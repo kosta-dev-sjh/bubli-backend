@@ -110,6 +110,24 @@ class TaskServiceTest {
 	}
 
 	@Test
+	void getPersonalTasksIncludesAssignedRoomTasksWithoutChangingOwnership() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		Task personalTask = Task.createPersonal(userId, "개인 할 일", null, TaskStatus.TODO, null);
+		Task assignedRoomTask = Task.createRoomTask(roomId, userId, null, "룸에서 맡은 할 일", null, TaskStatus.TODO, null);
+		given(taskRepository.findVisibleTasksForUser(userId, Pageable.unpaged()))
+				.willReturn(new PageImpl<>(List.of(personalTask, assignedRoomTask)));
+
+		var result = taskService.getPersonalTasks(userId, Pageable.unpaged());
+
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems().get(0).roomId()).isNull();
+		assertThat(result.getItems().get(1).roomId()).isEqualTo(roomId);
+		assertThat(result.getItems().get(1).assigneeUserId()).isEqualTo(userId);
+		assertThat(result.getItems().get(1).ownerUserId()).isNull();
+	}
+
+	@Test
 	void updatePersonalTaskRejectsOtherUser() {
 		UUID ownerUserId = UUID.randomUUID();
 		UUID otherUserId = UUID.randomUUID();

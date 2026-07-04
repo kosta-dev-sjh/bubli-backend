@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/calendar-upsert-lock-20260705` |
+| 현재 확인 브랜치 | `codex/task-personal-view-assigned-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 개인 TODO 조회에 담당 프로젝트룸 TODO 포함
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `GET /api/tasks`의 기본 `scope=personal` 응답은 사용자가 개인 영역에서 보는 TODO 목록이다.
+- 기존 구현은 `room_id IS NULL`인 순수 개인 TODO만 반환해, 프로젝트룸 TODO에 내가 담당자로 지정되어도 기본 개인 TODO 목록에는 보이지 않을 수 있었다.
+- 기본 개인 TODO 조회를 `내 개인 TODO + 내가 담당자인 프로젝트룸 TODO`로 맞췄다.
+- 프로젝트룸 TODO를 개인 TODO로 복사하거나 소유권을 바꾸지 않는다.
+- 응답에는 기존처럼 `roomId`, `assigneeUserId`, `ownerUserId`를 그대로 내려보내 프론트가 개인 표시와 프로젝트룸 귀속을 구분할 수 있게 유지한다.
+- `scope=assigned`는 내가 담당자인 TODO만 보는 별도 필터로 유지한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.task.service.TaskServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### Google Calendar 연결/프로젝트룸 캘린더 매핑 저장 안정화
 

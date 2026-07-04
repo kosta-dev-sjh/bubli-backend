@@ -13,13 +13,23 @@ import java.util.UUID;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 
-	Page<Task> findByOwnerUserIdAndRoomIdIsNull(UUID ownerUserId, Pageable pageable);
-
 	Page<Task> findByRoomId(UUID roomId, Pageable pageable);
 
 	List<Task> findByRoomIdOrderByUpdatedAtDesc(UUID roomId);
 
 	Page<Task> findByAssigneeUserId(UUID assigneeUserId, Pageable pageable);
+
+	@Query("""
+		select task
+		from Task task
+		where (task.ownerUserId = :userId and task.roomId is null)
+		   or task.assigneeUserId = :userId
+		order by
+		  case when task.dueAt is null then 1 else 0 end,
+		  task.dueAt asc,
+		  task.updatedAt desc
+		""")
+	Page<Task> findVisibleTasksForUser(@Param("userId") UUID userId, Pageable pageable);
 
 	@Query("""
 		select task
