@@ -3,6 +3,7 @@ package com.bubli.work.task.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
@@ -89,6 +90,19 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
 		}
 		projectMembershipPublicService.assertActiveMember(userId, task.getRoomId());
+	}
+
+	@Override
+	@Transactional
+	public TaskResult createPersonalTask(UUID userId, CreatePersonalTaskCommand command) {
+		Task task = Task.createPersonal(
+				userId,
+				command.title(),
+				command.description(),
+				command.status(),
+				command.dueAt()
+		);
+		return TaskResult.from(taskRepository.save(task));
 	}
 
 	@Override

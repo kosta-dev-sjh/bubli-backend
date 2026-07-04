@@ -68,6 +68,7 @@ public class AuthService {
 				.queryParam("prompt", "select_account")
 				.queryParam("state", state)
 				.build()
+				.encode()
 				.toUriString();
 		return new GoogleAuthorizeResponse(authorizeUrl);
 	}

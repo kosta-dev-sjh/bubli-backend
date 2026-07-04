@@ -10,6 +10,7 @@ import com.bubli.personal.memo.dto.CreateMemoCommand;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
@@ -54,6 +55,10 @@ public class AgentSuggestionDomainApplyService {
             markApplied(suggestion, "MEMO", createMemo(reviewerId, suggestion));
             return;
         }
+        if (suggestion.getRoomId() == null && (type == AgentSuggestionType.TASK || type == AgentSuggestionType.TODO)) {
+            markApplied(suggestion, "PERSONAL_TASK", createPersonalTask(reviewerId, suggestion));
+            return;
+        }
         if (suggestion.getRoomId() == null) {
             markApplied(suggestion, "CONFIRMED_SUGGESTION", preservedDetails(
                     type,
@@ -81,6 +86,17 @@ public class AgentSuggestionDomainApplyService {
             case CONTRACT_REVIEW -> markApplied(suggestion, "CONTRACT_REVIEW_NOTE", contractReviewDetails(type));
             default -> throw new BusinessException(ErrorCode.AGENT_400_001);
         }
+    }
+
+    private Map<String, Object> createPersonalTask(UUID reviewerId, AgentSuggestion suggestion) {
+        Map<String, Object> payload = suggestion.getPayloadJson();
+        var result = taskPublicService.createPersonalTask(reviewerId, new CreatePersonalTaskCommand(
+                requiredText(payload, "title"),
+                text(payload.get("description")),
+                enumValue(TaskStatus.class, payload.get("status"), TaskStatus.TODO),
+                instant(payload.get("dueAt"))
+        ));
+        return result == null ? Map.of() : Map.of("taskId", result.id().toString());
     }
 
     private Map<String, Object> createTask(UUID reviewerId, AgentSuggestion suggestion) {

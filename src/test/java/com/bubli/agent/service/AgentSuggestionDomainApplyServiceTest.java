@@ -14,6 +14,7 @@ import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.schedule.type.ScheduleSyncStatus;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.service.TaskPublicService;
@@ -65,6 +66,29 @@ class AgentSuggestionDomainApplyServiceTest {
         assertThat(commandCaptor.getValue().status()).isEqualTo(TaskStatus.TODO);
         assertThat(commandCaptor.getValue().assigneeUserId()).isEqualTo(assigneeId);
         assertThat(commandCaptor.getValue().wbsItemId()).isEqualTo(wbsItemId);
+    }
+
+    @Test
+    void appliesTaskSuggestionWithoutRoomToPersonalTask() {
+        TaskPublicService taskPublicService = mock(TaskPublicService.class);
+        AgentSuggestionDomainApplyService service = service(taskPublicService, mock(WbsItemPublicService.class), mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(null, AgentSuggestionType.TASK, Map.of(
+                "title", "계약 조건 검토",
+                "description", "개인 자료에서 생성된 확인 작업",
+                "status", "TODO",
+                "dueAt", "2026-07-01T00:00:00Z"
+        ));
+
+        service.applyApprovedSuggestion(reviewerId, suggestion);
+
+        ArgumentCaptor<CreatePersonalTaskCommand> commandCaptor = ArgumentCaptor.forClass(CreatePersonalTaskCommand.class);
+        verify(taskPublicService).createPersonalTask(org.mockito.ArgumentMatchers.eq(reviewerId), commandCaptor.capture());
+        assertThat(commandCaptor.getValue().title()).isEqualTo("계약 조건 검토");
+        assertThat(commandCaptor.getValue().description()).isEqualTo("개인 자료에서 생성된 확인 작업");
+        assertThat(commandCaptor.getValue().status()).isEqualTo(TaskStatus.TODO);
+        assertThat(commandCaptor.getValue().dueAt()).isEqualTo(Instant.parse("2026-07-01T00:00:00Z"));
+        assertThat(appliedResult(suggestion).get("targetType")).isEqualTo("PERSONAL_TASK");
     }
 
     @Test

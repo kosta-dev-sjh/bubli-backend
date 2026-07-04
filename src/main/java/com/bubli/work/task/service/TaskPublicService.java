@@ -1,7 +1,8 @@
 package com.bubli.work.task.service;
 
-import com.bubli.work.task.dto.TaskResult;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
+import com.bubli.work.task.dto.TaskResult;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,7 +22,9 @@ public interface TaskPublicService {
 
 	void assertNoTaskLinkedToWbsItem(UUID wbsItemId);
 
-	void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId);
+    TaskResult createPersonalTask(UUID userId, CreatePersonalTaskCommand command);
 
-	TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command);
+    void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId);
+
+    TaskResult createRoomTask(UUID userId, UUID roomId, CreateRoomTaskCommand command);
 }
