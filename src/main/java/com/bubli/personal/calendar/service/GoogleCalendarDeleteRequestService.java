@@ -20,23 +20,43 @@ public class GoogleCalendarDeleteRequestService {
 
 	@Transactional
 	public void rememberFailedAttempt(UUID userId, String googleEventId) {
-		String normalized = normalize(googleEventId);
-		if (normalized == null) {
+		rememberFailedAttempt(userId, "primary", googleEventId);
+	}
+
+	@Transactional
+	public void rememberFailedAttempt(UUID userId, String googleCalendarId, String googleEventId) {
+		String normalizedCalendarId = normalizeCalendarId(googleCalendarId);
+		String normalizedEventId = normalize(googleEventId);
+		if (normalizedEventId == null) {
 			return;
 		}
-		GoogleCalendarDeleteRequest request = repository.findByUserIdAndGoogleEventId(userId, normalized)
-				.orElseGet(() -> GoogleCalendarDeleteRequest.create(userId, normalized));
+		GoogleCalendarDeleteRequest request = repository
+				.findByUserIdAndGoogleCalendarIdAndGoogleEventId(userId, normalizedCalendarId, normalizedEventId)
+				.orElseGet(() -> GoogleCalendarDeleteRequest.create(userId, normalizedCalendarId, normalizedEventId));
 		request.recordAttempt();
 		repository.save(request);
 	}
 
 	@Transactional(readOnly = true)
 	public Set<String> findPendingGoogleEventIds(UUID userId, Collection<String> googleEventIds) {
+		return findPendingGoogleEventIds(userId, "primary", googleEventIds);
+	}
+
+	@Transactional(readOnly = true)
+	public Set<String> findPendingGoogleEventIds(
+			UUID userId,
+			String googleCalendarId,
+			Collection<String> googleEventIds
+	) {
 		List<String> ids = normalizeAll(googleEventIds);
 		if (ids.isEmpty()) {
 			return Set.of();
 		}
-		return repository.findByUserIdAndGoogleEventIdIn(userId, ids)
+		return repository.findByUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+						userId,
+						normalizeCalendarId(googleCalendarId),
+						ids
+				)
 				.stream()
 				.map(GoogleCalendarDeleteRequest::getGoogleEventId)
 				.collect(Collectors.toSet());
@@ -44,16 +64,34 @@ public class GoogleCalendarDeleteRequestService {
 
 	@Transactional
 	public void markSucceeded(UUID userId, String googleEventId) {
-		markSucceeded(userId, List.of(googleEventId));
+		markSucceeded(userId, "primary", googleEventId);
+	}
+
+	@Transactional
+	public void markSucceeded(UUID userId, String googleCalendarId, String googleEventId) {
+		String normalizedEventId = normalize(googleEventId);
+		if (normalizedEventId == null) {
+			return;
+		}
+		markSucceeded(userId, googleCalendarId, List.of(normalizedEventId));
 	}
 
 	@Transactional
 	public void markSucceeded(UUID userId, Collection<String> googleEventIds) {
+		markSucceeded(userId, "primary", googleEventIds);
+	}
+
+	@Transactional
+	public void markSucceeded(UUID userId, String googleCalendarId, Collection<String> googleEventIds) {
 		List<String> ids = normalizeAll(googleEventIds);
 		if (ids.isEmpty()) {
 			return;
 		}
-		repository.deleteByUserIdAndGoogleEventIdIn(userId, ids);
+		repository.deleteByUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+				userId,
+				normalizeCalendarId(googleCalendarId),
+				ids
+		);
 	}
 
 	private List<String> normalizeAll(Collection<String> googleEventIds) {
@@ -72,5 +110,9 @@ public class GoogleCalendarDeleteRequestService {
 			return null;
 		}
 		return googleEventId.trim();
+	}
+
+	private String normalizeCalendarId(String googleCalendarId) {
+		return googleCalendarId == null || googleCalendarId.isBlank() ? "primary" : googleCalendarId.trim();
 	}
 }

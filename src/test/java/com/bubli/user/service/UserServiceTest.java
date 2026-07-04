@@ -30,14 +30,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -189,6 +190,8 @@ class UserServiceTest {
 		assertThat(result.theme()).isNull();
 		assertThat(result.defaultHomeType()).isNull();
 		assertThat(result.defaultProjectRoomId()).isNull();
+		assertThat(result.jobRole()).isNull();
+		assertThat(result.onboardingCompletedAt()).isNull();
 	}
 
 	@Test
@@ -196,25 +199,51 @@ class UserServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID preferenceId = UUID.randomUUID();
-		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());
-		given(userPreferenceRepository.save(org.mockito.ArgumentMatchers.any(UserPreference.class)))
-				.willAnswer(invocation -> {
-					UserPreference preference = invocation.getArgument(0);
-					ReflectionTestUtils.setField(preference, "id", preferenceId);
-					return preference;
-				});
+		Instant onboardingCompletedAt = Instant.parse("2026-07-05T00:00:00Z");
+		UserPreference preference = UserPreference.create(userId);
+		ReflectionTestUtils.setField(preference, "id", preferenceId);
+		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(preference));
 
 		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
 				"LIGHT",
 				"PROJECT_ROOM",
-				roomId
+				roomId,
+				"PM",
+				onboardingCompletedAt
 		));
 
 		assertThat(result.userId()).isEqualTo(userId);
 		assertThat(result.theme()).isEqualTo("LIGHT");
 		assertThat(result.defaultHomeType()).isEqualTo("PROJECT_ROOM");
 		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
+		assertThat(result.jobRole()).isEqualTo("PM");
+		assertThat(result.onboardingCompletedAt()).isEqualTo(onboardingCompletedAt);
 		org.mockito.Mockito.verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
+	}
+
+	@Test
+	void updatePreferencesLocksExistingPreferenceWhenDefaultInsertConflicts() {
+		UUID userId = UUID.randomUUID();
+		UserPreference existingPreference = UserPreference.create(userId);
+		ReflectionTestUtils.setField(existingPreference, "id", UUID.randomUUID());
+		given(userPreferenceRepository.insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId)))
+				.willReturn(0);
+		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(existingPreference));
+
+		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
+				"DARK",
+				"DASHBOARD",
+				null,
+				"DESIGNER",
+				null
+		));
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.theme()).isEqualTo("DARK");
+		assertThat(result.defaultHomeType()).isEqualTo("DASHBOARD");
+		assertThat(result.jobRole()).isEqualTo("DESIGNER");
+		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
 	}
 
 	@Test
@@ -235,12 +264,18 @@ class UserServiceTest {
 	@Test
 	void updateNotificationPreferencesUpsertsRequestedTypes() {
 		UUID userId = UUID.randomUUID();
-		UserNotificationPreference existingPreference = UserNotificationPreference.create(
+		UserNotificationPreference messagePreference = UserNotificationPreference.create(
 				userId,
 				NotificationType.MESSAGE,
+				false
+		);
+		UserNotificationPreference agentPreference = UserNotificationPreference.create(
+				userId,
+				NotificationType.AGENT,
 				true
 		);
-		given(userNotificationPreferenceRepository.findByIdUserId(userId)).willReturn(List.of(existingPreference));
+		given(userNotificationPreferenceRepository.findByIdUserId(userId))
+				.willReturn(List.of(messagePreference, agentPreference));
 
 		UserNotificationPreferencesResult result = userService.updateNotificationPreferences(
 				userId,
@@ -259,19 +294,9 @@ class UserServiceTest {
 				.singleElement()
 				.satisfies(item -> assertThat(item.enabled()).isTrue());
 		org.mockito.Mockito.verify(userNotificationPreferenceRepository)
-				.saveAll(ArgumentMatchers.argThat(preferences -> {
-					List<UserNotificationPreference> savedPreferences = StreamSupport.stream(
-							preferences.spliterator(),
-							false
-					).toList();
-					return savedPreferences.size() == 2
-							&& savedPreferences.stream()
-							.anyMatch(preference -> preference.getNotificationType() == NotificationType.MESSAGE
-									&& !preference.isEnabled())
-							&& savedPreferences.stream()
-							.anyMatch(preference -> preference.getNotificationType() == NotificationType.AGENT
-									&& preference.isEnabled());
-				}));
+				.upsertEnabled(userId, NotificationType.MESSAGE.name(), false);
+		org.mockito.Mockito.verify(userNotificationPreferenceRepository)
+				.upsertEnabled(userId, NotificationType.AGENT.name(), true);
 	}
 
 	@Test
@@ -295,12 +320,18 @@ class UserServiceTest {
 	@Test
 	void updatePrivacyConsentsUpsertsRequestedTypes() {
 		UUID userId = UUID.randomUUID();
-		UserPrivacyConsent existingConsent = UserPrivacyConsent.create(
+		UserPrivacyConsent activityContextConsent = UserPrivacyConsent.create(
 				userId,
 				ConsentType.ACTIVITY_CONTEXT,
+				true
+		);
+		UserPrivacyConsent managedFolderConsent = UserPrivacyConsent.create(
+				userId,
+				ConsentType.MANAGED_FOLDER,
 				false
 		);
-		given(userPrivacyConsentRepository.findByIdUserId(userId)).willReturn(List.of(existingConsent));
+		given(userPrivacyConsentRepository.findByIdUserId(userId))
+				.willReturn(List.of(activityContextConsent, managedFolderConsent));
 
 		UserPrivacyConsentsResult result = userService.updatePrivacyConsents(
 				userId,
@@ -325,18 +356,8 @@ class UserServiceTest {
 					assertThat(item.updatedAt()).isNotNull();
 				});
 		org.mockito.Mockito.verify(userPrivacyConsentRepository)
-				.saveAll(ArgumentMatchers.argThat(consents -> {
-					List<UserPrivacyConsent> savedConsents = StreamSupport.stream(
-							consents.spliterator(),
-							false
-					).toList();
-					return savedConsents.size() == 2
-							&& savedConsents.stream()
-							.anyMatch(consent -> consent.getConsentType() == ConsentType.ACTIVITY_CONTEXT
-									&& consent.isEnabled())
-							&& savedConsents.stream()
-							.anyMatch(consent -> consent.getConsentType() == ConsentType.MANAGED_FOLDER
-									&& !consent.isEnabled());
-				}));
+				.upsertEnabled(userId, ConsentType.ACTIVITY_CONTEXT.name(), true);
+		org.mockito.Mockito.verify(userPrivacyConsentRepository)
+				.upsertEnabled(userId, ConsentType.MANAGED_FOLDER.name(), false);
 	}
 }

@@ -5,6 +5,7 @@ import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.voice.config.LiveKitProperties;
+import com.bubli.voice.dto.VoiceParticipantResponse;
 import com.bubli.voice.dto.VoiceRoomResponse;
 import com.bubli.voice.entity.VoiceParticipant;
 import com.bubli.voice.entity.VoiceRoom;
@@ -20,13 +21,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,6 +96,54 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void getVoiceRoomRequiresRoomMemberAndFetchesParticipantNamesInBatch() {
+		UUID requesterId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(requesterId, roomId);
+		VoiceParticipant requester = participant(voiceRoom.getId(), requesterId);
+		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
+				requesterId, user(requesterId, "미연"),
+				otherUserId, user(otherUserId, "수진")
+		));
+
+		VoiceRoomResponse response = voiceRoomService.getVoiceRoom(requesterId, voiceRoom.getId());
+
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, requesterId);
+		verify(userPublicService, times(1)).getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any());
+		verify(userPublicService, never()).getUser(any());
+		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
+		assertThat(response.participants()).extracting("micStatus").containsExactly("UNMUTED", "UNMUTED");
+	}
+
+	@Test
+	void getOpenVoiceRoomByProjectRoomRequiresRoomMemberAndReturnsMicStatus() {
+		UUID requesterId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(requesterId, roomId);
+		VoiceParticipant requester = participant(voiceRoom.getId(), requesterId);
+		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
+		other.updateMicStatus("MUTED");
+		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
+				requesterId, user(requesterId, "미연"),
+				otherUserId, user(otherUserId, "수진")
+		));
+
+		VoiceRoomResponse response = voiceRoomService.getOpenVoiceRoomByProjectRoom(requesterId, roomId);
+
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, requesterId);
+		assertThat(response.id()).isEqualTo(voiceRoom.getId());
+		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
+		assertThat(response.participants()).extracting("micStatus").containsExactly("UNMUTED", "MUTED");
+	}
+
+	@Test
 	void updateMicStatusRecordsParticipantMicEvent() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -101,8 +154,9 @@ class VoiceRoomServiceTest {
 				.willReturn(Optional.of(participant));
 		given(userPublicService.getUser(userId)).willReturn(user(userId));
 
-		voiceRoomService.updateMicStatus(userId, voiceRoom.getId(), "MUTED");
+		VoiceParticipantResponse response = voiceRoomService.updateMicStatus(userId, voiceRoom.getId(), "MUTED");
 
+		assertThat(response.micStatus()).isEqualTo("MUTED");
 		verify(projectRoomEventPublicService).recordVoiceParticipantMicUpdated(
 				userId,
 				roomId,
@@ -123,7 +177,8 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUser(userId)).willReturn(user(userId));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.leaveVoiceRoom(userId, voiceRoom.getId());
 
@@ -147,7 +202,8 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
 				.willReturn(List.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
-		given(userPublicService.getUser(userId)).willReturn(user(userId));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(userId, user(userId)));
 
 		voiceRoomService.endVoiceRoom(userId, voiceRoom.getId());
 
@@ -175,6 +231,10 @@ class VoiceRoomServiceTest {
 	}
 
 	private UserResult user(UUID userId) {
-		return new UserResult(userId, "bubli-id", "미연", null, "ko-KR", "Asia/Seoul");
+		return user(userId, "미연");
+	}
+
+	private UserResult user(UUID userId, String name) {
+		return new UserResult(userId, "bubli-id", name, null, "ko-KR", "Asia/Seoul");
 	}
 }

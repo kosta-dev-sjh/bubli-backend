@@ -7,15 +7,17 @@ import com.bubli.personal.calendar.repository.ProjectRoomGoogleCalendarRepositor
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.service.ProjectRoomPublicService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,12 +29,11 @@ public class ProjectRoomCalendarService {
 	private final ProjectRoomPublicService projectRoomPublicService;
 
 	/**
-	 * 프로젝트 룸 전용 Google Calendar 매핑을 반환한다.
-	 * 매핑이 없고 사용자의 Google 연동이 활성 상태이면 룸 이름으로 캘린더를 생성해 매핑을 저장한다.
-	 * 연동이 없으면 빈 값을 반환해 일정이 로컬 전용으로 유지되게 한다.
+	 * 프로젝트룸 일정은 Bubli 안에서 roomId로 공유되고, Google 안에서는 프로젝트룸 이름의 전용 캘린더로 묶인다.
 	 */
 	@Transactional
 	public Optional<ProjectRoomGoogleCalendar> ensureRoomCalendar(UUID userId, UUID roomId) {
+		roomCalendarRepository.lockUserRoomMapping(lockKey(userId, roomId));
 		Optional<ProjectRoomGoogleCalendar> existing = roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
 		if (existing.isPresent()) {
 			return existing;
@@ -46,14 +47,14 @@ public class ProjectRoomCalendarService {
 		if (googleCalendarId == null || googleCalendarId.isBlank()) {
 			return Optional.empty();
 		}
-		try {
-			return Optional.of(roomCalendarRepository.save(
-					ProjectRoomGoogleCalendar.create(userId, roomId, googleCalendarId, room.name())
-			));
-		} catch (DataIntegrityViolationException exception) {
-			// 동시 요청으로 이미 매핑이 저장된 경우 기존 매핑을 사용한다.
-			return roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
-		}
+		roomCalendarRepository.insertIfAbsent(
+				UUID.randomUUID(),
+				userId,
+				roomId,
+				googleCalendarId,
+				room.name()
+		);
+		return roomCalendarRepository.findByUserIdAndRoomId(userId, roomId);
 	}
 
 	@Transactional(readOnly = true)
@@ -66,6 +67,15 @@ public class ProjectRoomCalendarService {
 			calendarIds.put(mapping.getRoomId(), mapping.getGoogleCalendarId());
 		}
 		return calendarIds;
+	}
+
+	@Transactional(readOnly = true)
+	public Set<String> findManagedGoogleCalendarIds(UUID userId) {
+		List<ProjectRoomGoogleCalendar> mappings = roomCalendarRepository.findByUserId(userId);
+		return mappings.stream()
+				.map(ProjectRoomGoogleCalendar::getGoogleCalendarId)
+				.filter(id -> id != null && !id.isBlank())
+				.collect(Collectors.toSet());
 	}
 
 	@Transactional
@@ -91,5 +101,9 @@ public class ProjectRoomCalendarService {
 						connected
 				))
 				.orElseGet(() -> RoomCalendarResponse.of(null, room.name(), connected));
+	}
+
+	private String lockKey(UUID userId, UUID roomId) {
+		return userId + ":" + roomId + ":project-room-google-calendar";
 	}
 }

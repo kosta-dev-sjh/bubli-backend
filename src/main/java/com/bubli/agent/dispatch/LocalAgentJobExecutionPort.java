@@ -35,9 +35,7 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             }
             return Optional.of(generateSuggestion(message));
         } catch (RuntimeException exception) {
-            if (message.jobType() == AgentJobType.ANALYZE_RESOURCE && message.resourceId() != null) {
-                resourceAnalysisService.markAnalysisFailed(message.resourceId());
-            }
+            markResourceAnalysisFailed(message, exception);
             return Optional.of(AgentJobExecutionOutcome.failed(
                     "AGENT_EXECUTION_FAILED",
                     errorMessage(exception)
@@ -54,6 +52,17 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
         }
         resourceAnalysisService.analyzeResourceForJob(message.resourceId(), message.jobId());
         return AgentJobExecutionOutcome.succeededWithModelCallLogs(modelCallLog(null));
+    }
+
+    private void markResourceAnalysisFailed(AgentJobQueueMessage message, RuntimeException originalException) {
+        if (message.jobType() != AgentJobType.ANALYZE_RESOURCE || message.resourceId() == null) {
+            return;
+        }
+        try {
+            resourceAnalysisService.markAnalysisFailed(message.resourceId());
+        } catch (RuntimeException failure) {
+            originalException.addSuppressed(failure);
+        }
     }
 
     private AgentJobExecutionOutcome generateSuggestion(AgentJobQueueMessage message) {

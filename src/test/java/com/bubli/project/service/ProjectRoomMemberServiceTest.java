@@ -16,6 +16,7 @@ import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
+import com.bubli.user.service.FriendshipPublicService;
 import com.bubli.user.service.UserPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +57,9 @@ class ProjectRoomMemberServiceTest {
 	UserPublicService userPublicService;
 
 	@Mock
+	FriendshipPublicService friendshipPublicService;
+
+	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Mock
@@ -79,10 +83,25 @@ class ProjectRoomMemberServiceTest {
 				invitee.getId(),
 				InvitationStatus.PENDING
 		)).willReturn(false);
-		given(invitationRepository.save(any(Invitation.class))).willAnswer(invocation -> {
-			Invitation invitation = invocation.getArgument(0);
-			ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
-			return invitation;
+		given(invitationRepository.insertPendingIfAbsent(
+				any(UUID.class),
+				org.mockito.ArgumentMatchers.eq(roomId),
+				org.mockito.ArgumentMatchers.eq(leaderId),
+				org.mockito.ArgumentMatchers.eq(invitee.getId()),
+				org.mockito.ArgumentMatchers.eq(RoomMemberRole.MEMBER.name()),
+				any(Instant.class)
+		)).willReturn(1);
+		given(invitationRepository.findById(any(UUID.class))).willAnswer(invocation -> {
+			UUID invitationId = invocation.getArgument(0);
+			Invitation invitation = Invitation.create(
+					roomId,
+					leaderId,
+					invitee.getId(),
+					RoomMemberRole.MEMBER,
+					Instant.now().plusSeconds(3600)
+			);
+			ReflectionTestUtils.setField(invitation, "id", invitationId);
+			return Optional.of(invitation);
 		});
 
 		InvitationResult result = projectRoomMemberService.createInvitation(leaderId, roomId, command);
@@ -92,6 +111,79 @@ class ProjectRoomMemberServiceTest {
 		assertThat(result.inviteeName()).isEqualTo("준화");
 		assertThat(result.role()).isEqualTo(RoomMemberRole.MEMBER);
 		assertThat(result.status()).isEqualTo(InvitationStatus.PENDING);
+	}
+
+	@Test
+	void createInvitationRequiresAcceptedFriendship() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
+
+		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.empty());
+		willThrow(new BusinessException(ErrorCode.PROJECT_403_003))
+				.given(friendshipPublicService)
+				.assertAcceptedFriend(leaderId, invitee.getId());
+
+		assertThatThrownBy(() -> projectRoomMemberService.createInvitation(leaderId, roomId, command))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_403_003));
+	}
+
+	@Test
+	void createInvitationReturnsConflictWhenPendingInsertIsSkippedByUniqueIndex() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
+
+		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.empty());
+		given(invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
+				roomId,
+				invitee.getId(),
+				InvitationStatus.PENDING
+		)).willReturn(false);
+		given(invitationRepository.insertPendingIfAbsent(
+				any(UUID.class),
+				org.mockito.ArgumentMatchers.eq(roomId),
+				org.mockito.ArgumentMatchers.eq(leaderId),
+				org.mockito.ArgumentMatchers.eq(invitee.getId()),
+				org.mockito.ArgumentMatchers.eq(RoomMemberRole.MEMBER.name()),
+				any(Instant.class)
+		)).willReturn(0);
+
+		assertThatThrownBy(() -> projectRoomMemberService.createInvitation(leaderId, roomId, command))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_003));
+	}
+
+	@Test
+	void createInvitationRejectsAlreadyExpiredExpiresAt() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		CreateInvitationCommand command = new CreateInvitationCommand(
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().minusSeconds(60)
+		);
+
+		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.empty());
+		given(invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
+				roomId,
+				invitee.getId(),
+				InvitationStatus.PENDING
+		)).willReturn(false);
+
+		assertThatThrownBy(() -> projectRoomMemberService.createInvitation(leaderId, roomId, command))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
 	}
 
 	@Test
@@ -204,7 +296,8 @@ class ProjectRoomMemberServiceTest {
 				InvitationStatus.PENDING,
 				pageable
 		)).willReturn(new PageImpl<>(List.of(invitation), pageable, 1));
-		given(userPublicService.getUsers(any())).willReturn(Map.of(inviter.getId(), userResult(inviter)));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<org.springframework.data.domain.Page<UUID>>any()))
+				.willReturn(Map.of(inviter.getId(), userResult(inviter)));
 		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
 		given(projectRoomRepository.findAllById(any())).willReturn(List.of(room));
 
@@ -248,6 +341,52 @@ class ProjectRoomMemberServiceTest {
 	}
 
 	@Test
+	void cannotDemoteLastProjectLeader() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(leader));
+
+		assertThatThrownBy(() -> projectRoomMemberService.updateMemberRole(
+				leaderId,
+				roomId,
+				leaderId,
+				RoomMemberRole.MEMBER
+		)).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_004));
+		assertThat(leader.getRole()).isEqualTo(RoomMemberRole.PROJECT_LEADER);
+	}
+
+	@Test
+	void canDemoteProjectLeaderWhenAnotherLeaderRemains() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User targetUser = user(UUID.randomUUID(), "target-leader", "정현");
+		RoomMember requester = RoomMember.createLeader(roomId, leaderId);
+		RoomMember target = RoomMember.createLeader(roomId, targetUser.getId());
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, targetUser.getId(), RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(target));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(requester, target));
+		given(userPublicService.getUser(targetUser.getId())).willReturn(userResult(targetUser));
+
+		var result = projectRoomMemberService.updateMemberRole(
+				leaderId,
+				roomId,
+				targetUser.getId(),
+				RoomMemberRole.MEMBER
+		);
+
+		assertThat(result.role()).isEqualTo(RoomMemberRole.MEMBER);
+		assertThat(target.getRole()).isEqualTo(RoomMemberRole.MEMBER);
+	}
+
+	@Test
 	void projectLeaderCanRemoveMember() {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
@@ -274,6 +413,23 @@ class ProjectRoomMemberServiceTest {
 		projectRoomMemberService.removeMember(memberId, roomId, memberId);
 
 		assertThat(member.getStatus()).isEqualTo(RoomMemberStatus.LEFT);
+	}
+
+	@Test
+	void lastProjectLeaderCannotLeaveRoom() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		RoomMember leader = RoomMember.createLeader(roomId, leaderId);
+
+		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, leaderId, RoomMemberStatus.ACTIVE))
+				.willReturn(Optional.of(leader));
+		given(roomMemberRepository.findByRoomIdAndStatusForUpdate(roomId, RoomMemberStatus.ACTIVE))
+				.willReturn(List.of(leader));
+
+		assertThatThrownBy(() -> projectRoomMemberService.removeMember(leaderId, roomId, leaderId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_004));
+		assertThat(leader.getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
 	}
 
 	private User user(UUID userId, String bubliId, String name) {

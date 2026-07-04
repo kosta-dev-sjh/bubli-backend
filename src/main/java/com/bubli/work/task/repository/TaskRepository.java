@@ -13,19 +13,66 @@ import java.util.UUID;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 
-	Page<Task> findByOwnerUserIdAndRoomIdIsNull(UUID ownerUserId, Pageable pageable);
-
 	Page<Task> findByRoomId(UUID roomId, Pageable pageable);
 
 	List<Task> findByRoomIdOrderByUpdatedAtDesc(UUID roomId);
 
-	Page<Task> findByAssigneeUserId(UUID assigneeUserId, Pageable pageable);
+	@Query("""
+		select task
+		from Task task
+		where task.assigneeUserId = :userId
+		  and task.roomId is not null
+		  and exists (
+		    select member.id
+		    from RoomMember member
+		    where member.roomId = task.roomId
+		      and member.userId = :userId
+		      and member.status = com.bubli.project.type.RoomMemberStatus.ACTIVE
+		  )
+		order by
+		  case when task.dueAt is null then 1 else 0 end,
+		  task.dueAt asc,
+		  task.updatedAt desc
+		""")
+	Page<Task> findAssignedVisibleTasksForUser(@Param("userId") UUID userId, Pageable pageable);
 
 	@Query("""
 		select task
 		from Task task
 		where (task.ownerUserId = :userId and task.roomId is null)
-		   or task.assigneeUserId = :userId
+		   or (
+		     task.assigneeUserId = :userId
+		     and task.roomId is not null
+		     and exists (
+		       select member.id
+		       from RoomMember member
+		       where member.roomId = task.roomId
+		         and member.userId = :userId
+		         and member.status = com.bubli.project.type.RoomMemberStatus.ACTIVE
+		     )
+		   )
+		order by
+		  case when task.dueAt is null then 1 else 0 end,
+		  task.dueAt asc,
+		  task.updatedAt desc
+		""")
+	Page<Task> findVisibleTasksForUser(@Param("userId") UUID userId, Pageable pageable);
+
+	@Query("""
+		select task
+		from Task task
+		where (task.ownerUserId = :userId and task.roomId is null)
+		   or (
+		     task.assigneeUserId = :userId
+		     and task.roomId is not null
+		     and exists (
+		       select member.id
+		       from RoomMember member
+		       where member.roomId = task.roomId
+		         and member.userId = :userId
+		         and member.status = com.bubli.project.type.RoomMemberStatus.ACTIVE
+		     )
+		   )
 		order by
 		  case when task.dueAt is null then 1 else 0 end,
 		  task.dueAt asc,
@@ -35,7 +82,20 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 
 	@Query("""
 		select task from Task task
-		where ((task.ownerUserId = :userId and task.roomId is null) or task.assigneeUserId = :userId)
+		where (
+		    (task.ownerUserId = :userId and task.roomId is null)
+		    or (
+		      task.assigneeUserId = :userId
+		      and task.roomId is not null
+		      and exists (
+		        select member.id
+		        from RoomMember member
+		        where member.roomId = task.roomId
+		          and member.userId = :userId
+		          and member.status = com.bubli.project.type.RoomMemberStatus.ACTIVE
+		      )
+		    )
+		  )
 		  and task.dueAt >= :from and task.dueAt < :to
 		  and task.status <> com.bubli.work.task.type.TaskStatus.DONE
 		order by task.dueAt asc

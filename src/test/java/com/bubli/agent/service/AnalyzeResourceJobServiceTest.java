@@ -52,6 +52,7 @@ class AnalyzeResourceJobServiceTest {
         assertThat(result.getStatus()).isEqualTo(AgentJobStatus.FAILED);
         assertThat(result.getErrorCode()).isEqualTo("RESOURCE_ANALYSIS_FAILED");
         assertThat(result.getErrorMessage()).isEqualTo("Extracted text is empty.");
+        verify(resourceAnalysisService).markAnalysisFailed(resourceId);
     }
 
     private AgentJob job(UUID jobId, UUID resourceId) {

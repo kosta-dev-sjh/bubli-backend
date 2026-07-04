@@ -16,6 +16,7 @@ public interface ResourceFileRepository extends JpaRepository<ResourceFile, UUID
             join Resource r on r.id = rf.resourceId
             where r.roomId = :roomId
               and rf.checksum = :checksum
+              and r.deletedAt is null
               and r.status <> com.bubli.resource.type.ResourceStatus.FAILED
             """)
     boolean existsActiveRoomFileByChecksum(

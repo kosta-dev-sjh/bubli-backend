@@ -43,7 +43,7 @@ class LocalAgentJobExecutionPortTest {
     }
 
     @Test
-    void marksResourceAnalysisFailedWhenAnalyzeResourceJobFails() {
+    void marksResourceFailedWhenAnalyzeResourceThrows() {
         ResourceAnalysisPublicService resourceAnalysisService = mock(ResourceAnalysisPublicService.class);
         LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
                 resourceAnalysisService,
@@ -51,9 +51,8 @@ class LocalAgentJobExecutionPortTest {
         );
         UUID jobId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
-        doThrow(new IllegalArgumentException("Resource file not found."))
-                .when(resourceAnalysisService)
-                .analyzeResourceForJob(resourceId, jobId);
+        doThrow(new IllegalArgumentException("Extracted text is empty."))
+                .when(resourceAnalysisService).analyzeResourceForJob(resourceId, jobId);
 
         var outcome = executionPort.execute(new AgentJobQueueMessage(
                 jobId,
@@ -66,7 +65,8 @@ class LocalAgentJobExecutionPortTest {
 
         assertThat(outcome).isPresent();
         assertThat(outcome.get().successful()).isFalse();
-        assertThat(outcome.get().errorMessage()).isEqualTo("Resource file not found.");
+        assertThat(outcome.get().errorCode()).isEqualTo("AGENT_EXECUTION_FAILED");
+        assertThat(outcome.get().errorMessage()).isEqualTo("Extracted text is empty.");
         verify(resourceAnalysisService).markAnalysisFailed(resourceId);
     }
 

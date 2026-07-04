@@ -16,6 +16,10 @@ Content-Type: application/json
 GET {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}
 Authorization: Bearer {{accessToken}}
 
+### 프로젝트룸의 열린 보이스챗 방 조회
+GET {{baseUrl}}/api/voice/rooms?roomId={{roomId}}
+Authorization: Bearer {{accessToken}}
+
 ### LiveKit 접속 토큰 발급
 POST {{baseUrl}}/api/voice/rooms/{{voiceRoomId}}/token
 Authorization: Bearer {{accessToken}}

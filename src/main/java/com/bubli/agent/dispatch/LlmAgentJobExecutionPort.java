@@ -57,6 +57,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private final ObjectMapper objectMapper;
 	private final AgentJobContextCollector contextCollector;
 	private final AgentModelUsageGuard modelUsageGuard;
+	private final AgentResourceAnalysisCompletionRecorder resourceAnalysisCompletionRecorder;
 
 	@Override
 	public Optional<AgentJobExecutionOutcome> execute(AgentJobQueueMessage message) {
@@ -119,16 +120,20 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 			source = resourceAnalysisService.loadAnalysisSourceForJob(message.resourceId());
 			Optional<Map<String, Object>> reusableAnalysis = resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
 			if (reusableAnalysis.isPresent()) {
-				resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), reusableAnalysis.get());
+				resourceAnalysisCompletionRecorder.complete(message, source, reusableAnalysis.get(), List.of());
 				return AgentJobExecutionOutcome.succeeded();
 			}
 			AgentJobContext context = contextCollector.collect(message);
 			prompt = analyzeResourcePrompt(message, source, context);
 			ParsedModelResult parsed = callAndParseJson("agent-job-analyze-resource", prompt);
 			AgentAnalysisResult result = parsed.result();
-			resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), analysisJson(result, source));
-			return AgentJobExecutionOutcome.succeededWithResults(
-					toSuggestionDrafts(message, result),
+			resourceAnalysisCompletionRecorder.complete(
+					message,
+					source,
+					analysisJson(result, source),
+					toSuggestionDrafts(message, result)
+			);
+			return AgentJobExecutionOutcome.succeededWithModelCallLogs(
 					List.of(modelCallLog(startedAt, parsed.prompt(), parsed.response(), null))
 			);
 		} catch (AgentContractValidationException exception) {
