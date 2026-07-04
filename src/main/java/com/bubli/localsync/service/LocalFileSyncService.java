@@ -5,6 +5,8 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.localsync.dto.LocalFileEvent;
 import com.bubli.localsync.dto.LocalFileSyncResponse;
 import com.bubli.localsync.dto.LocalFileSyncResult;
+import com.bubli.localsync.entity.LocalFileSyncEvent;
+import com.bubli.localsync.repository.LocalFileSyncEventRepository;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserPublicService;
@@ -25,6 +27,7 @@ public class LocalFileSyncService {
 
     private final ResourcePublicService resourcePublicService;
     private final UserPublicService userPublicService;
+    private final LocalFileSyncEventRepository localFileSyncEventRepository;
 
     @Transactional
     public LocalFileSyncResponse sync(UUID userId, List<LocalFileEvent> events) {
@@ -37,8 +40,16 @@ public class LocalFileSyncService {
     }
 
     private LocalFileSyncResult processEvent(UUID userId, LocalFileEvent event) {
+        LocalFileSyncResult existing = localFileSyncEventRepository
+                .findByUserIdAndLocalEventId(userId, event.localEventId())
+                .map(this::toResult)
+                .orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+
         try {
-            return switch (event.eventType().toUpperCase()) {
+            LocalFileSyncResult result = switch (event.eventType().toUpperCase()) {
                 case "CREATED" -> {
                     String title = event.fileName() != null ? event.fileName() : "untitled";
                     ResourceResult resource = resourcePublicService.createPersonalResource(userId, title);
@@ -64,10 +75,35 @@ public class LocalFileSyncService {
                     yield new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), "SKIPPED");
                 }
             };
+            rememberCompletedEvent(userId, result);
+            return result;
         } catch (Exception e) {
             log.warn("Failed to sync local file event: {} - {}", event.eventType(), e.getMessage());
             return new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), "FAILED");
         }
+    }
+
+    private void rememberCompletedEvent(UUID userId, LocalFileSyncResult result) {
+        if ("FAILED".equalsIgnoreCase(result.status())) {
+            return;
+        }
+
+        localFileSyncEventRepository.save(LocalFileSyncEvent.create(
+                userId,
+                result.localEventId(),
+                result.eventType(),
+                result.resourceId(),
+                result.status()
+        ));
+    }
+
+    private LocalFileSyncResult toResult(LocalFileSyncEvent event) {
+        return new LocalFileSyncResult(
+                event.getEventType(),
+                event.getLocalEventId(),
+                event.getResourceId(),
+                event.getStatus()
+        );
     }
 
     private void assertManagedFolderConsent(UUID userId) {

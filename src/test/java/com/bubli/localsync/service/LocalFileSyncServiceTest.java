@@ -3,6 +3,8 @@ package com.bubli.localsync.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.localsync.dto.LocalFileEvent;
+import com.bubli.localsync.entity.LocalFileSyncEvent;
+import com.bubli.localsync.repository.LocalFileSyncEventRepository;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
@@ -10,6 +12,7 @@ import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.user.type.ConsentType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,12 +21,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -36,8 +43,17 @@ class LocalFileSyncServiceTest {
 	@Mock
 	UserPublicService userPublicService;
 
+	@Mock
+	LocalFileSyncEventRepository localFileSyncEventRepository;
+
 	@InjectMocks
 	LocalFileSyncService localFileSyncService;
+
+	@BeforeEach
+	void setUp() {
+		lenient().when(localFileSyncEventRepository.save(any(LocalFileSyncEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+	}
 
 	@Test
 	void syncUpdatedLocalFileRenamesPersonalResource() {
@@ -64,6 +80,40 @@ class LocalFileSyncServiceTest {
 		assertThat(response.results().get(0).status()).isEqualTo("SYNCED");
 		verify(userPublicService).isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER);
 		verify(resourcePublicService).updatePersonalResource(userId, resourceId, "updated-contract.pdf");
+	}
+
+	@Test
+	void syncCreatedLocalFileReturnsCachedResultWhenLocalEventIsRetried() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		String localEventId = "local-event-created-1";
+		LocalFileEvent event = new LocalFileEvent(
+				"CREATED",
+				"brief.txt",
+				20L,
+				localEventId,
+				"text/plain",
+				null
+		);
+		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))
+				.willReturn(true);
+		given(localFileSyncEventRepository.findByUserIdAndLocalEventId(userId, localEventId))
+				.willReturn(Optional.empty())
+				.willReturn(Optional.of(LocalFileSyncEvent.create(userId, localEventId, "CREATED", resourceId, "SYNCED")));
+		given(resourcePublicService.createPersonalResource(userId, "brief.txt"))
+				.willReturn(resourceResult(resourceId, "brief.txt"));
+
+		var first = localFileSyncService.sync(userId, List.of(event));
+		var retry = localFileSyncService.sync(userId, List.of(event));
+
+		assertThat(first.results()).hasSize(1);
+		assertThat(first.results().get(0).resourceId()).isEqualTo(resourceId);
+		assertThat(first.results().get(0).status()).isEqualTo("SYNCED");
+		assertThat(retry.results()).hasSize(1);
+		assertThat(retry.results().get(0).resourceId()).isEqualTo(resourceId);
+		assertThat(retry.results().get(0).status()).isEqualTo("SYNCED");
+		verify(resourcePublicService, times(1)).createPersonalResource(userId, "brief.txt");
+		verify(localFileSyncEventRepository).save(any(LocalFileSyncEvent.class));
 	}
 
 	@Test
