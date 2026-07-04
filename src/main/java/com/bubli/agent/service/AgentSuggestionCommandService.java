@@ -180,6 +180,16 @@ public class AgentSuggestionCommandService {
         payload.put("fieldKey", suggestion.fieldKey());
         payload.put("value", suggestion.value());
         payload.put("confidence", suggestion.confidence());
+        payload.put("assigneeUserId", suggestion.assigneeUserId());
+        payload.put("wbsItemId", suggestion.wbsItemId());
+        payload.put("parentId", suggestion.parentId());
+        payload.put("orderNo", suggestion.orderNo());
+        payload.put("status", suggestion.status());
+        payload.put("startsAt", suggestion.startsAt());
+        payload.put("dueAt", suggestion.dueAt());
+        payload.put("endsAt", suggestion.endsAt());
+        payload.put("allDay", suggestion.allDay());
+        payload.put("scheduleTitle", suggestion.scheduleTitle());
         return payload;
     }
 

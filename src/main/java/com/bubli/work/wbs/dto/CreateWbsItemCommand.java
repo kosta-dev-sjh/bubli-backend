@@ -2,12 +2,21 @@ package com.bubli.work.wbs.dto;
 
 import com.bubli.work.wbs.type.WbsStatus;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record CreateWbsItemCommand(
 		UUID parentId,
 		String title,
 		Integer orderNo,
-		WbsStatus status
+		WbsStatus status,
+		String scheduleTitle,
+		Instant startsAt,
+		Instant dueAt,
+		Instant endsAt,
+		boolean allDay
 ) {
+	public CreateWbsItemCommand(UUID parentId, String title, Integer orderNo, WbsStatus status) {
+		this(parentId, title, orderNo, status, null, null, null, null, false);
+	}
 }

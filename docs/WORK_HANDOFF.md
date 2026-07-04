@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/friend-request-conflict-guard-20260705` |
+| 현재 확인 브랜치 | `codex/wbs-room-schedule-link-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### WBS 직접 생성과 후보 draft의 프로젝트룸 일정 연동 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `POST /api/project-rooms/{roomId}/wbs-items`는 WBS 항목만 만들고 일정 필드를 받지 않아, 프론트가 프로젝트룸 WBS에서 일정 생성 UX를 붙여도 `schedules`가 생기지 않았다.
+- `CreateWbsItemRequest`/`CreateWbsItemCommand`에 선택 일정 필드(`scheduleTitle`, `startsAt`, `dueAt`, `endsAt`, `allDay`)를 추가했다.
+- WBS 직접 생성 시 `startsAt` 또는 `dueAt`가 있으면 방금 만든 WBS ID와 같은 `roomId`로 `SchedulePublicService.create`를 호출한다.
+- 이 일정은 기존 일정 생성 경로를 그대로 타므로 프로젝트룸 캘린더 매핑이 있으면 Google Calendar 프로젝트룸 캘린더로 동기화된다.
+- `AgentSuggestionCommandService.createDrafts`가 분석 결과의 TASK/WBS 연결 필드와 일정 필드를 payload에 보존하게 했다. 이로써 WBS 후보 승인 시 날짜 필드가 누락되어 일정이 생성되지 않는 경로를 막았다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.wbs.service.WbsItemServiceTest --tests com.bubli.work.wbs.controller.WbsControllerIntegrationTest --tests com.bubli.agent.service.AgentSuggestionDomainApplyServiceTest --tests com.bubli.agent.service.AgentSuggestionCommandServiceTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 프론트는 WBS 생성 요청에서 일정이 필요한 경우 `startsAt` 또는 `dueAt`를 보내야 한다.
 
 ### 양방향 친구 요청 수락 시 friendships unique 충돌 500 방지
 

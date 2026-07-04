@@ -3,6 +3,7 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -122,6 +124,43 @@ class WbsItemServiceTest {
 		assertThat(result.id()).isEqualTo(itemId);
 		assertThat(result.orderNo()).isEqualTo(5);
 		verify(wbsItemRepository, times(2)).saveAndFlush(any(WbsItem.class));
+	}
+
+	@Test
+	void createWbsItemCreatesRoomScheduleWhenDateIsIncluded() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		Instant startsAt = Instant.parse("2026-07-05T01:30:00Z");
+		Instant endsAt = Instant.parse("2026-07-05T02:00:00Z");
+		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(0);
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class))).willAnswer(invocation -> {
+			WbsItem item = invocation.getArgument(0);
+			ReflectionTestUtils.setField(item, "id", itemId);
+			return item;
+		});
+
+		WbsItemResult result = wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"프로젝트룸 일정 정리",
+				null,
+				WbsStatus.TODO,
+				"일정 후보",
+				startsAt,
+				null,
+				endsAt,
+				false
+		).toCommand());
+
+		ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+		verify(schedulePublicService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(result.id()).isEqualTo(itemId);
+		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+		assertThat(commandCaptor.getValue().wbsItemId()).isEqualTo(itemId);
+		assertThat(commandCaptor.getValue().taskId()).isNull();
+		assertThat(commandCaptor.getValue().title()).isEqualTo("일정 후보");
+		assertThat(commandCaptor.getValue().startsAt()).isEqualTo(startsAt);
+		assertThat(commandCaptor.getValue().endsAt()).isEqualTo(endsAt);
 	}
 
 	@Test
