@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/schedule-partial-update-preserve-20260705` |
+| 현재 확인 브랜치 | `codex/schedule-public-create-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 공개 일정 생성 경로 scope 검증과 동기화 실패 안정화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 에이전트 후보 승인처럼 다른 도메인이 쓰는 `SchedulePublicService.create`가 메인 일정 생성 경로보다 검증이 약했다.
+- 공개 일정 생성 경로도 WBS 항목이 붙으면 반드시 프로젝트룸 일정이어야 하고, WBS 항목이 같은 프로젝트룸에 있어야 한다.
+- TODO 연결 일정도 개인 TODO와 프로젝트룸 TODO의 실제 소속이 일정의 `roomId`와 맞는지 `TaskPublicService.assertScheduleTaskScope`로 확인하게 했다.
+- Google Calendar 외부 반영 중 예외가 나도 Bubli 일정 저장 자체가 롤백되지 않게 하고 `SYNC_FAILED`로 남긴다.
+- 이 변경으로 에이전트가 승인한 WBS/TODO 일정 후보도 프론트 직접 생성 일정과 같은 귀속 규칙을 탄다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest` 통과
+- `./gradlew test --tests com.bubli.agent.service.AgentSuggestionDomainApplyServiceTest --tests com.bubli.work.schedule.service.ScheduleServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 일정 PATCH 부분 수정 기존 값 보존
 
