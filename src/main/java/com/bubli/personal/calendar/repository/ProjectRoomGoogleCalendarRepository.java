@@ -15,6 +15,8 @@ public interface ProjectRoomGoogleCalendarRepository extends JpaRepository<Proje
 
 	Optional<ProjectRoomGoogleCalendar> findByUserIdAndRoomId(UUID userId, UUID roomId);
 
+	List<ProjectRoomGoogleCalendar> findByUserId(UUID userId);
+
 	List<ProjectRoomGoogleCalendar> findByUserIdAndRoomIdIn(UUID userId, Collection<UUID> roomIds);
 
 	@Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(:lockKey, 0))", nativeQuery = true)

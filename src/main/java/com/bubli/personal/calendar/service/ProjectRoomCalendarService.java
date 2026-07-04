@@ -12,9 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +67,15 @@ public class ProjectRoomCalendarService {
 			calendarIds.put(mapping.getRoomId(), mapping.getGoogleCalendarId());
 		}
 		return calendarIds;
+	}
+
+	@Transactional(readOnly = true)
+	public Set<String> findManagedGoogleCalendarIds(UUID userId) {
+		List<ProjectRoomGoogleCalendar> mappings = roomCalendarRepository.findByUserId(userId);
+		return mappings.stream()
+				.map(ProjectRoomGoogleCalendar::getGoogleCalendarId)
+				.filter(id -> id != null && !id.isBlank())
+				.collect(Collectors.toSet());
 	}
 
 	@Transactional
