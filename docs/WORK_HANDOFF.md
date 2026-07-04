@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/project-event-actor-batch-20260705` |
+| 현재 확인 브랜치 | `codex/project-event-sequence-retry-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 이벤트 sequence 충돌 재시도
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 이벤트 저장 시 방별 `sequence`를 `마지막 sequence + 1`로 계산하는 기존 흐름은 유지한다.
+- 동시에 같은 방 이벤트가 저장되어 `uk_project_room_events_room_sequence` 유니크 제약에 걸리면, sequence를 다시 읽어 최대 3회 재시도한다.
+- 성공한 이벤트만 웹소켓으로 발행해, 실패한 첫 시도가 중복 알림으로 나가지 않게 했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomEventRecorderTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 프로젝트룸 이벤트 actor 조회 배치화
 
