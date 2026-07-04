@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 public class WebSocketSubscriptionAuthorizationService implements WebSocketSubscriptionAuthorizationPort {
 
     private static final Pattern CHAT_TOPIC = Pattern.compile("^/topic/chat/([0-9a-fA-F-]{36})$");
+    private static final Pattern CHAT_TYPING_TOPIC = Pattern.compile("^/topic/chat/([0-9a-fA-F-]{36})/typing$");
     private static final Pattern PROJECT_ROOM_EVENTS_TOPIC =
             Pattern.compile("^/topic/project-rooms/([0-9a-fA-F-]{36})/events$");
     private static final String USER_NOTIFICATION_QUEUE = "/user/queue/notifications";
@@ -34,6 +35,12 @@ public class WebSocketSubscriptionAuthorizationService implements WebSocketSubsc
         Matcher chatMatcher = CHAT_TOPIC.matcher(destination);
         if (chatMatcher.matches()) {
             chatRoomAccessPublicService.assertActiveMember(authUser.userId(), parseUuid(chatMatcher.group(1)));
+            return;
+        }
+
+        Matcher chatTypingMatcher = CHAT_TYPING_TOPIC.matcher(destination);
+        if (chatTypingMatcher.matches()) {
+            chatRoomAccessPublicService.assertActiveMember(authUser.userId(), parseUuid(chatTypingMatcher.group(1)));
             return;
         }
 

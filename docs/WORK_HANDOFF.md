@@ -10,7 +10,7 @@ Last checked: 2026-07-04 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/received-invitations-direct-accept-20260704` |
+| 현재 확인 브랜치 | `codex/chat-typing-relay-20260704` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 채팅 타이핑 WebSocket 릴레이
+
+처리 시각: 2026-07-04 KST
+
+변경 내용:
+
+- 프론트가 `/app/chat/{chatRoomId}/typing`으로 보낸 타이핑 상태를 서버가 검증 후 `/topic/chat/{chatRoomId}/typing`으로 재발행하도록 추가했다.
+- 타이핑 이벤트는 저장하지 않는다. 활성 채팅방 멤버인지 확인하고 `{ chatRoomId, typing, userId, userName }`만 내려준다.
+- `/topic/chat/{chatRoomId}/typing` 구독도 기존 채팅방 멤버 권한 검사에 포함했다.
+
+검증 결과:
+
+- `./gradlew compileTestJava` 통과
+- `./gradlew test --tests 'com.bubli.chat.service.ChatTypingServiceTest' --tests 'com.bubli.websocket.service.WebSocketSubscriptionAuthorizationServiceTest'` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 프론트에서 `NEXT_PUBLIC_CHAT_TYPING_RELAY=1`을 켜고 실제 STOMP 송수신을 확인한다.
 
 ### 받은 프로젝트룸 초대 직접 조회/수락 흐름 보강
 
