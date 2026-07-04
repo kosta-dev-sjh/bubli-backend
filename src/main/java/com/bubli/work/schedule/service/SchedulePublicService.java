@@ -16,4 +16,6 @@ public interface SchedulePublicService {
 	ScheduleResult create(UUID userId, CreateScheduleCommand command);
 
 	void assertNoScheduleLinkedToWbsItem(UUID wbsItemId);
+
+	void assertNoScheduleLinkedToTask(UUID taskId);
 }

@@ -1,7 +1,9 @@
 package com.bubli.work.task.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreatePersonalTaskRequest;
 import com.bubli.work.task.dto.CreateRoomTaskRequest;
 import com.bubli.work.task.dto.TaskResult;
@@ -28,7 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceTest {
@@ -41,6 +45,9 @@ class TaskServiceTest {
 
 	@Mock
 	WbsItemPublicService wbsItemPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@InjectMocks
 	TaskService taskService;
@@ -141,6 +148,23 @@ class TaskServiceTest {
 				taskId,
 				new UpdateTaskRequest("수정", null, null, null, null, null).toCommand()
 		)).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void deleteTaskRejectsWhenScheduleIsLinked() {
+		UUID userId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		Task task = Task.createPersonal(userId, "일정 연결 TODO", null, TaskStatus.TODO, null);
+		ReflectionTestUtils.setField(task, "id", taskId);
+		given(taskRepository.findById(taskId)).willReturn(Optional.of(task));
+		willThrow(new BusinessException(ErrorCode.WORK_400_004))
+				.given(schedulePublicService)
+				.assertNoScheduleLinkedToTask(taskId);
+
+		assertThatThrownBy(() -> taskService.deleteTask(userId, taskId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_004));
+		verify(taskRepository, never()).delete(any(Task.class));
 	}
 
 	@Test

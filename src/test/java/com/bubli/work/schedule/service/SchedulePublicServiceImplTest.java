@@ -232,4 +232,14 @@ class SchedulePublicServiceImplTest {
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_003));
 	}
+
+	@Test
+	void assertNoScheduleLinkedToTaskRejectsLinkedSchedule() {
+		UUID taskId = UUID.randomUUID();
+		given(scheduleRepository.existsByTaskId(taskId)).willReturn(true);
+
+		assertThatThrownBy(() -> schedulePublicService.assertNoScheduleLinkedToTask(taskId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_004));
+	}
 }

@@ -98,6 +98,14 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 		}
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public void assertNoScheduleLinkedToTask(UUID taskId) {
+		if (scheduleRepository.existsByTaskId(taskId)) {
+			throw new BusinessException(ErrorCode.WORK_400_004);
+		}
+	}
+
 	private void validateLinkedWorkScope(UUID userId, UUID roomId, UUID taskId, UUID wbsItemId) {
 		if (wbsItemId != null) {
 			if (roomId == null) {
