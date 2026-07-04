@@ -329,6 +329,48 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void uploadDeletesStoredObjectWhenVersionFlushFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(storagePublicService.save(any(String.class), eq("계약서.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file.pdf".formatted(resourceId),
+						"계약서.pdf",
+						"application/pdf",
+						3L,
+						"checksum"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(0);
+		RuntimeException dbFailure = new IllegalStateException("version constraint failed");
+		doThrow(dbFailure).when(resourceVersionRepository).flush();
+
+		assertThatThrownBy(() -> resourceService.upload(userId, new UploadResourceCommand(
+				"계약서 원본",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				null,
+				"계약서.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(dbFailure);
+
+		verify(storagePublicService).delete("resources/%s/file.pdf".formatted(resourceId));
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+	}
+
+	@Test
 	void uploadRoomSharedResourceRecordsRoomStorageUsage() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -740,6 +782,7 @@ class ResourceServiceTest {
 		assertThat(result.createdBy()).isEqualTo(userId);
 		assertThat(result.originalName()).isEqualTo("계약서-v3.pdf");
 		verify(storageUsagePublicService).recordPersonalUpload(userId, 1024L);
+		verify(resourceRepository).lockById(resourceId);
 	}
 
 	@Test
@@ -765,6 +808,42 @@ class ResourceServiceTest {
 				"checksum"
 		))).isInstanceOf(IllegalStateException.class);
 
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 1024L);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 1024L);
+	}
+
+	@Test
+	void createVersionReleasesUsageWhenVersionFlushFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 flush 실패 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(2);
+		RuntimeException dbFailure = new IllegalStateException("version constraint failed");
+		doThrow(dbFailure).when(resourceVersionRepository).flush();
+
+		assertThatThrownBy(() -> resourceService.createVersion(userId, resourceId, new CreateResourceVersionCommand(
+				"resources/%s/v3.pdf".formatted(resourceId),
+				"계약서-v3.pdf",
+				"application/pdf",
+				1024L,
+				"checksum"
+		))).isSameAs(dbFailure);
+
+		verify(resourceRepository).lockById(resourceId);
 		verify(storageUsagePublicService).recordPersonalUpload(userId, 1024L);
 		verify(storageUsagePublicService).releasePersonalUsage(userId, 1024L);
 	}
@@ -844,6 +923,7 @@ class ResourceServiceTest {
 		assertThat(result.originalName()).isEqualTo("계약서-v4.pdf");
 		assertThat(result.storageKey()).startsWith("resources/%s/".formatted(resourceId));
 		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+		verify(resourceRepository).lockById(resourceId);
 
 		ArgumentCaptor<String> storageKeyCaptor = ArgumentCaptor.forClass(String.class);
 		verify(storagePublicService).save(
@@ -885,6 +965,49 @@ class ResourceServiceTest {
 				new byte[]{1, 2, 3}
 		))).isInstanceOf(IllegalStateException.class);
 
+		verify(storagePublicService).delete("resources/%s/file-v5.pdf".formatted(resourceId));
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+	}
+
+	@Test
+	void uploadVersionDeletesStoredObjectAndReleasesUsageWhenVersionFlushFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"버전 업로드 flush 실패 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(storagePublicService.save(any(String.class), eq("계약서-v5.pdf"), eq("application/pdf"), any(byte[].class)))
+				.willReturn(new FileUploadResult(
+						"resources/%s/file-v5.pdf".formatted(resourceId),
+						"계약서-v5.pdf",
+						"application/pdf",
+						3L,
+						"checksum-v5"
+				));
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.findMaxVersionNo(resourceId)).willReturn(4);
+		RuntimeException dbFailure = new IllegalStateException("version constraint failed");
+		doThrow(dbFailure).when(resourceVersionRepository).flush();
+
+		assertThatThrownBy(() -> resourceService.uploadVersion(userId, resourceId, new UploadResourceVersionCommand(
+				"계약서-v5.pdf",
+				"application/pdf",
+				new byte[]{1, 2, 3}
+		))).isSameAs(dbFailure);
+
+		verify(resourceRepository).lockById(resourceId);
 		verify(storagePublicService).delete("resources/%s/file-v5.pdf".formatted(resourceId));
 		verify(storageUsagePublicService).recordPersonalUpload(userId, 3L);
 		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
