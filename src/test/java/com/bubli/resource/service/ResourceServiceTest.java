@@ -3,6 +3,8 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.CreateResourceVersionCommand;
@@ -92,6 +94,9 @@ class ResourceServiceTest {
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
+
+	@Mock
+	NotificationPublicService notificationPublicService;
 
 	@InjectMocks
 	ResourceService resourceService;
@@ -555,6 +560,13 @@ class ResourceServiceTest {
 		assertThat(result.resourceId()).isEqualTo(resourceId);
 		assertThat(result.authorId()).isEqualTo(userId);
 		assertThat(result.body()).isEqualTo("확인했습니다");
+		verify(notificationPublicService).create(
+				userId,
+				NotificationSourceType.COMMENT,
+				resourceId,
+				"리소스 댓글 알림",
+				"확인했습니다"
+		);
 	}
 
 	@Test

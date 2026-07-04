@@ -94,7 +94,9 @@ public class UserService {
 		preference.update(
 				command.theme(),
 				command.defaultHomeType(),
-				command.defaultProjectRoomId()
+				command.defaultProjectRoomId(),
+				command.jobRole(),
+				command.onboardingCompletedAt()
 		);
 		return UserPreferenceResult.from(userPreferenceRepository.save(preference));
 	}
