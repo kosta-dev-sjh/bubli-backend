@@ -34,7 +34,7 @@ public class TaskService {
 
 	@Transactional(readOnly = true)
 	public PageResponse<TaskResult> getAssignedTasks(UUID userId, Pageable pageable) {
-		return toPage(taskRepository.findByAssigneeUserId(userId, pageable));
+		return toPage(taskRepository.findAssignedVisibleTasksForUser(userId, pageable));
 	}
 
 	@Transactional(readOnly = true)

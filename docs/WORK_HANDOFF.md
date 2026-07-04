@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/task-personal-view-assigned-20260705` |
+| 현재 확인 브랜치 | `codex/task-visible-active-member-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,33 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 담당 프로젝트룸 TODO 조회 active 멤버 조건 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 TODO는 담당자 개인 화면과 대시보드에 보일 수 있지만, 원본은 계속 프로젝트룸 TODO다.
+- 기존 조회는 `assigneeUserId`만 맞으면 프로젝트룸 TODO를 개인 화면, 대시보드, 위젯/요약용 마감 TODO에 포함할 수 있었다.
+- 사용자가 프로젝트룸에서 나가거나 제거된 뒤에도 과거 담당자였다는 이유만으로 TODO가 계속 보일 위험이 있었다.
+- 개인 TODO 기본 조회, 담당 TODO 조회, 대시보드 TODO 조회, 마감 TODO 조회에 `room_members.status = ACTIVE` 조건을 추가했다.
+- 순수 개인 TODO는 기존처럼 `ownerUserId`와 `roomId IS NULL` 기준으로 표시한다.
+- 프로젝트룸 TODO는 `assigneeUserId`가 현재 사용자이고, 해당 `roomId`에 active 멤버 row가 있을 때만 개인 화면 계열 조회에 포함한다.
+- `room_members(room_id, user_id)` 유니크 인덱스를 타는 `exists` 조건으로 처리해 권한 조건을 붙이면서도 중복 join으로 인한 페이지 카운트 흔들림을 피했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.task.repository.TaskRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.work.task.service.TaskServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 개인 TODO 조회에 담당 프로젝트룸 TODO 포함
 
