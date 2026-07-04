@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/project-invite-friendship-20260705` |
+| 현재 확인 브랜치 | `codex/project-room-leader-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,33 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 마지막 리더 보호
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 기획 기준상 프로젝트룸은 리더가 0명인 상태가 되면 안 된다.
+- 기존 멤버 역할 변경은 마지막 `PROJECT_LEADER`도 `MEMBER`로 낮출 수 있었다.
+- 기존 멤버 나가기/내보내기는 마지막 `PROJECT_LEADER`가 직접 나가거나 제거되는 흐름을 막지 못했다.
+- 마지막 active 리더의 역할 강등, 나가기, 제거 요청을 `PROJECT_409_004`로 거절하게 했다.
+- active 멤버 목록을 `PESSIMISTIC_WRITE` 잠금으로 읽고 리더 수를 확인해, 동시에 여러 리더 변경 요청이 들어와도 리더 0명 상태로 떨어질 위험을 줄였다.
+- 이 변경은 프로젝트룸 멤버십 무결성만 다루며, 개인 TODO에 담당 프로젝트룸 TODO가 보이는 모델과 프로젝트룸 TODO 원본 귀속 모델은 그대로 유지한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomMemberServiceTest` 통과
+- `./gradlew test --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.global.locale.LocaleMessageBundleTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 전체 아키텍처/컴파일/테스트 게이트와 GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 프로젝트룸 초대 친구 검증과 pending 중복 방지
 
