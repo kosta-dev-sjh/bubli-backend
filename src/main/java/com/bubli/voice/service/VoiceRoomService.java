@@ -48,6 +48,7 @@ public class VoiceRoomService {
     @Transactional
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId) {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
+        voiceRoomRepository.lockRoomOpenCreation(lockKey(roomId));
 
         Optional<VoiceRoom> existing = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN);
         if (existing.isPresent()) {
@@ -78,6 +79,10 @@ public class VoiceRoomService {
         UserResult user = userPublicService.getUser(userId);
         List<VoiceParticipantResponse> participants = List.of(toParticipantResponse(participant, user.name()));
         return toRoomResponse(voiceRoom, participants);
+    }
+
+    private String lockKey(UUID roomId) {
+        return "voice-room-open:" + roomId;
     }
 
     @Transactional(readOnly = true)
