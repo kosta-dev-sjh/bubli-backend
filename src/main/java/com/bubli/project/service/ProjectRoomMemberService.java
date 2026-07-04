@@ -171,7 +171,7 @@ public class ProjectRoomMemberService {
 
 	@Transactional
 	public InvitationResult acceptInvitation(UUID userId, UUID invitationId) {
-		Invitation invitation = invitationRepository.findByIdAndInviteeUserId(invitationId, userId)
+		Invitation invitation = invitationRepository.findByIdAndInviteeUserIdForUpdate(invitationId, userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
 
 		if (!invitation.isPending()) {
@@ -206,7 +206,7 @@ public class ProjectRoomMemberService {
 
 	@Transactional
 	public InvitationResult cancelInvitation(UUID requesterId, UUID invitationId) {
-		Invitation invitation = invitationRepository.findById(invitationId)
+		Invitation invitation = invitationRepository.findByIdForUpdate(invitationId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
 		projectMembershipPublicService.assertProjectLeader(requesterId, invitation.getRoomId());
 

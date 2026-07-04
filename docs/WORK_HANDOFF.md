@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/widget-upsert-race-guard-20260705` |
+| 현재 확인 브랜치 | `codex/invitation-accept-lock-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 초대 수락/취소 동시 처리 상태 꼬임 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 초대 수락은 기존에 초대 row를 일반 조회한 뒤 `PENDING` 여부와 멤버 존재 여부를 확인했다.
+- 같은 초대를 두 번 빠르게 수락하면 두 트랜잭션이 모두 `PENDING` 상태를 보고 `room_members(room_id, user_id)` insert를 시도할 수 있어 DB unique 예외가 500으로 샐 수 있었다.
+- 초대 수락은 `findByIdAndInviteeUserIdForUpdate`로 해당 `invitations` row를 pessimistic write lock으로 잡고 처리하게 했다.
+- 초대 취소도 같은 초대 row를 잠그지 않으면 수락 중 취소가 `ACCEPTED + ACTIVE member` 상태를 `CANCELED + ACTIVE member`처럼 어긋나게 덮어쓸 수 있어 `findByIdForUpdate`로 맞췄다.
+- 이미 `ACCEPTED`인 초대는 수락/취소 모두 멤버 저장이나 상태 변경 전에 `PROJECT_409_002`로 거절하는 회귀 테스트를 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomMemberServiceTest --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest --tests com.bubli.project.repository.InvitationRepositoryIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
+남은 작업:
+
+- 보이스 참가자 재입장 시 `LEFT -> JOINED` 복귀와 `voice_participants(voice_room_id, user_id)` 중복 방지.
+- WBS 일정 연동은 백엔드 기준 `startsAt` 또는 `dueAt`가 들어오면 프로젝트룸 일정 경로를 탄다. 프론트 요청 payload에 날짜가 없으면 일정은 생성되지 않는다.
 
 ### 위젯 첫 저장 unique race 500 방지
 
