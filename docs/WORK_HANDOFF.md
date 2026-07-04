@@ -52,6 +52,29 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### 공통 사용자 배치 조회 최적화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `UserPublicService.getUsers`에 `Collection<UUID>` 기반 배치 조회 경로를 추가했다.
+- 기존 `Page<UUID>` 기반 호출은 유지하되 내부적으로 같은 배치 조회 경로를 쓰게 했다.
+- 사용자 ID 목록에서 null과 중복을 제거하고, 유효한 ID가 없으면 DB 조회 없이 빈 결과를 반환한다.
+- 보이스챗 참가자 이름 조회는 임시 `PageImpl` 생성 없이 새 배치 조회 경로를 사용한다.
+- 탈퇴한 사용자를 배치 조회 응답에서 제외하는 기존 동작은 유지했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.user.service.UserPublicServiceImplTest --tests com.bubli.voice.service.VoiceRoomServiceTest --tests com.bubli.chat.service.ChatServiceTest --tests com.bubli.project.service.ProjectRoomMemberServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 보이스챗 조회 권한과 참가자 이름 조회 최적화
 
 처리 시각: 2026-07-05 KST
