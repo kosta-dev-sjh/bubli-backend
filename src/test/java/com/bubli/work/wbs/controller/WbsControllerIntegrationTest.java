@@ -142,6 +142,51 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void updateWbsItemRejectsDuplicatedRootOrderWithBadRequest() throws Exception {
+		User user = createUser("google-sub-wbs-update-order", "준화");
+		ProjectRoom room = saveRoom(user.getId(), "WBS 순서 중복 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+		wbsItemRepository.save(WbsItem.create(room.getId(), null, "첫 번째 항목", 1, WbsStatus.TODO));
+		WbsItem second = wbsItemRepository.save(WbsItem.create(room.getId(), null, "두 번째 항목", 2, WbsStatus.TODO));
+
+		mockMvc.perform(patch("/api/wbs-items/{wbsItemId}", second.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "orderNo": 1
+								}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("COMMON_400_002"));
+	}
+
+	@Test
+	void updateWbsItemRejectsDescendantParentWithBadRequest() throws Exception {
+		User user = createUser("google-sub-wbs-update-cycle", "준화");
+		ProjectRoom room = saveRoom(user.getId(), "WBS 순환 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+		WbsItem parent = wbsItemRepository.save(WbsItem.create(room.getId(), null, "상위 항목", 1, WbsStatus.TODO));
+		WbsItem child = wbsItemRepository.save(WbsItem.create(room.getId(), parent.getId(), "하위 항목", 1, WbsStatus.TODO));
+		WbsItem grandChild = wbsItemRepository.save(WbsItem.create(room.getId(), child.getId(), "손자 항목", 1, WbsStatus.TODO));
+
+		mockMvc.perform(patch("/api/wbs-items/{wbsItemId}", parent.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "parentId": "%s"
+								}
+								""".formatted(grandChild.getId())))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("COMMON_400_002"));
+	}
+
+	@Test
 	void deleteWbsItemRemovesItem() throws Exception {
 		User user = createUser("google-sub-wbs-delete", "재민");
 		ProjectRoom room = saveRoom(user.getId(), "WBS 삭제 프로젝트");
@@ -211,6 +256,37 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.data[1].title").value("첫 번째 항목"))
 				.andExpect(jsonPath("$.data[1].orderNo").value(2))
 				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
+	void reorderWbsItemsRejectsDescendantParentWithBadRequest() throws Exception {
+		User user = createUser("google-sub-wbs-reorder-cycle", "민서");
+		ProjectRoom room = saveRoom(user.getId(), "WBS 재정렬 순환 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+		WbsItem parent = wbsItemRepository.save(WbsItem.create(room.getId(), null, "상위 항목", 1, WbsStatus.TODO));
+		WbsItem child = wbsItemRepository.save(WbsItem.create(room.getId(), parent.getId(), "하위 항목", 1, WbsStatus.TODO));
+		WbsItem grandChild = wbsItemRepository.save(WbsItem.create(room.getId(), child.getId(), "손자 항목", 1, WbsStatus.TODO));
+
+		mockMvc.perform(patch("/api/project-rooms/{roomId}/wbs-items/reorder", room.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId()))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "items": [
+								    {"wbsItemId": "%s", "parentId": "%s", "orderNo": 1},
+								    {"wbsItemId": "%s", "parentId": "%s", "orderNo": 1},
+								    {"wbsItemId": "%s", "parentId": "%s", "orderNo": 1}
+								  ]
+								}
+								""".formatted(
+										parent.getId(), grandChild.getId(),
+										child.getId(), parent.getId(),
+										grandChild.getId(), child.getId()
+								)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("COMMON_400_002"));
 	}
 
 	@Test

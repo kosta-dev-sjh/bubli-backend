@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/stop-room-timer-on-member-removal-20260705` |
+| 현재 확인 브랜치 | `codex/wbs-update-reorder-guards-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,33 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### WBS update/reorder 순번 중복 500 및 순환 부모 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `wbs_items`에는 같은 room/parent 안에서 `order_no`가 중복되지 않도록 DB unique 제약이 있다.
+- 기존 `create`와 `reorder`는 순번 중복을 일부 막았지만, `update`는 `orderNo` 변경 시 같은 sibling 중복을 먼저 검사하지 않았다.
+- 이 경우 DB 제약 충돌이 `DataIntegrityViolationException`으로 터지고 500으로 샐 수 있었다.
+- `existsSiblingOrderExcludingId`를 추가해 `update`에서도 자기 자신을 제외한 sibling order 중복을 400으로 막는다.
+- race 등으로 flush 시점에 DB 충돌이 나도 `COMMON_400_002`로 변환한다.
+- `update`와 `reorder` 모두 최종 parent graph를 기준으로 descendant를 parent로 지정하는 cycle을 400으로 막는다.
+- `UpdateWbsItemRequest.orderNo`에 `@Positive` 검증을 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.wbs.service.WbsItemServiceTest --tests com.bubli.work.wbs.controller.WbsControllerIntegrationTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 후속 후보: agent suggestion payload 파싱 500 방지, 생성 문서가 연결된 agent suggestion 삭제 가드.
 
 ### 프로젝트룸 멤버 제거 시 RUNNING 룸 타이머 정리
 

@@ -73,15 +73,18 @@ public class WbsItemService {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
 		checkParent(item.getRoomId(), command.parentId());
-		if (item.getId().equals(command.parentId())) {
+		validateUpdate(item, command);
+		try {
+			item.update(
+					command.title(),
+					command.parentId(),
+					command.orderNo(),
+					command.status()
+			);
+			wbsItemRepository.flush();
+		} catch (DataIntegrityViolationException exception) {
 			throw new BusinessException(ErrorCode.COMMON_400_002);
 		}
-		item.update(
-				command.title(),
-				command.parentId(),
-				command.orderNo(),
-				command.status()
-		);
 		return WbsItemResult.from(item);
 	}
 
@@ -203,6 +206,7 @@ public class WbsItemService {
 			Map<UUID, WbsItem> roomItemById
 	) {
 		Set<String> siblingOrders = new HashSet<>();
+		Map<UUID, UUID> finalParentByItemId = new LinkedHashMap<>();
 		for (WbsItem item : roomItems) {
 			ReorderWbsItemCommand request = requestByItemId.get(item.getId());
 			UUID parentId = request == null ? item.getParentId() : request.parentId();
@@ -215,6 +219,50 @@ public class WbsItemService {
 			}
 			if (!siblingOrders.add(parentId + ":" + orderNo)) {
 				throw new BusinessException(ErrorCode.COMMON_400_002);
+			}
+			finalParentByItemId.put(item.getId(), parentId);
+		}
+		validateAcyclicParents(finalParentByItemId);
+	}
+
+	private void validateUpdate(WbsItem item, UpdateWbsItemCommand command) {
+		UUID nextParentId = command.parentId() == null ? item.getParentId() : command.parentId();
+		Integer nextOrderNo = command.orderNo() == null ? item.getOrderNo() : command.orderNo();
+		if (item.getId().equals(nextParentId)) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+		if (command.parentId() != null) {
+			validateAcyclicParentChange(item, command.parentId());
+		}
+		if ((command.parentId() != null || command.orderNo() != null)
+				&& wbsItemRepository.existsSiblingOrderExcludingId(
+						item.getRoomId(),
+						nextParentId,
+						nextOrderNo,
+						item.getId()
+				)) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+	}
+
+	private void validateAcyclicParentChange(WbsItem item, UUID parentId) {
+		Map<UUID, UUID> finalParentByItemId = new LinkedHashMap<>();
+		for (WbsItem roomItem : wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(item.getRoomId())) {
+			finalParentByItemId.put(roomItem.getId(), roomItem.getParentId());
+		}
+		finalParentByItemId.put(item.getId(), parentId);
+		validateAcyclicParents(finalParentByItemId);
+	}
+
+	private void validateAcyclicParents(Map<UUID, UUID> parentByItemId) {
+		for (UUID itemId : parentByItemId.keySet()) {
+			Set<UUID> visitedParentIds = new HashSet<>();
+			UUID parentId = parentByItemId.get(itemId);
+			while (parentId != null) {
+				if (itemId.equals(parentId) || !visitedParentIds.add(parentId)) {
+					throw new BusinessException(ErrorCode.COMMON_400_002);
+				}
+				parentId = parentByItemId.get(parentId);
 			}
 		}
 	}

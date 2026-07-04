@@ -178,6 +178,76 @@ class WbsItemServiceTest {
 	}
 
 	@Test
+	void updateWbsItemRejectsDuplicatedSiblingOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		given(wbsItemRepository.existsSiblingOrderExcludingId(roomId, null, 1, itemId)).willReturn(true);
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, itemId, new UpdateWbsItemRequest(
+				null,
+				null,
+				1,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).flush();
+	}
+
+	@Test
+	void updateWbsItemConvertsOrderFlushConflictToBadRequest() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		given(wbsItemRepository.existsSiblingOrderExcludingId(roomId, null, 1, itemId)).willReturn(false);
+		willThrow(new DataIntegrityViolationException("duplicate wbs order"))
+				.given(wbsItemRepository)
+				.flush();
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, itemId, new UpdateWbsItemRequest(
+				null,
+				null,
+				1,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+	}
+
+	@Test
+	void updateWbsItemRejectsDescendantParent() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID parentId = UUID.randomUUID();
+		UUID childId = UUID.randomUUID();
+		UUID grandChildId = UUID.randomUUID();
+		WbsItem parent = WbsItem.create(roomId, null, "상위", 1, WbsStatus.TODO);
+		WbsItem child = WbsItem.create(roomId, parentId, "하위", 1, WbsStatus.TODO);
+		WbsItem grandChild = WbsItem.create(roomId, childId, "손자", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(parent, "id", parentId);
+		ReflectionTestUtils.setField(child, "id", childId);
+		ReflectionTestUtils.setField(grandChild, "id", grandChildId);
+		given(wbsItemRepository.findById(parentId)).willReturn(Optional.of(parent));
+		given(wbsItemRepository.findById(grandChildId)).willReturn(Optional.of(grandChild));
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(parent, child, grandChild));
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, parentId, new UpdateWbsItemRequest(
+				grandChildId,
+				null,
+				null,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).flush();
+	}
+
+	@Test
 	void reorderWbsItemsChangesSiblingOrder() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -217,6 +287,31 @@ class WbsItemServiceTest {
 				new ReorderWbsItemRequest(firstId, null, 1),
 				new ReorderWbsItemRequest(secondId, null, 1)
 		)).toCommand())).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void reorderWbsItemsRejectsDescendantParent() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID parentId = UUID.randomUUID();
+		UUID childId = UUID.randomUUID();
+		UUID grandChildId = UUID.randomUUID();
+		WbsItem parent = WbsItem.create(roomId, null, "상위", 1, WbsStatus.TODO);
+		WbsItem child = WbsItem.create(roomId, parentId, "하위", 1, WbsStatus.TODO);
+		WbsItem grandChild = WbsItem.create(roomId, childId, "손자", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(parent, "id", parentId);
+		ReflectionTestUtils.setField(child, "id", childId);
+		ReflectionTestUtils.setField(grandChild, "id", grandChildId);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(parent, child, grandChild));
+
+		assertThatThrownBy(() -> wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
+				new ReorderWbsItemRequest(parentId, grandChildId, 1),
+				new ReorderWbsItemRequest(childId, parentId, 1),
+				new ReorderWbsItemRequest(grandChildId, childId, 1)
+		)).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).saveAllAndFlush(any());
 	}
 
 	@Test

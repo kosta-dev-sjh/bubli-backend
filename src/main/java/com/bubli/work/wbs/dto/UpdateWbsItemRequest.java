@@ -1,6 +1,7 @@
 package com.bubli.work.wbs.dto;
 
 import com.bubli.work.wbs.type.WbsStatus;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
@@ -11,6 +12,7 @@ public record UpdateWbsItemRequest(
 		@Size(max = 200, message = "WBS 항목명은 200자 이하여야 합니다.")
 		String title,
 
+		@Positive(message = "WBS 순서는 1 이상이어야 합니다.")
 		Integer orderNo,
 		WbsStatus status
 ) {
