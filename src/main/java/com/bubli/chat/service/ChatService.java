@@ -35,8 +35,10 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -237,16 +239,33 @@ public class ChatService {
 	}
 
 	private void addActiveProjectMembers(UUID chatRoomId, UUID roomId) {
-		projectMembershipPublicService.findActiveMemberIds(roomId)
-				.forEach(memberId -> {
-					if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
-							chatRoomId,
-							memberId,
-							ChatMemberStatus.ACTIVE
-					)) {
-						chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
-					}
-				});
+		List<UUID> memberIds = projectMembershipPublicService.findActiveMemberIds(roomId).stream()
+				.filter(Objects::nonNull)
+				.distinct()
+				.toList();
+		if (memberIds.isEmpty()) {
+			return;
+		}
+
+		Map<UUID, ChatRoomMember> existingMemberByUserId = chatRoomMemberRepository
+				.findByChatRoomIdAndUserIdIn(chatRoomId, memberIds)
+				.stream()
+				.collect(Collectors.toMap(
+						ChatRoomMember::getUserId,
+						member -> member,
+						(first, second) -> first
+				));
+
+		memberIds.forEach(memberId -> {
+			ChatRoomMember existingMember = existingMemberByUserId.get(memberId);
+			if (existingMember == null) {
+				chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, memberId));
+				return;
+			}
+			if (existingMember.getStatus() != ChatMemberStatus.ACTIVE) {
+				existingMember.reactivate();
+			}
+		});
 	}
 
 	private Set<UUID> normalizedMemberIds(UUID requesterId, List<UUID> memberUserIds) {

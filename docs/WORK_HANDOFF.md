@@ -52,6 +52,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### 프로젝트룸 채팅 멤버 동기화 안정화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 채팅방을 만들거나 기존 방을 다시 동기화할 때, 활성 프로젝트룸 멤버별 `exists` 조회를 반복하지 않고 기존 채팅 멤버를 한 번에 조회한다.
+- 이미 ACTIVE인 채팅 멤버는 그대로 두고, LEFT 상태로 남아 있는 채팅 멤버는 새 행을 만들지 않고 재활성화한다.
+- `chat_room_members`의 방+사용자 유니크 제약에 걸릴 수 있는 중복 저장 위험을 줄였다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.chat.service.ChatServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 공통 사용자 배치 조회 최적화
 
 처리 시각: 2026-07-05 KST
