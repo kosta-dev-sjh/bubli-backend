@@ -89,8 +89,7 @@ public class UserService {
 		if (command.defaultProjectRoomId() != null) {
 			projectMembershipPublicService.assertActiveMember(userId, command.defaultProjectRoomId());
 		}
-		UserPreference preference = userPreferenceRepository.findByUserId(userId)
-				.orElseGet(() -> UserPreference.create(userId));
+		UserPreference preference = getOrCreatePreferenceForUpdate(userId);
 		preference.update(
 				command.theme(),
 				command.defaultHomeType(),
@@ -98,7 +97,7 @@ public class UserService {
 				command.jobRole(),
 				command.onboardingCompletedAt()
 		);
-		return UserPreferenceResult.from(userPreferenceRepository.save(preference));
+		return UserPreferenceResult.from(preference);
 	}
 
 	@Transactional(readOnly = true)
@@ -206,6 +205,12 @@ public class UserService {
 				})
 				.toList();
 		return new UserPrivacyConsentsResult(userId, items);
+	}
+
+	private UserPreference getOrCreatePreferenceForUpdate(UUID userId) {
+		userPreferenceRepository.insertDefaultIfAbsent(UUID.randomUUID(), userId);
+		return userPreferenceRepository.findByUserIdForUpdate(userId)
+				.orElseThrow(() -> new IllegalStateException("User preference row was not created."));
 	}
 
 	private User getActiveUser(UUID userId) {
