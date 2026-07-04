@@ -2,9 +2,11 @@ package com.bubli.project.repository;
 
 import com.bubli.project.entity.Invitation;
 import com.bubli.project.type.InvitationStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,7 +25,25 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
 	Optional<Invitation> findByRoomIdAndInviteeUserIdAndStatus(UUID roomId, UUID inviteeUserId, InvitationStatus status);
 
-	Optional<Invitation> findByIdAndInviteeUserId(UUID id, UUID inviteeUserId);
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select invitation
+			from Invitation invitation
+			where invitation.id = :id
+			""")
+	Optional<Invitation> findByIdForUpdate(@Param("id") UUID id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select invitation
+			from Invitation invitation
+			where invitation.id = :id
+			  and invitation.inviteeUserId = :inviteeUserId
+			""")
+	Optional<Invitation> findByIdAndInviteeUserIdForUpdate(
+			@Param("id") UUID id,
+			@Param("inviteeUserId") UUID inviteeUserId
+	);
 
 	@Modifying
 	@Query("""

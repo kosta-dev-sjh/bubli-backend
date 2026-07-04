@@ -41,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectRoomMemberServiceTest {
@@ -237,7 +238,7 @@ class ProjectRoomMemberServiceTest {
 		);
 		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
 
-		given(invitationRepository.findByIdAndInviteeUserId(invitation.getId(), invitee.getId()))
+		given(invitationRepository.findByIdAndInviteeUserIdForUpdate(invitation.getId(), invitee.getId()))
 				.willReturn(Optional.of(invitation));
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.empty());
@@ -254,6 +255,31 @@ class ProjectRoomMemberServiceTest {
 		assertThat(memberCaptor.getValue().getRoomId()).isEqualTo(roomId);
 		assertThat(memberCaptor.getValue().getUserId()).isEqualTo(invitee.getId());
 		assertThat(memberCaptor.getValue().getStatus()).isEqualTo(RoomMemberStatus.ACTIVE);
+		verify(invitationRepository).findByIdAndInviteeUserIdForUpdate(invitation.getId(), invitee.getId());
+	}
+
+	@Test
+	void acceptInvitationRejectsAlreadyAcceptedInvitationBeforeSavingMember() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee-accepted", "민서");
+		Invitation invitation = Invitation.create(
+				roomId,
+				leaderId,
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().plusSeconds(3600)
+		);
+		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
+		invitation.accept(Instant.now());
+
+		given(invitationRepository.findByIdAndInviteeUserIdForUpdate(invitation.getId(), invitee.getId()))
+				.willReturn(Optional.of(invitation));
+
+		assertThatThrownBy(() -> projectRoomMemberService.acceptInvitation(invitee.getId(), invitation.getId()))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_002));
+		verifyNoInteractions(roomMemberRepository);
 	}
 
 	@Test
@@ -270,12 +296,36 @@ class ProjectRoomMemberServiceTest {
 		);
 		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
 
-		given(invitationRepository.findById(invitation.getId())).willReturn(Optional.of(invitation));
+		given(invitationRepository.findByIdForUpdate(invitation.getId())).willReturn(Optional.of(invitation));
 		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
 
 		InvitationResult result = projectRoomMemberService.cancelInvitation(leaderId, invitation.getId());
 
 		assertThat(result.status()).isEqualTo(InvitationStatus.CANCELED);
+		verify(invitationRepository).findByIdForUpdate(invitation.getId());
+	}
+
+	@Test
+	void cancelInvitationRejectsAlreadyAcceptedInvitationBeforeChangingStatus() {
+		UUID roomId = UUID.randomUUID();
+		UUID leaderId = UUID.randomUUID();
+		User invitee = user(UUID.randomUUID(), "invitee-cancel-accepted", "준화");
+		Invitation invitation = Invitation.create(
+				roomId,
+				leaderId,
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().plusSeconds(3600)
+		);
+		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
+		invitation.accept(Instant.now());
+
+		given(invitationRepository.findByIdForUpdate(invitation.getId())).willReturn(Optional.of(invitation));
+
+		assertThatThrownBy(() -> projectRoomMemberService.cancelInvitation(leaderId, invitation.getId()))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_409_002));
+		assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
 	}
 
 	@Test
