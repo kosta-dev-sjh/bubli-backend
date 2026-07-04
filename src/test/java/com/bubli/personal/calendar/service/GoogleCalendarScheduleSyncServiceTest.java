@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class GoogleCalendarScheduleSyncServiceTest {
@@ -88,6 +89,43 @@ class GoogleCalendarScheduleSyncServiceTest {
 		verify(googleCalendarClient).createEvent(
 				eq("access-token"),
 				eq("room-calendar-id"),
+				any(GoogleCalendarEventPayload.class)
+		);
+	}
+
+	@Test
+	void roomScheduleDoesNotFallbackToPrimaryWhenRoomCalendarIsUnavailable() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-05T01:00:00Z")
+		);
+
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+		given(projectRoomCalendarService.ensureRoomCalendar(userId, roomId)).willReturn(Optional.empty());
+
+		GoogleCalendarSyncResult result = syncService.syncCreatedOrUpdatedSchedule(
+				userId,
+				new ScheduleSyncTarget(
+						roomId,
+						null,
+						null,
+						null,
+						"프로젝트룸 회의",
+						Instant.parse("2026-07-05T01:00:00Z"),
+						Instant.parse("2026-07-05T02:00:00Z")
+				)
+		);
+
+		assertThat(result.attempted()).isTrue();
+		assertThat(result.succeeded()).isFalse();
+		verify(googleCalendarClient, never()).createEvent(
+				eq("access-token"),
+				eq("primary"),
 				any(GoogleCalendarEventPayload.class)
 		);
 	}
