@@ -44,6 +44,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -57,6 +59,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -491,7 +494,7 @@ class ResourceServiceTest {
 	}
 
 	@Test
-	void deleteResourceSetsDeletedAtWithoutChangingStatus() {
+	void deleteResourceDeletesStoredFilesAfterCommit() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		Resource resource = Resource.create(
@@ -513,7 +516,7 @@ class ResourceServiceTest {
 		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
 		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
-		resourceService.deleteResource(userId, resourceId);
+		runWithManualCommitSynchronization(() -> resourceService.deleteResource(userId, resourceId));
 
 		assertThat(resource.getDeletedAt()).isNotNull();
 		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
@@ -521,39 +524,74 @@ class ResourceServiceTest {
 		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
 	}
 
-	// @Test
-	// void deleteResourceStillMarksDeletedWhenStoredObjectDeleteFails() {
-	// 	UUID userId = UUID.randomUUID();
-	// 	UUID resourceId = UUID.randomUUID();
-	// 	Resource resource = Resource.create(
-	// 			userId,
-	// 			null,
-	// 			"삭제할 자료",
-	// 			ResourceKind.FILE,
-	// 			ResourceVisibility.PERSONAL,
-	// 			ResourceStatus.READY
-	// 	);
-	// 	ResourceFile file = ResourceFile.create(
-	// 			resourceId,
-	// 			"resources/%s/file.pdf".formatted(resourceId),
-	// 			"file.pdf",
-	// 			"application/pdf",
-	// 			3L,
-	// 			null
-	// 	);
-	// 	given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
-	// 	given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
-	// 	doThrow(new IllegalStateException("storage unavailable"))
-	// 			.when(storagePublicService)
-	// 			.delete("resources/%s/file.pdf".formatted(resourceId));
+	@Test
+	void deleteResourceDoesNotDeleteStoredFilesBeforeCommit() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"삭제할 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				3L,
+				null
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
-	// 	resourceService.deleteResource(userId, resourceId);
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			resourceService.deleteResource(userId, resourceId);
 
-	// 	assertThat(resource.getDeletedAt()).isNotNull();
-	// 	assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
-	// 	verify(storageDeleteRetryRecorder).recordFailedDelete(eq(file), any(IllegalStateException.class));
-	// 	verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
-	// }
+			assertThat(resource.getDeletedAt()).isNotNull();
+			verify(storagePublicService, never()).delete("resources/%s/file.pdf".formatted(resourceId));
+			verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
+	}
+
+	@Test
+	void deleteResourceRecordsRetryAfterCommitWhenStoredObjectDeleteFails() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"삭제할 자료",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/file.pdf".formatted(resourceId),
+				"file.pdf",
+				"application/pdf",
+				3L,
+				null
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
+		doThrow(new IllegalStateException("storage unavailable"))
+				.when(storagePublicService)
+				.delete("resources/%s/file.pdf".formatted(resourceId));
+
+		runWithManualCommitSynchronization(() -> resourceService.deleteResource(userId, resourceId));
+
+		assertThat(resource.getDeletedAt()).isNotNull();
+		assertThat(resource.getStatus()).isEqualTo(ResourceStatus.READY);
+		verify(storageDeleteRetryRecorder).recordFailedDelete(eq(file), any(IllegalStateException.class));
+		verify(storageUsagePublicService).releasePersonalUsage(userId, 3L);
+	}
 
 	@Test
 	void createCommentRequiresReadableResourceAndStoresAuthor() {
@@ -1168,5 +1206,18 @@ class ResourceServiceTest {
 		assertThatThrownBy(() -> resourceService.getResource(userId, resourceId))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_403_001));
+	}
+
+	private void runWithManualCommitSynchronization(Runnable action) {
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			action.run();
+			List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+			for (TransactionSynchronization synchronization : synchronizations) {
+				synchronization.afterCommit();
+			}
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
 	}
 }
