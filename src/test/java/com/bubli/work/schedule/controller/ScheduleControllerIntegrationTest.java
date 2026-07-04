@@ -95,6 +95,39 @@ class ScheduleControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void createRoomSchedulePersistsScheduleForActiveMember() throws Exception {
+		User user = createUser("google-sub-schedule-create-room", "정현");
+		ProjectRoom room = saveRoom(user.getId(), "앱 UI 개선");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+
+		mockMvc.perform(post("/api/schedules")
+						.header(AUTHORIZATION, bearerToken(user.getId(), "junghyun@example.com"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "roomId": "%s",
+								  "title": "프로젝트룸 중간 리뷰",
+								  "startsAt": "2026-07-03T01:00:00Z",
+								  "endsAt": "2026-07-03T02:00:00Z",
+								  "allDay": false
+								}
+								""".formatted(room.getId())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.id").isNotEmpty())
+				.andExpect(jsonPath("$.data.ownerUserId").value(user.getId().toString()))
+				.andExpect(jsonPath("$.data.roomId").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.title").value("프로젝트룸 중간 리뷰"))
+				.andExpect(jsonPath("$.data.syncStatus").value("LOCAL_ONLY"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		assertThat(scheduleRepository.findAll()).hasSize(1);
+		Schedule savedSchedule = scheduleRepository.findAll().getFirst();
+		assertThat(savedSchedule.getOwnerUserId()).isEqualTo(user.getId());
+		assertThat(savedSchedule.getRoomId()).isEqualTo(room.getId());
+	}
+
+	@Test
 	void getSchedulesReturnsPersonalAndRoomSchedulesForActiveMember() throws Exception {
 		User user = createUser("google-sub-schedule-list", "미연");
 		User otherUser = createUser("google-sub-schedule-other", "준화");

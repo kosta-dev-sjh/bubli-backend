@@ -1566,6 +1566,13 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - `git diff --check`
 - GitHub Actions CI 통과 확인
 
+## 2026-07-05 룸 일정/WBS 캘린더 저장 500 수정
+
+- 증상: 개인 일정 저장은 정상인데 프로젝트룸 일정 저장과 날짜가 있는 WBS 생성이 500으로 실패할 수 있었다.
+- 원인: 룸 일정은 Google Calendar에 프로젝트룸 전용 캘린더를 보장한 뒤 이벤트를 만들도록 되어 있다. 기존 Google 토큰에 캘린더 생성 권한이 없거나 Google 호출이 실패하면 `ProjectRoomCalendarService.ensureRoomCalendar()`에서 예외가 트랜잭션 경계 밖으로 나갔다. 바깥 일정 서비스가 예외를 잡아도 Spring 트랜잭션이 rollback-only가 되어 최종 응답이 500이 될 수 있었다.
+- 처리: 룸 캘린더 생성 실패는 `Optional.empty()`로 흡수하고, 일정 저장은 유지한 채 `SYNC_FAILED`로 남기게 했다. 사용자가 룸 캘린더 상태를 직접 조회하면 `needsReconsent=true`로 재연결이 필요함을 알려준다.
+- 검증: `ProjectRoomCalendarServiceTest`, `ScheduleControllerIntegrationTest`, `WbsControllerIntegrationTest`, 전체 `./gradlew cleanTest test` 통과.
+
 ## 갱신 규칙
 
 - PR을 새로 만들거나 수정하면 이 문서의 열린 PR 상태를 갱신한다.
