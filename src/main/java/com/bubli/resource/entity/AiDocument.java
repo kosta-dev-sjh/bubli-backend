@@ -78,6 +78,12 @@ public class AiDocument extends BaseTimeEntity {
         return new AiDocument(resourceId, roomId, documentType, detectedConfidence, AnalysisStatus.ANALYZED);
     }
 
+    public void markAnalyzed(DocumentType documentType, BigDecimal detectedConfidence) {
+        this.documentType = require(documentType, "documentType");
+        this.detectedConfidence = validateConfidence(detectedConfidence);
+        this.status = AnalysisStatus.ANALYZED;
+    }
+
     private static BigDecimal validateConfidence(BigDecimal confidence) {
         if (confidence == null) {
             return null;
