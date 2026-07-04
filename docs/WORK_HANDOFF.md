@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/voice-room-contract-20260705` |
+| 현재 확인 브랜치 | `codex/resource-version-upload-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 자료 버전 multipart 업로드와 사용량 롤백 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 최초 자료 업로드는 `multipart/form-data`로 실제 파일을 저장하지만, 기존 `POST /api/resources/{id}/versions`는 JSON 메타 등록만 받아 웹에서 새 파일 버전을 직접 올릴 수 없었다.
+- 기존 JSON 메타 등록 경로는 유지하면서, 같은 URL에 `multipart/form-data`의 `file` 파트를 받는 버전 업로드 경로를 추가했다.
+- multipart 버전 업로드는 기존 업로드와 같은 저장소 경로(`resources/{resourceId}/...`), 용량 제한, MIME 허용 목록, 사용량 기록 규칙을 탄다.
+- 새 버전 파일 저장 뒤 `resource_files`, `resource_versions`를 만들고 다음 `versionNo`를 부여한다.
+- 버전 파일 저장 후 메타 저장이 실패하면 저장소 객체를 삭제하고 사용량을 되돌린다.
+- 기존 JSON 메타 등록 경로도 메타 저장 실패 시 이미 기록한 사용량을 되돌리게 했다.
+- JSON 메타 등록 경로에도 용량 제한과 MIME 허용 목록 검증을 맞춰, 우회 등록으로 정책 밖 파일이 들어올 위험을 줄였다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.resource.service.ResourceServiceTest --tests com.bubli.resource.controller.ResourceControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 프로젝트룸 보이스룸 조회와 참여자 micStatus 응답 보강
 
