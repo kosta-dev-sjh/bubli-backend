@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/task-visible-active-member-20260705` |
+| 현재 확인 브랜치 | `codex/project-invite-friendship-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,33 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 초대 친구 검증과 pending 중복 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 기획 기준상 프로젝트룸 초대는 수락된 친구만 대상이 될 수 있다.
+- 기존 `createInvitation`은 프로젝트 리더 권한과 사용자 존재 여부만 확인해, 친구가 아닌 사용자도 초대할 수 있었다.
+- `FriendshipPublicService`를 추가해 `project` 도메인이 `user` 도메인 repository를 직접 보지 않고 accepted friendship 여부를 확인하게 했다.
+- 친구가 아닌 사용자를 초대하려 하면 `PROJECT_403_003`으로 거절한다.
+- 같은 룸과 초대 대상에 pending 초대가 여러 개 쌓이지 않도록 `invitations(room_id, invitee_user_id) WHERE status = 'PENDING'` 부분 유니크 인덱스를 추가했다.
+- 기존 중복 pending 초대가 있으면 가장 오래된 초대 1개만 유지하고 나머지는 `CANCELED`로 정리한 뒤 인덱스를 만든다.
+- 초대 생성은 `INSERT ... ON CONFLICT DO NOTHING` 경로로 바꿔, 더블클릭이나 동시 요청이 들어와도 DB 예외 대신 `PROJECT_409_003`으로 안정적으로 응답한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomMemberServiceTest --tests com.bubli.user.service.FriendshipPublicServiceImplTest` 통과
+- `./gradlew test --tests com.bubli.project.repository.InvitationRepositoryIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 담당 프로젝트룸 TODO 조회 active 멤버 조건 보강
 

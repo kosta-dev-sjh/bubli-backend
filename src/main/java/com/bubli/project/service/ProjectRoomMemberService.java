@@ -17,6 +17,7 @@ import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
 import com.bubli.project.type.RoomMemberStatus;
 import com.bubli.user.dto.UserResult;
+import com.bubli.user.service.FriendshipPublicService;
 import com.bubli.user.service.UserPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -41,6 +42,7 @@ public class ProjectRoomMemberService {
 	private final ProjectRoomRepository projectRoomRepository;
 	private final InvitationRepository invitationRepository;
 	private final UserPublicService userPublicService;
+	private final FriendshipPublicService friendshipPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final RoomChatPublicService roomChatPublicService;
 
@@ -73,6 +75,7 @@ public class ProjectRoomMemberService {
 				.ifPresent(member -> {
 					throw new BusinessException(ErrorCode.PROJECT_409_001);
 				});
+		friendshipPublicService.assertAcceptedFriend(inviterUserId, invitee.id());
 
 		if (invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(
 				roomId,
@@ -82,17 +85,27 @@ public class ProjectRoomMemberService {
 			throw new BusinessException(ErrorCode.PROJECT_409_003);
 		}
 
-		Invitation invitation = Invitation.create(
+		UUID invitationId = UUID.randomUUID();
+		RoomMemberRole role = command.role() == null ? RoomMemberRole.MEMBER : command.role();
+		Instant expiresAt = command.expiresAt() == null
+				? Instant.now().plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
+				: command.expiresAt();
+
+		int inserted = invitationRepository.insertPendingIfAbsent(
+				invitationId,
 				roomId,
 				inviterUserId,
 				invitee.id(),
-				command.role() == null ? RoomMemberRole.MEMBER : command.role(),
-				command.expiresAt() == null
-						? Instant.now().plus(DEFAULT_INVITATION_EXPIRE_DAYS, ChronoUnit.DAYS)
-						: command.expiresAt()
+				role.name(),
+				expiresAt
 		);
+		if (inserted == 0) {
+			throw new BusinessException(ErrorCode.PROJECT_409_003);
+		}
 
-		return InvitationResult.from(invitationRepository.save(invitation), invitee);
+		Invitation invitation = invitationRepository.findById(invitationId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
+		return InvitationResult.from(invitation, invitee);
 	}
 
 	@Transactional(readOnly = true)
