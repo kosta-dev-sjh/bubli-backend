@@ -9,6 +9,7 @@ import com.bubli.personal.timer.type.TimerType;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.widget.dto.WidgetSummaryResponse;
 import com.bubli.widget.dto.BubbleSettingUpdate;
+import com.bubli.widget.dto.WidgetSettingsResponse;
 import com.bubli.widget.entity.WidgetBubbleSetting;
 import com.bubli.widget.entity.WidgetContextSetting;
 import com.bubli.widget.entity.WidgetItemState;
@@ -112,6 +113,29 @@ class WidgetServiceTest {
 	}
 
 	@Test
+	void getSettingsCreatesMissingDefaultBubbles() {
+		UUID userId = UUID.randomUUID();
+		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
+				WidgetBubbleSetting.create(userId, BubbleType.TODO)
+		));
+		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+		WidgetSettingsResponse response = widgetService.getSettings(userId);
+
+		assertThat(response.bubbles()).extracting("bubbleType").containsExactly(
+				"TODO",
+				"AGENT",
+				"CHAT",
+				"TIMER",
+				"MEMO",
+				"SCHEDULE",
+				"RESOURCE",
+				"ALERT"
+		);
+		verify(bubbleSettingRepository, times(BubbleType.values().length - 1)).save(any(WidgetBubbleSetting.class));
+	}
+
+	@Test
 	void getSummaryReturnsPersonalWidgetData() {
 		UUID userId = UUID.randomUUID();
 		TaskResult task = task(userId, null, TaskStatus.TODO, Instant.parse("2026-07-01T03:00:00Z"));
@@ -121,6 +145,7 @@ class WidgetServiceTest {
 		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of(
 				WidgetBubbleSetting.create(userId, BubbleType.TODO)
 		));
+		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(taskPublicService.getDueBetweenTasks(eq(userId), any(Instant.class), any(Instant.class)))
 				.willReturn(List.of(task));
 		given(schedulePublicService.getSchedulesBetween(eq(userId), any(Instant.class), any(Instant.class)))
@@ -132,7 +157,7 @@ class WidgetServiceTest {
 		WidgetSummaryResponse response = widgetService.getSummary(userId);
 
 		assertThat(response.context().mode()).isEqualTo("PERSONAL");
-		assertThat(response.bubbles()).hasSize(1);
+		assertThat(response.bubbles()).hasSize(BubbleType.values().length);
 		assertThat(response.tasks()).containsExactly(task);
 		assertThat(response.schedules()).containsExactly(schedule);
 		assertThat(response.unreadNotificationCount()).isEqualTo(3);
@@ -156,8 +181,17 @@ class WidgetServiceTest {
 				new BubbleSettingUpdate("ALERT", true, 180, 220, 300, 360, true, BigDecimal.valueOf(0.80), false, true)
 		));
 
-		assertThat(response.bubbles()).extracting("bubbleType").containsExactly("RESOURCE", "ALERT");
-		verify(bubbleSettingRepository, times(2)).save(any(WidgetBubbleSetting.class));
+		assertThat(response.bubbles()).extracting("bubbleType").containsExactly(
+				"TODO",
+				"AGENT",
+				"CHAT",
+				"TIMER",
+				"MEMO",
+				"SCHEDULE",
+				"RESOURCE",
+				"ALERT"
+		);
+		verify(bubbleSettingRepository, times(BubbleType.values().length)).save(any(WidgetBubbleSetting.class));
 	}
 
 	@Test
@@ -170,6 +204,7 @@ class WidgetServiceTest {
 		ScheduleResult schedule = schedule(userId, roomId);
 		given(contextSettingRepository.findByUserId(userId)).willReturn(Optional.of(context));
 		given(bubbleSettingRepository.findByUserId(userId)).willReturn(List.of());
+		given(bubbleSettingRepository.save(any(WidgetBubbleSetting.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(taskPublicService.getRoomTasksForBoard(roomId)).willReturn(List.of(doneTask, todoTask));
 		given(schedulePublicService.getRoomSchedulesBetween(eq(roomId), any(Instant.class), any(Instant.class)))
 				.willReturn(List.of(schedule));
