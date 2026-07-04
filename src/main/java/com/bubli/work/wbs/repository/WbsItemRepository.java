@@ -35,6 +35,24 @@ public interface WbsItemRepository extends JpaRepository<WbsItem, UUID> {
 			@Param("orderNo") Integer orderNo);
 
 	@Query("""
+			select count(w) > 0
+			from WbsItem w
+			where w.roomId = :roomId
+			  and w.id <> :excludedId
+			  and w.orderNo = :orderNo
+			  and (
+			      (:parentId is null and w.parentId is null)
+			      or w.parentId = :parentId
+			  )
+			""")
+	boolean existsSiblingOrderExcludingId(
+			@Param("roomId") UUID roomId,
+			@Param("parentId") UUID parentId,
+			@Param("orderNo") Integer orderNo,
+			@Param("excludedId") UUID excludedId
+	);
+
+	@Query("""
 			select coalesce(max(w.orderNo), 0)
 			from WbsItem w
 			where w.roomId = :roomId
