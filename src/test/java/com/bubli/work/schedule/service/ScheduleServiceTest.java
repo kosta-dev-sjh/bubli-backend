@@ -110,6 +110,40 @@ class ScheduleServiceTest {
 	}
 
 	@Test
+	void createRoomScheduleSyncsGoogleWithRoomContext() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		given(scheduleRepository.save(any(Schedule.class))).willAnswer(invocation -> {
+			Schedule schedule = invocation.getArgument(0);
+			ReflectionTestUtils.setField(schedule, "id", UUID.randomUUID());
+			return schedule;
+		});
+		given(googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(
+				eq(userId),
+				any(ScheduleSyncTarget.class)
+		)).willReturn(GoogleCalendarSyncResult.succeeded("google-event-1", "room-calendar-id", "A 프로젝트룸"));
+
+		ScheduleResult result = scheduleService.create(userId, new CreateScheduleCommand(
+				roomId,
+				null,
+				null,
+				"프로젝트룸 회의",
+				Instant.parse("2026-07-03T05:00:00Z"),
+				Instant.parse("2026-07-03T06:00:00Z"),
+				false
+		));
+
+		assertThat(result.roomId()).isEqualTo(roomId);
+		assertThat(result.googleCalendarId()).isEqualTo("room-calendar-id");
+		ArgumentCaptor<ScheduleSyncTarget> syncTargetCaptor = ArgumentCaptor.forClass(ScheduleSyncTarget.class);
+		verify(googleCalendarScheduleSyncPublicService).syncCreatedOrUpdatedSchedule(
+				eq(userId),
+				syncTargetCaptor.capture()
+		);
+		assertThat(syncTargetCaptor.getValue().roomId()).isEqualTo(roomId);
+	}
+
+	@Test
 	void createScheduleRejectsWbsItemWithoutRoomId() {
 		UUID userId = UUID.randomUUID();
 		UUID wbsItemId = UUID.randomUUID();

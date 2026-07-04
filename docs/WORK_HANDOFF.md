@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/timelog-resume-running-guard-20260705` |
+| 현재 확인 브랜치 | `codex/room-schedule-calendar-sync-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 일정/WBS 캘린더 동기화 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 일정은 Google Calendar에 새로 만들 때 프로젝트룸 전용 캘린더로만 라우팅해야 한다.
+- 기존 `GoogleCalendarScheduleSyncService`는 프로젝트룸 캘린더 확보가 실패하면 개인 기본 캘린더 `primary`로 fallback 할 수 있었다.
+- 이제 `roomId`가 있는 일정은 프로젝트룸 캘린더를 확보하지 못하면 Google 동기화를 실패로 표시하고, 개인 캘린더로 몰래 저장하지 않는다.
+- WBS 후보 승인 payload에 `startsAt` 또는 `dueAt`가 있으면 WBS 항목을 만든 뒤 같은 `roomId`와 새 `wbsItemId`로 일정을 생성한다.
+- 이 일정 생성은 기존 schedule 동기화 경로를 타므로 프로젝트룸 캘린더로 저장된다.
+- 직접 일정 API와 에이전트용 `SchedulePublicService` 모두 `ScheduleSyncTarget.roomId`를 유지하는 테스트를 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.service.GoogleCalendarScheduleSyncServiceTest --tests com.bubli.work.schedule.service.ScheduleServiceTest --tests com.bubli.work.schedule.service.SchedulePublicServiceImplTest --tests com.bubli.agent.service.AgentSuggestionDomainApplyServiceTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 프론트는 WBS 또는 일정 생성 시 `roomId`를 반드시 포함해야 한다. WBS 날짜 기반 자동 일정은 payload의 `startsAt` 또는 `dueAt`가 있을 때만 동작한다.
 
 ### 타이머 재개 시 중복 RUNNING 500 방지
 

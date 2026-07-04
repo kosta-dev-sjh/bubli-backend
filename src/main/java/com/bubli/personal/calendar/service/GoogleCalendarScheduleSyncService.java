@@ -63,6 +63,9 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 					schedule.endsAt()
 			);
 			CalendarTarget target = resolveCalendarTarget(userId, schedule);
+			if (target == null) {
+				return GoogleCalendarSyncResult.failed();
+			}
 			GoogleCalendarEventPayload synced = schedule.googleEventId() == null
 					? googleCalendarClient.createEvent(connection.getAccessToken(), target.calendarId(), payload)
 					: googleCalendarClient.updateEvent(
@@ -91,7 +94,7 @@ public class GoogleCalendarScheduleSyncService implements GoogleCalendarSchedule
 		if (schedule.roomId() != null) {
 			return projectRoomCalendarService.ensureRoomCalendar(userId, schedule.roomId())
 					.map(mapping -> new CalendarTarget(mapping.getGoogleCalendarId(), mapping.getCalendarName()))
-					.orElseGet(() -> new CalendarTarget("primary", null));
+					.orElse(null);
 		}
 		return new CalendarTarget("primary", null);
 	}
