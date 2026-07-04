@@ -6,6 +6,8 @@ public enum BubbleType {
 	CHAT,
 	TIMER,
 	MEMO,
-	SCHEDULE
+	SCHEDULE,
+	RESOURCE,
+	ALERT
 
 }
