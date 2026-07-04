@@ -422,6 +422,14 @@ class EntityFlywayAlignmentTest {
 	}
 
 	@Test
+	void wbsRootItemsHaveUniqueSiblingOrderIndex() throws IOException {
+		assertThat(migrationSql())
+				.contains("CREATE UNIQUE INDEX IF NOT EXISTS uk_wbs_items_room_root_order")
+				.contains("ON wbs_items (room_id, order_no)")
+				.contains("WHERE parent_id IS NULL");
+	}
+
+	@Test
 	void agentEnumsContainCurrentDataDictionaryValues() {
 		assertThat(enumNames(AiDocumentStatus.class))
 				.containsExactlyInAnyOrder("READY", "ANALYZING", "ANALYZED", "FAILED");

@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,7 +76,7 @@ class WbsItemServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID itemId = UUID.randomUUID();
 		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(3);
-		given(wbsItemRepository.save(any(WbsItem.class))).willAnswer(invocation -> {
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class))).willAnswer(invocation -> {
 			WbsItem item = invocation.getArgument(0);
 			ReflectionTestUtils.setField(item, "id", itemId);
 			return item;
@@ -90,6 +92,48 @@ class WbsItemServiceTest {
 		assertThat(result.id()).isEqualTo(itemId);
 		assertThat(result.orderNo()).isEqualTo(4);
 		assertThat(result.status()).isEqualTo(WbsStatus.TODO);
+	}
+
+	@Test
+	void createWbsItemRetriesWhenAutoOrderConflicts() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(3, 4);
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate wbs order"))
+				.willAnswer(invocation -> {
+					WbsItem item = invocation.getArgument(0);
+					ReflectionTestUtils.setField(item, "id", itemId);
+					return item;
+				});
+
+		WbsItemResult result = wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"동시 생성",
+				null,
+				null
+		).toCommand());
+
+		assertThat(result.id()).isEqualTo(itemId);
+		assertThat(result.orderNo()).isEqualTo(5);
+		verify(wbsItemRepository, times(2)).saveAndFlush(any(WbsItem.class));
+	}
+
+	@Test
+	void createWbsItemRejectsDuplicatedExplicitOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		given(wbsItemRepository.existsSiblingOrder(roomId, null, 2)).willReturn(true);
+
+		assertThatThrownBy(() -> wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"중복 순서",
+				2,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).saveAndFlush(any(WbsItem.class));
 	}
 
 	@Test
