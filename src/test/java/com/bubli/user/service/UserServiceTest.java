@@ -39,6 +39,7 @@ import java.util.stream.StreamSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -200,13 +201,9 @@ class UserServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID preferenceId = UUID.randomUUID();
 		Instant onboardingCompletedAt = Instant.parse("2026-07-05T00:00:00Z");
-		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());
-		given(userPreferenceRepository.save(org.mockito.ArgumentMatchers.any(UserPreference.class)))
-				.willAnswer(invocation -> {
-					UserPreference preference = invocation.getArgument(0);
-					ReflectionTestUtils.setField(preference, "id", preferenceId);
-					return preference;
-				});
+		UserPreference preference = UserPreference.create(userId);
+		ReflectionTestUtils.setField(preference, "id", preferenceId);
+		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(preference));
 
 		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
 				"LIGHT",
@@ -223,6 +220,31 @@ class UserServiceTest {
 		assertThat(result.jobRole()).isEqualTo("PM");
 		assertThat(result.onboardingCompletedAt()).isEqualTo(onboardingCompletedAt);
 		org.mockito.Mockito.verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
+	}
+
+	@Test
+	void updatePreferencesLocksExistingPreferenceWhenDefaultInsertConflicts() {
+		UUID userId = UUID.randomUUID();
+		UserPreference existingPreference = UserPreference.create(userId);
+		ReflectionTestUtils.setField(existingPreference, "id", UUID.randomUUID());
+		given(userPreferenceRepository.insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId)))
+				.willReturn(0);
+		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(existingPreference));
+
+		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
+				"DARK",
+				"DASHBOARD",
+				null,
+				"DESIGNER",
+				null
+		));
+
+		assertThat(result.userId()).isEqualTo(userId);
+		assertThat(result.theme()).isEqualTo("DARK");
+		assertThat(result.defaultHomeType()).isEqualTo("DASHBOARD");
+		assertThat(result.jobRole()).isEqualTo("DESIGNER");
+		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
 	}
 
 	@Test

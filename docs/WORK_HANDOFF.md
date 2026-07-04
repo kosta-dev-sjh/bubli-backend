@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/storage-usage-concurrency-guard-20260705` |
+| 현재 확인 브랜치 | `codex/user-preference-upsert-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,29 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 사용자 설정 생성 충돌 방지와 잠금 저장
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `user_preferences.user_id`는 유니크이므로 첫 설정 저장 요청이 동시에 들어오면 둘 다 row가 없다고 보고 생성을 시도할 수 있다.
+- 설정 저장 전 `INSERT ... ON CONFLICT DO NOTHING`으로 기본 설정 row를 먼저 보장하게 했다.
+- 기본 row 보장 후 `PESSIMISTIC_WRITE` 잠금 조회로 읽고, 같은 트랜잭션에서 요청 값을 반영하게 했다.
+- 유니크 충돌을 JPA 예외로 잡아 이어가는 대신 PostgreSQL upsert 경로를 써서 트랜잭션 rollback-only 위험을 줄였다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.user.service.UserServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 저장 용량 사용량 중복 row 방지와 동시 증감 안정화
 
