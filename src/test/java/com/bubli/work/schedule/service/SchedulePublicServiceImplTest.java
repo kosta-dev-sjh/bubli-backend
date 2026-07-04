@@ -222,4 +222,14 @@ class SchedulePublicServiceImplTest {
 		assertThat(result.googleEventId()).isEqualTo("google-event-1");
 		assertThat(result.googleCalendarId()).isEqualTo("primary");
 	}
+
+	@Test
+	void assertNoScheduleLinkedToWbsItemRejectsLinkedSchedule() {
+		UUID wbsItemId = UUID.randomUUID();
+		given(scheduleRepository.existsByWbsItemId(wbsItemId)).willReturn(true);
+
+		assertThatThrownBy(() -> schedulePublicService.assertNoScheduleLinkedToWbsItem(wbsItemId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_003));
+	}
 }

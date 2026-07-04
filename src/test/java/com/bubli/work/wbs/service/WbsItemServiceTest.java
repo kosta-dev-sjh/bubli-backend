@@ -3,6 +3,7 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.service.TaskPublicService;
@@ -46,6 +47,9 @@ class WbsItemServiceTest {
 
 	@Mock
 	TaskPublicService taskPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -229,6 +233,24 @@ class WbsItemServiceTest {
 
 		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
 				.isInstanceOf(BusinessException.class);
+		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
+	}
+
+	@Test
+	void deleteWbsItemRejectsWhenScheduleIsLinked() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "연결 일정", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		willThrow(new BusinessException(ErrorCode.WORK_400_003))
+				.given(schedulePublicService)
+				.assertNoScheduleLinkedToWbsItem(itemId);
+
+		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_003));
 		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
 	}
 

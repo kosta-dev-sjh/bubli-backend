@@ -11,6 +11,8 @@ import com.bubli.project.type.ProjectRoomStatus;
 import com.bubli.support.PostgresIntegrationTestSupport;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.work.schedule.entity.Schedule;
+import com.bubli.work.schedule.repository.ScheduleRepository;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
 import com.bubli.work.wbs.type.WbsStatus;
@@ -21,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,8 +59,12 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	@Autowired
 	WbsItemRepository wbsItemRepository;
 
+	@Autowired
+	ScheduleRepository scheduleRepository;
+
 	@BeforeEach
 	void setUp() {
+		scheduleRepository.deleteAll();
 		wbsItemRepository.deleteAll();
 		roomMemberRepository.deleteAll();
 		projectRoomRepository.deleteAll();
@@ -149,6 +156,33 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.error").value(nullValue()));
 
 		assertThat(wbsItemRepository.findById(item.getId())).isEmpty();
+	}
+
+	@Test
+	void deleteWbsItemRejectsWhenScheduleIsLinked() throws Exception {
+		User user = createUser("google-sub-wbs-schedule-delete", "재민");
+		ProjectRoom room = saveRoom(user.getId(), "WBS 일정 연결 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
+		WbsItem item = wbsItemRepository.save(WbsItem.create(room.getId(), null, "일정 연결 항목", 1, WbsStatus.TODO));
+		scheduleRepository.save(Schedule.create(
+				user.getId(),
+				room.getId(),
+				null,
+				item.getId(),
+				"연결된 일정",
+				Instant.parse("2026-07-05T01:00:00Z"),
+				Instant.parse("2026-07-05T02:00:00Z"),
+				false
+		));
+
+		mockMvc.perform(delete("/api/wbs-items/{wbsItemId}", item.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("WORK_400_003"));
+
+		assertThat(wbsItemRepository.findById(item.getId())).isPresent();
 	}
 
 	@Test
