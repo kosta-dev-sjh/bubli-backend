@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -156,7 +157,7 @@ class WidgetServiceTest {
 		));
 
 		assertThat(response.bubbles()).extracting("bubbleType").containsExactly("RESOURCE", "ALERT");
-		verify(bubbleSettingRepository).save(any(WidgetBubbleSetting.class));
+		verify(bubbleSettingRepository, times(2)).save(any(WidgetBubbleSetting.class));
 	}
 
 	@Test
