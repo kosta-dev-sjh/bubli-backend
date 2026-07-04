@@ -7,12 +7,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +60,28 @@ class S3StorageServiceTest {
 		assertThat(result.mimeType()).isEqualTo("application/pdf");
 		assertThat(result.sizeBytes()).isEqualTo(3L);
 		assertThat(result.checksum()).isEqualTo("039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+	}
+
+	@Test
+	void openDownloadsObject() throws Exception {
+		byte[] content = "contract body".getBytes(StandardCharsets.UTF_8);
+		given(s3Client.getObject(any(GetObjectRequest.class)))
+				.willReturn(new ResponseInputStream<>(
+						GetObjectResponse.builder().build(),
+						AbortableInputStream.create(new ByteArrayInputStream(content))
+				));
+		S3StorageService storageService = new S3StorageService(s3Client, "bubli-test-bucket");
+
+		try (InputStream stream = storageService.open("resources/test-resource/v1.pdf")) {
+			assertThat(stream.readAllBytes()).isEqualTo(content);
+		}
+
+		ArgumentCaptor<GetObjectRequest> requestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
+		verify(s3Client).getObject(requestCaptor.capture());
+		GetObjectRequest request = requestCaptor.getValue();
+
+		assertThat(request.bucket()).isEqualTo("bubli-test-bucket");
+		assertThat(request.key()).isEqualTo("resources/test-resource/v1.pdf");
 	}
 
 	@Test

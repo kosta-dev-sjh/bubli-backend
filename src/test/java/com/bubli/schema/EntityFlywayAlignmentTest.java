@@ -37,6 +37,10 @@ class EntityFlywayAlignmentTest {
 			"ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s+([^;]+);",
 			Pattern.CASE_INSENSITIVE
 	);
+	private static final Pattern ADD_COLUMN_SEGMENT_PATTERN = Pattern.compile(
+			"(?:IF\\s+NOT\\s+EXISTS\\s+)?(\"?\\w+\"?)\\s+(.+)",
+			Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+	);
 	private static final Pattern ALTER_TABLE_PATTERN = Pattern.compile(
 			"ALTER\\s+TABLE\\s+(\\w+)\\s+(.*?);",
 			Pattern.CASE_INSENSITIVE | Pattern.DOTALL
@@ -483,11 +487,9 @@ class EntityFlywayAlignmentTest {
 			}
 			schema.put(tableName, columns);
 		}
-		Matcher addColumnMatcher = ALTER_TABLE_ADD_COLUMN_PATTERN.matcher(sql);
-		while (addColumnMatcher.find()) {
-			String tableName = addColumnMatcher.group(1);
-			String columnName = addColumnMatcher.group(2).replace("\"", "");
-			schema.computeIfAbsent(tableName, ignored -> new HashSet<>()).add(columnName);
+		for (AddedColumn addedColumn : addedColumns(sql)) {
+			schema.computeIfAbsent(addedColumn.tableName(), ignored -> new HashSet<>())
+					.add(addedColumn.columnName());
 		}
 		return schema;
 	}
@@ -508,15 +510,38 @@ class EntityFlywayAlignmentTest {
 			}
 			schema.put(tableName, columnTypes);
 		}
-		Matcher addColumnMatcher = ALTER_TABLE_ADD_COLUMN_PATTERN.matcher(sql);
-		while (addColumnMatcher.find()) {
-			String tableName = addColumnMatcher.group(1);
-			String columnName = addColumnMatcher.group(2).replace("\"", "");
-			String columnDefinition = addColumnMatcher.group(3);
-			schema.computeIfAbsent(tableName, ignored -> new HashMap<>())
-					.put(columnName, columnType(columnDefinition));
+		for (AddedColumn addedColumn : addedColumns(sql)) {
+			schema.computeIfAbsent(addedColumn.tableName(), ignored -> new HashMap<>())
+					.put(addedColumn.columnName(), columnType(addedColumn.columnDefinition()));
 		}
 		return schema;
+	}
+
+	private List<AddedColumn> addedColumns(String sql) {
+		List<AddedColumn> columns = new ArrayList<>();
+		Matcher alterMatcher = ALTER_TABLE_PATTERN.matcher(sql);
+		while (alterMatcher.find()) {
+			String tableName = alterMatcher.group(1);
+			String body = alterMatcher.group(2).strip();
+			Matcher firstAddColumn = Pattern.compile("ADD\\s+COLUMN\\s+", Pattern.CASE_INSENSITIVE)
+					.matcher(body);
+			if (!firstAddColumn.find()) {
+				continue;
+			}
+			String additions = body.substring(firstAddColumn.end());
+			for (String segment : additions.split("(?i),\\s*ADD\\s+COLUMN\\s+")) {
+				Matcher segmentMatcher = ADD_COLUMN_SEGMENT_PATTERN.matcher(segment.strip());
+				if (!segmentMatcher.matches()) {
+					continue;
+				}
+				columns.add(new AddedColumn(
+						tableName,
+						segmentMatcher.group(1).replace("\"", ""),
+						segmentMatcher.group(2).strip()
+				));
+			}
+		}
+		return columns;
 	}
 
 	private Map<String, Set<String>> parseForeignKeys(String sql) {
@@ -668,5 +693,12 @@ class EntityFlywayAlignmentTest {
 
 	private String camelToSnake(String value) {
 		return value.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase();
+	}
+
+	private record AddedColumn(
+			String tableName,
+			String columnName,
+			String columnDefinition
+	) {
 	}
 }
