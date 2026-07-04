@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/agent-suggestion-delete-guard-20260705` |
+| 현재 확인 브랜치 | `codex/friend-request-conflict-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,31 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 양방향 친구 요청 수락 시 friendships unique 충돌 500 방지
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `friend_requests`는 `(requester_id, receiver_id)` 방향 단위 unique라 A -> B와 B -> A 요청이 동시에 존재할 수 있다.
+- `friendships`는 `(user_id, friend_user_id)` unique라 한쪽 요청을 수락해 친구가 된 뒤 반대 방향 요청을 또 수락하면 중복 저장이 500으로 샐 수 있었다.
+- 친구 요청 생성 시 반대 방향 `PENDING` 요청도 확인해 `USER_409_001`로 막는다.
+- 친구 요청 수락 시 friendship 저장은 `insertIfAbsent`로 바꿔 DB unique 제약과 같은 기준으로 멱등 처리한다.
+- 이미 양방향 pending 요청이 남아 있는 데이터는 한쪽 수락 시 반대 요청도 `ACCEPTED`로 정리한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.user.controller.FriendControllerIntegrationTest --tests com.bubli.user.service.FriendshipPublicServiceImplTest` 통과
+- `./gradlew test --tests com.bubli.architecture.ArchitectureTest --tests com.bubli.architecture.DomainDependencyArchitectureTest` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+- 후속 후보: 보이스룸 OPEN 중복 생성, 위젯 첫 저장 unique race, 초대 수락 동시 호출 가드.
 
 ### 에이전트 WBS 일정 필드 보존 및 생성 문서 연결 후보 삭제 가드
 
