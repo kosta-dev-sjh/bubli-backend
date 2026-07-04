@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/agent-chat-member-sync-20260705` |
+| 현재 확인 브랜치 | `codex/project-event-actor-batch-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,28 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 이벤트 actor 조회 배치화
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 프로젝트룸 이벤트 목록 조회 시 이벤트별로 actor 사용자 정보를 개별 조회하지 않는다.
+- 응답 페이지 안의 actor userId를 모아 `UserPublicService.getUsers`로 한 번에 조회한다.
+- 시스템 이벤트는 사용자 조회 대상에서 제외하고, 탈퇴/삭제 등으로 조회되지 않는 actor는 기존처럼 `Unknown`으로 표시한다.
+- 최대 100개 이벤트 조회에서 사용자 조회가 이벤트 개수만큼 늘어나는 N+1 비용을 줄였다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomEventServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 에이전트 응답 채팅 멤버 재활성화 안정화
 
