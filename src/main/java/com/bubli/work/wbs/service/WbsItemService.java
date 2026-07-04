@@ -4,6 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
 import com.bubli.work.wbs.dto.ReorderWbsItemCommand;
@@ -37,6 +38,7 @@ public class WbsItemService {
 
 	private final WbsItemRepository wbsItemRepository;
 	private final TaskPublicService taskPublicService;
+	private final SchedulePublicService schedulePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Transactional(readOnly = true)
@@ -115,6 +117,7 @@ public class WbsItemService {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
 		taskPublicService.assertNoTaskLinkedToWbsItem(itemId);
+		schedulePublicService.assertNoScheduleLinkedToWbsItem(itemId);
 		if (wbsItemRepository.existsByParentId(itemId)) {
 			throw new BusinessException(ErrorCode.WORK_400_002);
 		}

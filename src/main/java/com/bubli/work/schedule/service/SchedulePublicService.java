@@ -14,4 +14,6 @@ public interface SchedulePublicService {
 	List<ScheduleResult> getRoomSchedulesBetween(UUID roomId, Instant from, Instant to);
 
 	ScheduleResult create(UUID userId, CreateScheduleCommand command);
+
+	void assertNoScheduleLinkedToWbsItem(UUID wbsItemId);
 }

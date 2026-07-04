@@ -90,6 +90,14 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 		return ScheduleResult.from(savedSchedule);
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public void assertNoScheduleLinkedToWbsItem(UUID wbsItemId) {
+		if (scheduleRepository.existsByWbsItemId(wbsItemId)) {
+			throw new BusinessException(ErrorCode.WORK_400_003);
+		}
+	}
+
 	private void validateLinkedWorkScope(UUID userId, UUID roomId, UUID taskId, UUID wbsItemId) {
 		if (wbsItemId != null) {
 			if (roomId == null) {
