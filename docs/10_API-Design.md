@@ -252,6 +252,7 @@ type TauriRefreshResponse = RefreshResponse & {
 |GET|/api/project-rooms/{roomId}/members|프로젝트룸 멤버 목록|
 |POST|/api/project-rooms/{roomId}/invitations|Bubli ID 또는 가입 사용자 ID로 프로젝트룸 멤버 초대|
 |GET|/api/project-rooms/{roomId}/invitations|프로젝트룸 초대 목록과 상태 조회|
+|GET|/api/me/invitations|내가 받은 프로젝트룸 초대 목록 조회. 기본 `status=PENDING`|
 |PATCH|/api/invitations/{id}/accept|초대 수락|
 |PATCH|/api/invitations/{id}/cancel|초대 취소|
 |PATCH|/api/project-rooms/{roomId}/members/{userId}|멤버 역할 변경|

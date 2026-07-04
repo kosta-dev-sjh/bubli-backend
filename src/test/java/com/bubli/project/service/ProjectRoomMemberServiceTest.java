@@ -6,8 +6,10 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
 import com.bubli.project.entity.Invitation;
+import com.bubli.project.entity.ProjectRoom;
 import com.bubli.project.entity.RoomMember;
 import com.bubli.project.repository.InvitationRepository;
+import com.bubli.project.repository.ProjectRoomRepository;
 import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
@@ -21,9 +23,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,6 +45,9 @@ class ProjectRoomMemberServiceTest {
 
 	@Mock
 	RoomMemberRepository roomMemberRepository;
+
+	@Mock
+	ProjectRoomRepository projectRoomRepository;
 
 	@Mock
 	InvitationRepository invitationRepository;
@@ -171,6 +180,49 @@ class ProjectRoomMemberServiceTest {
 		InvitationResult result = projectRoomMemberService.cancelInvitation(leaderId, invitation.getId());
 
 		assertThat(result.status()).isEqualTo(InvitationStatus.CANCELED);
+	}
+
+	@Test
+	void inviteeCanListPendingReceivedInvitations() {
+		UUID roomId = UUID.randomUUID();
+		User inviter = user(UUID.randomUUID(), "leader", "미연");
+		User invitee = user(UUID.randomUUID(), "invitee", "민서");
+		ProjectRoom room = ProjectRoom.create(inviter.getId(), "새 프로젝트룸", null, null, null, null, null, null);
+		ReflectionTestUtils.setField(room, "id", roomId);
+		Invitation invitation = Invitation.create(
+				roomId,
+				inviter.getId(),
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				Instant.now().plusSeconds(3600)
+		);
+		ReflectionTestUtils.setField(invitation, "id", UUID.randomUUID());
+		PageRequest pageable = PageRequest.of(0, 20);
+
+		given(invitationRepository.findByInviteeUserIdAndStatus(
+				invitee.getId(),
+				InvitationStatus.PENDING,
+				pageable
+		)).willReturn(new PageImpl<>(List.of(invitation), pageable, 1));
+		given(userPublicService.getUsers(any())).willReturn(Map.of(inviter.getId(), userResult(inviter)));
+		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(projectRoomRepository.findAllById(any())).willReturn(List.of(room));
+
+		var result = projectRoomMemberService.getReceivedInvitations(
+				invitee.getId(),
+				InvitationStatus.PENDING,
+				pageable
+		);
+
+		assertThat(result.getItems()).hasSize(1);
+		InvitationResult item = result.getItems().getFirst();
+		assertThat(item.id()).isEqualTo(invitation.getId());
+		assertThat(item.roomId()).isEqualTo(roomId);
+		assertThat(item.roomName()).isEqualTo("새 프로젝트룸");
+		assertThat(item.inviterUserId()).isEqualTo(inviter.getId());
+		assertThat(item.inviterName()).isEqualTo("미연");
+		assertThat(item.inviteeUserId()).isEqualTo(invitee.getId());
+		assertThat(item.status()).isEqualTo(InvitationStatus.PENDING);
 	}
 
 	@Test

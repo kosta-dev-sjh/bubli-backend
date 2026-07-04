@@ -463,6 +463,35 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	}
 
 	@Test
+	void inviteeCanListReceivedInvitations() throws Exception {
+		User leader = createUser("google-sub-my-invite-leader", "미연");
+		User invitee = createUser("google-sub-my-invite-target", "민서");
+		ProjectRoom room = saveRoom(leader.getId(), "받은 초대 프로젝트");
+		roomMemberRepository.save(RoomMember.createLeader(room.getId(), leader.getId()));
+		Invitation invitation = invitationRepository.save(Invitation.create(
+				room.getId(),
+				leader.getId(),
+				invitee.getId(),
+				RoomMemberRole.MEMBER,
+				java.time.Instant.now().plusSeconds(3600)
+		));
+
+		mockMvc.perform(get("/api/me/invitations")
+						.header(AUTHORIZATION, bearerToken(invitee.getId(), "minseo@example.com")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(invitation.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].roomId").value(room.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].roomName").value("받은 초대 프로젝트"))
+				.andExpect(jsonPath("$.data.items[0].inviterUserId").value(leader.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].inviterName").value("미연"))
+				.andExpect(jsonPath("$.data.items[0].inviteeUserId").value(invitee.getId().toString()))
+				.andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+	}
+
+	@Test
 	void inviteeCanAcceptInvitation() throws Exception {
 		User leader = createUser("google-sub-accept-leader", "미연");
 		User invitee = createUser("google-sub-accept-target", "민서");

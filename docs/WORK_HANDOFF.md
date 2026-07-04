@@ -1,6 +1,6 @@
 # Bubli Backend Work Handoff
 
-Last checked: 2026-07-03 KST
+Last checked: 2026-07-04 KST
 
 이 문서는 백엔드 현재 상태를 이어받기 위한 인수인계 문서다.
 작업이 끝날 때마다 이 문서의 PR 상태, 확인 결과, 다음 작업을 갱신한다.
@@ -10,7 +10,7 @@ Last checked: 2026-07-03 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/google-calendar-delete-sync-20260703` |
+| 현재 확인 브랜치 | `codex/received-invitations-direct-accept-20260704` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,28 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 받은 프로젝트룸 초대 직접 조회/수락 흐름 보강
+
+처리 시각: 2026-07-04 KST
+
+변경 내용:
+
+- 초대받은 사용자가 자기 앞으로 온 프로젝트룸 초대 ID를 바로 확인할 수 있도록 `GET /api/me/invitations`를 추가했다.
+- 기본 조회 상태는 `PENDING`이며, 응답에는 `roomName`, 초대한 사람의 Bubli ID, 이름, 프로필 이미지도 함께 내려준다.
+- 기존 `PATCH /api/invitations/{id}/accept` 흐름은 그대로 유지한다. 새 받은 초대 목록에서 받은 `id`를 그대로 수락 API에 넘기면 멤버가 된다.
+- `docs/10_API-Design.md`, `docs/http/user.http`에 받은 초대 조회 API를 반영했다.
+
+검증 결과:
+
+- `./gradlew compileTestJava` 통과
+- `./gradlew test --tests com.bubli.project.service.ProjectRoomMemberServiceTest --tests com.bubli.project.controller.ProjectRoomControllerIntegrationTest` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- 프론트 초대함/알림 화면에서 `GET /api/me/invitations?status=PENDING`을 호출하고, 받은 `id`로 수락 버튼을 연결한다.
 
 ### Google Calendar WBS 삭제 재동기화 트러블슈팅
 

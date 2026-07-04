@@ -21,6 +21,10 @@ Content-Type: application/json
 GET {{baseUrl}}/api/me/project-rooms?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
+### 내가 받은 프로젝트룸 초대 목록
+GET {{baseUrl}}/api/me/invitations?status=PENDING&page=0&size=20
+Authorization: Bearer {{accessToken}}
+
 ### 내 사용자 설정 조회
 GET {{baseUrl}}/api/me/preferences
 Authorization: Bearer {{accessToken}}

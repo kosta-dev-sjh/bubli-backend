@@ -8,8 +8,10 @@ import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
 import com.bubli.project.dto.ProjectRoomMemberResult;
 import com.bubli.project.entity.Invitation;
+import com.bubli.project.entity.ProjectRoom;
 import com.bubli.project.entity.RoomMember;
 import com.bubli.project.repository.InvitationRepository;
+import com.bubli.project.repository.ProjectRoomRepository;
 import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.project.type.InvitationStatus;
 import com.bubli.project.type.RoomMemberRole;
@@ -26,6 +28,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +38,7 @@ public class ProjectRoomMemberService {
 	private static final int DEFAULT_INVITATION_EXPIRE_DAYS = 7;
 
 	private final RoomMemberRepository roomMemberRepository;
+	private final ProjectRoomRepository projectRoomRepository;
 	private final InvitationRepository invitationRepository;
 	private final UserPublicService userPublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
@@ -100,6 +105,39 @@ public class ProjectRoomMemberService {
 		return new PageResponse<>(
 				page.getContent().stream()
 						.map(invitation -> InvitationResult.from(invitation, invitees.get(invitation.getInviteeUserId())))
+						.toList(),
+				page.getNumber(),
+				page.getSize(),
+				page.getTotalElements(),
+				page.getTotalPages(),
+				page.hasNext()
+		);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponse<InvitationResult> getReceivedInvitations(
+			UUID inviteeUserId,
+			InvitationStatus status,
+			Pageable pageable
+	) {
+		Page<Invitation> page = invitationRepository.findByInviteeUserIdAndStatus(inviteeUserId, status, pageable);
+		Map<UUID, UserResult> inviters = userPublicService.getUsers(page.map(Invitation::getInviterUserId));
+		UserResult invitee = userPublicService.getUser(inviteeUserId);
+		Map<UUID, ProjectRoom> rooms = projectRoomRepository.findAllById(
+						page.getContent().stream()
+								.map(Invitation::getRoomId)
+								.collect(Collectors.toSet())
+				).stream()
+				.collect(Collectors.toMap(ProjectRoom::getId, Function.identity()));
+
+		return new PageResponse<>(
+				page.getContent().stream()
+						.map(invitation -> InvitationResult.from(
+								invitation,
+								rooms.get(invitation.getRoomId()),
+								inviters.get(invitation.getInviterUserId()),
+								invitee
+						))
 						.toList(),
 				page.getNumber(),
 				page.getSize(),

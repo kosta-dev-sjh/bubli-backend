@@ -9,7 +9,11 @@ import java.util.UUID;
 public record InvitationResponse(
 		UUID id,
 		UUID roomId,
+		String roomName,
 		UUID inviterUserId,
+		String inviterBubliId,
+		String inviterName,
+		String inviterAvatarUrl,
 		UUID inviteeUserId,
 		String inviteeBubliId,
 		String inviteeName,
@@ -25,7 +29,11 @@ public record InvitationResponse(
 		return new InvitationResponse(
 				result.id(),
 				result.roomId(),
+				result.roomName(),
 				result.inviterUserId(),
+				result.inviterBubliId(),
+				result.inviterName(),
+				result.inviterAvatarUrl(),
 				result.inviteeUserId(),
 				result.inviteeBubliId(),
 				result.inviteeName(),
