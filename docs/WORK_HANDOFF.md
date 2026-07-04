@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/chat-message-sequence-retry-20260705` |
+| 현재 확인 브랜치 | `codex/wbs-order-sequence-guard-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,30 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### WBS 형제 순서 중복 방지와 자동 순번 재시도
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- WBS 항목 생성 시 자동 `orderNo`는 기존처럼 같은 부모 안의 마지막 순서 + 1로 계산한다.
+- 동시에 같은 부모 아래 WBS 항목이 생성되어 순서 유니크 제약에 걸리면, 순서를 다시 읽어 최대 3회 재시도한다.
+- 명시 `orderNo`가 이미 같은 부모 아래 존재하면 DB 예외가 아니라 400 계열 비즈니스 예외로 거절한다.
+- PostgreSQL에서 `parent_id IS NULL`인 루트 WBS 항목은 기존 `(room_id, parent_id, order_no)` 유니크 제약만으로 중복을 막지 못하므로, 루트 항목 전용 부분 유니크 인덱스를 추가한다.
+- 마이그레이션 시 기존 루트 WBS 항목의 순서는 `order_no`, `created_at`, `id` 순서로 한 번 정규화한 뒤 인덱스를 만든다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.work.wbs.service.WbsItemServiceTest --tests com.bubli.work.wbs.service.WbsItemPublicServiceImplTest --tests com.bubli.schema.EntityFlywayAlignmentTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 채팅 메시지 room_sequence 충돌 재시도
 
