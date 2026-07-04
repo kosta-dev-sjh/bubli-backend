@@ -29,6 +29,12 @@ public class UserPreference {
 	@Column(name = "default_home_type", length = 30)
 	private String defaultHomeType;
 
+	@Column(name = "job_role", length = 40)
+	private String jobRole;
+
+	@Column(name = "onboarding_completed_at")
+	private Instant onboardingCompletedAt;
+
 	@Column(name = "default_project_room_id")
 	private UUID defaultProjectRoomId;
 
@@ -44,7 +50,7 @@ public class UserPreference {
 		return preference;
 	}
 
-	public void update(String theme, String defaultHomeType, UUID defaultProjectRoomId) {
+	public void update(String theme, String defaultHomeType, UUID defaultProjectRoomId, String jobRole, Instant onboardingCompletedAt) {
 		if (theme != null) {
 			this.theme = theme;
 		}
@@ -53,6 +59,12 @@ public class UserPreference {
 		}
 		if (defaultProjectRoomId != null) {
 			this.defaultProjectRoomId = defaultProjectRoomId;
+		}
+		if (onboardingCompletedAt != null) {
+			this.onboardingCompletedAt = onboardingCompletedAt;
+		}
+		if (jobRole != null) {
+			this.jobRole = jobRole;
 		}
 	}
 

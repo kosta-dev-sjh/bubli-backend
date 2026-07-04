@@ -30,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -189,6 +190,8 @@ class UserServiceTest {
 		assertThat(result.theme()).isNull();
 		assertThat(result.defaultHomeType()).isNull();
 		assertThat(result.defaultProjectRoomId()).isNull();
+		assertThat(result.jobRole()).isNull();
+		assertThat(result.onboardingCompletedAt()).isNull();
 	}
 
 	@Test
@@ -196,6 +199,7 @@ class UserServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID preferenceId = UUID.randomUUID();
+		Instant onboardingCompletedAt = Instant.parse("2026-07-05T00:00:00Z");
 		given(userPreferenceRepository.findByUserId(userId)).willReturn(Optional.empty());
 		given(userPreferenceRepository.save(org.mockito.ArgumentMatchers.any(UserPreference.class)))
 				.willAnswer(invocation -> {
@@ -207,13 +211,17 @@ class UserServiceTest {
 		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
 				"LIGHT",
 				"PROJECT_ROOM",
-				roomId
+				roomId,
+				"PM",
+				onboardingCompletedAt
 		));
 
 		assertThat(result.userId()).isEqualTo(userId);
 		assertThat(result.theme()).isEqualTo("LIGHT");
 		assertThat(result.defaultHomeType()).isEqualTo("PROJECT_ROOM");
 		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
+		assertThat(result.jobRole()).isEqualTo("PM");
+		assertThat(result.onboardingCompletedAt()).isEqualTo(onboardingCompletedAt);
 		org.mockito.Mockito.verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 	}
 

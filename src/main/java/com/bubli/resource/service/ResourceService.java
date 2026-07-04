@@ -36,6 +36,8 @@ import com.bubli.resource.type.AnalysisStatus;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StoragePublicService;
 import com.bubli.storage.service.StorageUsagePublicService;
@@ -78,6 +80,7 @@ public class ResourceService {
 	private final StoragePublicService storagePublicService;
 	private final StorageUsagePublicService storageUsagePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final NotificationPublicService notificationPublicService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
 	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
@@ -421,7 +424,15 @@ public class ResourceService {
 		validateCommentBody(body);
 		validateParentComment(resourceId, parentId);
 		ResourceComment comment = ResourceComment.create(resourceId, userId, parentId, body);
-		return ResourceCommentResult.from(resourceCommentRepository.save(comment));
+		ResourceCommentResult result = ResourceCommentResult.from(resourceCommentRepository.save(comment));
+		notificationPublicService.create(
+				userId,
+				NotificationSourceType.COMMENT,
+				resourceId,
+				"리소스 댓글 알림",
+				body
+		);
+		return result;
 	}
 
 	@Transactional
