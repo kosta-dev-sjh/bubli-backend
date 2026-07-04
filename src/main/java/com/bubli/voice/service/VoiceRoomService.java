@@ -161,7 +161,8 @@ public class VoiceRoomService {
     public VoiceParticipantResponse updateMicStatus(UUID userId, UUID voiceRoomId, String micStatus) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
         requireRoomMemberIfRoomVoice(userId, voiceRoom);
-        VoiceParticipant participant = voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
+        VoiceParticipant participant = latestParticipant(voiceRoomId, userId)
+                .filter(p -> p.getStatus() == VoiceParticipantStatus.JOINED)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
         participant.updateMicStatus(micStatus);
         if (voiceRoom.getRoomId() != null) {
@@ -182,19 +183,20 @@ public class VoiceRoomService {
     public VoiceRoomResponse leaveVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
         requireRoomMemberIfRoomVoice(userId, voiceRoom);
-        voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
-                .ifPresent(participant -> {
-                    participant.leave();
-                    if (voiceRoom.getRoomId() != null) {
-                        projectRoomEventPublicService.recordVoiceParticipantLeft(
-                                userId,
-                                voiceRoom.getRoomId(),
-                                voiceRoom.getId(),
-                                participant.getId(),
-                                participant.getUserId()
-                        );
-                    }
-                });
+        latestParticipant(voiceRoomId, userId).ifPresent(participant -> {
+            if (participant.getStatus() == VoiceParticipantStatus.JOINED) {
+                participant.leave();
+                if (voiceRoom.getRoomId() != null) {
+                    projectRoomEventPublicService.recordVoiceParticipantLeft(
+                            userId,
+                            voiceRoom.getRoomId(),
+                            voiceRoom.getId(),
+                            participant.getId(),
+                            participant.getUserId()
+                    );
+                }
+            }
+        });
 
         List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
@@ -228,6 +230,10 @@ public class VoiceRoomService {
     private VoiceRoom findRoom(UUID voiceRoomId) {
         return voiceRoomRepository.findById(voiceRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+    }
+
+    private Optional<VoiceParticipant> latestParticipant(UUID voiceRoomId, UUID userId) {
+        return voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoomId, userId);
     }
 
     private List<VoiceParticipant> currentParticipants(UUID voiceRoomId) {

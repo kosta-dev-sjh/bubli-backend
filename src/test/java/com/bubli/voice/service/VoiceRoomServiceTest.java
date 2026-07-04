@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -180,7 +181,7 @@ class VoiceRoomServiceTest {
 		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
 		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
-		given(voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoom.getId(), userId))
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 		given(userPublicService.getUser(userId)).willReturn(user(userId));
 
@@ -198,6 +199,24 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void updateMicStatusOnlyAffectsLatestJoinedParticipant() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceParticipant oldLeft = participant(voiceRoom.getId(), userId);
+		oldLeft.leave();
+		VoiceParticipant latestLeft = participant(voiceRoom.getId(), userId);
+		latestLeft.leave();
+
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
+				.willReturn(Optional.of(latestLeft));
+
+		assertThatThrownBy(() -> voiceRoomService.updateMicStatus(userId, voiceRoom.getId(), "MUTED"))
+				.isInstanceOf(com.bubli.global.error.BusinessException.class);
+	}
+
+	@Test
 	void issueTokenRejoinsLeftParticipantAndReturnsToken() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -209,7 +228,7 @@ class VoiceRoomServiceTest {
 		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 
-		assertThat(voiceRoomService.issueToken(userId, voiceRoom.getId()).roomId()).isEqualTo(voiceRoom.getId());
+		assertThat(voiceRoomService.issueToken(userId, voiceRoom.getId()).voiceRoomId()).isEqualTo(voiceRoom.getId());
 
 		assertThat(participant.getStatus()).isEqualTo(VoiceParticipantStatus.JOINED);
 		assertThat(participant.getLeftAt()).isNull();
@@ -253,7 +272,7 @@ class VoiceRoomServiceTest {
 		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
 		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
-		given(voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoom.getId(), userId))
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
 				.willReturn(Optional.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
@@ -269,6 +288,24 @@ class VoiceRoomServiceTest {
 				participant.getId(),
 				userId
 		);
+	}
+
+	@Test
+	void leaveVoiceRoomNoopWhenLatestStatusIsLeft() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceParticipant participant = participant(voiceRoom.getId(), userId);
+		participant.leave();
+
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoom.getId(), userId))
+				.willReturn(Optional.of(participant));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
+
+		voiceRoomService.leaveVoiceRoom(userId, voiceRoom.getId());
+
+		verify(projectRoomEventPublicService, never()).recordVoiceParticipantLeft(any(), any(), any(), any(), any());
 	}
 
 	@Test
