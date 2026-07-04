@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/calendar-delete-calendar-id-20260705` |
+| 현재 확인 브랜치 | `codex/calendar-token-refresh-transaction-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,30 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### Google Calendar 조회 중 토큰 갱신 트랜잭션 보정
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- `GoogleCalendarConnectionService.getActiveConnectionWithFreshToken`은 만료 임박 토큰을 갱신하거나 refresh token이 없을 때 연결을 `REVOKED`로 바꿀 수 있다.
+- 기존 `GoogleCalendarGroupService.getGroupedEvents`와 `GoogleCalendarEventService.getGoogleCalendars`는 `readOnly=true` 트랜잭션으로 이 메서드를 호출했다.
+- 이 상태에서는 Google Calendar 목록/그룹 조회 중 토큰 갱신이 필요할 때 DB 변경이 flush되지 않거나 읽기 전용 트랜잭션과 충돌할 수 있었다.
+- 토큰 갱신 가능성이 있는 두 조회 메서드를 일반 `@Transactional`로 바꿔, 조회 중 필요한 연결 상태 갱신이 정상 저장되게 했다.
+- 회귀 방지를 위해 해당 public 메서드가 `readOnly=false` 트랜잭션인지 확인하는 테스트를 추가했다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.service.GoogleCalendarTransactionBoundaryTest --tests com.bubli.personal.calendar.service.GoogleCalendarGroupServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### Google Calendar 삭제/재시도 키에 캘린더 ID 반영
 

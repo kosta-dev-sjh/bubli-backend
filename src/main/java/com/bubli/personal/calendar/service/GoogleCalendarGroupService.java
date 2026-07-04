@@ -41,7 +41,7 @@ public class GoogleCalendarGroupService {
 	private final GoogleCalendarClient googleCalendarClient;
 	private final ProjectRoomCalendarService projectRoomCalendarService;
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<CalendarEventGroupResponse> getGroupedEvents(
 			UUID userId,
 			UUID roomId,
