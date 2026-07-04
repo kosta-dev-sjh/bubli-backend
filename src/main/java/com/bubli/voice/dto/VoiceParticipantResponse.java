@@ -9,5 +9,6 @@ public record VoiceParticipantResponse(
         String userName,
         String status,
         Instant joinedAt,
-        Instant leftAt
+        Instant leftAt,
+        String micStatus
 ) {}

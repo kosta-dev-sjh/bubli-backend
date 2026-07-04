@@ -10,7 +10,7 @@ Last checked: 2026-07-05 KST
 | 항목 | 값 |
 |---|---|
 | 로컬 레포 | `/Users/maren/EDU/Final Project/04_개발_작업공간/repos/bubli-backend` |
-| 현재 확인 브랜치 | `codex/remove-invite-link-backend-residue-20260705` |
+| 현재 확인 브랜치 | `codex/voice-room-contract-20260705` |
 | 원격 기준 브랜치 | `develop` |
 | 시작 문서 | `docs/00_BACKEND_START_HERE.md` |
 | API 기준 | `/Users/maren/EDU/Final Project/00_현재_프로젝트/최종_산출물/01_기획최종본_2026-06-22/10_API-Design.md` |
@@ -51,6 +51,32 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 현재 API 기준 세부 작업 지시는 `docs/CURRENT_API_BASELINE_WORK.md`를 기준으로 나눈다.
 
 ## 최근 완료 작업
+
+### 프로젝트룸 보이스룸 조회와 참여자 micStatus 응답 보강
+
+처리 시각: 2026-07-05 KST
+
+변경 내용:
+
+- 보이스 참여자의 `mic_status`는 DB와 업데이트 API에는 있었지만 `VoiceParticipantResponse`에 빠져 있어, 프론트가 다른 멤버의 마이크 상태를 조회 화면에서 표시할 수 없었다.
+- `VoiceParticipantResponse`에 `micStatus`를 추가하고, 기존 row처럼 값이 비어 있을 수 있는 경우 `UNMUTED`로 내려주게 했다.
+- 새로 참여하는 `VoiceParticipant`는 생성 시 기본 `micStatus`를 `UNMUTED`로 채운다.
+- 프로젝트룸 화면에서 열린 보이스룸을 발견할 수 있도록 `GET /api/voice/rooms?roomId={roomId}`를 추가했다.
+- 이 조회는 먼저 프로젝트룸 active 멤버 권한을 확인하고, 해당 프로젝트룸의 `OPEN` 보이스룸과 참여자 목록을 반환한다.
+- 기존 `GET /api/voice/rooms/{id}`와 토큰 발급, 나가기, 종료 흐름은 그대로 유지한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.voice.service.VoiceRoomServiceTest` 통과
+- `./gradlew test --tests com.bubli.voice.service.VoiceRoomServiceTest --tests com.bubli.voice.controller.VoiceRoomControllerIntegrationTest` 통과
+- `./gradlew test --tests '*ArchitectureTest'` 통과
+- `./gradlew compileTestJava` 통과
+- `./gradlew cleanTest test` 통과
+- `git diff --check` 통과
+
+남은 작업:
+
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
 
 ### 링크 초대 애플리케이션 코드 잔재 제거
 

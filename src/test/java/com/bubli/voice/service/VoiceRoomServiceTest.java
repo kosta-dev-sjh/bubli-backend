@@ -5,6 +5,7 @@ import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.voice.config.LiveKitProperties;
+import com.bubli.voice.dto.VoiceParticipantResponse;
 import com.bubli.voice.dto.VoiceRoomResponse;
 import com.bubli.voice.entity.VoiceParticipant;
 import com.bubli.voice.entity.VoiceRoom;
@@ -115,6 +116,31 @@ class VoiceRoomServiceTest {
 		verify(userPublicService, times(1)).getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any());
 		verify(userPublicService, never()).getUser(any());
 		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
+		assertThat(response.participants()).extracting("micStatus").containsExactly("UNMUTED", "UNMUTED");
+	}
+
+	@Test
+	void getOpenVoiceRoomByProjectRoomRequiresRoomMemberAndReturnsMicStatus() {
+		UUID requesterId = UUID.randomUUID();
+		UUID otherUserId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(requesterId, roomId);
+		VoiceParticipant requester = participant(voiceRoom.getId(), requesterId);
+		VoiceParticipant other = participant(voiceRoom.getId(), otherUserId);
+		other.updateMicStatus("MUTED");
+		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(requester, other));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any())).willReturn(Map.of(
+				requesterId, user(requesterId, "미연"),
+				otherUserId, user(otherUserId, "수진")
+		));
+
+		VoiceRoomResponse response = voiceRoomService.getOpenVoiceRoomByProjectRoom(requesterId, roomId);
+
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, requesterId);
+		assertThat(response.id()).isEqualTo(voiceRoom.getId());
+		assertThat(response.participants()).extracting("userName").containsExactly("미연", "수진");
+		assertThat(response.participants()).extracting("micStatus").containsExactly("UNMUTED", "MUTED");
 	}
 
 	@Test
@@ -128,8 +154,9 @@ class VoiceRoomServiceTest {
 				.willReturn(Optional.of(participant));
 		given(userPublicService.getUser(userId)).willReturn(user(userId));
 
-		voiceRoomService.updateMicStatus(userId, voiceRoom.getId(), "MUTED");
+		VoiceParticipantResponse response = voiceRoomService.updateMicStatus(userId, voiceRoom.getId(), "MUTED");
 
+		assertThat(response.micStatus()).isEqualTo("MUTED");
 		verify(projectRoomEventPublicService).recordVoiceParticipantMicUpdated(
 				userId,
 				roomId,
