@@ -141,6 +141,46 @@ class LocalFileSyncServiceTest {
 	}
 
 	@Test
+	void syncContinuesWhenOneEventFails() {
+		UUID userId = UUID.randomUUID();
+		UUID missingResourceId = UUID.randomUUID();
+		UUID updatedResourceId = UUID.randomUUID();
+		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))
+				.willReturn(true);
+		given(resourcePublicService.updatePersonalResource(userId, missingResourceId, "deleted-local-file.rtf"))
+				.willThrow(new BusinessException(ErrorCode.RESOURCE_404_001));
+		given(resourcePublicService.updatePersonalResource(userId, updatedResourceId, "README.md"))
+				.willReturn(resourceResult(updatedResourceId, "README.md"));
+
+		var response = localFileSyncService.sync(userId, List.of(
+				new LocalFileEvent(
+						"UPDATED",
+						"deleted-local-file.rtf",
+						10L,
+						"local-event-failed",
+						null,
+						missingResourceId
+				),
+				new LocalFileEvent(
+						"UPDATED",
+						"README.md",
+						20L,
+						"local-event-synced",
+						"text/markdown",
+						updatedResourceId
+				)
+		));
+
+		assertThat(response.results()).hasSize(2);
+		assertThat(response.results().get(0).localEventId()).isEqualTo("local-event-failed");
+		assertThat(response.results().get(0).resourceId()).isEqualTo(missingResourceId);
+		assertThat(response.results().get(0).status()).isEqualTo("FAILED");
+		assertThat(response.results().get(1).localEventId()).isEqualTo("local-event-synced");
+		assertThat(response.results().get(1).resourceId()).isEqualTo(updatedResourceId);
+		assertThat(response.results().get(1).status()).isEqualTo("SYNCED");
+	}
+
+	@Test
 	void syncRejectsWhenManagedFolderConsentIsDisabled() {
 		UUID userId = UUID.randomUUID();
 		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))

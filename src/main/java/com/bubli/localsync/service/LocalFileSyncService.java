@@ -14,7 +14,6 @@ import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +28,6 @@ public class LocalFileSyncService {
     private final UserPublicService userPublicService;
     private final LocalFileSyncEventRepository localFileSyncEventRepository;
 
-    @Transactional
     public LocalFileSyncResponse sync(UUID userId, List<LocalFileEvent> events) {
         assertManagedFolderConsent(userId);
         List<LocalFileSyncResult> results = new ArrayList<>();
