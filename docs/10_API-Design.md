@@ -267,7 +267,7 @@ type TauriRefreshResponse = RefreshResponse & {
 |GET|/api/resources/{id}/ai-document|자료의 AI 문서 분류와 분석 상태|
 |GET|/api/resources/{id}/related|관련 문서|
 |GET|/api/resources/{id}/versions|버전 목록|
-|POST|/api/resources/{id}/versions|새 버전 등록|
+|POST|/api/resources/{id}/versions|새 버전 등록. 일반 웹 업로드는 `multipart/form-data`의 `file` 파트를 사용하고, 이미 저장된 객체를 연결하는 내부/확장 흐름은 JSON 메타 등록을 사용할 수 있음|
 |GET|/api/resources/{id}/comments|자료 댓글 목록|
 |POST|/api/resources/{id}/comments|자료 댓글 작성|
 |PATCH|/api/resource-comments/{id}|자료 댓글 수정|

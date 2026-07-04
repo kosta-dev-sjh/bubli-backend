@@ -22,6 +22,7 @@ import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.dto.UpdateResourceCommentRequest;
 import com.bubli.resource.dto.UpdateResourceRequest;
 import com.bubli.resource.dto.UploadResourceCommand;
+import com.bubli.resource.dto.UploadResourceVersionCommand;
 import com.bubli.resource.service.ResourceService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceVisibility;
@@ -213,7 +214,7 @@ public class ResourceController {
 		return "attachment; filename=\"" + originalName + "\"; filename*=UTF-8''" + encoded;
 	}
 
-	@PostMapping("/api/resources/{resourceId}/versions")
+	@PostMapping(value = "/api/resources/{resourceId}/versions", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse<ResourceVersionResponse> createResourceVersion(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID resourceId,
@@ -221,6 +222,21 @@ public class ResourceController {
 	) {
 		return ApiResponse.success(ResourceVersionResponse.from(
 				resourceService.createVersion(authUser.userId(), resourceId, request.toCommand())
+		));
+	}
+
+	@PostMapping(value = "/api/resources/{resourceId}/versions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ApiResponse<ResourceVersionResponse> uploadResourceVersion(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID resourceId,
+			@RequestPart("file") MultipartFile file
+	) {
+		return ApiResponse.success(ResourceVersionResponse.from(
+				resourceService.uploadVersion(authUser.userId(), resourceId, new UploadResourceVersionCommand(
+						originalName(file),
+						mimeType(file),
+						fileBytes(file)
+				))
 		));
 	}
 
