@@ -151,6 +151,13 @@ public class ResourceService {
 	}
 
 	@Transactional(readOnly = true)
+	public Optional<ResourceSummaryResult> findResourceSummary(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		return resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId)
+				.map(ResourceSummaryResult::from);
+	}
+
+	@Transactional(readOnly = true)
 	public java.util.List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
 		validateRoomResourceAccess(userId, roomId);
 		int size = Math.max(1, Math.min(limit, 10));

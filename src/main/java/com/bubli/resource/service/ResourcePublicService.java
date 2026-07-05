@@ -20,6 +20,8 @@ public interface ResourcePublicService {
 
 	List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit);
 
+	Optional<ResourceSummaryResult> findResourceSummary(UUID userId, UUID resourceId);
+
 	Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords);
 
 	Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId);

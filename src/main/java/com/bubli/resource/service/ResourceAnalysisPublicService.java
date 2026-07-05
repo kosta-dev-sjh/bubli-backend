@@ -401,13 +401,14 @@ public class ResourceAnalysisPublicService {
     private DocumentType detectDocumentType(String originalName, String text) {
         String source = ((originalName == null ? "" : originalName) + " " + preview(text))
                 .toLowerCase(Locale.ROOT);
-        if (source.contains("contract") || source.contains("계약")) {
+        if (source.contains("contract") || source.contains("계약") || source.contains("契約")) {
             return DocumentType.CONTRACT;
         }
-        if (source.contains("requirement") || source.contains("요구사항") || source.contains("요건")) {
+        if (source.contains("requirement") || source.contains("요구사항") || source.contains("요건")
+                || source.contains("要件")) {
             return DocumentType.REQUIREMENT;
         }
-        if (source.contains("meeting") || source.contains("회의")) {
+        if (source.contains("meeting") || source.contains("회의") || source.contains("議事録")) {
             return DocumentType.MEETING_NOTE;
         }
         return DocumentType.REFERENCE;

@@ -26,7 +26,9 @@ import com.bubli.agent.type.AiDocumentType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -50,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,6 +79,9 @@ class AgentStorageServiceTest {
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
 
+	@Mock
+	UserLocalePublicService userLocalePublicService;
+
 	@Spy
 	ObjectMapper objectMapper = new ObjectMapper();
 
@@ -87,6 +93,12 @@ class AgentStorageServiceTest {
 
 	@InjectMocks
 	AiDocumentService aiDocumentService;
+
+	@BeforeEach
+	void setUp() {
+		lenient().when(userLocalePublicService.resolveLocaleCode(any(UUID.class), eq(null)))
+				.thenReturn("ko-KR");
+	}
 
 	@Test
 	void createAgentJobStoresPendingJobOnly() {

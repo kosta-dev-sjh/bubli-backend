@@ -16,6 +16,7 @@ import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -62,7 +63,7 @@ public class ProjectRoomAgentCommandService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
-		ResourceLookup resourceLookup = resolveResourceLookup(userId, roomId, message);
+		ResourceLookup resourceLookup = resolveResourceLookup(userId, roomId, message, resourceIds);
 		AgentJobContext context = contextCollector.collect(new AgentJobQueueMessage(
 				UUID.randomUUID(),
 				userId,
@@ -86,7 +87,8 @@ public class ProjectRoomAgentCommandService {
 				commandMode,
 				answer,
 				context,
-				resourceIds
+				resourceIds,
+				resourceLookup
 		);
 		UUID responseResourceId = responseResourceId(resourceIds, resourceLookup.resource());
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
@@ -105,15 +107,34 @@ public class ProjectRoomAgentCommandService {
 		return new ProjectRoomAgentCommandResponse(chatMessage, memory, suggestions);
 	}
 
-	private ResourceLookup resolveResourceLookup(UUID userId, UUID roomId, String message) {
+	private ResourceLookup resolveResourceLookup(UUID userId, UUID roomId, String message, List<UUID> resourceIds) {
+		if (resourceIds != null && !resourceIds.isEmpty()) {
+			ResourceResult resource = resourcePublicService.getReadableResource(userId, resourceIds.getFirst());
+			return new ResourceLookup(
+					true,
+					List.of("selected-resource"),
+					Optional.of(resource),
+					resourcePublicService.findResourceSummary(userId, resource.id())
+			);
+		}
 		if (isLatestRoomFileRequest(message)) {
-			return new ResourceLookup(true, List.of("file"), resourcePublicService.findLatestRoomFile(userId, roomId));
+			Optional<ResourceResult> resource = resourcePublicService.findLatestRoomFile(userId, roomId);
+			return lookupWithSummary(userId, List.of("file"), resource);
 		}
 		List<String> keywords = resourceKeywords(message);
 		if (keywords.isEmpty()) {
 			return ResourceLookup.notRequested();
 		}
-		return new ResourceLookup(true, keywords, resourcePublicService.findLatestRoomResource(userId, roomId, keywords));
+		return lookupWithSummary(userId, keywords, resourcePublicService.findLatestRoomResource(userId, roomId, keywords));
+	}
+
+	private ResourceLookup lookupWithSummary(UUID userId, List<String> keywords, Optional<ResourceResult> resource) {
+		return new ResourceLookup(
+				true,
+				keywords,
+				resource,
+				resource.flatMap(result -> resourcePublicService.findResourceSummary(userId, result.id()))
+		);
 	}
 
 	private boolean isLatestRoomFileRequest(String message) {
@@ -124,32 +145,29 @@ public class ProjectRoomAgentCommandService {
 
 	private List<String> resourceKeywords(String message) {
 		String normalized = normalize(message);
-		if (!containsAny(normalized, "최근", "마지막", "최신", "latest", "newest", "last", "直近", "最新")) {
-			return List.of();
-		}
-		if (containsAny(normalized, "계약", "contract", "agreement", "契約")) {
-			return List.of("계약", "contract", "agreement");
+		if (containsAny(normalized, "계약", "contract", "agreement", "契約", "契約書")) {
+			return List.of("계약", "contract", "契約");
 		}
 		if (containsAny(normalized, "견적", "estimate", "quotation", "quote", "見積")) {
-			return List.of("견적", "estimate", "quotation");
+			return List.of("견적", "estimate", "見積");
 		}
 		if (containsAny(normalized, "발주", "purchase order", "po", "注文")) {
-			return List.of("발주", "purchase", "order");
+			return List.of("발주", "purchase", "注文");
 		}
 		if (containsAny(normalized, "요구사항", "요구", "requirements", "requirement", "要件")) {
-			return List.of("요구사항", "requirement", "requirements");
+			return List.of("요구사항", "requirement", "要件");
 		}
 		if (containsAny(normalized, "회의록", "회의", "meeting minutes", "minutes", "議事録")) {
-			return List.of("회의록", "meeting", "minutes");
+			return List.of("회의록", "meeting", "議事録");
 		}
 		if (containsAny(normalized, "참고자료", "참고", "reference", "参考")) {
-			return List.of("참고", "reference", "reference");
+			return List.of("참고", "reference", "参考");
 		}
-		if (containsAny(normalized, "일반자료", "일반", "general")) {
+		if (containsAny(normalized, "일반자료", "일반", "general", "一般")) {
 			return List.of("일반", "general", "general");
 		}
-		if (containsAny(normalized, "자료", "문서", "resource", "document", "file")) {
-			return List.of("자료", "문서", "document");
+		if (containsAny(normalized, "자료", "문서", "resource", "document", "file", "資料", "文書", "ファイル")) {
+			return List.of("자료", "document", "資料");
 		}
 		return List.of();
 	}
@@ -192,6 +210,9 @@ public class ProjectRoomAgentCommandService {
 				Mode: %s
 				Do not invent confirmed facts. Use the provided project context and say what should be checked when context is insufficient.
 				You may answer document questions, extract business facts, or create suggestion candidates such as TODO, TASK, WBS, REQUIREMENT, QUESTION, and REVIEW_ITEM.
+				When a resolved resource summary is provided, ground the answer in that resource first.
+				For SUGGEST mode, produce concrete suggestion candidates requested by the user, not a generic review explanation.
+				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
 
 				User message:
 				%s
@@ -209,8 +230,20 @@ public class ProjectRoomAgentCommandService {
 			return "No explicit latest resource lookup was requested.";
 		}
 		return resourceLookup.resource()
-				.map(resource -> "Latest resource candidate: id=%s, title=%s, createdAt=%s, keywords=%s"
-						.formatted(resource.id(), resource.title(), resource.createdAt(), resourceLookup.keywords()))
+				.map(resource -> """
+						Resolved resource: id=%s, title=%s, createdAt=%s, keywords=%s
+						Resolved resource summary:
+						%s
+						Resolved resource checklist:
+						%s
+						""".formatted(
+								resource.id(),
+								resource.title(),
+								resource.createdAt(),
+								resourceLookup.keywords(),
+								resourceLookup.summary().map(ResourceSummaryResult::summaryJson).orElse("No summary is available."),
+								resourceLookup.summary().map(ResourceSummaryResult::checklistJson).orElse("No checklist is available.")
+						))
 				.orElse("Latest resource lookup requested but no matching resource was found. keywords=%s"
 						.formatted(resourceLookup.keywords()));
 	}
@@ -283,20 +316,22 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode mode,
 			String answer,
 			AgentJobContext context,
-			List<UUID> resourceIds
+			List<UUID> resourceIds,
+			ResourceLookup resourceLookup
 	) {
 		if (mode != AgentCommandMode.SUGGEST) {
 			return List.of();
 		}
 		AgentSuggestionType suggestionType = inferSuggestionType(message);
+		UUID suggestionResourceId = responseResourceId(resourceIds, resourceLookup.resource());
 		AgentSuggestionResponse suggestion = agentSuggestionCommandService.createDraft(
 				userId,
 				roomId,
 				null,
-				resourceIds == null || resourceIds.isEmpty() ? null : resourceIds.getFirst(),
+				suggestionResourceId,
 				suggestionType,
 				suggestionPayload(suggestionType, message, answer),
-				suggestionEvidence(context, resourceIds)
+				suggestionEvidence(context, resourceIds, resourceLookup)
 		);
 		projectRoomEventPublicService.recordAgentSuggestionsCreated(
 				userId,
@@ -318,15 +353,15 @@ public class ProjectRoomAgentCommandService {
 		if (containsAny(normalized, "todo", "할 일", "할일", "to-do")) {
 			return AgentSuggestionType.TODO;
 		}
-		if (containsAny(normalized, "요구사항", "요구", "requirement")) {
+		if (containsAny(normalized, "요구사항", "요구", "requirement", "要件")) {
 			return AgentSuggestionType.REQUIREMENT;
 		}
 		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "누락", "불명확",
-				"question", "ask", "unclear", "missing")) {
+				"question", "ask", "unclear", "missing", "質問", "確認", "不明")) {
 			return AgentSuggestionType.QUESTION;
 		}
 		if (containsAny(normalized, "검토", "리뷰", "위험", "리스크", "이슈", "조건", "계약", "확인 필요",
-				"review", "risk", "issue", "condition", "contract")) {
+				"review", "risk", "issue", "condition", "contract", "契約", "リスク", "条件")) {
 			return AgentSuggestionType.REVIEW_ITEM;
 		}
 		return AgentSuggestionType.TODO;
@@ -370,12 +405,18 @@ public class ProjectRoomAgentCommandService {
 		return normalized.length() <= 80 ? normalized : normalized.substring(0, 80);
 	}
 
-	private Map<String, Object> suggestionEvidence(AgentJobContext context, List<UUID> resourceIds) {
+	private Map<String, Object> suggestionEvidence(
+			AgentJobContext context,
+			List<UUID> resourceIds,
+			ResourceLookup resourceLookup
+	) {
 		Map<String, Object> evidence = new LinkedHashMap<>();
 		evidence.put("source", "PROJECT_ROOM_AGENT_COMMAND");
 		evidence.put("promptVersion", PROMPT_VERSION);
 		evidence.put("contextCharacters", context.characterCount());
 		evidence.put("resourceIds", resourceIds == null ? List.of() : resourceIds);
+		resourceLookup.resource().ifPresent(resource -> evidence.put("resolvedResourceId", resource.id().toString()));
+		resourceLookup.summary().ifPresent(summary -> evidence.put("resourceSummaryId", summary.id().toString()));
 		return evidence;
 	}
 
@@ -397,6 +438,7 @@ public class ProjectRoomAgentCommandService {
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
 		resourceLookup.resource().ifPresent(resource -> body.put("resources", List.of(resourcePayload(resource))));
+		resourceLookup.summary().ifPresent(summary -> body.put("resourceSummaryId", summary.id().toString()));
 		return objectMapper.valueToTree(body);
 	}
 
@@ -418,6 +460,7 @@ public class ProjectRoomAgentCommandService {
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
 		resourceLookup.resource().ifPresent(resource -> memory.put("resources", List.of(resourcePayload(resource))));
+		resourceLookup.summary().ifPresent(summary -> memory.put("resourceSummaryId", summary.id().toString()));
 		try {
 			return objectMapper.writeValueAsString(memory);
 		} catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
@@ -436,10 +479,11 @@ public class ProjectRoomAgentCommandService {
 	private record ResourceLookup(
 			boolean requested,
 			List<String> keywords,
-			Optional<ResourceResult> resource
+			Optional<ResourceResult> resource,
+			Optional<ResourceSummaryResult> summary
 	) {
 		private static ResourceLookup notRequested() {
-			return new ResourceLookup(false, List.of(), Optional.empty());
+			return new ResourceLookup(false, List.of(), Optional.empty(), Optional.empty());
 		}
 	}
 }

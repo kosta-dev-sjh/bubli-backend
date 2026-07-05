@@ -11,8 +11,10 @@ import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.global.locale.SupportedLocale;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -22,6 +24,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,15 +37,17 @@ public class AgentJobService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final AgentJobDispatchOutboxRecorder dispatchOutboxRecorder;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final UserLocalePublicService userLocalePublicService;
 
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
+		Map<String, Object> requestPayload = withResolvedLocale(requestedByUserId, command.requestPayload());
 		AgentJob agentJob = AgentJob.create(
 				requestedByUserId,
 				command.roomId(),
 				command.resourceId(),
 				command.jobType(),
-				command.requestPayload()
+				requestPayload
 		);
 		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
 		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);
@@ -147,5 +153,21 @@ public class AgentJobService {
 				pageable.getPageSize(),
 				Sort.by("createdAt").ascending().and(Sort.by("id").ascending())
 		);
+	}
+
+	private Map<String, Object> withResolvedLocale(UUID requestedByUserId, Map<String, Object> requestPayload) {
+		Map<String, Object> resolvedPayload = requestPayload == null
+				? new LinkedHashMap<>()
+				: new LinkedHashMap<>(requestPayload);
+		Object locale = resolvedPayload.get("locale");
+		if (locale == null || locale.toString().isBlank()) {
+			resolvedPayload.put(
+					"locale",
+					SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(requestedByUserId, null))
+			);
+		} else {
+			resolvedPayload.put("locale", SupportedLocale.normalize(locale.toString()));
+		}
+		return resolvedPayload;
 	}
 }
