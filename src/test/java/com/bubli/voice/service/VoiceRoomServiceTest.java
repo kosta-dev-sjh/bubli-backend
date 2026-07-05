@@ -1,5 +1,6 @@
 package com.bubli.voice.service;
 
+import com.bubli.chat.service.ChatRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
@@ -51,6 +52,9 @@ class VoiceRoomServiceTest {
 	ProjectRoomEventPublicService projectRoomEventPublicService;
 
 	@Mock
+	ChatRoomAccessPublicService chatRoomAccessPublicService;
+
+	@Mock
 	UserPublicService userPublicService;
 
 	VoiceRoomService voiceRoomService;
@@ -62,6 +66,7 @@ class VoiceRoomServiceTest {
 				voiceParticipantRepository,
 				projectRoomAccessPublicService,
 				projectRoomEventPublicService,
+				chatRoomAccessPublicService,
 				userPublicService,
 				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example")
 		);
@@ -77,7 +82,7 @@ class VoiceRoomServiceTest {
 				.willAnswer(invocation -> withId((VoiceParticipant) invocation.getArgument(0)));
 		given(userPublicService.getUser(userId)).willReturn(user(userId));
 
-		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId);
+		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId, null);
 
 		assertThat(response.roomId()).isEqualTo(roomId);
 		verify(projectRoomAccessPublicService).requireRoomMember(roomId, userId);
@@ -110,7 +115,7 @@ class VoiceRoomServiceTest {
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
 				.willReturn(Map.of(userId, user(userId)));
 
-		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId);
+		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId, null);
 
 		assertThat(response.id()).isEqualTo(voiceRoom.getId());
 		verify(projectRoomAccessPublicService).requireRoomMember(roomId, userId);

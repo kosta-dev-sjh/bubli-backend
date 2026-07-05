@@ -2,6 +2,7 @@ package com.bubli.voice.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.chat.service.ChatRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
@@ -42,11 +43,19 @@ public class VoiceRoomService {
     private final VoiceParticipantRepository voiceParticipantRepository;
     private final ProjectRoomAccessPublicService projectRoomAccessPublicService;
     private final ProjectRoomEventPublicService projectRoomEventPublicService;
+    private final ChatRoomAccessPublicService chatRoomAccessPublicService;
     private final UserPublicService userPublicService;
     private final LiveKitProperties liveKitProperties;
 
     @Transactional
-    public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId) {
+    public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId, UUID chatRoomId) {
+        if (chatRoomId != null) {
+            return createChatVoiceRoom(userId, chatRoomId);
+        }
+        return createProjectVoiceRoom(userId, roomId);
+    }
+
+    private VoiceRoomResponse createProjectVoiceRoom(UUID userId, UUID roomId) {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
         voiceRoomRepository.lockRoomOpenCreation(lockKey(roomId));
 
@@ -62,23 +71,31 @@ public class VoiceRoomService {
 
         VoiceRoom voiceRoom = voiceRoomRepository.save(VoiceRoom.create(roomId, userId));
         VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
-        projectRoomEventPublicService.recordVoiceRoomCreated(
-                userId,
-                roomId,
-                voiceRoom.getId(),
-                voiceRoom.getLivekitRoomName()
-        );
-        projectRoomEventPublicService.recordVoiceParticipantJoined(
-                userId,
-                roomId,
-                voiceRoom.getId(),
-                participant.getId(),
-                participant.getUserId()
-        );
+        projectRoomEventPublicService.recordVoiceRoomCreated(userId, roomId, voiceRoom.getId(), voiceRoom.getLivekitRoomName());
+        projectRoomEventPublicService.recordVoiceParticipantJoined(userId, roomId, voiceRoom.getId(), participant.getId(), participant.getUserId());
 
         UserResult user = userPublicService.getUser(userId);
-        List<VoiceParticipantResponse> participants = List.of(toParticipantResponse(participant, user.name()));
-        return toRoomResponse(voiceRoom, participants);
+        return toRoomResponse(voiceRoom, List.of(toParticipantResponse(participant, user.name())));
+    }
+
+    private VoiceRoomResponse createChatVoiceRoom(UUID userId, UUID chatRoomId) {
+        chatRoomAccessPublicService.assertActiveMember(userId, chatRoomId);
+
+        Optional<VoiceRoom> existing = voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN);
+        if (existing.isPresent()) {
+            VoiceRoom room = existing.get();
+            List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(room.getId());
+            Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+            return toRoomResponse(room, participants.stream()
+                    .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                    .toList());
+        }
+
+        VoiceRoom voiceRoom = voiceRoomRepository.save(VoiceRoom.createForChatRoom(chatRoomId, userId));
+        VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
+
+        UserResult user = userPublicService.getUser(userId);
+        return toRoomResponse(voiceRoom, List.of(toParticipantResponse(participant, user.name())));
     }
 
     private String lockKey(UUID roomId) {
@@ -122,6 +139,8 @@ public class VoiceRoomService {
         }
         if (voiceRoom.getRoomId() != null) {
             projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
+        } else if (voiceRoom.getChatRoomId() != null) {
+            chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
         }
 
         boolean[] joined = {false};
@@ -287,6 +306,7 @@ public class VoiceRoomService {
         return new VoiceRoomResponse(
                 room.getId(),
                 room.getRoomId(),
+                room.getChatRoomId(),
                 room.getLivekitRoomName(),
                 room.getStatus().name(),
                 participants,

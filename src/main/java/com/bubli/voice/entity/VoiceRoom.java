@@ -54,6 +54,15 @@ public class VoiceRoom {
 		return voiceRoom;
 	}
 
+	public static VoiceRoom createForChatRoom(UUID chatRoomId, UUID createdByUserId) {
+		VoiceRoom voiceRoom = new VoiceRoom();
+		voiceRoom.chatRoomId = chatRoomId;
+		voiceRoom.createdByUserId = createdByUserId;
+		voiceRoom.livekitRoomName = "room-" + UUID.randomUUID();
+		voiceRoom.status = VoiceRoomStatus.OPEN;
+		return voiceRoom;
+	}
+
 	public void end() {
 		this.status = VoiceRoomStatus.ENDED;
 	}

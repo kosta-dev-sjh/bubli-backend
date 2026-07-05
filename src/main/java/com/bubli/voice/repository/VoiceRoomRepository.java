@@ -13,6 +13,8 @@ public interface VoiceRoomRepository extends JpaRepository<VoiceRoom, UUID> {
 
     Optional<VoiceRoom> findByRoomIdAndStatus(UUID roomId, VoiceRoomStatus status);
 
+    Optional<VoiceRoom> findByChatRoomIdAndStatus(UUID chatRoomId, VoiceRoomStatus status);
+
     Optional<VoiceRoom> findByLivekitRoomName(String livekitRoomName);
 
     @Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(:lockKey, 0))", nativeQuery = true)
