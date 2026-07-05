@@ -1,11 +1,11 @@
 package com.bubli.user.service;
 
-import com.bubli.global.error.BusinessException;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.type.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,7 +21,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -57,7 +56,7 @@ class UserPublicServiceImplTest {
 
 		UserResult result = userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
+				"Miyeon",
 				null,
 				"ko",
 				"Asia/Seoul"
@@ -84,7 +83,7 @@ class UserPublicServiceImplTest {
 
 		userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
+				"Miyeon",
 				null,
 				"ko",
 				"Asia/Seoul"
@@ -97,26 +96,32 @@ class UserPublicServiceImplTest {
 	}
 
 	@Test
-	void upsertGoogleUserRejectsWithdrawnUser() {
-		User user = User.createGoogleUser("google-sub", "bubli-id", "미연", null, "ko", "Asia/Seoul");
+	void upsertGoogleUserReactivatesWithdrawnUser() {
+		User user = User.createGoogleUser("google-sub", "bubli-id", "Miyeon", null, "ko", "Asia/Seoul");
 		user.withdraw();
 		given(userRepository.findByGoogleSub("google-sub")).willReturn(Optional.of(user));
 
-		assertThatThrownBy(() -> userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
+		UserResult result = userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
-				null,
-				"ko",
+				"Rejoined User",
+				"https://cdn.example/rejoined.png",
+				"en",
 				"Asia/Seoul"
-		))).isInstanceOf(BusinessException.class);
+		));
+
+		assertThat(result.name()).isEqualTo("Rejoined User");
+		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+		assertThat(user.getDeletedAt()).isNull();
+		assertThat(user.getAvatarUrl()).isEqualTo("https://cdn.example/rejoined.png");
+		assertThat(user.getLocale()).isEqualTo("en-US");
 	}
 
 	@Test
 	void getUsersDeduplicatesIdsAndFiltersInactiveUsers() {
 		UUID activeUserId = UUID.randomUUID();
 		UUID withdrawnUserId = UUID.randomUUID();
-		User activeUser = user(activeUserId, "active-sub", "active-id", "미연");
-		User withdrawnUser = user(withdrawnUserId, "withdrawn-sub", "withdrawn-id", "탈퇴");
+		User activeUser = user(activeUserId, "active-sub", "active-id", "Miyeon");
+		User withdrawnUser = user(withdrawnUserId, "withdrawn-sub", "withdrawn-id", "Withdrawn");
 		withdrawnUser.withdraw();
 		given(userRepository.findAllById(List.of(activeUserId, withdrawnUserId)))
 				.willReturn(List.of(activeUser, withdrawnUser));
@@ -129,7 +134,7 @@ class UserPublicServiceImplTest {
 		));
 
 		assertThat(result).containsOnlyKeys(activeUserId);
-		assertThat(result.get(activeUserId).name()).isEqualTo("미연");
+		assertThat(result.get(activeUserId).name()).isEqualTo("Miyeon");
 		verify(userRepository).findAllById(List.of(activeUserId, withdrawnUserId));
 	}
 

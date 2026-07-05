@@ -85,6 +85,11 @@ public class User {
 		this.deletedAt = Instant.now();
 	}
 
+	public void reactivate() {
+		this.status = UserStatus.ACTIVE;
+		this.deletedAt = null;
+	}
+
 	public boolean isActive() {
 		return status == UserStatus.ACTIVE;
 	}

@@ -13,9 +13,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriUtils;
-
-import java.nio.charset.StandardCharsets;
 
 @Component
 @Slf4j
@@ -70,7 +67,7 @@ public class RestGoogleOAuthClient implements GoogleOAuthClient {
 
 	private GoogleTokenResponse exchangeCode(GoogleCallbackCommand command) {
 		MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-		body.add("code", UriUtils.decode(command.code(), StandardCharsets.UTF_8));
+		body.add("code", command.code());
 		body.add("client_id", clientId);
 		body.add("client_secret", clientSecret);
 		body.add("redirect_uri", command.redirectUri());

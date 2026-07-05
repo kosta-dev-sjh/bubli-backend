@@ -43,7 +43,7 @@ public class UserPublicServiceImpl implements UserPublicService {
 		User user = userRepository.findByGoogleSub(command.googleSub())
 				.map(existingUser -> {
 					if (!existingUser.isActive()) {
-						throw new BusinessException(ErrorCode.USER_410_001);
+						existingUser.reactivate();
 					}
 					return existingUser;
 				})
