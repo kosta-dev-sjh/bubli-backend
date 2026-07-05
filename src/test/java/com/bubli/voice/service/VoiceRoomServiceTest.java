@@ -115,7 +115,7 @@ class VoiceRoomServiceTest {
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
 				.willReturn(Map.of(userId, user(userId)));
 
-		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId);
+		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(userId, roomId, null);
 
 		assertThat(response.id()).isEqualTo(voiceRoom.getId());
 		verify(projectRoomAccessPublicService).requireRoomMember(roomId, userId);
