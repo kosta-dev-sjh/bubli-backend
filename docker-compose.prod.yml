@@ -30,6 +30,8 @@ services:
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - STORAGE_TYPE=s3
       - AWS_S3_BUCKET=${S3_BUCKET_NAME}
+      - BEDROCK_CHAT_MODEL_ID=${BEDROCK_CHAT_MODEL_ID:-apac.anthropic.claude-3-haiku-20240307-v1:0}
+      - BEDROCK_EMBEDDING_MODEL_ID=${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}
     depends_on:
       - redis
     expose:
