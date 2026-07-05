@@ -118,7 +118,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		String prompt = "ANALYZE_RESOURCE";
 		try {
 			source = resourceAnalysisService.loadAnalysisSourceForJob(message.resourceId());
-			Optional<Map<String, Object>> reusableAnalysis = resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
+			Optional<Map<String, Object>> reusableAnalysis = reusableAnalysis(message);
 			if (reusableAnalysis.isPresent()) {
 				resourceAnalysisCompletionRecorder.complete(message, source, reusableAnalysis.get(), List.of());
 				return AgentJobExecutionOutcome.succeeded();
@@ -158,6 +158,13 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 					List.of(modelCallLog(startedAt, prompt, null, EXECUTION_ERROR))
 			);
 		}
+	}
+
+	private Optional<Map<String, Object>> reusableAnalysis(AgentJobQueueMessage message) {
+		if (!"ko-KR".equals(responseLocale(message))) {
+			return Optional.empty();
+		}
+		return resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
 	}
 
 	private ParsedModelResult callAndParseJson(String operationName, String prompt) {
@@ -540,15 +547,26 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	}
 
 	private String languageInstruction(AgentJobQueueMessage message) {
-		String locale = requestPayloadText(message, "locale");
-		if (locale == null || locale.isBlank()) {
-			locale = "ko-KR";
-		}
-		return switch (locale) {
+		return switch (responseLocale(message)) {
 			case "en-US" -> "Write all user-facing content in natural English.";
 			case "ja-JP" -> "Write all user-facing content in natural Japanese.";
 			default -> "Write all user-facing content in natural Korean.";
 		};
+	}
+
+	private String responseLocale(AgentJobQueueMessage message) {
+		String locale = requestPayloadText(message, "locale");
+		if (locale == null || locale.isBlank()) {
+			return "ko-KR";
+		}
+		String normalized = locale.trim();
+		if ("en-US".equalsIgnoreCase(normalized) || "en".equalsIgnoreCase(normalized)) {
+			return "en-US";
+		}
+		if ("ja-JP".equalsIgnoreCase(normalized) || "ja".equalsIgnoreCase(normalized)) {
+			return "ja-JP";
+		}
+		return "ko-KR";
 	}
 
 	private String languageInstructionFromPrompt(String prompt) {
