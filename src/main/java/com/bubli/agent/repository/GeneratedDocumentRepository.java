@@ -12,6 +12,8 @@ public interface GeneratedDocumentRepository extends JpaRepository<GeneratedDocu
 
     Optional<GeneratedDocument> findBySuggestionId(UUID suggestionId);
 
+    boolean existsBySuggestionId(UUID suggestionId);
+
     Page<GeneratedDocument> findByUserIdAndRoomIdIsNull(UUID userId, Pageable pageable);
 
     Page<GeneratedDocument> findByRoomId(UUID roomId, Pageable pageable);

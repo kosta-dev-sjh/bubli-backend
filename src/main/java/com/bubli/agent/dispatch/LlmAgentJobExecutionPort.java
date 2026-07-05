@@ -57,6 +57,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	private final ObjectMapper objectMapper;
 	private final AgentJobContextCollector contextCollector;
 	private final AgentModelUsageGuard modelUsageGuard;
+	private final AgentResourceAnalysisCompletionRecorder resourceAnalysisCompletionRecorder;
 
 	@Override
 	public Optional<AgentJobExecutionOutcome> execute(AgentJobQueueMessage message) {
@@ -117,18 +118,22 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		String prompt = "ANALYZE_RESOURCE";
 		try {
 			source = resourceAnalysisService.loadAnalysisSourceForJob(message.resourceId());
-			Optional<Map<String, Object>> reusableAnalysis = resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
+			Optional<Map<String, Object>> reusableAnalysis = reusableAnalysis(message);
 			if (reusableAnalysis.isPresent()) {
-				resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), reusableAnalysis.get());
+				resourceAnalysisCompletionRecorder.complete(message, source, reusableAnalysis.get(), List.of());
 				return AgentJobExecutionOutcome.succeeded();
 			}
 			AgentJobContext context = contextCollector.collect(message);
 			prompt = analyzeResourcePrompt(message, source, context);
 			ParsedModelResult parsed = callAndParseJson("agent-job-analyze-resource", prompt);
 			AgentAnalysisResult result = parsed.result();
-			resourceAnalysisService.completeAnalysisForJob(source, message.jobId(), analysisJson(result, source));
-			return AgentJobExecutionOutcome.succeededWithResults(
-					toSuggestionDrafts(message, result),
+			resourceAnalysisCompletionRecorder.complete(
+					message,
+					source,
+					analysisJson(result, source),
+					toSuggestionDrafts(message, result)
+			);
+			return AgentJobExecutionOutcome.succeededWithModelCallLogs(
 					List.of(modelCallLog(startedAt, parsed.prompt(), parsed.response(), null))
 			);
 		} catch (AgentContractValidationException exception) {
@@ -153,6 +158,13 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 					List.of(modelCallLog(startedAt, prompt, null, EXECUTION_ERROR))
 			);
 		}
+	}
+
+	private Optional<Map<String, Object>> reusableAnalysis(AgentJobQueueMessage message) {
+		if (!"ko-KR".equals(responseLocale(message))) {
+			return Optional.empty();
+		}
+		return resourceAnalysisService.findReusableAnalysisForJob(message.resourceId());
 	}
 
 	private ParsedModelResult callAndParseJson(String operationName, String prompt) {
@@ -239,7 +251,10 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "title": "specific title in the requested response language",
 				      "description": "specific review action in the requested response language",
 				      "sourceText": "short evidence text from the document",
-				      "confidence": 0.0
+				      "confidence": 0.0,
+				      "startsAt": "optional ISO-8601 UTC instant when the document gives a schedule start",
+				      "dueAt": "optional ISO-8601 UTC instant when the document gives a due date",
+				      "endsAt": "optional ISO-8601 UTC instant when the document gives a schedule end"
 				    },
 				    {
 				      "type": "CONTRACT_FIELD",
@@ -258,6 +273,9 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- Use QUESTION for missing or ambiguous information.
 				- Use CONTRACT_FIELD only when a concrete field value exists; fieldKey and value are required.
 				- Use REQUIREMENT, TASK, or WBS only when the document clearly implies them.
+				- For TASK, you may include assigneeUserId, wbsItemId, status(TODO/IN_PROGRESS/REVIEW/DONE/BLOCKED), dueAt.
+				- For WBS, you may include parentId, orderNo, status(TODO/IN_PROGRESS/DONE), scheduleTitle, startsAt, dueAt, endsAt, allDay.
+				- Use ISO-8601 UTC instants for startsAt, dueAt, and endsAt. Omit date fields when the source has no concrete date/time.
 				- Return 1 to 5 high-value suggestions.
 
 				Job context:
@@ -350,7 +368,10 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "title": "specific actionable title in the requested response language",
 				      "description": "specific description with expected next action in the requested response language",
 				      "sourceText": "brief reason based on the job context",
-				      "confidence": 0.0
+				      "confidence": 0.0,
+				      "startsAt": "optional ISO-8601 UTC instant for WBS or schedule-like work",
+				      "dueAt": "optional ISO-8601 UTC due date/time for TASK or WBS",
+				      "endsAt": "optional ISO-8601 UTC end time for WBS schedule"
 				    }
 				  ]
 				}
@@ -358,7 +379,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				Job type guidance:
 				- GENERATE_REQUIREMENTS: propose one concrete requirement.
 				- GENERATE_TASKS: propose one actionable TODO task with a clear verb.
-				- GENERATE_WBS: propose one WBS work item.
+				- GENERATE_WBS: propose one WBS work item. Include scheduleTitle, startsAt/dueAt, endsAt, and allDay only when the request or context has a concrete date/time.
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
 				- DRAFT_DOCUMENT: propose a document draft outline.
@@ -414,6 +435,16 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		payload.put("confidence", suggestion.confidence());
 		payload.put("fieldKey", suggestion.fieldKey());
 		payload.put("value", suggestion.value());
+		putIfPresent(payload, "assigneeUserId", suggestion.assigneeUserId());
+		putIfPresent(payload, "wbsItemId", suggestion.wbsItemId());
+		putIfPresent(payload, "parentId", suggestion.parentId());
+		putIfPresent(payload, "orderNo", suggestion.orderNo());
+		putIfPresent(payload, "status", suggestion.status());
+		putIfPresent(payload, "startsAt", suggestion.startsAt());
+		putIfPresent(payload, "dueAt", suggestion.dueAt());
+		putIfPresent(payload, "endsAt", suggestion.endsAt());
+		putIfPresent(payload, "allDay", suggestion.allDay());
+		putIfPresent(payload, "scheduleTitle", suggestion.scheduleTitle());
 		payload.put("jobType", message.jobType().name());
 		payload.put("roomId", value(message.roomId()));
 		payload.put("resourceId", value(message.resourceId()));
@@ -502,6 +533,12 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		return value == null ? null : value.toString();
 	}
 
+	private void putIfPresent(Map<String, Object> payload, String key, Object value) {
+		if (value != null) {
+			payload.put(key, value);
+		}
+	}
+
 	private String truncate(String text, int limit) {
 		if (text == null || text.length() <= limit) {
 			return text;
@@ -510,15 +547,26 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 	}
 
 	private String languageInstruction(AgentJobQueueMessage message) {
-		String locale = requestPayloadText(message, "locale");
-		if (locale == null || locale.isBlank()) {
-			locale = "ko-KR";
-		}
-		return switch (locale) {
+		return switch (responseLocale(message)) {
 			case "en-US" -> "Write all user-facing content in natural English.";
 			case "ja-JP" -> "Write all user-facing content in natural Japanese.";
 			default -> "Write all user-facing content in natural Korean.";
 		};
+	}
+
+	private String responseLocale(AgentJobQueueMessage message) {
+		String locale = requestPayloadText(message, "locale");
+		if (locale == null || locale.isBlank()) {
+			return "ko-KR";
+		}
+		String normalized = locale.trim();
+		if ("en-US".equalsIgnoreCase(normalized) || "en".equalsIgnoreCase(normalized)) {
+			return "en-US";
+		}
+		if ("ja-JP".equalsIgnoreCase(normalized) || "ja".equalsIgnoreCase(normalized)) {
+			return "ja-JP";
+		}
+		return "ko-KR";
 	}
 
 	private String languageInstructionFromPrompt(String prompt) {

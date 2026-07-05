@@ -10,9 +10,21 @@ import java.util.UUID;
 
 public interface GoogleCalendarDeleteRequestRepository extends JpaRepository<GoogleCalendarDeleteRequest, UUID> {
 
-	Optional<GoogleCalendarDeleteRequest> findByUserIdAndGoogleEventId(UUID userId, String googleEventId);
+	Optional<GoogleCalendarDeleteRequest> findByUserIdAndGoogleCalendarIdAndGoogleEventId(
+			UUID userId,
+			String googleCalendarId,
+			String googleEventId
+	);
 
-	List<GoogleCalendarDeleteRequest> findByUserIdAndGoogleEventIdIn(UUID userId, Collection<String> googleEventIds);
+	List<GoogleCalendarDeleteRequest> findByUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+			UUID userId,
+			String googleCalendarId,
+			Collection<String> googleEventIds
+	);
 
-	void deleteByUserIdAndGoogleEventIdIn(UUID userId, Collection<String> googleEventIds);
+	void deleteByUserIdAndGoogleCalendarIdAndGoogleEventIdIn(
+			UUID userId,
+			String googleCalendarId,
+			Collection<String> googleEventIds
+	);
 }

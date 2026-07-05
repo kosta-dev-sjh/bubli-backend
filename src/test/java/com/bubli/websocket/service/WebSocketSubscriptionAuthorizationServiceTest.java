@@ -36,6 +36,17 @@ class WebSocketSubscriptionAuthorizationServiceTest {
     }
 
     @Test
+    void authorizesChatTypingTopicWithChatRoomMembership() {
+        UUID userId = UUID.randomUUID();
+        UUID chatRoomId = UUID.randomUUID();
+
+        service.authorize(new AuthUser(userId), "/topic/chat/" + chatRoomId + "/typing");
+
+        verify(chatRoomAccessPublicService).assertActiveMember(userId, chatRoomId);
+        verifyNoInteractions(projectMembershipPublicService);
+    }
+
+    @Test
     void authorizesProjectRoomEventsTopicWithRoomMembership() {
         UUID userId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();

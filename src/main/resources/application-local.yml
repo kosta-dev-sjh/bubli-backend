@@ -24,6 +24,11 @@ storage:
   local:
     base-path: ./local-storage
 
+livekit:
+  api-key: ${LIVEKIT_API_KEY:local-development-livekit-api-key}
+  api-secret: ${LIVEKIT_API_SECRET:local-development-livekit-secret-key-32-bytes-minimum}
+  server-url: ${LIVEKIT_SERVER_URL:wss://local-development.livekit.invalid}
+
 agent:
   execution:
     mode: ${AGENT_EXECUTION_MODE:local}
@@ -50,4 +55,4 @@ jwt:
   refresh-token-expire-ms: ${JWT_REFRESH_TOKEN_EXPIRE_MS:1209600000}
 
 cors:
-  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:3791,http://localhost:3792,http://localhost:5173,http://localhost:1420}
+  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000,http://localhost:3791,http://localhost:3792,http://localhost:5173,http://localhost:1420}

@@ -20,10 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,8 +39,9 @@ public class GoogleCalendarGroupService {
 	private final ProjectRoomPublicService projectRoomPublicService;
 	private final GoogleCalendarConnectionService connectionService;
 	private final GoogleCalendarClient googleCalendarClient;
+	private final ProjectRoomCalendarService projectRoomCalendarService;
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<CalendarEventGroupResponse> getGroupedEvents(
 			UUID userId,
 			UUID roomId,
@@ -48,9 +52,19 @@ public class GoogleCalendarGroupService {
 	) {
 		List<CalendarEventGroupResponse> groups = new ArrayList<>();
 		boolean googleConnected = connectionService.hasActiveConnection(userId);
-		groups.addAll(groupLocalSchedules(userId, roomId, from, to, boundedLimit(localLimit), !googleConnected));
+		List<CalendarEventGroupResponse> localGroups = groupLocalSchedules(
+				userId,
+				roomId,
+				from,
+				to,
+				boundedLimit(localLimit),
+				!googleConnected
+		);
+		groups.addAll(localGroups);
 		if (googleConnected) {
-			groups.addAll(groupGoogleEvents(userId, from, to, googleCalendarIds));
+			Set<String> excludedCalendarIds = new HashSet<>(projectRoomCalendarService.findManagedGoogleCalendarIds(userId));
+			excludedCalendarIds.addAll(localRoomGoogleCalendarIds(localGroups));
+			groups.addAll(groupGoogleEvents(userId, from, to, googleCalendarIds, excludedCalendarIds));
 		}
 		return groups.stream()
 				.filter(group -> group.eventCount() > 0)
@@ -95,6 +109,7 @@ public class GoogleCalendarGroupService {
 				null,
 				sortEvents(personalEvents)
 		));
+		Map<UUID, String> roomCalendarIds = projectRoomCalendarService.findGoogleCalendarIds(userId, roomEvents.keySet());
 		for (Map.Entry<UUID, List<CalendarGroupEventResponse>> entry : roomEvents.entrySet()) {
 			UUID projectRoomId = entry.getKey();
 			groups.add(CalendarEventGroupResponse.of(
@@ -102,7 +117,7 @@ public class GoogleCalendarGroupService {
 					projectRoomId.toString(),
 					roomNames.getOrDefault(projectRoomId, projectRoomId.toString()),
 					projectRoomId,
-					null,
+					roomCalendarIds.get(projectRoomId),
 					sortEvents(entry.getValue())
 			));
 		}
@@ -129,7 +144,8 @@ public class GoogleCalendarGroupService {
 			UUID userId,
 			Instant from,
 			Instant to,
-			List<String> googleCalendarIds
+			List<String> googleCalendarIds,
+			Set<String> excludedCalendarIds
 	) {
 		GoogleCalendarConnection connection = connectionService.getActiveConnectionWithFreshToken(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CALENDAR_404_001));
@@ -138,6 +154,11 @@ public class GoogleCalendarGroupService {
 		if (!selectedIds.isEmpty()) {
 			calendars = calendars.stream()
 					.filter(calendar -> selectedIds.contains(calendar.id()))
+					.toList();
+		}
+		if (!excludedCalendarIds.isEmpty()) {
+			calendars = calendars.stream()
+					.filter(calendar -> !excludedCalendarIds.contains(calendar.id()))
 					.toList();
 		}
 		List<CalendarEventGroupResponse> groups = new ArrayList<>();
@@ -159,6 +180,14 @@ public class GoogleCalendarGroupService {
 			));
 		}
 		return groups;
+	}
+
+	private Set<String> localRoomGoogleCalendarIds(List<CalendarEventGroupResponse> localGroups) {
+		return localGroups.stream()
+				.filter(group -> group.groupType() == CalendarEventGroupType.PROJECT_ROOM)
+				.map(CalendarEventGroupResponse::googleCalendarId)
+				.filter(id -> id != null && !id.isBlank())
+				.collect(Collectors.toSet());
 	}
 
 	private Map<UUID, String> findRoomNames(UUID userId, List<ScheduleResult> schedules) {

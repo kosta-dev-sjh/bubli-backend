@@ -46,6 +46,11 @@ public class LocalStorageService implements StoragePublicService {
 	}
 
 	@Override
+	public boolean exists(String storageKey) {
+		return Files.exists(resolveSafely(storageKey));
+	}
+
+	@Override
 	public void delete(String storageKey) {
 		try {
 			Files.deleteIfExists(resolveSafely(storageKey));

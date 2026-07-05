@@ -11,11 +11,13 @@ import com.bubli.global.locale.SupportedLocale;
 import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,7 +43,7 @@ public class UserPublicServiceImpl implements UserPublicService {
 		User user = userRepository.findByGoogleSub(command.googleSub())
 				.map(existingUser -> {
 					if (!existingUser.isActive()) {
-						throw new BusinessException(ErrorCode.USER_410_001);
+						existingUser.reactivate();
 					}
 					return existingUser;
 				})
@@ -64,8 +66,18 @@ public class UserPublicServiceImpl implements UserPublicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Map<UUID, UserResult> getUsers(Page<UUID> userIds) {
-		return userRepository.findAllById(userIds.getContent()).stream()
+	public Map<UUID, UserResult> getUsers(Collection<UUID> userIds) {
+		if (userIds == null || userIds.isEmpty()) {
+			return Map.of();
+		}
+		List<UUID> distinctUserIds = userIds.stream()
+				.filter(Objects::nonNull)
+				.distinct()
+				.toList();
+		if (distinctUserIds.isEmpty()) {
+			return Map.of();
+		}
+		return userRepository.findAllById(distinctUserIds).stream()
 				.filter(User::isActive)
 				.map(this::toPublicResult)
 				.collect(Collectors.toMap(UserResult::id, Function.identity()));

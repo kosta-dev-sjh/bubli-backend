@@ -53,6 +53,7 @@ public class VoiceParticipant {
 		p.userId = userId;
 		p.status = VoiceParticipantStatus.JOINED;
 		p.joinedAt = Instant.now();
+		p.micStatus = "UNMUTED";
 		return p;
 	}
 
@@ -63,6 +64,12 @@ public class VoiceParticipant {
 
 	public void updateMicStatus(String micStatus) {
 		this.micStatus = micStatus;
+	}
+
+	public void rejoin() {
+		this.status = VoiceParticipantStatus.JOINED;
+		this.leftAt = null;
+		this.joinedAt = Instant.now();
 	}
 
 }

@@ -5,6 +5,7 @@ import com.bubli.agent.contract.v1.Suggestion;
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
+import com.bubli.agent.repository.GeneratedDocumentRepository;
 import com.bubli.agent.type.AgentSuggestionReviewAction;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.global.error.BusinessException;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class AgentSuggestionCommandService {
 
     private final AgentSuggestionRepository agentSuggestionRepository;
+    private final GeneratedDocumentRepository generatedDocumentRepository;
     private final ProjectMembershipPublicService projectMembershipPublicService;
     private final AgentSuggestionDomainApplyService agentSuggestionDomainApplyService;
     private final ProjectRoomEventPublicService projectRoomEventPublicService;
@@ -50,6 +52,7 @@ public class AgentSuggestionCommandService {
                 case HOLD -> suggestion.hold(reviewerId);
                 case REJECT -> suggestion.reject(reviewerId);
                 case DELETE -> {
+                    rejectDeleteWhenGeneratedDocumentExists(suggestion);
                     AgentSuggestionResponse response = AgentSuggestionResponse.from(suggestion);
                     agentSuggestionRepository.delete(suggestion);
                     recordReviewEvent(reviewerId, suggestion, action);
@@ -132,6 +135,12 @@ public class AgentSuggestionCommandService {
         }
     }
 
+    private void rejectDeleteWhenGeneratedDocumentExists(AgentSuggestion suggestion) {
+        if (generatedDocumentRepository.existsBySuggestionId(suggestion.getId())) {
+            throw new BusinessException(ErrorCode.AGENT_400_001);
+        }
+    }
+
     private void recordReviewEvent(
             UUID reviewerId,
             AgentSuggestion suggestion,
@@ -171,6 +180,16 @@ public class AgentSuggestionCommandService {
         payload.put("fieldKey", suggestion.fieldKey());
         payload.put("value", suggestion.value());
         payload.put("confidence", suggestion.confidence());
+        payload.put("assigneeUserId", suggestion.assigneeUserId());
+        payload.put("wbsItemId", suggestion.wbsItemId());
+        payload.put("parentId", suggestion.parentId());
+        payload.put("orderNo", suggestion.orderNo());
+        payload.put("status", suggestion.status());
+        payload.put("startsAt", suggestion.startsAt());
+        payload.put("dueAt", suggestion.dueAt());
+        payload.put("endsAt", suggestion.endsAt());
+        payload.put("allDay", suggestion.allDay());
+        payload.put("scheduleTitle", suggestion.scheduleTitle());
         return payload;
     }
 

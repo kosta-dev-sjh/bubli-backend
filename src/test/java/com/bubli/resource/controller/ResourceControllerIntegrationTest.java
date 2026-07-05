@@ -3,7 +3,9 @@ package com.bubli.resource.controller;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
 import com.bubli.resource.entity.Resource;
+import com.bubli.resource.repository.ResourceFileRepository;
 import com.bubli.resource.repository.ResourceRepository;
+import com.bubli.resource.repository.ResourceVersionRepository;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -48,6 +50,12 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	@Autowired
 	ResourceRepository resourceRepository;
 
+	@Autowired
+	ResourceFileRepository resourceFileRepository;
+
+	@Autowired
+	ResourceVersionRepository resourceVersionRepository;
+
 	@BeforeEach
 	void setUp() {
 		resourceRepository.deleteAll();
@@ -78,6 +86,29 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(jsonPath("$.error").value(nullValue()));
 
 		assertThat(resourceRepository.findAll()).hasSize(1);
+	}
+
+	@Test
+	void uploadResourceVersionPersistsFileAndVersion() throws Exception {
+		User user = createUser("google-sub-resource-version-upload", "정현");
+		Resource resource = saveResource(user.getId(), "버전 업로드 자료", ResourceKind.FILE, ResourceVisibility.PERSONAL);
+		MockMultipartFile file = new MockMultipartFile(
+				"file", "version-2.txt", "text/plain", "두 번째 파일 내용".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/resources/{resourceId}/versions", resource.getId())
+						.file(file)
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.resourceId").value(resource.getId().toString()))
+				.andExpect(jsonPath("$.data.versionNo").value(1))
+				.andExpect(jsonPath("$.data.originalName").value("version-2.txt"))
+				.andExpect(jsonPath("$.data.mimeType").value("text/plain"))
+				.andExpect(jsonPath("$.error").value(nullValue()));
+
+		assertThat(resourceFileRepository.findByResourceId(resource.getId())).hasSize(1);
+		assertThat(resourceVersionRepository.findMaxVersionNo(resource.getId())).isEqualTo(1);
 	}
 
 	@Test

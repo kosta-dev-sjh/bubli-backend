@@ -47,6 +47,7 @@ class LlmAgentJobExecutionPortTest {
 	private ChatModel chatModel;
 	private AgentJobContextCollector contextCollector;
 	private AgentModelUsageGuard modelUsageGuard;
+	private AgentResourceAnalysisCompletionRecorder resourceAnalysisCompletionRecorder;
 	private LlmAgentJobExecutionPort executionPort;
 
 	@BeforeEach
@@ -57,6 +58,7 @@ class LlmAgentJobExecutionPortTest {
 		chatModel = mock(ChatModel.class);
 		contextCollector = mock(AgentJobContextCollector.class);
 		modelUsageGuard = mock(AgentModelUsageGuard.class);
+		resourceAnalysisCompletionRecorder = mock(AgentResourceAnalysisCompletionRecorder.class);
 		given(resourceAnalysisService.findReusableAnalysisForJob(any(UUID.class)))
 				.willReturn(Optional.empty());
 		given(contextCollector.collect(org.mockito.ArgumentMatchers.any(AgentJobQueueMessage.class)))
@@ -71,7 +73,8 @@ class LlmAgentJobExecutionPortTest {
 				),
 				new ObjectMapper(),
 				contextCollector,
-				modelUsageGuard
+				modelUsageGuard,
+				resourceAnalysisCompletionRecorder
 		);
 	}
 
@@ -168,6 +171,59 @@ class LlmAgentJobExecutionPortTest {
 		assertThat(outcome.get().successful()).isTrue();
 		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
 				.contains("Implement login API");
+	}
+
+	@Test
+	void preservesWbsScheduleFieldsFromLlmContractResult() {
+		UUID roomId = UUID.randomUUID();
+		given(chatModel.call(contains("GENERATE_WBS"))).willReturn("""
+				{
+				  "schemaVersion": "analysis.v1",
+				  "resourceId": "00000000-0000-0000-0000-000000000000",
+				  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+				  "analysis": {
+				    "summary": "WBS 후보를 생성했습니다.",
+				    "keywords": ["wbs", "calendar"],
+				    "risks": [],
+				    "checklist": []
+				  },
+				  "suggestions": [
+				    {
+				      "type": "WBS",
+				      "title": "프로젝트룸 일정 정리",
+				      "description": "중간 리뷰 전에 WBS 일정을 정리합니다.",
+				      "sourceText": "7월 10일 중간 리뷰 전 일정 정리",
+				      "confidence": 0.91,
+				      "status": "TODO",
+				      "scheduleTitle": "중간 리뷰 준비",
+				      "startsAt": "2026-07-10T01:00:00Z",
+				      "endsAt": "2026-07-10T02:00:00Z",
+				      "allDay": false
+				    }
+				  ]
+				}
+				""");
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				roomId,
+				null,
+				AgentJobType.GENERATE_WBS,
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+				.contains(
+						"프로젝트룸 일정 정리",
+						"scheduleTitle",
+						"중간 리뷰 준비",
+						"startsAt",
+						"2026-07-10T01:00:00Z",
+						roomId.toString()
+				);
 	}
 
 	@Test
@@ -300,7 +356,7 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
-	void analyzeResourceStoresLlmAnalysisAndReturnsSuggestionDrafts() {
+	void analyzeResourceStoresLlmAnalysisAndSuggestionsAtomically() {
 		UUID jobId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -360,20 +416,23 @@ class LlmAgentJobExecutionPortTest {
 
 		assertThat(outcome).isPresent();
 		assertThat(outcome.get().successful()).isTrue();
-		assertThat(outcome.get().suggestionDrafts()).hasSize(2);
-		assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType())
-				.isEqualTo(AgentSuggestionType.REVIEW_ITEM);
-		assertThat(outcome.get().suggestionDrafts().get(1).suggestionType())
-				.isEqualTo(AgentSuggestionType.CONTRACT_FIELD);
-		assertThat(outcome.get().suggestionDrafts().get(1).payloadJson())
-				.contains("contract_amount", "100만원", "LLM");
+		assertThat(outcome.get().suggestionDrafts()).isEmpty();
 		verify(resourceAnalysisService).loadAnalysisSourceForJob(resourceId);
-		verify(resourceAnalysisService).completeAnalysisForJob(
+		verify(resourceAnalysisCompletionRecorder).complete(
+				argThat(message -> message.jobId().equals(jobId)
+						&& message.requestedByUserId().equals(userId)
+						&& message.roomId().equals(roomId)
+						&& message.resourceId().equals(resourceId)),
 				eq(source),
-				eq(jobId),
 				argThat(analysis -> analysis.get("summary").equals("계약금과 검수 조건 확인이 필요한 계약 문서입니다.")
 						&& analysis.get("documentType").equals("CONTRACT")
-						&& analysis.get("suggestionCount").equals(2))
+						&& analysis.get("suggestionCount").equals(2)),
+				argThat(drafts -> drafts.size() == 2
+						&& drafts.getFirst().suggestionType() == AgentSuggestionType.REVIEW_ITEM
+						&& drafts.get(1).suggestionType() == AgentSuggestionType.CONTRACT_FIELD
+						&& drafts.get(1).payloadJson().contains("contract_amount")
+						&& drafts.get(1).payloadJson().contains("100만원")
+						&& drafts.get(1).payloadJson().contains("LLM"))
 		);
 	}
 
@@ -411,7 +470,13 @@ class LlmAgentJobExecutionPortTest {
 		assertThat(outcome).isPresent();
 		assertThat(outcome.get().successful()).isTrue();
 		assertThat(outcome.get().suggestionDrafts()).isEmpty();
-		verify(resourceAnalysisService).completeAnalysisForJob(source, jobId, cachedAnalysis);
+		verify(resourceAnalysisCompletionRecorder).complete(
+				argThat(message -> message.jobId().equals(jobId)
+						&& message.resourceId().equals(resourceId)),
+				eq(source),
+				eq(cachedAnalysis),
+				eq(List.of())
+		);
 		verifyNoInteractions(chatModel);
 	}
 

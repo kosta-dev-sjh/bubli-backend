@@ -25,6 +25,9 @@ public class ActivityLog {
 	@Column(name = "room_id")
 	private UUID roomId;
 
+	@Column(name = "local_activity_id", length = 120)
+	private String localActivityId;
+
 	@Column(name = "app_name", length = 120)
 	private String appName;
 
@@ -43,11 +46,12 @@ public class ActivityLog {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
-	public static ActivityLog create(UUID userId, UUID roomId, String appName, String windowTitle,
+	public static ActivityLog create(UUID userId, UUID roomId, String localActivityId, String appName, String windowTitle,
 			Instant startedAt, Instant endedAt, long durationSeconds) {
 		ActivityLog log = new ActivityLog();
 		log.userId = userId;
 		log.roomId = roomId;
+		log.localActivityId = localActivityId;
 		log.appName = appName;
 		log.windowTitle = windowTitle;
 		log.startedAt = startedAt;

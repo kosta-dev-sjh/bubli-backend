@@ -10,6 +10,7 @@ import com.bubli.widget.dto.UpdateWidgetItemStateRequest;
 import com.bubli.widget.dto.UpdateWidgetSettingsRequest;
 import com.bubli.widget.dto.WidgetContextResponse;
 import com.bubli.widget.dto.WidgetDailySummaryResponse;
+import com.bubli.widget.dto.WidgetItemStateResponse;
 import com.bubli.widget.dto.WidgetSettingsResponse;
 import com.bubli.widget.dto.WidgetSummaryResponse;
 import com.bubli.widget.dto.WidgetTodaySummaryResponse;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,8 +37,11 @@ public class WidgetController {
     private final WidgetService widgetService;
 
     @GetMapping("/summary")
-    public ApiResponse<WidgetSummaryResponse> getSummary(@CurrentUser AuthUser authUser) {
-        return ApiResponse.success(widgetService.getSummary(authUser.userId()));
+    public ApiResponse<WidgetSummaryResponse> getSummary(
+            @CurrentUser AuthUser authUser,
+            @RequestParam(required = false) UUID selectedRoomId
+    ) {
+        return ApiResponse.success(widgetService.getSummary(authUser.userId(), selectedRoomId));
     }
 
     @GetMapping("/settings")
@@ -75,8 +80,23 @@ public class WidgetController {
             @PathVariable UUID id,
             @RequestBody @Valid UpdateWidgetItemStateRequest request
     ) {
-        widgetService.updateItemState(authUser.userId(), id, request.state());
+        widgetService.updateItemState(
+                authUser.userId(),
+                id,
+                request.bubbleType(),
+                request.itemId(),
+                request.itemType(),
+                request.state()
+        );
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/items/states")
+    public ApiResponse<List<WidgetItemStateResponse>> getItemStates(
+            @CurrentUser AuthUser authUser,
+            @RequestParam(required = false) List<UUID> itemIds
+    ) {
+        return ApiResponse.success(widgetService.getItemStates(authUser.userId(), itemIds));
     }
 
     @PostMapping("/usage-summaries")

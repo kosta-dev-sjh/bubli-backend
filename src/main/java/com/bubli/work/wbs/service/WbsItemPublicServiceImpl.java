@@ -8,6 +8,7 @@ import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.entity.WbsItem;
 import com.bubli.work.wbs.repository.WbsItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class WbsItemPublicServiceImpl implements WbsItemPublicService {
+
+	private static final int WBS_ORDER_SAVE_MAX_ATTEMPTS = 3;
 
 	private final WbsItemRepository wbsItemRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
@@ -56,9 +59,40 @@ public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 	public WbsItemResult create(UUID userId, UUID roomId, CreateWbsItemCommand command) {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		assertRoomWbsItem(roomId, command.parentId());
-		int orderNo = command.orderNo() == null
-				? wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1
-				: command.orderNo();
+		if (command.orderNo() != null) {
+			return WbsItemResult.from(createExplicitOrderItem(roomId, command));
+		}
+		return WbsItemResult.from(createAutoOrderItemWithRetry(roomId, command));
+	}
+
+	private WbsItem createExplicitOrderItem(UUID roomId, CreateWbsItemCommand command) {
+		if (wbsItemRepository.existsSiblingOrder(roomId, command.parentId(), command.orderNo())) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+		try {
+			return saveItem(roomId, command, command.orderNo());
+		} catch (DataIntegrityViolationException exception) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+	}
+
+	private WbsItem createAutoOrderItemWithRetry(UUID roomId, CreateWbsItemCommand command) {
+		DataIntegrityViolationException lastException = null;
+		for (int attempt = 0; attempt < WBS_ORDER_SAVE_MAX_ATTEMPTS; attempt++) {
+			try {
+				int orderNo = wbsItemRepository.findMaxOrderNo(roomId, command.parentId()) + 1;
+				return saveItem(roomId, command, orderNo);
+			} catch (DataIntegrityViolationException exception) {
+				lastException = exception;
+			}
+		}
+		if (lastException == null) {
+			throw new IllegalStateException("WBS order save retry attempts must be positive.");
+		}
+		throw lastException;
+	}
+
+	private WbsItem saveItem(UUID roomId, CreateWbsItemCommand command, int orderNo) {
 		WbsItem item = WbsItem.create(
 				roomId,
 				command.parentId(),
@@ -66,6 +100,6 @@ public class WbsItemPublicServiceImpl implements WbsItemPublicService {
 				orderNo,
 				command.status()
 		);
-		return WbsItemResult.from(wbsItemRepository.save(item));
+		return wbsItemRepository.saveAndFlush(item);
 	}
 }

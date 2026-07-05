@@ -60,4 +60,4 @@ logging:
     com.bubli: DEBUG
 
 cors:
-  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:5173,http://localhost:1420}
+  allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420}

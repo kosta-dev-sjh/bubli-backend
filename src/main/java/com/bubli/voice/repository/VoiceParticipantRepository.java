@@ -14,5 +14,7 @@ public interface VoiceParticipantRepository extends JpaRepository<VoiceParticipa
 
     Optional<VoiceParticipant> findByVoiceRoomIdAndUserId(UUID voiceRoomId, UUID userId);
 
+    Optional<VoiceParticipant> findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(UUID voiceRoomId, UUID userId);
+
     List<VoiceParticipant> findByVoiceRoomIdAndStatus(UUID voiceRoomId, VoiceParticipantStatus status);
 }

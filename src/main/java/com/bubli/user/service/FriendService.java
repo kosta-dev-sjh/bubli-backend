@@ -97,6 +97,9 @@ public class FriendService {
 		if (friendRequestRepository.existsByRequesterIdAndReceiverIdAndStatus(requesterId, receiver.getId(), FriendRequestStatus.PENDING)) {
 			throw new BusinessException(ErrorCode.USER_409_001);
 		}
+		if (friendRequestRepository.existsByRequesterIdAndReceiverIdAndStatus(receiver.getId(), requesterId, FriendRequestStatus.PENDING)) {
+			throw new BusinessException(ErrorCode.USER_409_001);
+		}
 
 		FriendRequest saved = friendRequestRepository.findByRequesterIdAndReceiverId(requesterId, receiver.getId())
 				.map(existing -> { existing.resend(); return existing; })
@@ -122,8 +125,12 @@ public class FriendService {
 		}
 
 		request.accept();
-		friendshipRepository.save(Friendship.create(userId, request.getRequesterId()));
-		friendshipRepository.save(Friendship.create(request.getRequesterId(), userId));
+		friendshipRepository.insertIfAbsent(UUID.randomUUID(), userId, request.getRequesterId());
+		friendshipRepository.insertIfAbsent(UUID.randomUUID(), request.getRequesterId(), userId);
+		friendRequestRepository
+				.findByRequesterIdAndReceiverId(request.getReceiverId(), request.getRequesterId())
+				.filter(reverseRequest -> reverseRequest.getStatus() == FriendRequestStatus.PENDING)
+				.ifPresent(FriendRequest::accept);
 
 		return buildResponse(request);
 	}

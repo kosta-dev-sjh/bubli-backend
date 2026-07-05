@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -39,6 +40,34 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome).isPresent();
         assertThat(outcome.get().successful()).isTrue();
         verify(resourceAnalysisService).analyzeResourceForJob(resourceId, jobId);
+    }
+
+    @Test
+    void marksResourceFailedWhenAnalyzeResourceThrows() {
+        ResourceAnalysisPublicService resourceAnalysisService = mock(ResourceAnalysisPublicService.class);
+        LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
+                resourceAnalysisService,
+                new ObjectMapper()
+        );
+        UUID jobId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("Extracted text is empty."))
+                .when(resourceAnalysisService).analyzeResourceForJob(resourceId, jobId);
+
+        var outcome = executionPort.execute(new AgentJobQueueMessage(
+                jobId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                resourceId,
+                AgentJobType.ANALYZE_RESOURCE,
+                Instant.now()
+        ));
+
+        assertThat(outcome).isPresent();
+        assertThat(outcome.get().successful()).isFalse();
+        assertThat(outcome.get().errorCode()).isEqualTo("AGENT_EXECUTION_FAILED");
+        assertThat(outcome.get().errorMessage()).isEqualTo("Extracted text is empty.");
+        verify(resourceAnalysisService).markAnalysisFailed(resourceId);
     }
 
     @Test
@@ -132,6 +161,36 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome.get().suggestionDrafts()).hasSize(1);
         assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.DAILY_SUMMARY);
         assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson()).contains("2026-07-01", "summaryJson");
+    }
+
+    @Test
+    void preservesWbsScheduleHintsFromRequestPayload() {
+        LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
+                mock(ResourceAnalysisPublicService.class),
+                new ObjectMapper()
+        );
+
+        var outcome = executionPort.execute(new AgentJobQueueMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                AgentJobType.GENERATE_WBS,
+                Map.of(
+                        "scheduleTitle", "중간 리뷰 준비",
+                        "startsAt", "2026-07-10T01:00:00Z",
+                        "endsAt", "2026-07-10T02:00:00Z",
+                        "allDay", false
+                ),
+                Instant.now()
+        ));
+
+        assertThat(outcome).isPresent();
+        assertThat(outcome.get().successful()).isTrue();
+        assertThat(outcome.get().suggestionDrafts()).hasSize(1);
+        assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.WBS);
+        assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+                .contains("scheduleTitle", "중간 리뷰 준비", "startsAt", "2026-07-10T01:00:00Z");
     }
 
     @Test

@@ -1,11 +1,11 @@
 package com.bubli.user.service;
 
-import com.bubli.global.error.BusinessException;
 import com.bubli.user.dto.UpsertGoogleUserCommand;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserPrivacyConsentRepository;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.user.type.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -14,14 +14,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class UserPublicServiceImplTest {
@@ -53,7 +56,7 @@ class UserPublicServiceImplTest {
 
 		UserResult result = userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
+				"Miyeon",
 				null,
 				"ko",
 				"Asia/Seoul"
@@ -80,7 +83,7 @@ class UserPublicServiceImplTest {
 
 		userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
+				"Miyeon",
 				null,
 				"ko",
 				"Asia/Seoul"
@@ -93,17 +96,59 @@ class UserPublicServiceImplTest {
 	}
 
 	@Test
-	void upsertGoogleUserRejectsWithdrawnUser() {
-		User user = User.createGoogleUser("google-sub", "bubli-id", "미연", null, "ko", "Asia/Seoul");
+	void upsertGoogleUserReactivatesWithdrawnUser() {
+		User user = User.createGoogleUser("google-sub", "bubli-id", "Miyeon", null, "ko", "Asia/Seoul");
 		user.withdraw();
 		given(userRepository.findByGoogleSub("google-sub")).willReturn(Optional.of(user));
 
-		assertThatThrownBy(() -> userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
+		UserResult result = userPublicService.upsertGoogleUser(new UpsertGoogleUserCommand(
 				"google-sub",
-				"미연",
-				null,
-				"ko",
+				"Rejoined User",
+				"https://cdn.example/rejoined.png",
+				"en",
 				"Asia/Seoul"
-		))).isInstanceOf(BusinessException.class);
+		));
+
+		assertThat(result.name()).isEqualTo("Rejoined User");
+		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+		assertThat(user.getDeletedAt()).isNull();
+		assertThat(user.getAvatarUrl()).isEqualTo("https://cdn.example/rejoined.png");
+		assertThat(user.getLocale()).isEqualTo("en-US");
+	}
+
+	@Test
+	void getUsersDeduplicatesIdsAndFiltersInactiveUsers() {
+		UUID activeUserId = UUID.randomUUID();
+		UUID withdrawnUserId = UUID.randomUUID();
+		User activeUser = user(activeUserId, "active-sub", "active-id", "Miyeon");
+		User withdrawnUser = user(withdrawnUserId, "withdrawn-sub", "withdrawn-id", "Withdrawn");
+		withdrawnUser.withdraw();
+		given(userRepository.findAllById(List.of(activeUserId, withdrawnUserId)))
+				.willReturn(List.of(activeUser, withdrawnUser));
+
+		Map<UUID, UserResult> result = userPublicService.getUsers(Arrays.asList(
+				activeUserId,
+				null,
+				activeUserId,
+				withdrawnUserId
+		));
+
+		assertThat(result).containsOnlyKeys(activeUserId);
+		assertThat(result.get(activeUserId).name()).isEqualTo("Miyeon");
+		verify(userRepository).findAllById(List.of(activeUserId, withdrawnUserId));
+	}
+
+	@Test
+	void getUsersReturnsEmptyMapWithoutRepositoryCallWhenNoValidIds() {
+		Map<UUID, UserResult> result = userPublicService.getUsers(Arrays.asList((UUID) null));
+
+		assertThat(result).isEmpty();
+		verifyNoInteractions(userRepository);
+	}
+
+	private User user(UUID userId, String googleSub, String bubliId, String name) {
+		User user = User.createGoogleUser(googleSub, bubliId, name, null, "ko", "Asia/Seoul");
+		ReflectionTestUtils.setField(user, "id", userId);
+		return user;
 	}
 }

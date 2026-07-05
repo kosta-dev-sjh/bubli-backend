@@ -4,6 +4,8 @@ import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.type.ChatMemberStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,4 +20,6 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
 	);
 
 	Optional<ChatRoomMember> findByChatRoomIdAndUserId(UUID chatRoomId, UUID userId);
+
+	List<ChatRoomMember> findByChatRoomIdAndUserIdIn(UUID chatRoomId, Collection<UUID> userIds);
 }

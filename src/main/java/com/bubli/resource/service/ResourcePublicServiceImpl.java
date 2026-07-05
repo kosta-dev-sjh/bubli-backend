@@ -48,6 +48,12 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Optional<ResourceSummaryResult> findResourceSummary(UUID userId, UUID resourceId) {
+		return resourceService.findResourceSummary(userId, resourceId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords) {
 		return resourceService.findLatestRoomResource(userId, roomId, titleKeywords);
 	}

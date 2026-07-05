@@ -3,6 +3,7 @@ package com.bubli.work.task.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
@@ -69,6 +70,39 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 		if (existsByWbsItemId(wbsItemId)) {
 			throw new BusinessException(ErrorCode.WORK_400_001);
 		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public void assertScheduleTaskScope(UUID userId, UUID roomId, UUID taskId) {
+		if (taskId == null) {
+			return;
+		}
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.SCHEDULE_400_001));
+		if (task.getRoomId() == null) {
+			if (roomId != null || !userId.equals(task.getOwnerUserId())) {
+				throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+			}
+			return;
+		}
+		if (!task.getRoomId().equals(roomId)) {
+			throw new BusinessException(ErrorCode.SCHEDULE_400_001);
+		}
+		projectMembershipPublicService.assertActiveMember(userId, task.getRoomId());
+	}
+
+	@Override
+	@Transactional
+	public TaskResult createPersonalTask(UUID userId, CreatePersonalTaskCommand command) {
+		Task task = Task.createPersonal(
+				userId,
+				command.title(),
+				command.description(),
+				command.status(),
+				command.dueAt()
+		);
+		return TaskResult.from(taskRepository.save(task));
 	}
 
 	@Override

@@ -128,7 +128,19 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/resources/{{resourceId}}/download-url
 Authorization: Bearer {{accessToken}}
 
-### 자료 버전 등록
+### 자료 버전 파일 업로드
+POST {{baseUrl}}/api/resources/{{resourceId}}/versions
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=versionUploadBoundary
+
+--versionUploadBoundary
+Content-Disposition: form-data; name="file"; filename="계약서-v2.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+--versionUploadBoundary--
+
+### 자료 버전 메타 등록
 POST {{baseUrl}}/api/resources/{{resourceId}}/versions
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json

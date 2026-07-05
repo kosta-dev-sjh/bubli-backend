@@ -28,17 +28,19 @@ public enum ErrorCode {
     // PROJECT
     PROJECT_403_001(HttpStatus.FORBIDDEN, "PROJECT_403_001", "프로젝트룸 접근 권한이 없습니다."),
     PROJECT_403_002(HttpStatus.FORBIDDEN, "PROJECT_403_002", "프로젝트룸 리더만 처리할 수 있습니다."),
+    PROJECT_403_003(HttpStatus.FORBIDDEN, "PROJECT_403_003", "친구로 등록된 사용자만 프로젝트룸에 초대할 수 있습니다."),
     PROJECT_404_001(HttpStatus.NOT_FOUND, "PROJECT_404_001", "프로젝트룸을 찾을 수 없습니다."),
     PROJECT_404_002(HttpStatus.NOT_FOUND, "PROJECT_404_002", "초대를 찾을 수 없습니다."),
     PROJECT_409_001(HttpStatus.CONFLICT, "PROJECT_409_001", "이미 프로젝트룸에 참여 중인 사용자입니다."),
     PROJECT_409_002(HttpStatus.CONFLICT, "PROJECT_409_002", "이미 처리되었거나 만료된 초대입니다."),
     PROJECT_409_003(HttpStatus.CONFLICT, "PROJECT_409_003", "이미 대기 중인 초대가 있습니다."),
-    PROJECT_404_003(HttpStatus.NOT_FOUND, "PROJECT_404_003", "초대 링크를 찾을 수 없습니다."),
-    PROJECT_410_001(HttpStatus.GONE, "PROJECT_410_001", "만료된 초대 링크입니다."),
+    PROJECT_409_004(HttpStatus.CONFLICT, "PROJECT_409_004", "프로젝트룸에는 최소 한 명의 리더가 필요합니다."),
 
     // WORK
     WORK_400_001(HttpStatus.BAD_REQUEST, "WORK_400_001", "WBS 항목에 연결된 태스크가 있어 삭제할 수 없습니다."),
     WORK_400_002(HttpStatus.BAD_REQUEST, "WORK_400_002", "하위 WBS 항목이 있어 삭제할 수 없습니다."),
+    WORK_400_003(HttpStatus.BAD_REQUEST, "WORK_400_003", "WBS 항목에 연결된 일정이 있어 삭제할 수 없습니다."),
+    WORK_400_004(HttpStatus.BAD_REQUEST, "WORK_400_004", "TODO에 연결된 일정이 있어 삭제할 수 없습니다."),
     WORK_403_001(HttpStatus.FORBIDDEN, "WORK_403_001", "작업 접근 권한이 없습니다."),
     WORK_404_001(HttpStatus.NOT_FOUND, "WORK_404_001", "TODO를 찾을 수 없습니다."),
     WORK_404_002(HttpStatus.NOT_FOUND, "WORK_404_002", "WBS 항목을 찾을 수 없습니다."),

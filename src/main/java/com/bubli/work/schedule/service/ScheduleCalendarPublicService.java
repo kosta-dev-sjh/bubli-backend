@@ -36,5 +36,7 @@ public interface ScheduleCalendarPublicService {
 
 	void deleteGoogleEventSchedules(UUID userId, Collection<String> googleEventIds);
 
+	void deleteGoogleEventSchedules(UUID userId, String googleCalendarId, Collection<String> googleEventIds);
+
 	List<ScheduleResult> pushUnsyncedEvents(UUID userId, Instant from, Instant to);
 }

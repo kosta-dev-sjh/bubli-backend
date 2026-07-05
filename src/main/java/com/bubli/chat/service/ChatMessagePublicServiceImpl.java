@@ -8,6 +8,7 @@ import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.repository.ChatMessageRepository;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
+import com.bubli.chat.type.ChatMemberStatus;
 import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.project.service.ProjectMembershipPublicService;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ChatMessagePublicServiceImpl implements ChatMessagePublicService {
+
+	private static final int MESSAGE_SEQUENCE_SAVE_MAX_ATTEMPTS = 3;
 
 	private final ChatRoomRepository chatRoomRepository;
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
@@ -59,23 +63,8 @@ public class ChatMessagePublicServiceImpl implements ChatMessagePublicService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		ChatRoom chatRoom = chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)
 				.orElseGet(() -> chatRoomRepository.save(ChatRoom.createRoom(roomId, "프로젝트룸 채팅")));
-		if (!chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
-				chatRoom.getId(),
-				userId,
-				com.bubli.chat.type.ChatMemberStatus.ACTIVE
-		)) {
-			chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), userId));
-		}
-		long nextSequence = chatMessageRepository.findMaxRoomSequence(chatRoom.getId()) + 1;
-		ChatMessage message = chatMessageRepository.save(ChatMessage.create(
-				chatRoom.getId(),
-				userId,
-				"agent-response-" + UUID.randomUUID(),
-				nextSequence,
-				MessageType.AGENT_RESPONSE,
-				writeBody(body),
-				resourceId
-		));
+		ensureActiveChatRoomMember(chatRoom.getId(), userId);
+		ChatMessage message = createAgentResponseMessageWithRetry(chatRoom.getId(), userId, body, resourceId);
 		ChatMessageResult result = new ChatMessageResult(
 				message.getId(),
 				message.getChatRoomId(),
@@ -91,6 +80,43 @@ public class ChatMessagePublicServiceImpl implements ChatMessagePublicService {
 		);
 		webSocketPublishPublicService.publishChatMessage(result);
 		return result;
+	}
+
+	private ChatMessage createAgentResponseMessageWithRetry(UUID chatRoomId, UUID userId, JsonNode body,
+			UUID resourceId) {
+		DataIntegrityViolationException lastException = null;
+		for (int attempt = 0; attempt < MESSAGE_SEQUENCE_SAVE_MAX_ATTEMPTS; attempt++) {
+			try {
+				long nextSequence = chatMessageRepository.findMaxRoomSequence(chatRoomId) + 1;
+				return chatMessageRepository.saveAndFlush(ChatMessage.create(
+						chatRoomId,
+						userId,
+						"agent-response-" + UUID.randomUUID(),
+						nextSequence,
+						MessageType.AGENT_RESPONSE,
+						writeBody(body),
+						resourceId
+				));
+			} catch (DataIntegrityViolationException exception) {
+				lastException = exception;
+			}
+		}
+		if (lastException == null) {
+			throw new IllegalStateException("Message save retry attempts must be positive.");
+		}
+		throw lastException;
+	}
+
+	private void ensureActiveChatRoomMember(UUID chatRoomId, UUID userId) {
+		chatRoomMemberRepository.findByChatRoomIdAndUserId(chatRoomId, userId)
+				.ifPresentOrElse(
+						member -> {
+							if (member.getStatus() != ChatMemberStatus.ACTIVE) {
+								member.reactivate();
+							}
+						},
+						() -> chatRoomMemberRepository.save(ChatRoomMember.create(chatRoomId, userId))
+				);
 	}
 
 	private String writeBody(JsonNode body) {

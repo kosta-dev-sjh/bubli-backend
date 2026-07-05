@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -114,8 +115,6 @@ class AuthServiceTest {
 		);
 		given(googleOAuthClient.fetchUserProfile(command)).willReturn(profile);
 		given(userPublicService.upsertGoogleUser(any(UpsertGoogleUserCommand.class))).willReturn(user);
-		given(userSessionRepository.findByUserIdAndClientType(userId, ClientType.TAURI)).willReturn(Optional.empty());
-		given(userSessionRepository.save(any(UserSession.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		AuthTokenResponse response = authService.handleGoogleCallback(command);
 
@@ -125,10 +124,15 @@ class AuthServiceTest {
 		assertThat(response.user().id()).isEqualTo(userId);
 		assertThat(response.user().name()).isEqualTo("미연");
 
-		ArgumentCaptor<UserSession> sessionCaptor = ArgumentCaptor.forClass(UserSession.class);
-		verify(userSessionRepository).save(sessionCaptor.capture());
-		assertThat(sessionCaptor.getValue().getRefreshToken()).isNotEqualTo(response.refreshToken());
-		assertThat(sessionCaptor.getValue().getUserId()).isEqualTo(userId);
+		ArgumentCaptor<String> refreshTokenHashCaptor = ArgumentCaptor.forClass(String.class);
+		verify(userSessionRepository).upsertActiveSession(
+				any(UUID.class),
+				eq(userId),
+				refreshTokenHashCaptor.capture(),
+				eq(ClientType.TAURI.name()),
+				any(Instant.class)
+		);
+		assertThat(refreshTokenHashCaptor.getValue()).isNotEqualTo(response.refreshToken());
 		verify(googleCalendarConnectionPublicService).saveAuthorizedConnection(
 				userId,
 				"miyeon@example.com",
@@ -144,10 +148,10 @@ class AuthServiceTest {
 		User user = User.createGoogleUser("google-sub", "bubli-id", "미연", null, "ko", "Asia/Seoul");
 		ReflectionTestUtils.setField(user, "id", userId);
 		AuthTokenResponse loginResponse = loginExistingUser(user);
-		UserSession session = captureSavedSession();
+		UserSession session = captureUpsertedSession(userId, ClientType.TAURI);
 		String oldRefreshTokenHash = session.getRefreshToken();
 
-		given(userSessionRepository.findByRefreshTokenAndClientType(oldRefreshTokenHash, ClientType.TAURI))
+		given(userSessionRepository.findByRefreshTokenAndClientTypeForUpdate(oldRefreshTokenHash, ClientType.TAURI))
 				.willReturn(Optional.of(session));
 		given(userPublicService.getUser(userId)).willReturn(new UserResult(
 				userId,
@@ -174,8 +178,8 @@ class AuthServiceTest {
 		User user = User.createGoogleUser("google-sub", "bubli-id", "미연", null, "ko", "Asia/Seoul");
 		ReflectionTestUtils.setField(user, "id", userId);
 		AuthTokenResponse loginResponse = loginExistingUser(user);
-		UserSession session = captureSavedSession();
-		given(userSessionRepository.findByRefreshTokenAndClientType(session.getRefreshToken(), ClientType.TAURI))
+		UserSession session = captureUpsertedSession(userId, ClientType.TAURI);
+		given(userSessionRepository.findByRefreshTokenAndClientTypeForUpdate(session.getRefreshToken(), ClientType.TAURI))
 				.willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> authService.refresh(new RefreshTokenCommand(
@@ -192,7 +196,7 @@ class AuthServiceTest {
 		AuthTokenResponse loginResponse = loginExistingUser(user);
 		UserSession tauriSession = UserSession.create(
 				userId,
-				captureSavedSession().getRefreshToken(),
+				captureUpsertedSession(userId, ClientType.TAURI).getRefreshToken(),
 				ClientType.TAURI,
 				Instant.now().plusSeconds(60)
 		);
@@ -202,7 +206,7 @@ class AuthServiceTest {
 				ClientType.WEB,
 				Instant.now().plusSeconds(60)
 		);
-		given(userSessionRepository.findByRefreshTokenAndClientType(tauriSession.getRefreshToken(), ClientType.TAURI))
+		given(userSessionRepository.findByRefreshTokenAndClientTypeForUpdate(tauriSession.getRefreshToken(), ClientType.TAURI))
 				.willReturn(Optional.of(tauriSession));
 
 		authService.logout(userId, new RefreshTokenCommand(loginResponse.refreshToken(), ClientType.TAURI));
@@ -236,15 +240,19 @@ class AuthServiceTest {
 				user.getLocale(),
 				user.getTimezone()
 		));
-		given(userSessionRepository.findByUserIdAndClientType(user.getId(), ClientType.TAURI)).willReturn(Optional.empty());
-		given(userSessionRepository.save(any(UserSession.class))).willAnswer(invocation -> invocation.getArgument(0));
-
 		return authService.handleGoogleCallback(command);
 	}
 
-	private UserSession captureSavedSession() {
-		ArgumentCaptor<UserSession> sessionCaptor = ArgumentCaptor.forClass(UserSession.class);
-		verify(userSessionRepository).save(sessionCaptor.capture());
-		return sessionCaptor.getValue();
+	private UserSession captureUpsertedSession(UUID userId, ClientType clientType) {
+		ArgumentCaptor<String> refreshTokenHashCaptor = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Instant> expiresAtCaptor = ArgumentCaptor.forClass(Instant.class);
+		verify(userSessionRepository).upsertActiveSession(
+				any(UUID.class),
+				eq(userId),
+				refreshTokenHashCaptor.capture(),
+				eq(clientType.name()),
+				expiresAtCaptor.capture()
+		);
+		return UserSession.create(userId, refreshTokenHashCaptor.getValue(), clientType, expiresAtCaptor.getValue());
 	}
 }

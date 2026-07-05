@@ -3,6 +3,8 @@ package com.bubli.work.wbs.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
 import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.service.TaskPublicService;
@@ -22,8 +24,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +49,9 @@ class WbsItemServiceTest {
 
 	@Mock
 	TaskPublicService taskPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@Mock
 	ProjectMembershipPublicService projectMembershipPublicService;
@@ -74,7 +82,7 @@ class WbsItemServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID itemId = UUID.randomUUID();
 		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(3);
-		given(wbsItemRepository.save(any(WbsItem.class))).willAnswer(invocation -> {
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class))).willAnswer(invocation -> {
 			WbsItem item = invocation.getArgument(0);
 			ReflectionTestUtils.setField(item, "id", itemId);
 			return item;
@@ -90,6 +98,85 @@ class WbsItemServiceTest {
 		assertThat(result.id()).isEqualTo(itemId);
 		assertThat(result.orderNo()).isEqualTo(4);
 		assertThat(result.status()).isEqualTo(WbsStatus.TODO);
+	}
+
+	@Test
+	void createWbsItemRetriesWhenAutoOrderConflicts() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(3, 4);
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate wbs order"))
+				.willAnswer(invocation -> {
+					WbsItem item = invocation.getArgument(0);
+					ReflectionTestUtils.setField(item, "id", itemId);
+					return item;
+				});
+
+		WbsItemResult result = wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"동시 생성",
+				null,
+				null
+		).toCommand());
+
+		assertThat(result.id()).isEqualTo(itemId);
+		assertThat(result.orderNo()).isEqualTo(5);
+		verify(wbsItemRepository, times(2)).saveAndFlush(any(WbsItem.class));
+	}
+
+	@Test
+	void createWbsItemCreatesRoomScheduleWhenDateIsIncluded() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		Instant startsAt = Instant.parse("2026-07-05T01:30:00Z");
+		Instant endsAt = Instant.parse("2026-07-05T02:00:00Z");
+		given(wbsItemRepository.findMaxOrderNo(roomId, null)).willReturn(0);
+		given(wbsItemRepository.saveAndFlush(any(WbsItem.class))).willAnswer(invocation -> {
+			WbsItem item = invocation.getArgument(0);
+			ReflectionTestUtils.setField(item, "id", itemId);
+			return item;
+		});
+
+		WbsItemResult result = wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"프로젝트룸 일정 정리",
+				null,
+				WbsStatus.TODO,
+				"일정 후보",
+				startsAt,
+				null,
+				endsAt,
+				false
+		).toCommand());
+
+		ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+		verify(schedulePublicService).create(org.mockito.ArgumentMatchers.eq(userId), commandCaptor.capture());
+		assertThat(result.id()).isEqualTo(itemId);
+		assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+		assertThat(commandCaptor.getValue().wbsItemId()).isEqualTo(itemId);
+		assertThat(commandCaptor.getValue().taskId()).isNull();
+		assertThat(commandCaptor.getValue().title()).isEqualTo("일정 후보");
+		assertThat(commandCaptor.getValue().startsAt()).isEqualTo(startsAt);
+		assertThat(commandCaptor.getValue().endsAt()).isEqualTo(endsAt);
+	}
+
+	@Test
+	void createWbsItemRejectsDuplicatedExplicitOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		given(wbsItemRepository.existsSiblingOrder(roomId, null, 2)).willReturn(true);
+
+		assertThatThrownBy(() -> wbsItemService.create(userId, roomId, new CreateWbsItemRequest(
+				null,
+				"중복 순서",
+				2,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).saveAndFlush(any(WbsItem.class));
 	}
 
 	@Test
@@ -127,6 +214,76 @@ class WbsItemServiceTest {
 		assertThat(result.title()).isEqualTo("수정 작업");
 		assertThat(result.orderNo()).isEqualTo(2);
 		assertThat(result.status()).isEqualTo(WbsStatus.IN_PROGRESS);
+	}
+
+	@Test
+	void updateWbsItemRejectsDuplicatedSiblingOrder() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		given(wbsItemRepository.existsSiblingOrderExcludingId(roomId, null, 1, itemId)).willReturn(true);
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, itemId, new UpdateWbsItemRequest(
+				null,
+				null,
+				1,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).flush();
+	}
+
+	@Test
+	void updateWbsItemConvertsOrderFlushConflictToBadRequest() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "두 번째", 2, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		given(wbsItemRepository.existsSiblingOrderExcludingId(roomId, null, 1, itemId)).willReturn(false);
+		willThrow(new DataIntegrityViolationException("duplicate wbs order"))
+				.given(wbsItemRepository)
+				.flush();
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, itemId, new UpdateWbsItemRequest(
+				null,
+				null,
+				1,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+	}
+
+	@Test
+	void updateWbsItemRejectsDescendantParent() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID parentId = UUID.randomUUID();
+		UUID childId = UUID.randomUUID();
+		UUID grandChildId = UUID.randomUUID();
+		WbsItem parent = WbsItem.create(roomId, null, "상위", 1, WbsStatus.TODO);
+		WbsItem child = WbsItem.create(roomId, parentId, "하위", 1, WbsStatus.TODO);
+		WbsItem grandChild = WbsItem.create(roomId, childId, "손자", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(parent, "id", parentId);
+		ReflectionTestUtils.setField(child, "id", childId);
+		ReflectionTestUtils.setField(grandChild, "id", grandChildId);
+		given(wbsItemRepository.findById(parentId)).willReturn(Optional.of(parent));
+		given(wbsItemRepository.findById(grandChildId)).willReturn(Optional.of(grandChild));
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(parent, child, grandChild));
+
+		assertThatThrownBy(() -> wbsItemService.update(userId, parentId, new UpdateWbsItemRequest(
+				grandChildId,
+				null,
+				null,
+				null
+		).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).flush();
 	}
 
 	@Test
@@ -172,6 +329,31 @@ class WbsItemServiceTest {
 	}
 
 	@Test
+	void reorderWbsItemsRejectsDescendantParent() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID parentId = UUID.randomUUID();
+		UUID childId = UUID.randomUUID();
+		UUID grandChildId = UUID.randomUUID();
+		WbsItem parent = WbsItem.create(roomId, null, "상위", 1, WbsStatus.TODO);
+		WbsItem child = WbsItem.create(roomId, parentId, "하위", 1, WbsStatus.TODO);
+		WbsItem grandChild = WbsItem.create(roomId, childId, "손자", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(parent, "id", parentId);
+		ReflectionTestUtils.setField(child, "id", childId);
+		ReflectionTestUtils.setField(grandChild, "id", grandChildId);
+		given(wbsItemRepository.findByRoomIdOrderByParentIdAscOrderNoAsc(roomId))
+				.willReturn(List.of(parent, child, grandChild));
+
+		assertThatThrownBy(() -> wbsItemService.reorder(userId, roomId, new ReorderWbsItemsRequest(List.of(
+				new ReorderWbsItemRequest(parentId, grandChildId, 1),
+				new ReorderWbsItemRequest(childId, parentId, 1),
+				new ReorderWbsItemRequest(grandChildId, childId, 1)
+		)).toCommand())).isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_400_002));
+		verify(wbsItemRepository, never()).saveAllAndFlush(any());
+	}
+
+	@Test
 	void deleteWbsItemRejectsWhenTaskIsLinked() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -185,6 +367,24 @@ class WbsItemServiceTest {
 
 		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
 				.isInstanceOf(BusinessException.class);
+		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
+	}
+
+	@Test
+	void deleteWbsItemRejectsWhenScheduleIsLinked() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		WbsItem item = WbsItem.create(roomId, null, "연결 일정", 1, WbsStatus.TODO);
+		ReflectionTestUtils.setField(item, "id", itemId);
+		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
+		willThrow(new BusinessException(ErrorCode.WORK_400_003))
+				.given(schedulePublicService)
+				.assertNoScheduleLinkedToWbsItem(itemId);
+
+		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_003));
 		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
 	}
 

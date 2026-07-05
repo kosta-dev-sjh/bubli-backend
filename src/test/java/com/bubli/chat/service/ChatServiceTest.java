@@ -29,6 +29,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -146,6 +147,8 @@ class ChatServiceTest {
 			return chatRoom;
 		});
 		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId, memberId));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(any(UUID.class), any()))
+				.willReturn(List.of());
 
 		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
 
@@ -172,16 +175,89 @@ class ChatServiceTest {
 		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
 		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
 		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(requesterId));
-		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+		ChatRoomMember existingMember = ChatRoomMember.create(existing.getId(), requesterId);
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(
 				existing.getId(),
-				requesterId,
-				ChatMemberStatus.ACTIVE
-		)).willReturn(true);
+				List.of(requesterId)
+		)).willReturn(List.of(existingMember));
 
 		ChatRoomResult result = chatService.createProjectRoomChatRoom(requesterId, roomId);
 
 		assertThat(result.id()).isEqualTo(existing.getId());
 		verify(chatRoomRepository, never()).save(any(ChatRoom.class));
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
+	void createProjectRoomChatRoomReactivatesLeftChatMemberWithoutDuplicateSave() {
+		UUID requesterId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ProjectRoomResult projectRoom = projectRoom(roomId, "프로젝트룸");
+		ChatRoom existing = ChatRoom.createRoom(roomId, "프로젝트룸");
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ChatRoomMember leftMember = ChatRoomMember.create(existing.getId(), memberId);
+		leftMember.leave();
+		given(projectRoomPublicService.getProjectRoom(requesterId, roomId)).willReturn(projectRoom);
+		given(chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)).willReturn(Optional.of(existing));
+		given(projectMembershipPublicService.findActiveMemberIds(roomId)).willReturn(List.of(memberId));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(existing.getId(), List.of(memberId)))
+				.willReturn(List.of(leftMember));
+
+		chatService.createProjectRoomChatRoom(requesterId, roomId);
+
+		assertThat(leftMember.getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
+		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+	}
+
+	@Test
+	void inviteMembersSavesMissingMember() {
+		UUID inviterId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ChatRoom chatRoom = ChatRoom.createGroup("그룹 채팅");
+		ReflectionTestUtils.setField(chatRoom, "id", chatRoomId);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				inviterId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
+				.willReturn(List.of());
+
+		chatService.inviteMembers(inviterId, chatRoomId, List.of(memberId));
+
+		ArgumentCaptor<ChatRoomMember> memberCaptor = ArgumentCaptor.forClass(ChatRoomMember.class);
+		verify(chatRoomMemberRepository).save(memberCaptor.capture());
+		assertThat(memberCaptor.getValue().getChatRoomId()).isEqualTo(chatRoomId);
+		assertThat(memberCaptor.getValue().getUserId()).isEqualTo(memberId);
+		assertThat(memberCaptor.getValue().getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void inviteMembersReactivatesLeftMemberWithoutDuplicateSave() {
+		UUID inviterId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		UUID memberId = UUID.randomUUID();
+		ChatRoom chatRoom = ChatRoom.createGroup("그룹 채팅");
+		ReflectionTestUtils.setField(chatRoom, "id", chatRoomId);
+		ChatRoomMember leftMember = ChatRoomMember.create(chatRoomId, memberId);
+		leftMember.leave();
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				inviterId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
+				.willReturn(List.of(leftMember));
+
+		chatService.inviteMembers(inviterId, chatRoomId, List.of(memberId));
+
+		assertThat(leftMember.getStatus()).isEqualTo(ChatMemberStatus.ACTIVE);
 		verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
 	}
 
@@ -208,7 +284,7 @@ class ChatServiceTest {
 				.willReturn(Optional.empty());
 		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
 		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(7L);
-		given(chatMessageRepository.save(any(ChatMessage.class))).willAnswer(invocation -> {
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class))).willAnswer(invocation -> {
 			ChatMessage message = invocation.getArgument(0);
 			ReflectionTestUtils.setField(message, "id", UUID.randomUUID());
 			ReflectionTestUtils.setField(message, "createdAt", Instant.now());
@@ -225,10 +301,96 @@ class ChatServiceTest {
 		assertThat(result.body().get("text").asText()).isEqualTo("안녕하세요");
 
 		ArgumentCaptor<ChatMessage> captor = ArgumentCaptor.forClass(ChatMessage.class);
-		verify(chatMessageRepository).save(captor.capture());
+		verify(chatMessageRepository).saveAndFlush(captor.capture());
 		assertThat(captor.getValue().getClientMessageId()).isEqualTo("client-1");
 		assertThat(captor.getValue().getRoomSequence()).isEqualTo(8L);
 		verify(webSocketPublishPublicService).publishChatMessage(result);
+	}
+
+	@Test
+	void sendMessageRetriesWhenRoomSequenceConflicts() throws Exception {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UserResult sender = user(userId, "정현");
+		ChatRoom chatRoom = chatRoom(chatRoomId);
+		SendChatMessageCommand command = new SendChatMessageCommand(
+				"client-retry",
+				MessageType.TEXT,
+				objectMapper.readTree("""
+						{"text":"동시 메시지"}
+						"""),
+				null
+		);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatMessageRepository.findByChatRoomIdAndClientMessageId(chatRoomId, "client-retry"))
+				.willReturn(Optional.empty(), Optional.empty());
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(7L, 8L);
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate room sequence"))
+				.willAnswer(invocation -> {
+					ChatMessage message = invocation.getArgument(0);
+					ReflectionTestUtils.setField(message, "id", UUID.randomUUID());
+					ReflectionTestUtils.setField(message, "createdAt", Instant.now());
+					return message;
+				});
+		given(userPublicService.getUser(userId)).willReturn(sender);
+
+		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
+
+		assertThat(result.roomSequence()).isEqualTo(9L);
+		verify(chatMessageRepository, times(2)).saveAndFlush(any(ChatMessage.class));
+		verify(webSocketPublishPublicService).publishChatMessage(result);
+	}
+
+	@Test
+	void sendMessageReturnsExistingMessageWhenConcurrentClientMessageIdWasSaved() throws Exception {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		UserResult sender = user(userId, "미연");
+		ChatRoom chatRoom = chatRoom(chatRoomId);
+		ChatMessage existing = ChatMessage.create(
+				chatRoomId,
+				userId,
+				"client-race",
+				5L,
+				MessageType.TEXT,
+				"{\"text\":\"동시에 저장됨\"}",
+				null
+		);
+		ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+		ReflectionTestUtils.setField(existing, "createdAt", Instant.now());
+		SendChatMessageCommand command = new SendChatMessageCommand(
+				"client-race",
+				MessageType.TEXT,
+				objectMapper.readTree("""
+						{"text":"동시에 저장됨"}
+						"""),
+				null
+		);
+		given(chatRoomMemberRepository.existsByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(true);
+		given(chatMessageRepository.findByChatRoomIdAndClientMessageId(chatRoomId, "client-race"))
+				.willReturn(Optional.empty(), Optional.of(existing));
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
+		given(chatMessageRepository.findMaxRoomSequence(chatRoomId)).willReturn(4L);
+		given(chatMessageRepository.saveAndFlush(any(ChatMessage.class)))
+				.willThrow(new DataIntegrityViolationException("duplicate client message id"));
+		given(userPublicService.getUser(userId)).willReturn(sender);
+
+		ChatMessageResult result = chatService.sendMessage(userId, chatRoomId, command);
+
+		assertThat(result.id()).isEqualTo(existing.getId());
+		assertThat(result.roomSequence()).isEqualTo(5L);
+		verify(chatMessageRepository).saveAndFlush(any(ChatMessage.class));
+		verify(webSocketPublishPublicService, never()).publishChatMessage(any(ChatMessageResult.class));
 	}
 
 	@Test

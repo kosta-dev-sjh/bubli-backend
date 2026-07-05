@@ -29,7 +29,7 @@ spring:
           options:
             model: ${BEDROCK_CHAT_MODEL_ID:apac.anthropic.claude-3-haiku-20240307-v1:0}
             temperature: ${BEDROCK_CHAT_TEMPERATURE:0.2}
-            max-tokens: ${BEDROCK_CHAT_MAX_TOKENS:1200}
+            max-tokens: ${BEDROCK_CHAT_MAX_TOKENS:3000}
       titan:
         embedding:
           model: ${BEDROCK_EMBEDDING_MODEL_ID:amazon.titan-embed-text-v2:0}
@@ -97,7 +97,7 @@ google:
     redirect-uri: ${GOOGLE_CALENDAR_REDIRECT_URI:}
 
 cors:
-  allowed-origin-patterns: https://bubli.n-e.kr
+  allowed-origin-patterns: https://bubli.n-e.kr,http://tauri.localhost
 management:
   endpoints:
     web:

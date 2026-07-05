@@ -4,6 +4,7 @@ import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.dto.TaskResult;
@@ -26,15 +27,16 @@ public class TaskService {
 	private final TaskRepository taskRepository;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final WbsItemPublicService wbsItemPublicService;
+	private final SchedulePublicService schedulePublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<TaskResult> getPersonalTasks(UUID userId, Pageable pageable) {
-		return toPage(taskRepository.findByOwnerUserIdAndRoomIdIsNull(userId, pageable));
+		return toPage(taskRepository.findVisibleTasksForUser(userId, pageable));
 	}
 
 	@Transactional(readOnly = true)
 	public PageResponse<TaskResult> getAssignedTasks(UUID userId, Pageable pageable) {
-		return toPage(taskRepository.findByAssigneeUserId(userId, pageable));
+		return toPage(taskRepository.findAssignedVisibleTasksForUser(userId, pageable));
 	}
 
 	@Transactional(readOnly = true)
@@ -102,6 +104,7 @@ public class TaskService {
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.WORK_404_001));
 		checkTaskAccess(userId, task);
+		schedulePublicService.assertNoScheduleLinkedToTask(taskId);
 		taskRepository.delete(task);
 	}
 

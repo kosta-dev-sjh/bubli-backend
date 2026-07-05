@@ -35,6 +35,7 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             }
             return Optional.of(generateSuggestion(message));
         } catch (RuntimeException exception) {
+            markResourceAnalysisFailed(message, exception);
             return Optional.of(AgentJobExecutionOutcome.failed(
                     "AGENT_EXECUTION_FAILED",
                     errorMessage(exception)
@@ -51,6 +52,17 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
         }
         resourceAnalysisService.analyzeResourceForJob(message.resourceId(), message.jobId());
         return AgentJobExecutionOutcome.succeededWithModelCallLogs(modelCallLog(null));
+    }
+
+    private void markResourceAnalysisFailed(AgentJobQueueMessage message, RuntimeException originalException) {
+        if (message.jobType() != AgentJobType.ANALYZE_RESOURCE || message.resourceId() == null) {
+            return;
+        }
+        try {
+            resourceAnalysisService.markAnalysisFailed(message.resourceId());
+        } catch (RuntimeException failure) {
+            originalException.addSuppressed(failure);
+        }
     }
 
     private AgentJobExecutionOutcome generateSuggestion(AgentJobQueueMessage message) {
@@ -139,7 +151,29 @@ public class LocalAgentJobExecutionPort implements AgentJobExecutionPort {
             payload.put("sourceResourceIds", requestPayload.getOrDefault("sourceResourceIds", List.of()));
             payload.put("contentMarkdown", draftContent(locale));
         }
+        if (message.jobType() == AgentJobType.GENERATE_TASKS) {
+            copyIfPresent(payload, requestPayload, "assigneeUserId");
+            copyIfPresent(payload, requestPayload, "wbsItemId");
+            copyIfPresent(payload, requestPayload, "status");
+            copyIfPresent(payload, requestPayload, "dueAt");
+        }
+        if (message.jobType() == AgentJobType.GENERATE_WBS) {
+            copyIfPresent(payload, requestPayload, "parentId");
+            copyIfPresent(payload, requestPayload, "orderNo");
+            copyIfPresent(payload, requestPayload, "status");
+            copyIfPresent(payload, requestPayload, "startsAt");
+            copyIfPresent(payload, requestPayload, "dueAt");
+            copyIfPresent(payload, requestPayload, "endsAt");
+            copyIfPresent(payload, requestPayload, "allDay");
+            copyIfPresent(payload, requestPayload, "scheduleTitle");
+        }
         return payload;
+    }
+
+    private void copyIfPresent(Map<String, Object> payload, Map<String, Object> requestPayload, String key) {
+        if (requestPayload.containsKey(key) && requestPayload.get(key) != null) {
+            payload.put(key, requestPayload.get(key));
+        }
     }
 
     private String koreanTitle(AgentJobType jobType) {

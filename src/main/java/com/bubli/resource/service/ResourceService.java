@@ -16,6 +16,7 @@ import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.ResourceVersionResult;
 import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
 import com.bubli.resource.dto.UploadResourceCommand;
+import com.bubli.resource.dto.UploadResourceVersionCommand;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceComment;
 import com.bubli.resource.entity.ResourceExtractedText;
@@ -36,6 +37,8 @@ import com.bubli.resource.type.AnalysisStatus;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.storage.dto.FileUploadResult;
 import com.bubli.storage.service.StoragePublicService;
 import com.bubli.storage.service.StorageUsagePublicService;
@@ -48,6 +51,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -78,6 +83,7 @@ public class ResourceService {
 	private final StoragePublicService storagePublicService;
 	private final StorageUsagePublicService storageUsagePublicService;
 	private final ProjectMembershipPublicService projectMembershipPublicService;
+	private final NotificationPublicService notificationPublicService;
 
 	@Value("${storage.max-upload-size-bytes:104857600}")
 	private long maxUploadSizeBytes = DEFAULT_MAX_UPLOAD_SIZE_BYTES;
@@ -142,6 +148,13 @@ public class ResourceService {
 		ResourceSummary summary = resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_004));
 		return ResourceSummaryResult.from(summary);
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<ResourceSummaryResult> findResourceSummary(UUID userId, UUID resourceId) {
+		getReadableResource(userId, resourceId);
+		return resourceSummaryRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resourceId)
+				.map(ResourceSummaryResult::from);
 	}
 
 	@Transactional(readOnly = true)
@@ -302,6 +315,7 @@ public class ResourceService {
 				command.visibility(),
 				ResourceStatus.READY
 		));
+		resourceRepository.flush();
 		FileUploadResult uploaded = null;
 		boolean storageUsageRecorded = false;
 		try {
@@ -321,6 +335,7 @@ public class ResourceService {
 					uploaded.sizeBytes(),
 					uploaded.checksum()
 			));
+			resourceFileRepository.flush();
 			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resource.getId()) + 1;
 			resourceVersionRepository.save(ResourceVersion.create(
 					resource.getId(),
@@ -328,6 +343,7 @@ public class ResourceService {
 					file.getId(),
 					userId
 			));
+			resourceVersionRepository.flush();
 		} catch (RuntimeException e) {
 			deleteUploadedObject(uploaded, e);
 			releaseRecordedStorageUsage(storageUsageRecorded, userId, roomId, command, e);
@@ -339,10 +355,10 @@ public class ResourceService {
 	@Transactional
 	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
 		Resource resource = getReadableResource(userId, resourceId);
-		if (title != null && title.isBlank()) {
+		if (!StringUtils.hasText(title)) {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
-		resource.updateTitle(title);
+		resource.updateTitle(title.trim());
 		return ResourceResult.from(resource);
 	}
 
@@ -406,13 +422,13 @@ public class ResourceService {
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
 		Resource resource = getReadableResource(userId, resourceId);
-		var files = resourceFileRepository.findByResourceId(resourceId);
+		List<ResourceFile> files = resourceFileRepository.findByResourceId(resourceId);
 		long usedBytes = files.stream()
 				.mapToLong(ResourceFile::getSizeBytes)
 				.sum();
 		resource.markDeleted(Instant.now());
-		deleteStoredFiles(files);
 		releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), usedBytes);
+		deleteStoredFilesAfterCommit(files);
 	}
 
 	@Transactional
@@ -421,28 +437,109 @@ public class ResourceService {
 		validateCommentBody(body);
 		validateParentComment(resourceId, parentId);
 		ResourceComment comment = ResourceComment.create(resourceId, userId, parentId, body);
-		return ResourceCommentResult.from(resourceCommentRepository.save(comment));
+		ResourceCommentResult result = ResourceCommentResult.from(resourceCommentRepository.save(comment));
+		notificationPublicService.create(
+				userId,
+				NotificationSourceType.COMMENT,
+				resourceId,
+				"리소스 댓글 알림",
+				body
+		);
+		return result;
 	}
 
 	@Transactional
 	public ResourceVersionResult createVersion(UUID userId, UUID resourceId, CreateResourceVersionCommand command) {
-		getReadableResource(userId, resourceId);
-		ResourceFile file = resourceFileRepository.save(ResourceFile.create(
-				resourceId,
-				command.storageKey(),
-				command.originalName(),
-				command.mimeType(),
-				command.sizeBytes(),
-				command.checksum()
-		));
-		int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
-		ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
-				resourceId,
-				nextVersionNo,
-				file.getId(),
-				userId
-		));
-		return ResourceVersionResult.from(version, file);
+		Resource resource = getReadableResource(userId, resourceId);
+		validateCreateVersionCommand(resourceId, command);
+		validateStoredObjectExists(command.storageKey());
+		lockResourceVersionSequence(resourceId);
+		boolean storageUsageRecorded = false;
+		try {
+			recordStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), command.sizeBytes());
+			storageUsageRecorded = true;
+			ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+					resourceId,
+					command.storageKey(),
+					command.originalName(),
+					command.mimeType(),
+					command.sizeBytes(),
+					command.checksum()
+			));
+			resourceFileRepository.flush();
+			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
+			ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
+					resourceId,
+					nextVersionNo,
+					file.getId(),
+					userId
+			));
+			resourceVersionRepository.flush();
+			return ResourceVersionResult.from(version, file);
+		} catch (RuntimeException e) {
+			releaseRecordedStorageUsage(
+					storageUsageRecorded,
+					resource.getOwnerId(),
+					resource.getRoomId(),
+					resource.getVisibility(),
+					command.sizeBytes(),
+					e
+			);
+			throw e;
+		}
+	}
+
+	@Transactional
+	public ResourceVersionResult uploadVersion(UUID userId, UUID resourceId, UploadResourceVersionCommand command) {
+		Resource resource = getReadableResource(userId, resourceId);
+		validateUploadVersionCommand(command);
+		lockResourceVersionSequence(resourceId);
+		FileUploadResult uploaded = null;
+		boolean storageUsageRecorded = false;
+		try {
+			recordStorageUsage(
+					resource.getOwnerId(),
+					resource.getRoomId(),
+					resource.getVisibility(),
+					command.content().length
+			);
+			storageUsageRecorded = true;
+			uploaded = storagePublicService.save(
+					storageKey(resourceId, command.originalName()),
+					command.originalName(),
+					command.mimeType(),
+					command.content()
+			);
+			ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+					resourceId,
+					uploaded.storageKey(),
+					uploaded.originalName(),
+					uploaded.mimeType(),
+					uploaded.sizeBytes(),
+					uploaded.checksum()
+			));
+			resourceFileRepository.flush();
+			int nextVersionNo = resourceVersionRepository.findMaxVersionNo(resourceId) + 1;
+			ResourceVersion version = resourceVersionRepository.save(ResourceVersion.create(
+					resourceId,
+					nextVersionNo,
+					file.getId(),
+					userId
+			));
+			resourceVersionRepository.flush();
+			return ResourceVersionResult.from(version, file);
+		} catch (RuntimeException e) {
+			deleteUploadedObject(uploaded, e);
+			releaseRecordedStorageUsage(
+					storageUsageRecorded,
+					resource.getOwnerId(),
+					resource.getRoomId(),
+					resource.getVisibility(),
+					command.content().length,
+					e
+			);
+			throw e;
+		}
 	}
 
 	@Transactional
@@ -461,6 +558,10 @@ public class ResourceService {
 		getReadableResource(userId, comment.getResourceId());
 		checkCommentAuthor(userId, comment);
 		comment.markDeleted(Instant.now());
+	}
+
+	private void lockResourceVersionSequence(UUID resourceId) {
+		resourceRepository.lockById(resourceId);
 	}
 
 	private void validateCreateCommand(UUID userId, CreateResourceCommand command) {
@@ -493,6 +594,37 @@ public class ResourceService {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
 		validateCreateCommand(userId, command.toCreateResourceCommand());
+	}
+
+	private void validateCreateVersionCommand(UUID resourceId, CreateResourceVersionCommand command) {
+		if (command == null || !StringUtils.hasText(command.storageKey())
+				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())
+				|| command.sizeBytes() == null || command.sizeBytes() <= 0) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		String expectedPrefix = "resources/%s/".formatted(resourceId);
+		if (!command.storageKey().startsWith(expectedPrefix)) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		if (command.sizeBytes() > maxUploadSizeBytes || !isAllowedMimeType(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+	}
+
+	private void validateStoredObjectExists(String storageKey) {
+		if (!storagePublicService.exists(storageKey)) {
+			throw new BusinessException(ErrorCode.RESOURCE_404_003);
+		}
+	}
+
+	private void validateUploadVersionCommand(UploadResourceVersionCommand command) {
+		if (command == null || command.content() == null || command.content().length == 0
+				|| !StringUtils.hasText(command.originalName()) || !StringUtils.hasText(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		if (command.content().length > maxUploadSizeBytes || !isAllowedMimeType(command.mimeType())) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
 	}
 
 	private boolean isAllowedMimeType(String mimeType) {
@@ -539,6 +671,23 @@ public class ResourceService {
 		}
 	}
 
+	private void deleteStoredFilesAfterCommit(List<ResourceFile> files) {
+		if (files.isEmpty()) {
+			return;
+		}
+		List<ResourceFile> filesToDelete = List.copyOf(files);
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			deleteStoredFiles(filesToDelete);
+			return;
+		}
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				deleteStoredFiles(filesToDelete);
+			}
+		});
+	}
+
 	private void recordStorageDeleteRetry(ResourceFile file, RuntimeException cause) {
 		try {
 			storageDeleteRetryRecorder.recordFailedDelete(file, cause);
@@ -552,10 +701,16 @@ public class ResourceService {
 	}
 
 	private void recordStorageUsage(UUID userId, UUID roomId, UploadResourceCommand command) {
-		long sizeBytes = command.content().length;
-		if (command.visibility() == ResourceVisibility.PERSONAL) {
+		recordStorageUsage(userId, roomId, command.visibility(), command.content().length);
+	}
+
+	private void recordStorageUsage(UUID userId, UUID roomId, ResourceVisibility visibility, long sizeBytes) {
+		if (visibility == ResourceVisibility.PERSONAL) {
 			storageUsagePublicService.recordPersonalUpload(userId, sizeBytes);
 			return;
+		}
+		if (visibility != ResourceVisibility.ROOM_SHARED || roomId == null) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
 		storageUsagePublicService.recordRoomUpload(roomId, sizeBytes);
 	}
@@ -567,12 +722,29 @@ public class ResourceService {
 			UploadResourceCommand command,
 			RuntimeException cause
 	) {
+		releaseRecordedStorageUsage(
+				storageUsageRecorded,
+				userId,
+				roomId,
+				command.visibility(),
+				command.content().length,
+				cause
+		);
+	}
+
+	private void releaseRecordedStorageUsage(
+			boolean storageUsageRecorded,
+			UUID userId,
+			UUID roomId,
+			ResourceVisibility visibility,
+			long sizeBytes,
+			RuntimeException cause
+	) {
 		if (!storageUsageRecorded) {
 			return;
 		}
-		long sizeBytes = command.content().length;
 		try {
-			if (command.visibility() == ResourceVisibility.PERSONAL) {
+			if (visibility == ResourceVisibility.PERSONAL) {
 				storageUsagePublicService.releasePersonalUsage(userId, sizeBytes);
 				return;
 			}

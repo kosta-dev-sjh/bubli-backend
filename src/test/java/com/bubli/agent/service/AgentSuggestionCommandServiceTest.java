@@ -7,6 +7,7 @@ import com.bubli.agent.contract.v1.Suggestion;
 import com.bubli.agent.contract.v1.SuggestionType;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
+import com.bubli.agent.repository.GeneratedDocumentRepository;
 import com.bubli.agent.type.AgentSuggestionReviewAction;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +43,7 @@ class AgentSuggestionCommandServiceTest {
 
         var response = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -61,6 +64,7 @@ class AgentSuggestionCommandServiceTest {
 
         assertThatThrownBy(() -> new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -80,6 +84,7 @@ class AgentSuggestionCommandServiceTest {
 
         var response = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -97,10 +102,12 @@ class AgentSuggestionCommandServiceTest {
         UUID reviewerId = UUID.randomUUID();
         AgentSuggestion suggestion = suggestion(suggestionId);
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        GeneratedDocumentRepository generatedDocumentRepository = mock(GeneratedDocumentRepository.class);
         when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
 
         new AgentSuggestionCommandService(
                 repository,
+                generatedDocumentRepository,
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -111,6 +118,30 @@ class AgentSuggestionCommandServiceTest {
     }
 
     @Test
+    void rejectsDeletingSuggestionLinkedToGeneratedDocument() {
+        UUID suggestionId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        GeneratedDocumentRepository generatedDocumentRepository = mock(GeneratedDocumentRepository.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(suggestion));
+        when(generatedDocumentRepository.existsBySuggestionId(suggestionId)).thenReturn(true);
+
+        assertThatThrownBy(() -> new AgentSuggestionCommandService(
+                repository,
+                generatedDocumentRepository,
+                mock(ProjectMembershipPublicService.class),
+                mock(AgentSuggestionDomainApplyService.class),
+                mock(ProjectRoomEventPublicService.class)
+        )
+                .review(suggestionId, reviewerId, AgentSuggestionReviewAction.DELETE, null))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+
+        verify(repository, never()).delete(suggestion);
+    }
+
+    @Test
     void createsDraftSuggestionsFromAnalysisResult() {
         AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
         when(repository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -118,6 +149,7 @@ class AgentSuggestionCommandServiceTest {
 
         List<com.bubli.agent.dto.AgentSuggestionResponse> responses = new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 mock(ProjectRoomEventPublicService.class)
@@ -130,11 +162,15 @@ class AgentSuggestionCommandServiceTest {
                         analysisResult(resourceId)
                 );
 
-        assertThat(responses).hasSize(2);
+        assertThat(responses).hasSize(3);
         assertThat(responses.get(0).suggestionType()).isEqualTo(AgentSuggestionType.TASK);
         assertThat(responses.get(0).payloadJson()).containsEntry("title", "로그인 구현");
         assertThat(responses.get(0).evidenceJson()).containsEntry("resourceId", resourceId.toString());
         assertThat(responses.get(1).suggestionType()).isEqualTo(AgentSuggestionType.CONTRACT_FIELD);
+        assertThat(responses.get(2).suggestionType()).isEqualTo(AgentSuggestionType.WBS);
+        assertThat(responses.get(2).payloadJson()).containsEntry("scheduleTitle", "중간 리뷰 준비");
+        assertThat(responses.get(2).payloadJson()).containsEntry("startsAt", "2026-07-10T01:00:00Z");
+        assertThat(responses.get(2).payloadJson()).containsEntry("endsAt", "2026-07-10T02:00:00Z");
     }
 
     @Test
@@ -148,6 +184,7 @@ class AgentSuggestionCommandServiceTest {
 
         new AgentSuggestionCommandService(
                 repository,
+                mock(GeneratedDocumentRepository.class),
                 mock(ProjectMembershipPublicService.class),
                 mock(AgentSuggestionDomainApplyService.class),
                 eventPublicService
@@ -202,6 +239,25 @@ class AgentSuggestionCommandServiceTest {
                                 0.8,
                                 "amount",
                                 "3000000"
+                        ),
+                        new Suggestion(
+                                SuggestionType.WBS,
+                                "중간 리뷰",
+                                "프로젝트룸 중간 리뷰를 준비한다.",
+                                "7월 10일 중간 리뷰",
+                                0.85,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                2,
+                                "TODO",
+                                "2026-07-10T01:00:00Z",
+                                null,
+                                "2026-07-10T02:00:00Z",
+                                false,
+                                "중간 리뷰 준비"
                         )
                 )
         );

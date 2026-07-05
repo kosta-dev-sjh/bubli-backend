@@ -11,7 +11,11 @@ import com.bubli.project.type.ProjectRoomStatus;
 import com.bubli.support.PostgresIntegrationTestSupport;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
+import com.bubli.work.schedule.entity.Schedule;
+import com.bubli.work.schedule.repository.ScheduleRepository;
+import com.bubli.work.task.entity.Task;
 import com.bubli.work.task.repository.TaskRepository;
+import com.bubli.work.task.type.TaskStatus;
 import com.bubli.work.wbs.repository.WbsItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,10 +24,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,8 +62,12 @@ class WorkControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	@Autowired
 	TaskRepository taskRepository;
 
+	@Autowired
+	ScheduleRepository scheduleRepository;
+
 	@BeforeEach
 	void setUp() {
+		scheduleRepository.deleteAll();
 		taskRepository.deleteAll();
 		wbsItemRepository.deleteAll();
 		roomMemberRepository.deleteAll();
@@ -160,6 +171,37 @@ class WorkControllerIntegrationTest extends PostgresIntegrationTestSupport {
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.error.code").value("PROJECT_403_001"));
+	}
+
+	@Test
+	void deleteTaskRejectsWhenScheduleIsLinked() throws Exception {
+		User user = createUser("google-sub-task-schedule-delete", "재민");
+		Task task = taskRepository.save(Task.createPersonal(
+				user.getId(),
+				"일정 연결 TODO",
+				null,
+				TaskStatus.TODO,
+				null
+		));
+		scheduleRepository.save(Schedule.create(
+				user.getId(),
+				null,
+				task.getId(),
+				null,
+				"TODO 연결 일정",
+				Instant.parse("2026-07-05T01:00:00Z"),
+				Instant.parse("2026-07-05T02:00:00Z"),
+				false
+		));
+
+		mockMvc.perform(delete("/api/tasks/{taskId}", task.getId())
+						.header(AUTHORIZATION, bearerToken(user.getId(), "jaemin@example.com")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(jsonPath("$.data").value(nullValue()))
+				.andExpect(jsonPath("$.error.code").value("WORK_400_004"));
+
+		assertThat(taskRepository.findById(task.getId())).isPresent();
 	}
 
 	private User createUser(String googleSub, String name) {

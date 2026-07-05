@@ -10,6 +10,7 @@ import com.bubli.personal.memo.dto.CreateMemoCommand;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
 import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +53,10 @@ public class AgentSuggestionDomainApplyService {
         }
         if (type == AgentSuggestionType.MEMO) {
             markApplied(suggestion, "MEMO", createMemo(reviewerId, suggestion));
+            return;
+        }
+        if (suggestion.getRoomId() == null && (type == AgentSuggestionType.TASK || type == AgentSuggestionType.TODO)) {
+            markApplied(suggestion, "PERSONAL_TASK", createPersonalTask(reviewerId, suggestion));
             return;
         }
         if (suggestion.getRoomId() == null) {
@@ -82,6 +88,17 @@ public class AgentSuggestionDomainApplyService {
         }
     }
 
+    private Map<String, Object> createPersonalTask(UUID reviewerId, AgentSuggestion suggestion) {
+        Map<String, Object> payload = suggestion.getPayloadJson();
+        var result = taskPublicService.createPersonalTask(reviewerId, new CreatePersonalTaskCommand(
+                requiredText(payload, "title"),
+                text(payload.get("description")),
+                enumValue(TaskStatus.class, payload.get("status"), TaskStatus.TODO),
+                instant(payload.get("dueAt"))
+        ));
+        return result == null ? Map.of() : Map.of("taskId", result.id().toString());
+    }
+
     private Map<String, Object> createTask(UUID reviewerId, AgentSuggestion suggestion) {
         Map<String, Object> payload = suggestion.getPayloadJson();
         var result = taskPublicService.createRoomTask(reviewerId, suggestion.getRoomId(), new CreateRoomTaskCommand(
@@ -103,7 +120,27 @@ public class AgentSuggestionDomainApplyService {
                 integer(payload.get("orderNo")),
                 enumValue(WbsStatus.class, payload.get("status"), WbsStatus.TODO)
         ));
-        return result == null ? Map.of() : Map.of("wbsItemId", result.id().toString());
+        if (result == null) {
+            return Map.of();
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("wbsItemId", result.id().toString());
+        Instant scheduleStartsAt = firstInstant(payload.get("startsAt"), payload.get("dueAt"));
+        if (scheduleStartsAt != null) {
+            var schedule = schedulePublicService.create(reviewerId, new CreateScheduleCommand(
+                    suggestion.getRoomId(),
+                    null,
+                    result.id(),
+                    scheduleTitle(payload, result.title()),
+                    scheduleStartsAt,
+                    instant(payload.get("endsAt")),
+                    bool(payload.get("allDay"))
+            ));
+            if (schedule != null) {
+                details.put("scheduleId", schedule.id().toString());
+            }
+        }
+        return details;
     }
 
     private Map<String, Object> createSchedule(UUID reviewerId, AgentSuggestion suggestion) {
@@ -214,17 +251,53 @@ public class AgentSuggestionDomainApplyService {
 
     private UUID uuid(Object value) {
         String text = text(value);
-        return text == null || text.isBlank() ? null : UUID.fromString(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException exception) {
+            throw invalidPayload();
+        }
     }
 
     private Instant instant(Object value) {
         String text = text(value);
-        return text == null || text.isBlank() ? null : Instant.parse(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(text);
+        } catch (DateTimeParseException exception) {
+            throw invalidPayload();
+        }
+    }
+
+    private Instant firstInstant(Object... values) {
+        for (Object value : values) {
+            Instant instant = instant(value);
+            if (instant != null) {
+                return instant;
+            }
+        }
+        return null;
+    }
+
+    private String scheduleTitle(Map<String, Object> payload, String defaultTitle) {
+        String scheduleTitle = text(payload.get("scheduleTitle"));
+        return scheduleTitle == null || scheduleTitle.isBlank() ? defaultTitle : scheduleTitle;
     }
 
     private LocalDate localDate(Object value, LocalDate defaultValue) {
         String text = text(value);
-        return text == null || text.isBlank() ? defaultValue : LocalDate.parse(text);
+        if (text == null || text.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException exception) {
+            throw invalidPayload();
+        }
     }
 
     private String summaryJson(Map<String, Object> payload) {
@@ -244,7 +317,14 @@ public class AgentSuggestionDomainApplyService {
             return number.intValue();
         }
         String text = text(value);
-        return text == null || text.isBlank() ? null : Integer.parseInt(text);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException exception) {
+            throw invalidPayload();
+        }
     }
 
     private boolean bool(Object value) {
@@ -257,6 +337,17 @@ public class AgentSuggestionDomainApplyService {
 
     private <E extends Enum<E>> E enumValue(Class<E> type, Object value, E defaultValue) {
         String text = text(value);
-        return text == null || text.isBlank() ? defaultValue : Enum.valueOf(type, text);
+        if (text == null || text.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Enum.valueOf(type, text);
+        } catch (IllegalArgumentException exception) {
+            throw invalidPayload();
+        }
+    }
+
+    private BusinessException invalidPayload() {
+        return new BusinessException(ErrorCode.AGENT_400_001);
     }
 }

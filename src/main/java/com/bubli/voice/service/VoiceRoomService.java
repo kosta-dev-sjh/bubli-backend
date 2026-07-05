@@ -31,12 +31,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class VoiceRoomService {
+
+    private static final String DEFAULT_MIC_STATUS = "UNMUTED";
 
     private final VoiceRoomRepository voiceRoomRepository;
     private final VoiceParticipantRepository voiceParticipantRepository;
@@ -56,6 +57,7 @@ public class VoiceRoomService {
 
     private VoiceRoomResponse createProjectVoiceRoom(UUID userId, UUID roomId) {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
+        voiceRoomRepository.lockRoomOpenCreation(lockKey(roomId));
 
         Optional<VoiceRoom> existing = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN);
         if (existing.isPresent()) {
@@ -96,21 +98,37 @@ public class VoiceRoomService {
         return toRoomResponse(voiceRoom, List.of(toParticipantResponse(participant, user.name())));
     }
 
+    private String lockKey(UUID roomId) {
+        return "voice-room-open:" + roomId;
+    }
+
     @Transactional(readOnly = true)
     public VoiceRoomResponse getVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
+        List<VoiceParticipant> participants = currentParticipants(voiceRoomId);
 
-        List<UUID> userIds = participants.stream().map(VoiceParticipant::getUserId).toList();
-        Map<UUID, String> nameMap = userPublicService.getUser(userId) != null
-                ? fetchUserNames(userIds)
-                : Map.of();
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
 
         List<VoiceParticipantResponse> participantResponses = participants.stream()
                 .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
                 .toList();
 
         return toRoomResponse(voiceRoom, participantResponses);
+    }
+
+    @Transactional(readOnly = true)
+    public VoiceRoomResponse getOpenVoiceRoomByProjectRoom(UUID userId, UUID roomId) {
+        projectRoomAccessPublicService.requireRoomMember(roomId, userId);
+
+        VoiceRoom voiceRoom = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+
+        return toRoomResponse(voiceRoom, participants.stream()
+                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                .toList());
     }
 
     @Transactional
@@ -127,11 +145,15 @@ public class VoiceRoomService {
 
         boolean[] joined = {false};
         VoiceParticipant participant = voiceParticipantRepository
-                .findByVoiceRoomIdAndUserId(voiceRoomId, userId)
+                .findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoomId, userId)
                 .orElseGet(() -> {
                     joined[0] = true;
                     return voiceParticipantRepository.save(VoiceParticipant.join(voiceRoomId, userId));
                 });
+        if (participant.getStatus() != VoiceParticipantStatus.JOINED) {
+            joined[0] = true;
+            participant.rejoin();
+        }
         if (joined[0] && voiceRoom.getRoomId() != null) {
             projectRoomEventPublicService.recordVoiceParticipantJoined(
                     userId,
@@ -156,11 +178,12 @@ public class VoiceRoomService {
 
     @Transactional
     public VoiceParticipantResponse updateMicStatus(UUID userId, UUID voiceRoomId, String micStatus) {
-        findRoom(voiceRoomId);
-        VoiceParticipant participant = voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
+        VoiceParticipant participant = latestParticipant(voiceRoomId, userId)
+                .filter(p -> p.getStatus() == VoiceParticipantStatus.JOINED)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
         participant.updateMicStatus(micStatus);
-        VoiceRoom voiceRoom = findRoom(voiceRoomId);
         if (voiceRoom.getRoomId() != null) {
             projectRoomEventPublicService.recordVoiceParticipantMicUpdated(
                     userId,
@@ -178,19 +201,21 @@ public class VoiceRoomService {
     @Transactional
     public VoiceRoomResponse leaveVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        voiceParticipantRepository.findByVoiceRoomIdAndUserId(voiceRoomId, userId)
-                .ifPresent(participant -> {
-                    participant.leave();
-                    if (voiceRoom.getRoomId() != null) {
-                        projectRoomEventPublicService.recordVoiceParticipantLeft(
-                                userId,
-                                voiceRoom.getRoomId(),
-                                voiceRoom.getId(),
-                                participant.getId(),
-                                participant.getUserId()
-                        );
-                    }
-                });
+        requireRoomMemberIfRoomVoice(userId, voiceRoom);
+        latestParticipant(voiceRoomId, userId).ifPresent(participant -> {
+            if (participant.getStatus() == VoiceParticipantStatus.JOINED) {
+                participant.leave();
+                if (voiceRoom.getRoomId() != null) {
+                    projectRoomEventPublicService.recordVoiceParticipantLeft(
+                            userId,
+                            voiceRoom.getRoomId(),
+                            voiceRoom.getId(),
+                            participant.getId(),
+                            participant.getUserId()
+                    );
+                }
+            }
+        });
 
         List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
@@ -226,19 +251,36 @@ public class VoiceRoomService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
     }
 
+    private Optional<VoiceParticipant> latestParticipant(UUID voiceRoomId, UUID userId) {
+        return voiceParticipantRepository.findFirstByVoiceRoomIdAndUserIdOrderByCreatedAtDesc(voiceRoomId, userId);
+    }
+
+    private List<VoiceParticipant> currentParticipants(UUID voiceRoomId) {
+        return voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED);
+    }
+
+    private void requireRoomMemberIfRoomVoice(UUID userId, VoiceRoom voiceRoom) {
+        if (voiceRoom.getRoomId() != null) {
+            projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
+        }
+    }
+
     private Map<UUID, String> fetchUserNames(List<UUID> userIds) {
-        return userIds.stream()
+        List<UUID> distinctUserIds = userIds.stream()
                 .distinct()
+                .toList();
+        if (distinctUserIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return userPublicService.getUsers(distinctUserIds).values().stream()
                 .collect(Collectors.toMap(
-                        Function.identity(),
-                        id -> {
-                            try {
-                                return userPublicService.getUser(id).name();
-                            } catch (Exception e) {
-                                return "";
-                            }
-                        }
+                        UserResult::id,
+                        user -> Optional.ofNullable(user.name()).orElse("")
                 ));
+        } catch (RuntimeException exception) {
+            return Map.of();
+        }
     }
 
     private String generateLiveKitToken(UUID userId, String roomName, Instant expiresAt) {
@@ -280,7 +322,8 @@ public class VoiceRoomService {
                 userName,
                 p.getStatus().name(),
                 p.getJoinedAt(),
-                p.getLeftAt()
+                p.getLeftAt(),
+                Optional.ofNullable(p.getMicStatus()).orElse(DEFAULT_MIC_STATUS)
         );
     }
 }

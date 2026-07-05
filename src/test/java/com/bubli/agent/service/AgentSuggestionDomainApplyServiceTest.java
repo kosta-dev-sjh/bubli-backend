@@ -3,6 +3,8 @@ package com.bubli.agent.service;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.entity.GeneratedDocument;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.memory.dto.CreateDailySummaryDraftCommand;
 import com.bubli.memory.service.DailySummaryPublicService;
 import com.bubli.personal.memo.dto.CreateMemoCommand;
@@ -10,11 +12,15 @@ import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.work.schedule.dto.CreateScheduleCommand;
+import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
+import com.bubli.work.task.dto.CreatePersonalTaskCommand;
+import com.bubli.work.schedule.type.ScheduleSyncStatus;
 import com.bubli.work.task.dto.CreateRoomTaskCommand;
 import com.bubli.work.task.service.TaskPublicService;
 import com.bubli.work.task.type.TaskStatus;
 import com.bubli.work.wbs.dto.CreateWbsItemCommand;
+import com.bubli.work.wbs.dto.WbsItemResult;
 import com.bubli.work.wbs.service.WbsItemPublicService;
 import com.bubli.work.wbs.type.WbsStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -62,6 +69,29 @@ class AgentSuggestionDomainApplyServiceTest {
     }
 
     @Test
+    void appliesTaskSuggestionWithoutRoomToPersonalTask() {
+        TaskPublicService taskPublicService = mock(TaskPublicService.class);
+        AgentSuggestionDomainApplyService service = service(taskPublicService, mock(WbsItemPublicService.class), mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        UUID reviewerId = UUID.randomUUID();
+        AgentSuggestion suggestion = suggestion(null, AgentSuggestionType.TASK, Map.of(
+                "title", "계약 조건 검토",
+                "description", "개인 자료에서 생성된 확인 작업",
+                "status", "TODO",
+                "dueAt", "2026-07-01T00:00:00Z"
+        ));
+
+        service.applyApprovedSuggestion(reviewerId, suggestion);
+
+        ArgumentCaptor<CreatePersonalTaskCommand> commandCaptor = ArgumentCaptor.forClass(CreatePersonalTaskCommand.class);
+        verify(taskPublicService).createPersonalTask(org.mockito.ArgumentMatchers.eq(reviewerId), commandCaptor.capture());
+        assertThat(commandCaptor.getValue().title()).isEqualTo("계약 조건 검토");
+        assertThat(commandCaptor.getValue().description()).isEqualTo("개인 자료에서 생성된 확인 작업");
+        assertThat(commandCaptor.getValue().status()).isEqualTo(TaskStatus.TODO);
+        assertThat(commandCaptor.getValue().dueAt()).isEqualTo(Instant.parse("2026-07-01T00:00:00Z"));
+        assertThat(appliedResult(suggestion).get("targetType")).isEqualTo("PERSONAL_TASK");
+    }
+
+    @Test
     void appliesWbsSuggestionToWbsItem() {
         WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
         AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
@@ -83,6 +113,72 @@ class AgentSuggestionDomainApplyServiceTest {
         assertThat(commandCaptor.getValue().parentId()).isEqualTo(parentId);
         assertThat(commandCaptor.getValue().orderNo()).isEqualTo(3);
         assertThat(commandCaptor.getValue().status()).isEqualTo(WbsStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void appliesWbsSuggestionWithDateToRoomSchedule() {
+        WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
+        SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, schedulePublicService, mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        UUID reviewerId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID wbsItemId = UUID.randomUUID();
+        UUID scheduleId = UUID.randomUUID();
+        Instant startsAt = Instant.parse("2026-07-05T01:30:00Z");
+        Instant endsAt = Instant.parse("2026-07-05T02:00:00Z");
+        org.mockito.Mockito.when(wbsItemPublicService.create(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.eq(roomId),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new WbsItemResult(
+                wbsItemId,
+                roomId,
+                null,
+                "프로젝트룸 일정 정리",
+                1,
+                WbsStatus.TODO,
+                Instant.now(),
+                Instant.now()
+        ));
+        org.mockito.Mockito.when(schedulePublicService.create(
+                org.mockito.ArgumentMatchers.eq(reviewerId),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new ScheduleResult(
+                scheduleId,
+                reviewerId,
+                roomId,
+                null,
+                wbsItemId,
+                null,
+                null,
+                null,
+                "일정 후보",
+                startsAt,
+                endsAt,
+                false,
+                ScheduleSyncStatus.LOCAL_ONLY,
+                null,
+                Instant.now(),
+                Instant.now()
+        ));
+        AgentSuggestion suggestion = suggestion(roomId, AgentSuggestionType.WBS, Map.of(
+                "title", "프로젝트룸 일정 정리",
+                "scheduleTitle", "일정 후보",
+                "startsAt", startsAt.toString(),
+                "endsAt", endsAt.toString(),
+                "allDay", false
+        ));
+
+        service.applyApprovedSuggestion(reviewerId, suggestion);
+
+        ArgumentCaptor<CreateScheduleCommand> commandCaptor = ArgumentCaptor.forClass(CreateScheduleCommand.class);
+        verify(schedulePublicService).create(org.mockito.ArgumentMatchers.eq(reviewerId), commandCaptor.capture());
+        assertThat(commandCaptor.getValue().roomId()).isEqualTo(roomId);
+        assertThat(commandCaptor.getValue().wbsItemId()).isEqualTo(wbsItemId);
+        assertThat(commandCaptor.getValue().title()).isEqualTo("일정 후보");
+        assertThat(commandCaptor.getValue().startsAt()).isEqualTo(startsAt);
+        assertThat(commandCaptor.getValue().endsAt()).isEqualTo(endsAt);
+        assertThat(appliedResult(suggestion).toString()).contains(wbsItemId.toString(), scheduleId.toString());
     }
 
     @Test
@@ -108,6 +204,81 @@ class AgentSuggestionDomainApplyServiceTest {
         assertThat(commandCaptor.getValue().title()).isEqualTo("?뚯쓽");
         assertThat(commandCaptor.getValue().startsAt()).isEqualTo(startsAt);
         assertThat(commandCaptor.getValue().endsAt()).isEqualTo(endsAt);
+    }
+
+    @Test
+    void rejectsMalformedTaskUuidPayloadAsBadRequest() {
+        TaskPublicService taskPublicService = mock(TaskPublicService.class);
+        AgentSuggestionDomainApplyService service = service(taskPublicService, mock(WbsItemPublicService.class), mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        AgentSuggestion suggestion = suggestion(UUID.randomUUID(), AgentSuggestionType.TASK, Map.of(
+                "title", "잘못된 담당자",
+                "assigneeUserId", "not-a-uuid"
+        ));
+
+        assertThatThrownBy(() -> service.applyApprovedSuggestion(UUID.randomUUID(), suggestion))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+        verifyNoInteractions(taskPublicService);
+    }
+
+    @Test
+    void rejectsMalformedScheduleInstantPayloadAsBadRequest() {
+        SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), mock(WbsItemPublicService.class), schedulePublicService, mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        AgentSuggestion suggestion = suggestion(UUID.randomUUID(), AgentSuggestionType.SCHEDULE, Map.of(
+                "title", "잘못된 일정",
+                "startsAt", "not-an-instant"
+        ));
+
+        assertThatThrownBy(() -> service.applyApprovedSuggestion(UUID.randomUUID(), suggestion))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+        verifyNoInteractions(schedulePublicService);
+    }
+
+    @Test
+    void rejectsMalformedWbsIntegerPayloadAsBadRequest() {
+        WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        AgentSuggestion suggestion = suggestion(UUID.randomUUID(), AgentSuggestionType.WBS, Map.of(
+                "title", "잘못된 WBS",
+                "orderNo", "first"
+        ));
+
+        assertThatThrownBy(() -> service.applyApprovedSuggestion(UUID.randomUUID(), suggestion))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+        verifyNoInteractions(wbsItemPublicService);
+    }
+
+    @Test
+    void rejectsMalformedWbsEnumPayloadAsBadRequest() {
+        WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), wbsItemPublicService, mock(SchedulePublicService.class), mock(DailySummaryPublicService.class), mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        AgentSuggestion suggestion = suggestion(UUID.randomUUID(), AgentSuggestionType.WBS, Map.of(
+                "title", "잘못된 WBS",
+                "status", "ALMOST_DONE"
+        ));
+
+        assertThatThrownBy(() -> service.applyApprovedSuggestion(UUID.randomUUID(), suggestion))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+        verifyNoInteractions(wbsItemPublicService);
+    }
+
+    @Test
+    void rejectsMalformedDailySummaryDatePayloadAsBadRequest() {
+        DailySummaryPublicService dailySummaryPublicService = mock(DailySummaryPublicService.class);
+        AgentSuggestionDomainApplyService service = service(mock(TaskPublicService.class), mock(WbsItemPublicService.class), mock(SchedulePublicService.class), dailySummaryPublicService, mock(GeneratedDocumentService.class), mock(MemoPublicService.class));
+        AgentSuggestion suggestion = suggestion(null, AgentSuggestionType.DAILY_SUMMARY, Map.of(
+                "summaryDate", "2026-99-99",
+                "summaryJson", "{}"
+        ));
+
+        assertThatThrownBy(() -> service.applyApprovedSuggestion(UUID.randomUUID(), suggestion))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AGENT_400_001));
+        verifyNoInteractions(dailySummaryPublicService);
     }
 
     @Test

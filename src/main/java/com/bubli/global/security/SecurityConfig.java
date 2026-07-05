@@ -35,7 +35,7 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final ErrorResponseFactory errorResponseFactory;
 
-    @Value("${cors.allowed-origin-patterns:http://localhost:3000,http://localhost:5173,http://localhost:1420}")
+    @Value("${cors.allowed-origin-patterns:https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420}")
     private String allowedOriginPatterns;
 
     @Bean
@@ -48,7 +48,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/google/authorize").permitAll()
                         .requestMatchers(HttpMethod.GET, "/oauth2/authorization/google").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/google/callback", "/api/auth/refresh").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/invite-links/**").permitAll()
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/voice/webhook/livekit").permitAll()

@@ -1,7 +1,9 @@
 package com.bubli.work.task.service;
 
 import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
+import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.CreatePersonalTaskRequest;
 import com.bubli.work.task.dto.CreateRoomTaskRequest;
 import com.bubli.work.task.dto.TaskResult;
@@ -28,7 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceTest {
@@ -41,6 +45,9 @@ class TaskServiceTest {
 
 	@Mock
 	WbsItemPublicService wbsItemPublicService;
+
+	@Mock
+	SchedulePublicService schedulePublicService;
 
 	@InjectMocks
 	TaskService taskService;
@@ -110,6 +117,24 @@ class TaskServiceTest {
 	}
 
 	@Test
+	void getPersonalTasksIncludesAssignedRoomTasksWithoutChangingOwnership() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		Task personalTask = Task.createPersonal(userId, "개인 할 일", null, TaskStatus.TODO, null);
+		Task assignedRoomTask = Task.createRoomTask(roomId, userId, null, "룸에서 맡은 할 일", null, TaskStatus.TODO, null);
+		given(taskRepository.findVisibleTasksForUser(userId, Pageable.unpaged()))
+				.willReturn(new PageImpl<>(List.of(personalTask, assignedRoomTask)));
+
+		var result = taskService.getPersonalTasks(userId, Pageable.unpaged());
+
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems().get(0).roomId()).isNull();
+		assertThat(result.getItems().get(1).roomId()).isEqualTo(roomId);
+		assertThat(result.getItems().get(1).assigneeUserId()).isEqualTo(userId);
+		assertThat(result.getItems().get(1).ownerUserId()).isNull();
+	}
+
+	@Test
 	void updatePersonalTaskRejectsOtherUser() {
 		UUID ownerUserId = UUID.randomUUID();
 		UUID otherUserId = UUID.randomUUID();
@@ -123,6 +148,23 @@ class TaskServiceTest {
 				taskId,
 				new UpdateTaskRequest("수정", null, null, null, null, null).toCommand()
 		)).isInstanceOf(BusinessException.class);
+	}
+
+	@Test
+	void deleteTaskRejectsWhenScheduleIsLinked() {
+		UUID userId = UUID.randomUUID();
+		UUID taskId = UUID.randomUUID();
+		Task task = Task.createPersonal(userId, "일정 연결 TODO", null, TaskStatus.TODO, null);
+		ReflectionTestUtils.setField(task, "id", taskId);
+		given(taskRepository.findById(taskId)).willReturn(Optional.of(task));
+		willThrow(new BusinessException(ErrorCode.WORK_400_004))
+				.given(schedulePublicService)
+				.assertNoScheduleLinkedToTask(taskId);
+
+		assertThatThrownBy(() -> taskService.deleteTask(userId, taskId))
+				.isInstanceOfSatisfying(BusinessException.class, exception ->
+						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_004));
+		verify(taskRepository, never()).delete(any(Task.class));
 	}
 
 	@Test

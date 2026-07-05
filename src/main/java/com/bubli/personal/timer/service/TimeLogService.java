@@ -28,12 +28,7 @@ public class TimeLogService {
 	public TimeLogResponse start(StartTimeLogCommand command) {
 		TimeLogResult result = timeLogRepository.findByIdempotencyKey(command.idempotencyKey())
 				.map(existing -> TimeLogResult.from(validateIdempotentOwner(existing, command.userId())))
-				.orElseGet(() -> {
-					if (timeLogRepository.existsByUserIdAndStatus(command.userId(), TimeLogStatus.RUNNING)) {
-						throw new BusinessException(ErrorCode.PERSONAL_409_001);
-					}
-					return TimeLogResult.from(createTimeLog(command));
-				});
+				.orElseGet(() -> TimeLogResult.from(createTimeLog(command)));
 		return TimeLogResponse.from(result);
 	}
 
@@ -54,6 +49,10 @@ public class TimeLogService {
 				&& !TimeLogStatus.NEEDS_RECOVERY.equals(timeLog.getStatus())) {
 			throw new BusinessException(ErrorCode.PERSONAL_400_001);
 		}
+		timeLogRepository.findFirstByUserIdAndStatus(userId, TimeLogStatus.RUNNING)
+				.ifPresent(running -> {
+					throw new BusinessException(ErrorCode.PERSONAL_409_001);
+				});
 		timeLog.resume(Instant.now());
 		return TimeLogResponse.from(TimeLogResult.from(timeLog));
 	}
@@ -87,15 +86,18 @@ public class TimeLogService {
 		if (command.roomId() != null) {
 			checkRoomMember(command.userId(), command.roomId());
 		}
-		TimeLog timeLog = TimeLog.start(
+		timeLogRepository.insertRunningIfNoConflict(
+				UUID.randomUUID(),
 				command.userId(),
 				command.roomId(),
-				timerType,
+				timerType.name(),
 				command.idempotencyKey(),
 				command.recoveredFromTimeLogId(),
 				Instant.now()
 		);
-		return timeLogRepository.save(timeLog);
+		return timeLogRepository.findByIdempotencyKey(command.idempotencyKey())
+				.map(existing -> validateIdempotentOwner(existing, command.userId()))
+				.orElseThrow(() -> new BusinessException(ErrorCode.PERSONAL_409_001));
 	}
 
 	private TimeLog validateIdempotentOwner(TimeLog timeLog, UUID userId) {
