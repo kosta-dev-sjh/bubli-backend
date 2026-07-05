@@ -36,6 +36,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -328,12 +329,12 @@ class ProjectRoomAgentCommandServiceTest {
 				List.of()
 		);
 
-		verify(chatModel).call(org.mockito.ArgumentMatchers.assertArg(prompt -> {
-			assertThat(prompt).contains("Write a concise natural Japanese response.");
-			assertThat(prompt).contains("Resolved resource summary:");
-			assertThat(prompt).contains("契約期間と検収条件を確認する必要があります。");
-			assertThat(prompt).contains("For SUGGEST mode, produce concrete suggestion candidates");
-		}));
+		var promptCaptor = forClass(String.class);
+		verify(chatModel).call(promptCaptor.capture());
+		assertThat(promptCaptor.getValue()).contains("Write a concise natural Japanese response.");
+		assertThat(promptCaptor.getValue()).contains("Resolved resource summary:");
+		assertThat(promptCaptor.getValue()).contains("契約期間と検収条件を確認する必要があります。");
+		assertThat(promptCaptor.getValue()).contains("For SUGGEST mode, produce concrete suggestion candidates");
 		assertThat(response.message().resourceId()).isEqualTo(resourceId);
 		assertThat(response.message().body().get("resourceSummaryId").asText()).isEqualTo(summary.id().toString());
 	}
