@@ -213,7 +213,7 @@ public class ResourceController {
 		return "attachment; filename=\"" + originalName + "\"; filename*=UTF-8''" + encoded;
 	}
 
-	@PostMapping("/api/resources/{resourceId}/versions")
+	@PostMapping(value = "/api/resources/{resourceId}/versions", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ApiResponse<ResourceVersionResponse> createResourceVersion(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID resourceId,

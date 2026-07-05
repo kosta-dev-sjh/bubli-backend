@@ -60,7 +60,7 @@ public class VoiceRoomService {
         Optional<VoiceRoom> existing = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN);
         if (existing.isPresent()) {
             VoiceRoom room = existing.get();
-            List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(room.getId());
+            List<VoiceParticipant> participants = currentParticipants(room.getId());
             Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
             return toRoomResponse(room, participants.stream()
                     .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
