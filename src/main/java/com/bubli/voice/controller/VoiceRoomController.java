@@ -32,7 +32,7 @@ public class VoiceRoomController {
             @CurrentUser AuthUser authUser,
             @RequestBody CreateVoiceRoomRequest request
     ) {
-        return ApiResponse.success(voiceRoomService.createVoiceRoom(authUser.userId(), request.roomId()));
+        return ApiResponse.success(voiceRoomService.createVoiceRoom(authUser.userId(), request.roomId(), request.chatRoomId()));
     }
 
     @GetMapping("/{id}")
