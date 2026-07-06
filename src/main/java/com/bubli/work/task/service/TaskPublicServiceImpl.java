@@ -60,6 +60,12 @@ public class TaskPublicServiceImpl implements TaskPublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<Instant> getCompletedAtBetween(UUID userId, Instant from, Instant to) {
+		return taskRepository.findDoneUpdatedAtForUserBetween(userId, from, to);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public boolean existsByWbsItemId(UUID wbsItemId) {
 		return taskRepository.existsByWbsItemId(wbsItemId);
 	}

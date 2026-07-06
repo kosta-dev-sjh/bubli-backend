@@ -12,7 +12,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -70,5 +72,18 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID> {
 			@Param("keyword2") String keyword2,
 			@Param("keyword3") String keyword3,
 			Pageable pageable
+	);
+
+	@Query("""
+			select resource.createdAt
+			from Resource resource
+			where resource.ownerId = :ownerId
+			  and resource.deletedAt is null
+			  and resource.createdAt >= :from and resource.createdAt < :to
+			""")
+	List<Instant> findCreatedAtByOwnerIdAndCreatedAtBetween(
+			@Param("ownerId") UUID ownerId,
+			@Param("from") Instant from,
+			@Param("to") Instant to
 	);
 }

@@ -105,4 +105,28 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 			@Param("to") Instant to);
 
 	boolean existsByWbsItemId(UUID wbsItemId);
+
+	@Query("""
+		select task.updatedAt
+		from Task task
+		where (
+		    (task.ownerUserId = :userId and task.roomId is null)
+		    or (
+		      task.assigneeUserId = :userId
+		      and task.roomId is not null
+		      and exists (
+		        select member.id
+		        from RoomMember member
+		        where member.roomId = task.roomId
+		          and member.userId = :userId
+		          and member.status = com.bubli.project.type.RoomMemberStatus.ACTIVE
+		      )
+		    )
+		  )
+		  and task.status = com.bubli.work.task.type.TaskStatus.DONE
+		  and task.updatedAt >= :from and task.updatedAt < :to
+		""")
+	List<Instant> findDoneUpdatedAtForUserBetween(@Param("userId") UUID userId,
+			@Param("from") Instant from,
+			@Param("to") Instant to);
 }
