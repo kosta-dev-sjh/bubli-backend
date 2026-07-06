@@ -36,6 +36,12 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<ResourceResult> getRecentRoomResources(UUID userId, UUID roomId, int limit) {
+		return resourceService.getRecentRoomResources(userId, roomId, limit);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
 		return resourceService.getRecentRoomSummaries(userId, roomId, limit);
 	}

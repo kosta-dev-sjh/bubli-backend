@@ -1,7 +1,7 @@
 package com.bubli.agent.service;
 
-import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.dto.AgentSuggestionResponse;
+import com.bubli.agent.dto.ProjectRoomRagContext;
 import com.bubli.agent.type.AgentCommandMode;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
@@ -14,15 +14,12 @@ import com.bubli.memory.type.SummaryStatus;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.resource.dto.ResourceResult;
-import com.bubli.resource.dto.ResourceSummaryResult;
+import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.type.ResourceKind;
-import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
-import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserLocalePublicService;
-import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -32,7 +29,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,30 +43,81 @@ import static org.mockito.Mockito.when;
 class ProjectRoomAgentCommandServiceTest {
 
 	@Test
-	void suggestCommandCreatesDraftSuggestionAndIncludesSuggestionIdInResponseBody() {
+	void returnsNoAnswerWithoutCallingLlmWhenRagContextIsEmpty() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		UUID resourceId = UUID.randomUUID();
-		UUID suggestionId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
 		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
 		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
 		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
 		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
-		ObjectMapper objectMapper = new ObjectMapper();
 
-		when(resourcePublicService.getReadableResource(userId, resourceId))
-				.thenReturn(resource(resourceId, userId, roomId, "契約書.pdf"));
-		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
-		when(suggestionCommandService.createDraft(
-				eq(userId),
-				eq(roomId),
-				eq(null),
-				eq(resourceId),
-				eq(AgentSuggestionType.REVIEW_ITEM),
-				any(),
-				any()
-		)).thenReturn(suggestionResponse(suggestionId, userId, roomId, resourceId, AgentSuggestionType.REVIEW_ITEM));
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				suggestionCommandService,
+				eventPublicService,
+				"ko-KR",
+				ProjectRoomRagContext.ungrounded(),
+				chatModel
+		).execute(userId, roomId, "/bubli 내 ID가 뭐야", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		verify(suggestionCommandService, never()).createDraft(any(), any(), any(), any(), any(), any(), any());
+		assertThat(response.message().body().get("text").asText()).isEqualTo("프로젝트 자료 기준에서는 알 수 없는 내용입니다.");
+		assertThat(response.message().body().get("ragGrounded").asBoolean()).isFalse();
+	}
+
+	@Test
+	void returnsLocalizedNoAnswer() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ja-JP",
+				ProjectRoomRagContext.ungrounded(),
+				mock(ChatModel.class)
+		).execute(userId, roomId, "/bubli 内容を教えて", AgentCommandMode.ANSWER, List.of());
+
+		assertThat(response.message().body().get("text").asText()).isEqualTo("プロジェクト資料の範囲では分かりません。");
+	}
+
+	@Test
+	void groundedAnswerPromptUsesOnlyRetrievedDocumentChunks() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+		ResourceSearchHit hit = hit(resourceId, "契約期間は2026年7月1日から2026年9月30日までです。", 0.93D);
+		ProjectRoomRagContext ragContext = new ProjectRoomRagContext(true, List.of(hit), 0.93D, """
+				[Source]
+				resourceId=%s
+				chunkIndex=0
+				pageNumber=2
+				similarityScore=0.93
+				chunkText=
+				契約期間は2026年7月1日から2026年9月30日までです。
+				""".formatted(resourceId));
+
+		when(chatModel.call(any(String.class))).thenReturn("契約期間は2026年7月1日から2026年9月30日までです。");
 		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
 				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
 		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
@@ -79,185 +126,39 @@ class ProjectRoomAgentCommandServiceTest {
 		var response = service(
 				chatMessagePublicService,
 				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				objectMapper,
-				"ko-KR",
-				resourcePublicService
-		).execute(
-				userId,
-				roomId,
-				"review contract risk",
-				AgentCommandMode.SUGGEST,
-				List.of(resourceId)
-		);
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ja-JP",
+				ragContext,
+				chatModel
+		).execute(userId, roomId, "/bubli 契約期間は?", AgentCommandMode.ANSWER, List.of());
 
-		assertThat(response.suggestions()).hasSize(1);
-		assertThat(response.suggestions().getFirst().suggestionId()).isEqualTo(suggestionId);
-		assertThat(response.message().body().get("suggestionIds").get(0).asText()).isEqualTo(suggestionId.toString());
-		verify(eventPublicService).recordAgentSuggestionsCreated(
-				userId,
-				roomId,
-				List.of(suggestionId),
-				List.of(AgentSuggestionType.REVIEW_ITEM.name())
-		);
-	}
-
-	@Test
-	void answerCommandDoesNotCreateSuggestion() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
-		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
-		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
-		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
-				.thenReturn(memory());
-
-		var response = service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper()
-		).execute(
-				userId,
-				roomId,
-				"answer this",
-				AgentCommandMode.ANSWER,
-				List.of()
-		);
-
-		assertThat(response.suggestions()).isEmpty();
-		verify(suggestionCommandService, never()).createDraft(any(), any(), any(), any(), any(), any(), any());
-		verify(eventPublicService, never()).recordAgentSuggestionsCreated(any(), any(), any(), any());
-	}
-
-	@Test
-	void answerCommandAllowsMissingResourceIds() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
-		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
-		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
-		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
-				.thenReturn(memory());
-
-		var response = service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper()
-		).execute(
-				userId,
-				roomId,
-				"answer this",
-				AgentCommandMode.ANSWER,
-				null
-		);
-
-		assertThat(response.message().resourceId()).isNull();
-		assertThat(response.suggestions()).isEmpty();
-		verify(suggestionCommandService, never()).createDraft(any(), any(), any(), any(), any(), any(), any());
-	}
-
-	@Test
-	void fallbackAnswerUsesResolvedUserLocale() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
-		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
-		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
-		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
-				.thenReturn(memory());
-
-		var response = service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper(),
-				"en-US"
-		).execute(
-				userId,
-				roomId,
-				"answer this",
-				AgentCommandMode.ANSWER,
-				List.of()
-		);
-
-		assertThat(response.message().body().get("text").asText())
-				.contains("I checked the currently collected project context.");
-	}
-
-	@Test
-	void latestResourceCommandIncludesResolvedResourceInAgentResponse() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		UUID resourceId = UUID.randomUUID();
-		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
-		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
-		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
-
-		when(resourcePublicService.findLatestRoomResource(userId, roomId, List.of("계약", "contract", "契約")))
-				.thenReturn(Optional.of(resource(resourceId, userId, roomId, "NDA_최종본.pdf")));
-		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
-		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
-				.thenReturn(memory());
-
-		var response = service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper(),
-				"ko-KR",
-				resourcePublicService
-		).execute(
-				userId,
-				roomId,
-				"가장 최근에 올라온 계약서 알려줘",
-				AgentCommandMode.ANSWER,
-				List.of()
-		);
-
+		var promptCaptor = forClass(String.class);
+		verify(chatModel).call(promptCaptor.capture());
+		assertThat(promptCaptor.getValue()).contains("Use ONLY the project material sources");
+		assertThat(promptCaptor.getValue()).contains("契約期間は2026年7月1日から2026年9月30日までです。");
+		assertThat(promptCaptor.getValue()).doesNotContain("Recent room chat");
+		assertThat(promptCaptor.getValue()).doesNotContain("Room memory summaries");
+		assertThat(promptCaptor.getValue()).doesNotContain("Room tasks");
+		assertThat(promptCaptor.getValue()).doesNotContain("Room WBS");
+		assertThat(promptCaptor.getValue()).doesNotContain("Room schedules");
 		assertThat(response.message().resourceId()).isEqualTo(resourceId);
-		assertThat(response.message().body().get("text").asText()).contains("NDA_최종본.pdf");
-		assertThat(response.message().body().get("resources").get(0).get("resourceId").asText())
+		assertThat(response.message().body().get("ragGrounded").asBoolean()).isTrue();
+		assertThat(response.message().body().get("ragHits").get(0).get("resourceId").asText())
 				.isEqualTo(resourceId.toString());
 	}
 
 	@Test
-	void latestUploadedFileCommandUsesLatestRoomFileLookup() {
+	void suggestModeWithoutRagHitDoesNotCreateSuggestion() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
 		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
 		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
 		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
 
-		when(resourcePublicService.findLatestRoomFile(userId, roomId))
-				.thenReturn(Optional.of(resource(resourceId, userId, roomId, "latest-upload.pdf")));
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
 		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
 				.thenReturn(memory());
 
@@ -265,25 +166,19 @@ class ProjectRoomAgentCommandServiceTest {
 				chatMessagePublicService,
 				memoryPublicService,
 				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper(),
+				mock(ProjectRoomEventPublicService.class),
 				"ko-KR",
-				resourcePublicService
-		).execute(
-				userId,
-				roomId,
-				"latest uploaded file",
-				AgentCommandMode.ANSWER,
-				List.of()
-		);
+				ProjectRoomRagContext.ungrounded(),
+				chatModel
+		).execute(userId, roomId, "/bubli todo 만들어줘", AgentCommandMode.SUGGEST, List.of());
 
-		assertThat(response.message().resourceId()).isEqualTo(resourceId);
-		assertThat(response.message().body().get("text").asText()).contains("latest-upload.pdf");
-		verify(resourcePublicService).findLatestRoomFile(userId, roomId);
+		verify(chatModel, never()).call(any(String.class));
+		verify(suggestionCommandService, never()).createDraft(any(), any(), any(), any(), any(), any(), any());
+		assertThat(response.suggestions()).isEmpty();
 	}
 
 	@Test
-	void japaneseContractTodoCommandAddsResourceSummaryToPrompt() {
+	void suggestModeWithRagHitStoresRagEvidence() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -293,13 +188,10 @@ class ProjectRoomAgentCommandServiceTest {
 		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
 		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
 		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
-		ResourceSummaryResult summary = resourceSummary(resourceId, "契約期間と検収条件を確認する必要があります。");
+		ResourceSearchHit hit = hit(resourceId, "検収後7日以内に請求書を発行します。", 0.91D);
+		ProjectRoomRagContext ragContext = new ProjectRoomRagContext(true, List.of(hit), 0.91D, "chunkText=\n検収後7日以内に請求書を発行します。");
 
-		when(resourcePublicService.findLatestRoomResource(userId, roomId, List.of("계약", "contract", "契約")))
-				.thenReturn(Optional.of(resource(resourceId, userId, roomId, "フロントエンド開発_契約書.pdf")));
-		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.of(summary));
-		when(chatModel.call(any(String.class))).thenReturn("契約書に基づくTODO候補を作成しました。");
+		when(chatModel.call(any(String.class))).thenReturn("TODO: 検収後7日以内の請求書発行を確認する。");
 		when(suggestionCommandService.createDraft(
 				eq(userId),
 				eq(roomId),
@@ -314,198 +206,179 @@ class ProjectRoomAgentCommandServiceTest {
 		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
 				.thenReturn(memory());
 
-		var response = serviceWithChatModel(
+		var response = service(
 				chatMessagePublicService,
 				memoryPublicService,
 				suggestionCommandService,
 				eventPublicService,
-				new ObjectMapper(),
 				"ja-JP",
-				resourcePublicService,
+				ragContext,
 				chatModel
-		).execute(
-				userId,
-				roomId,
-				"/bubli todo 契約書の内容に基づいてTODO作って",
-				AgentCommandMode.SUGGEST,
-				List.of()
-		);
+		).execute(userId, roomId, "/bubli todo 契約書の内容に基づいてTODO作って", AgentCommandMode.SUGGEST, List.of());
 
-		var promptCaptor = forClass(String.class);
-		verify(chatModel).call(promptCaptor.capture());
-		assertThat(promptCaptor.getValue()).contains("Write a concise natural Japanese response.");
-		assertThat(promptCaptor.getValue()).contains("Requester profile:");
-		assertThat(promptCaptor.getValue()).contains("jobRole=DESIGNER");
-		assertThat(promptCaptor.getValue()).contains("Resolved resource summary:");
-		assertThat(promptCaptor.getValue()).contains("契約期間と検収条件を確認する必要があります。");
-		assertThat(promptCaptor.getValue()).contains("For SUGGEST mode, produce concrete suggestion candidates");
-		assertThat(response.message().resourceId()).isEqualTo(resourceId);
-		assertThat(response.message().body().get("resourceSummaryId").asText()).isEqualTo(summary.id().toString());
-	}
-
-	@Test
-	void suggestCommandInfersWbsSuggestionType() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		UUID suggestionId = UUID.randomUUID();
-		AgentSuggestionCommandService suggestionCommandService = mock(AgentSuggestionCommandService.class);
-		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
-		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
-		ProjectRoomEventPublicService eventPublicService = mock(ProjectRoomEventPublicService.class);
-
-		when(suggestionCommandService.createDraft(
+		verify(suggestionCommandService).createDraft(
 				eq(userId),
 				eq(roomId),
 				eq(null),
-				eq(null),
-				eq(AgentSuggestionType.WBS),
+				eq(resourceId),
+				eq(AgentSuggestionType.TODO),
 				any(),
-				any()
-		)).thenReturn(suggestionResponse(suggestionId, userId, roomId, null, AgentSuggestionType.WBS));
-		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
-				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+				org.mockito.ArgumentMatchers.assertArg(evidence -> {
+					assertThat(evidence.get("ragGrounded")).isEqualTo(true);
+					assertThat(evidence.get("ragMaxSimilarity")).isEqualTo(0.91D);
+					assertThat(evidence.get("ragHits").toString()).contains(resourceId.toString());
+				})
+		);
+		verify(eventPublicService).recordAgentSuggestionsCreated(
+				userId,
+				roomId,
+				List.of(suggestionId),
+				List.of(AgentSuggestionType.TODO.name())
+		);
+		assertThat(response.suggestions()).hasSize(1);
+		assertThat(response.message().body().get("ragHits")).hasSize(1);
+	}
+
+	@Test
+	void resourceInventoryQuestionReturnsUploadedResourcesWithoutRagOrLlm() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ProjectRoomRagGroundingService ragGroundingService = mock(ProjectRoomRagGroundingService.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 10))
+				.thenReturn(List.of(resource(resourceId, userId, roomId, "契約書.pdf")));
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
 		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
 				.thenReturn(memory());
 
 		var response = service(
 				chatMessagePublicService,
 				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				new ObjectMapper()
-		).execute(
-				userId,
-				roomId,
-				"다음에 해야 할 WBS 제안해줘",
-				AgentCommandMode.SUGGEST,
-				List.of()
-		);
-
-		assertThat(response.suggestions()).hasSize(1);
-		assertThat(response.suggestions().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.WBS);
-	}
-
-	private ProjectRoomAgentCommandService service(
-			ChatMessagePublicService chatMessagePublicService,
-			RoomMemoryPublicService memoryPublicService,
-			AgentSuggestionCommandService suggestionCommandService,
-			ProjectRoomEventPublicService eventPublicService,
-			ObjectMapper objectMapper
-	) {
-		return service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				objectMapper,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
 				"ko-KR",
-				mock(ResourcePublicService.class)
-		);
-	}
-
-	private ProjectRoomAgentCommandService service(
-			ChatMessagePublicService chatMessagePublicService,
-			RoomMemoryPublicService memoryPublicService,
-			AgentSuggestionCommandService suggestionCommandService,
-			ProjectRoomEventPublicService eventPublicService,
-			ObjectMapper objectMapper,
-			String locale
-	) {
-		return service(
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
-				objectMapper,
-				locale,
-				mock(ResourcePublicService.class)
-		);
-	}
-
-	@SuppressWarnings("unchecked")
-	private ProjectRoomAgentCommandService service(
-			ChatMessagePublicService chatMessagePublicService,
-			RoomMemoryPublicService memoryPublicService,
-			AgentSuggestionCommandService suggestionCommandService,
-			ProjectRoomEventPublicService eventPublicService,
-			ObjectMapper objectMapper,
-			String locale,
-			ResourcePublicService resourcePublicService
-	) {
-		AgentJobContextCollector contextCollector = mock(AgentJobContextCollector.class);
-		when(contextCollector.collect(any())).thenReturn(new AgentJobContext("context", 7));
-		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
-		when(chatModelProvider.getIfAvailable()).thenReturn(null);
-		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
-		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
-		UserPublicService userPublicService = mock(UserPublicService.class);
-		when(userPublicService.getUser(any(UUID.class))).thenReturn(new UserResult(
-				UUID.randomUUID(),
-				"requester",
-				"Requester",
-				null,
-				locale,
-				"Asia/Seoul",
-				"PM"
-		));
-		return new ProjectRoomAgentCommandService(
-				mock(ProjectMembershipPublicService.class),
-				contextCollector,
-				chatMessagePublicService,
-				memoryPublicService,
-				suggestionCommandService,
-				eventPublicService,
+				ProjectRoomRagContext.ungrounded(),
+				chatModel,
 				resourcePublicService,
-				userLocalePublicService,
-				userPublicService,
-				chatModelProvider,
-				mock(ObjectProvider.class),
-				objectMapper
-		);
+				ragGroundingService
+		).execute(userId, roomId, "/bubli 현재 프로젝트에 업로드된 파일이 뭐야?", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		verify(ragGroundingService, never()).retrieve(any(), any(), any(), any(), any());
+		assertThat(response.message().body().get("text").asText()).contains("契約書.pdf");
+		assertThat(response.message().body().get("resources").get(0).get("resourceId").asText())
+				.isEqualTo(resourceId.toString());
+	}
+
+	@Test
+	void japaneseResourceInventoryQuestionReturnsUploadedResourcesWithoutRagOrLlm() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ProjectRoomRagGroundingService ragGroundingService = mock(ProjectRoomRagGroundingService.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 10))
+				.thenReturn(List.of(resource(resourceId, userId, roomId, "フロントエンド開発_契約書.pdf")));
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ja-JP",
+				ProjectRoomRagContext.ungrounded(),
+				chatModel,
+				resourcePublicService,
+				ragGroundingService
+		).execute(userId, roomId, "/bubli どんなファイルがある？", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		verify(ragGroundingService, never()).retrieve(any(), any(), any(), any(), any());
+		assertThat(response.message().body().get("text").asText()).contains("フロントエンド開発_契約書.pdf");
+		assertThat(response.message().body().get("resources").get(0).get("resourceId").asText())
+				.isEqualTo(resourceId.toString());
 	}
 
 	@SuppressWarnings("unchecked")
-	private ProjectRoomAgentCommandService serviceWithChatModel(
+	private ProjectRoomAgentCommandService service(
 			ChatMessagePublicService chatMessagePublicService,
 			RoomMemoryPublicService memoryPublicService,
 			AgentSuggestionCommandService suggestionCommandService,
 			ProjectRoomEventPublicService eventPublicService,
-			ObjectMapper objectMapper,
 			String locale,
-			ResourcePublicService resourcePublicService,
+			ProjectRoomRagContext ragContext,
 			ChatModel chatModel
 	) {
-		AgentJobContextCollector contextCollector = mock(AgentJobContextCollector.class);
-		when(contextCollector.collect(any())).thenReturn(new AgentJobContext("context", 7));
+		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
+		ProjectRoomRagGroundingService ragGroundingService = mock(ProjectRoomRagGroundingService.class);
+		when(ragGroundingService.retrieve(any(UUID.class), any(UUID.class), any(String.class), eq(locale), any(AgentCommandMode.class)))
+				.thenReturn(ragContext);
 		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
 		when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
 		ObjectProvider<com.bubli.agent.model.AiCallExecutor> aiCallExecutorProvider = mock(ObjectProvider.class);
 		when(aiCallExecutorProvider.getIfAvailable()).thenReturn(null);
-		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
-		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
-		UserPublicService userPublicService = mock(UserPublicService.class);
-		when(userPublicService.getUser(any(UUID.class))).thenReturn(new UserResult(
-				UUID.randomUUID(),
-				"requester",
-				"Requester",
-				null,
-				locale,
-				"Asia/Seoul",
-				"DESIGNER"
-		));
 		return new ProjectRoomAgentCommandService(
 				mock(ProjectMembershipPublicService.class),
-				contextCollector,
 				chatMessagePublicService,
 				memoryPublicService,
 				suggestionCommandService,
 				eventPublicService,
-				resourcePublicService,
 				userLocalePublicService,
-				userPublicService,
+				mock(ResourcePublicService.class),
+				ragGroundingService,
 				chatModelProvider,
 				aiCallExecutorProvider,
-				objectMapper
+				new ObjectMapper()
+		);
+	}
+
+	@SuppressWarnings("unchecked")
+	private ProjectRoomAgentCommandService service(
+			ChatMessagePublicService chatMessagePublicService,
+			RoomMemoryPublicService memoryPublicService,
+			AgentSuggestionCommandService suggestionCommandService,
+			ProjectRoomEventPublicService eventPublicService,
+			String locale,
+			ProjectRoomRagContext ragContext,
+			ChatModel chatModel,
+			ResourcePublicService resourcePublicService,
+			ProjectRoomRagGroundingService ragGroundingService
+	) {
+		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
+		when(ragGroundingService.retrieve(any(UUID.class), any(UUID.class), any(String.class), eq(locale), any(AgentCommandMode.class)))
+				.thenReturn(ragContext);
+		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
+		when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
+		ObjectProvider<com.bubli.agent.model.AiCallExecutor> aiCallExecutorProvider = mock(ObjectProvider.class);
+		when(aiCallExecutorProvider.getIfAvailable()).thenReturn(null);
+		return new ProjectRoomAgentCommandService(
+				mock(ProjectMembershipPublicService.class),
+				chatMessagePublicService,
+				memoryPublicService,
+				suggestionCommandService,
+				eventPublicService,
+				userLocalePublicService,
+				resourcePublicService,
+				ragGroundingService,
+				chatModelProvider,
+				aiCallExecutorProvider,
+				new ObjectMapper()
 		);
 	}
 
@@ -560,6 +433,18 @@ class ProjectRoomAgentCommandServiceTest {
 		);
 	}
 
+	private ResourceSearchHit hit(UUID resourceId, String chunkText, double similarityScore) {
+		return new ResourceSearchHit(
+				UUID.randomUUID(),
+				resourceId,
+				0,
+				chunkText,
+				2,
+				"{\"pageNumber\":2}",
+				similarityScore
+		);
+	}
+
 	private ResourceResult resource(UUID resourceId, UUID userId, UUID roomId, String title) {
 		return new ResourceResult(
 				resourceId,
@@ -568,25 +453,9 @@ class ProjectRoomAgentCommandServiceTest {
 				title,
 				ResourceKind.FILE,
 				ResourceVisibility.ROOM_SHARED,
-				ResourceStatus.READY,
+				ResourceStatus.ANALYZED,
 				Instant.parse("2026-07-01T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z")
-		);
-	}
-
-	private ResourceSummaryResult resourceSummary(UUID resourceId, String summaryText) {
-		return new ResourceSummaryResult(
-				UUID.randomUUID(),
-				resourceId,
-				UUID.randomUUID(),
-				"{summary=%s}".formatted(summaryText),
-				"[]",
-				ResourceSummaryStatus.ANALYZED,
-				"agent-job-llm-v1",
-				"analysis-v1",
-				"spring-ai-chat",
-				Instant.now(),
-				Instant.now()
 		);
 	}
 }
