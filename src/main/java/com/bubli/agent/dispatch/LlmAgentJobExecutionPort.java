@@ -262,8 +262,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "description": "field meaning",
 				      "sourceText": "short evidence text from the document",
 				      "confidence": 0.0,
-				      "fieldKey": "field_key",
-				      "value": "extracted value"
+				      "fieldKey": "contract_amount",
+				      "value": "1500000"
 				    }
 				  ]
 				}
@@ -272,6 +272,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- Use REVIEW_ITEM for review actions.
 				- Use QUESTION for missing or ambiguous information.
 				- Use CONTRACT_FIELD only when a concrete field value exists; fieldKey and value are required.
+				- For CONTRACT_FIELD, prefer these standard fieldKey values when the field matches: contract_amount (total contract or estimate amount, digits only, no currency symbol or thousands separators), payment_due_date (expected payment date as YYYY-MM-DD), payment_date (actual paid date as YYYY-MM-DD), client_name (client or company name), project_name, contract_period, deliverable. Use a concise lowercase snake_case key for any other field.
 				- Use REQUIREMENT, TASK, or WBS only when the document clearly implies them.
 				- For TASK, you may include assigneeUserId, wbsItemId, status(TODO/IN_PROGRESS/REVIEW/DONE/BLOCKED), dueAt.
 				- For WBS, you may include parentId, orderNo, status(TODO/IN_PROGRESS/DONE), scheduleTitle, startsAt, dueAt, endsAt, allDay.
