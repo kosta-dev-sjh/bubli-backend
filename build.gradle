@@ -144,3 +144,17 @@ checkstyle {
 tasks.named('checkstyleMain') {
 	source = fileTree('src/main/java')
 }
+
+// OWASP Dependency-Check
+// Node/JS 관련 analyzer는 이 프로젝트(순수 Java 백엔드)와 무관하고,
+// 외부 서비스(Node Audit API, RetireJS 업데이트 URL) 호출로 실패 지점만 늘리므로 비활성화
+dependencyCheck {
+	analyzers {
+		nodeAudit {
+			enabled = false
+		}
+		retirejs {
+			enabled = false
+		}
+	}
+}
