@@ -1,6 +1,7 @@
 package com.bubli.voice.service;
 
 import com.bubli.chat.service.ChatRoomAccessPublicService;
+import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
@@ -57,6 +58,9 @@ class VoiceRoomServiceTest {
 	@Mock
 	UserPublicService userPublicService;
 
+	@Mock
+	NotificationPublicService notificationPublicService;
+
 	VoiceRoomService voiceRoomService;
 
 	@BeforeEach
@@ -68,6 +72,7 @@ class VoiceRoomServiceTest {
 				projectRoomEventPublicService,
 				chatRoomAccessPublicService,
 				userPublicService,
+				notificationPublicService,
 				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example")
 		);
 	}
@@ -127,6 +132,52 @@ class VoiceRoomServiceTest {
 				any(),
 				any()
 		);
+	}
+
+	@Test
+	void createChatVoiceRoomNotifiesOtherActiveMembersOnCreate() {
+		UUID callerId = UUID.randomUUID();
+		UUID otherMemberId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		given(voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN)).willReturn(Optional.empty());
+		given(voiceRoomRepository.save(any(VoiceRoom.class))).willAnswer(invocation -> withId((VoiceRoom) invocation.getArgument(0)));
+		given(voiceParticipantRepository.save(any(VoiceParticipant.class)))
+				.willAnswer(invocation -> withId((VoiceParticipant) invocation.getArgument(0)));
+		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "미연"));
+		given(chatRoomAccessPublicService.findActiveMemberIds(chatRoomId)).willReturn(List.of(callerId, otherMemberId));
+
+		voiceRoomService.createVoiceRoom(callerId, null, chatRoomId);
+
+		verify(chatRoomAccessPublicService).assertActiveMember(callerId, chatRoomId);
+		verify(notificationPublicService).create(
+				otherMemberId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL,
+				chatRoomId,
+				"미연",
+				"보이스 통화를 시작했습니다"
+		);
+		verify(notificationPublicService, never()).create(
+				org.mockito.ArgumentMatchers.eq(callerId),
+				any(),
+				any(),
+				any(),
+				any()
+		);
+	}
+
+	@Test
+	void createChatVoiceRoomReusesExistingOpenRoomWithoutNotifying() {
+		UUID callerId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom existing = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		given(voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN)).willReturn(Optional.of(existing));
+		given(voiceParticipantRepository.findByVoiceRoomId(existing.getId())).willReturn(List.of());
+
+		VoiceRoomResponse response = voiceRoomService.createVoiceRoom(callerId, null, chatRoomId);
+
+		assertThat(response.id()).isEqualTo(existing.getId());
+		verify(voiceRoomRepository, never()).save(any(VoiceRoom.class));
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
 	}
 
 	@Test
