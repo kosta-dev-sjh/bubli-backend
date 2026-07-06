@@ -98,6 +98,7 @@ public enum ErrorCode {
 
     // CALENDAR
     CALENDAR_400_001(HttpStatus.BAD_REQUEST, "CALENDAR_400_001", "Google Calendar 연동 요청 값이 올바르지 않습니다."),
+    CALENDAR_401_001(HttpStatus.UNAUTHORIZED, "CALENDAR_401_001", "Google Calendar 연동이 만료되었습니다. 다시 연결해 주세요."),
     CALENDAR_404_001(HttpStatus.NOT_FOUND, "CALENDAR_404_001", "Google Calendar 연동 정보를 찾을 수 없습니다."),
     CALENDAR_502_001(HttpStatus.BAD_GATEWAY, "CALENDAR_502_001", "Google Calendar API 호출에 실패했습니다."),
 

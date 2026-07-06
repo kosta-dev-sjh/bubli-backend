@@ -124,7 +124,18 @@ public class GoogleCalendarConnectionService implements GoogleCalendarConnection
 				connection.revoke();
 				return Optional.empty();
 			}
-			GoogleCalendarTokenResponse token = googleCalendarClient.refresh(connection.getRefreshToken());
+			GoogleCalendarTokenResponse token;
+			try {
+				token = googleCalendarClient.refresh(connection.getRefreshToken());
+			} catch (BusinessException exception) {
+				// 구글 쪽에서 리프레시 토큰 자체가 만료/철회됐다고 확인해준 경우에만 연결을 끊는다.
+				// 그 외(일시적 502 등)는 연결 상태를 유지해 재시도 시 복구될 수 있게 한다.
+				if (exception.getErrorCode() == ErrorCode.CALENDAR_401_001) {
+					connection.revoke();
+					return Optional.empty();
+				}
+				throw exception;
+			}
 			if (token == null || !hasText(token.accessToken())) {
 				connection.revoke();
 				return Optional.empty();

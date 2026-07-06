@@ -235,11 +235,17 @@ public class RestGoogleCalendarClient implements GoogleCalendarClient {
 
 	private BusinessException calendarException(RestClientException exception) {
 		if (exception instanceof RestClientResponseException responseException) {
+			String responseBody = responseException.getResponseBodyAsString();
 			log.warn(
 					"Google Calendar request failed. status={}, response={}",
 					responseException.getStatusCode(),
-					responseException.getResponseBodyAsString()
+					responseBody
 			);
+			// 리프레시 토큰이 만료/철회된 경우 구글이 400 invalid_grant로 응답한다.
+			// 이때는 일시 장애(502)가 아니라 재연결이 필요한 상태이므로 별도 코드로 구분한다.
+			if (responseException.getStatusCode().value() == 400 && responseBody.contains("invalid_grant")) {
+				return new BusinessException(ErrorCode.CALENDAR_401_001);
+			}
 		} else {
 			log.warn("Google Calendar request failed.", exception);
 		}
