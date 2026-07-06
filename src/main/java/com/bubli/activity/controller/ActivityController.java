@@ -8,13 +8,16 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,6 +40,16 @@ public class ActivityController {
 	@GetMapping("/api/activity/today")
 	public ApiResponse<List<ActivityLogResponse>> getTodayActivities(@CurrentUser AuthUser authUser) {
 		return ApiResponse.success(activityService.getTodayActivities(authUser.userId()).stream()
+				.map(ActivityLogResponse::from)
+				.toList());
+	}
+
+	@GetMapping("/api/activity/logs")
+	public ApiResponse<List<ActivityLogResponse>> getActivitiesByDate(
+			@CurrentUser AuthUser authUser,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+	) {
+		return ApiResponse.success(activityService.getActivitiesByDate(authUser.userId(), date).stream()
 				.map(ActivityLogResponse::from)
 				.toList());
 	}

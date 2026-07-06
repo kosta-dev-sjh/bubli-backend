@@ -76,6 +76,19 @@ public class ActivityService implements ActivityPublicService {
 				.toList();
 	}
 
+	@Transactional(readOnly = true)
+	public List<ActivityLogResult> getActivitiesByDate(UUID userId, LocalDate date) {
+		assertActivityConsent(userId);
+		ZoneId zoneId = userZone(userId);
+		Instant from = date.atStartOfDay(zoneId).toInstant();
+		Instant to = date.plusDays(1).atStartOfDay(zoneId).toInstant();
+		return activityLogRepository
+				.findByUserIdAndStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAtDesc(userId, from, to)
+				.stream()
+				.map(ActivityLogResult::from)
+				.toList();
+	}
+
 	@Transactional
 	public void deleteActivity(UUID userId, UUID activityId) {
 		ActivityLog activityLog = activityLogRepository.findById(activityId)
