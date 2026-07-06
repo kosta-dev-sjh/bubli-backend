@@ -4,6 +4,7 @@ public enum NotificationSourceType {
 	MESSAGE,
 	COMMENT,
 	RESOURCE,
-	AGENT
+	AGENT,
+	VOICE_CALL
 
 }
