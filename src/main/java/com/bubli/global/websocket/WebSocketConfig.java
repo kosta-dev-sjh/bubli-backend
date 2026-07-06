@@ -18,7 +18,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthChannelInterceptor webSocketAuthChannelInterceptor;
 
-    @Value("${cors.allowed-origin-patterns:https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420}")
+    @Value("${cors.allowed-origin-patterns:https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420}")
     private String allowedOriginPatterns;
 
     @Override

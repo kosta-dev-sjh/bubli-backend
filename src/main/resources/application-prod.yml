@@ -97,7 +97,7 @@ google:
     redirect-uri: ${GOOGLE_CALENDAR_REDIRECT_URI:}
 
 cors:
-  allowed-origin-patterns: https://bubli.n-e.kr,http://tauri.localhost
+  allowed-origin-patterns: https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost
 management:
   endpoints:
     web:

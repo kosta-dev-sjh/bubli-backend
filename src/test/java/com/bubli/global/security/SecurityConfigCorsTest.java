@@ -11,23 +11,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class SecurityConfigCorsTest {
 
     @Test
-    void corsAllowsTauriReleaseOrigin() {
+    void corsAllowsTauriReleaseOrigins() {
         SecurityConfig securityConfig = new SecurityConfig(null, new ObjectMapper(), null);
         ReflectionTestUtils.setField(
                 securityConfig,
                 "allowedOriginPatterns",
-                "https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000"
+                "https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost,http://localhost:3000"
         );
 
-        MockHttpServletRequest request = new MockHttpServletRequest("OPTIONS", "/api/me");
-        request.addHeader("Origin", "http://tauri.localhost");
+        for (String origin : new String[] { "tauri://localhost", "http://tauri.localhost" }) {
+            MockHttpServletRequest request = new MockHttpServletRequest("OPTIONS", "/api/me");
+            request.addHeader("Origin", origin);
 
-        CorsConfiguration corsConfiguration = securityConfig.corsConfigurationSource().getCorsConfiguration(request);
+            CorsConfiguration corsConfiguration = securityConfig.corsConfigurationSource().getCorsConfiguration(request);
 
-        assertThat(corsConfiguration).isNotNull();
-        assertThat(corsConfiguration.getAllowedOriginPatterns()).contains("http://tauri.localhost");
-        assertThat(corsConfiguration.checkOrigin("http://tauri.localhost")).isEqualTo("http://tauri.localhost");
-        assertThat(corsConfiguration.getAllowCredentials()).isTrue();
-        assertThat(corsConfiguration.getAllowedMethods()).contains("OPTIONS", "GET", "POST");
+            assertThat(corsConfiguration).isNotNull();
+            assertThat(corsConfiguration.getAllowedOriginPatterns()).contains(origin);
+            assertThat(corsConfiguration.checkOrigin(origin)).isEqualTo(origin);
+            assertThat(corsConfiguration.getAllowCredentials()).isTrue();
+            assertThat(corsConfiguration.getAllowedMethods()).contains("OPTIONS", "GET", "POST");
+        }
     }
 }
