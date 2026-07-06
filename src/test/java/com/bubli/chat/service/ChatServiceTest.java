@@ -15,6 +15,7 @@ import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.project.service.ProjectRoomPublicService;
@@ -69,6 +70,9 @@ class ChatServiceTest {
 	@Mock
 	WebSocketPublishPublicService webSocketPublishPublicService;
 
+	@Mock
+	NotificationPublicService notificationPublicService;
+
 	@Spy
 	ObjectMapper objectMapper = new ObjectMapper();
 
@@ -81,6 +85,7 @@ class ChatServiceTest {
 		UUID targetUserId = UUID.randomUUID();
 		UserResult targetUser = user(targetUserId, "준화");
 		given(userPublicService.getUser(targetUserId)).willReturn(targetUser);
+		given(userPublicService.getUser(requesterId)).willReturn(user(requesterId, "요청자"));
 		given(chatRoomRepository.findDirectRoomBetween(
 				requesterId,
 				targetUserId,
@@ -224,6 +229,7 @@ class ChatServiceTest {
 		)).willReturn(true);
 		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
 		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(userPublicService.getUser(inviterId)).willReturn(user(inviterId, "초대자"));
 		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
 				.willReturn(List.of());
 
@@ -252,6 +258,7 @@ class ChatServiceTest {
 		)).willReturn(true);
 		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom));
 		given(userPublicService.getUser(memberId)).willReturn(user(memberId, "민서"));
+		given(userPublicService.getUser(inviterId)).willReturn(user(inviterId, "초대자"));
 		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdIn(chatRoomId, List.of(memberId)))
 				.willReturn(List.of(leftMember));
 

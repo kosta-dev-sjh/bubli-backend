@@ -2,6 +2,8 @@ package com.bubli.user.service;
 
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.user.dto.FriendRequestResponse;
 import com.bubli.user.dto.FriendResponse;
 import com.bubli.user.dto.UserSearchResponse;
@@ -30,6 +32,7 @@ public class FriendService {
 	private final FriendRequestRepository friendRequestRepository;
 	private final FriendshipRepository friendshipRepository;
 	private final UserRepository userRepository;
+	private final NotificationPublicService notificationPublicService;
 
 	@Transactional(readOnly = true)
 	public List<FriendResponse> getFriends(UUID userId) {
@@ -108,6 +111,14 @@ public class FriendService {
 		User requester = userRepository.findById(requesterId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
 
+		notificationPublicService.create(
+				receiver.getId(),
+				NotificationSourceType.FRIEND_REQUEST,
+				saved.getId(),
+				requester.getName(),
+				"친구 요청을 보냈습니다"
+		);
+
 		return new FriendRequestResponse(
 				saved.getId(), saved.getRequesterId(), requester.getName(), requester.getBubliId(),
 				saved.getReceiverId(), receiver.getName(), receiver.getBubliId(),
@@ -131,6 +142,16 @@ public class FriendService {
 				.findByRequesterIdAndReceiverId(request.getReceiverId(), request.getRequesterId())
 				.filter(reverseRequest -> reverseRequest.getStatus() == FriendRequestStatus.PENDING)
 				.ifPresent(FriendRequest::accept);
+
+		User accepter = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_404_001));
+		notificationPublicService.create(
+				request.getRequesterId(),
+				NotificationSourceType.FRIEND_ACCEPTED,
+				request.getId(),
+				accepter.getName(),
+				"친구 요청을 수락했습니다"
+		);
 
 		return buildResponse(request);
 	}

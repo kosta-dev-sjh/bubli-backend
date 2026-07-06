@@ -3,6 +3,7 @@ package com.bubli.project.service;
 import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
@@ -70,6 +71,9 @@ class ProjectRoomMemberServiceTest {
 	@Mock
 	TimeLogPublicService timeLogPublicService;
 
+	@Mock
+	NotificationPublicService notificationPublicService;
+
 	@InjectMocks
 	ProjectRoomMemberService projectRoomMemberService;
 
@@ -78,9 +82,11 @@ class ProjectRoomMemberServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID leaderId = UUID.randomUUID();
 		User invitee = user(UUID.randomUUID(), "invitee", "준화");
+		User leader = user(leaderId, "leader", "리더");
 		CreateInvitationCommand command = new CreateInvitationCommand(invitee.getId(), RoomMemberRole.MEMBER, null);
 
 		given(userPublicService.getUser(invitee.getId())).willReturn(userResult(invitee));
+		given(userPublicService.getUser(leaderId)).willReturn(userResult(leader));
 		given(roomMemberRepository.findByRoomIdAndUserIdAndStatus(roomId, invitee.getId(), RoomMemberStatus.ACTIVE))
 				.willReturn(Optional.empty());
 		given(invitationRepository.existsByRoomIdAndInviteeUserIdAndStatus(

@@ -4,6 +4,8 @@ import com.bubli.chat.service.RoomChatPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.dto.CreateInvitationCommand;
 import com.bubli.project.dto.InvitationResult;
@@ -47,6 +49,7 @@ public class ProjectRoomMemberService {
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final RoomChatPublicService roomChatPublicService;
 	private final TimeLogPublicService timeLogPublicService;
+	private final NotificationPublicService notificationPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ProjectRoomMemberResult> getMembers(UUID requesterId, UUID roomId, Pageable pageable) {
@@ -112,6 +115,17 @@ public class ProjectRoomMemberService {
 
 		Invitation invitation = invitationRepository.findById(invitationId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_404_002));
+
+		UserResult inviter = userPublicService.getUser(inviterUserId);
+		String roomName = projectRoomRepository.findById(roomId).map(ProjectRoom::getName).orElse("");
+		notificationPublicService.create(
+				invitee.id(),
+				NotificationSourceType.ROOM_INVITE,
+				invitation.getId(),
+				inviter.name(),
+				roomName + " 프로젝트룸에 초대했습니다"
+		);
+
 		return InvitationResult.from(invitation, invitee);
 	}
 
