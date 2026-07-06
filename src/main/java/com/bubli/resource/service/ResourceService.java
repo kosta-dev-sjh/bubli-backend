@@ -431,6 +431,11 @@ public class ResourceService {
 		deleteStoredFilesAfterCommit(files);
 	}
 
+	@Transactional(readOnly = true)
+	public List<Instant> getCreatedAtBetween(UUID ownerId, Instant from, Instant to) {
+		return resourceRepository.findCreatedAtByOwnerIdAndCreatedAtBetween(ownerId, from, to);
+	}
+
 	@Transactional
 	public ResourceCommentResult createComment(UUID userId, UUID resourceId, UUID parentId, String body) {
 		getReadableResource(userId, resourceId);

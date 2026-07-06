@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,6 +25,19 @@ public interface TimeLogRepository extends JpaRepository<TimeLog, UUID> {
 	Optional<TimeLog> findFirstByUserIdAndRoomIdAndStatus(UUID userId, UUID roomId, TimeLogStatus status);
 
 	Optional<TimeLog> findByIdempotencyKey(String idempotencyKey);
+
+	@Query("""
+			select t.startedAt, t.durationSeconds
+			from TimeLog t
+			where t.userId = :userId
+			  and t.startedAt >= :from
+			  and t.startedAt < :to
+			""")
+	List<Object[]> findActivityByUserIdAndStartedAtBetween(
+			@Param("userId") UUID userId,
+			@Param("from") Instant from,
+			@Param("to") Instant to
+	);
 
 	@Modifying
 	@Query(value = """

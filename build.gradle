@@ -1,5 +1,7 @@
 plugins {
 	id 'java'
+	id 'checkstyle'
+	id 'org.owasp.dependencycheck' version '9.2.0'
 	id 'org.springframework.boot' version '3.4.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -130,4 +132,29 @@ tasks.named('test') {
 	systemProperty 'api.version', '1.47'
 	// docker.raw.sock은 볼륨 마운트 불가 → Ryuk 비활성화 (컨테이너 수동 정리)
 	environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+}
+
+// Checkstyle (Google Java Style)
+checkstyle {
+	toolVersion = '10.20.2'
+	configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+}
+
+// QueryDSL이 생성하는 Q-class(build/generated)는 검사 대상에서 제외
+tasks.named('checkstyleMain') {
+	source = fileTree('src/main/java')
+}
+// OWASP Dependency-Check
+dependencyCheck {
+	analyzers {
+		nodeAudit {
+			enabled = false
+		}
+		retirejs {
+			enabled = false
+		}
+	}
+	nvd {
+		apiKey = System.getenv("NVD_API_KEY") ?: ""
+	}
 }

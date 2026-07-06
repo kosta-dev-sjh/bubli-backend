@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -93,5 +94,11 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 	@Transactional
 	public void deletePersonalResource(UUID userId, UUID resourceId) {
 		resourceService.deleteResource(userId, resourceId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Instant> getUploadedAtBetween(UUID userId, Instant from, Instant to) {
+		return resourceService.getCreatedAtBetween(userId, from, to);
 	}
 }
