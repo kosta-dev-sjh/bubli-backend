@@ -61,7 +61,8 @@ public class UserService {
 				command.name(),
 				command.avatarUrl(),
 				normalizeLocaleForUpdate(command.locale()),
-				command.timezone()
+				command.timezone(),
+				command.jobRole()
 		);
 		return UserResult.from(user);
 	}
@@ -97,6 +98,10 @@ public class UserService {
 				command.jobRole(),
 				command.onboardingCompletedAt()
 		);
+		if (command.jobRole() != null) {
+			User user = getActiveUser(userId);
+			user.updateProfile(null, null, null, null, command.jobRole());
+		}
 		return UserPreferenceResult.from(preference);
 	}
 

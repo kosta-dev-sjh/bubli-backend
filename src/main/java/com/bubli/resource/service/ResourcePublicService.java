@@ -17,6 +17,8 @@ public interface ResourcePublicService {
 
 	ResourceResult getReadableResource(UUID userId, UUID resourceId);
 
+	List<ResourceResult> getRecentRoomResources(UUID userId, UUID roomId, int limit);
+
 	List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit);
 
 	List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit);

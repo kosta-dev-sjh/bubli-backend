@@ -4,6 +4,7 @@ public record UpdateUserProfileCommand(
 		String name,
 		String avatarUrl,
 		String locale,
-		String timezone
+		String timezone,
+		String jobRole
 ) {
 }

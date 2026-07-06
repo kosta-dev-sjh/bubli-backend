@@ -6,14 +6,16 @@ public record UpdateMeRequest(
 		@Size(max = 100) String name,
 		@Size(max = 500) String avatarUrl,
 		@Size(max = 20) String locale,
-		@Size(max = 50) String timezone
+		@Size(max = 50) String timezone,
+		@Size(max = 40) String jobRole
 ) {
 	public UpdateUserProfileCommand toCommand() {
 		return new UpdateUserProfileCommand(
 				trimToNull(name),
 				trimToNull(avatarUrl),
 				trimToNull(locale),
-				trimToNull(timezone)
+				trimToNull(timezone),
+				trimToNull(jobRole)
 		);
 	}
 

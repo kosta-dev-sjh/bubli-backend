@@ -109,7 +109,8 @@ class UserServiceTest {
 				"마렌",
 				"https://cdn.example/avatar.png",
 				"ja-JP",
-				"Asia/Tokyo"
+				"Asia/Tokyo",
+				"DESIGNER"
 		));
 
 		assertThat(result.id()).isEqualTo(userId);
@@ -117,6 +118,7 @@ class UserServiceTest {
 		assertThat(result.avatarUrl()).isEqualTo("https://cdn.example/avatar.png");
 		assertThat(result.locale()).isEqualTo("ja-JP");
 		assertThat(result.timezone()).isEqualTo("Asia/Tokyo");
+		assertThat(result.jobRole()).isEqualTo("DESIGNER");
 	}
 
 	@Test
@@ -130,6 +132,7 @@ class UserServiceTest {
 				null,
 				null,
 				"ja",
+				null,
 				null
 		));
 
@@ -145,6 +148,7 @@ class UserServiceTest {
 
 		UserResult result = userService.updateMe(userId, new UpdateUserProfileCommand(
 				"new name",
+				null,
 				null,
 				null,
 				null
@@ -201,8 +205,11 @@ class UserServiceTest {
 		UUID preferenceId = UUID.randomUUID();
 		Instant onboardingCompletedAt = Instant.parse("2026-07-05T00:00:00Z");
 		UserPreference preference = UserPreference.create(userId);
+		User user = User.createGoogleUser("google-sub", "bubli", "?뺥쁽", null, "ko-KR", "Asia/Seoul");
 		ReflectionTestUtils.setField(preference, "id", preferenceId);
+		ReflectionTestUtils.setField(user, "id", userId);
 		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(preference));
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
 		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
 				"LIGHT",
@@ -218,6 +225,7 @@ class UserServiceTest {
 		assertThat(result.defaultProjectRoomId()).isEqualTo(roomId);
 		assertThat(result.jobRole()).isEqualTo("PM");
 		assertThat(result.onboardingCompletedAt()).isEqualTo(onboardingCompletedAt);
+		assertThat(user.getJobRole()).isEqualTo("PM");
 		org.mockito.Mockito.verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
 		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
 	}
@@ -226,10 +234,13 @@ class UserServiceTest {
 	void updatePreferencesLocksExistingPreferenceWhenDefaultInsertConflicts() {
 		UUID userId = UUID.randomUUID();
 		UserPreference existingPreference = UserPreference.create(userId);
+		User user = User.createGoogleUser("google-sub", "bubli", "?뺥쁽", null, "ko-KR", "Asia/Seoul");
 		ReflectionTestUtils.setField(existingPreference, "id", UUID.randomUUID());
+		ReflectionTestUtils.setField(user, "id", userId);
 		given(userPreferenceRepository.insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId)))
 				.willReturn(0);
 		given(userPreferenceRepository.findByUserIdForUpdate(userId)).willReturn(Optional.of(existingPreference));
+		given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
 		UserPreferenceResult result = userService.updatePreferences(userId, new UpdateUserPreferenceCommand(
 				"DARK",
@@ -243,6 +254,7 @@ class UserServiceTest {
 		assertThat(result.theme()).isEqualTo("DARK");
 		assertThat(result.defaultHomeType()).isEqualTo("DASHBOARD");
 		assertThat(result.jobRole()).isEqualTo("DESIGNER");
+		assertThat(user.getJobRole()).isEqualTo("DESIGNER");
 		verify(userPreferenceRepository).insertDefaultIfAbsent(ArgumentMatchers.any(UUID.class), ArgumentMatchers.eq(userId));
 	}
 

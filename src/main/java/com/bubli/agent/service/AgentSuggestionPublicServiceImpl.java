@@ -1,9 +1,11 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -26,6 +28,7 @@ public class AgentSuggestionPublicServiceImpl implements AgentSuggestionPublicSe
 	);
 
 	private final AgentSuggestionRepository agentSuggestionRepository;
+	private final ProjectMembershipPublicService projectMembershipPublicService;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -41,6 +44,24 @@ public class AgentSuggestionPublicServiceImpl implements AgentSuggestionPublicSe
 				)
 				.stream()
 				.map(this::summaryLine)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<AgentSuggestionResponse> getRecentRoomSuggestions(UUID userId, UUID roomId, int limit) {
+		projectMembershipPublicService.assertActiveMember(userId, roomId);
+		return agentSuggestionRepository.findByRoomIdAndStatusIn(
+						roomId,
+						REVIEW_REQUIRED_STATUSES,
+						PageRequest.of(
+								0,
+								boundedLimit(limit),
+								Sort.by("updatedAt").descending().and(Sort.by("id").descending())
+						)
+				)
+				.stream()
+				.map(AgentSuggestionResponse::from)
 				.toList();
 	}
 

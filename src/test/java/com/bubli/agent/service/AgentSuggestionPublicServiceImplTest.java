@@ -4,6 +4,7 @@ import com.bubli.agent.entity.AgentSuggestion;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +28,9 @@ class AgentSuggestionPublicServiceImplTest {
 
 	@Mock
 	AgentSuggestionRepository agentSuggestionRepository;
+
+	@Mock
+	ProjectMembershipPublicService projectMembershipPublicService;
 
 	@InjectMocks
 	AgentSuggestionPublicServiceImpl agentSuggestionPublicService;
@@ -56,5 +60,35 @@ class AgentSuggestionPublicServiceImplTest {
 				pageableCaptor.capture()
 		);
 		assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
+	}
+
+	@Test
+	void getRecentRoomSuggestionsReturnsReviewRequiredRoomSuggestions() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		AgentSuggestion suggestion = AgentSuggestion.draft(
+				userId,
+				roomId,
+				UUID.randomUUID(),
+				null,
+				AgentSuggestionType.TODO,
+				Map.of("title", "계약서 검토"),
+				Map.of()
+		);
+		given(agentSuggestionRepository.findByRoomIdAndStatusIn(eq(roomId), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+				.willReturn(new PageImpl<>(List.of(suggestion)));
+
+		var suggestions = agentSuggestionPublicService.getRecentRoomSuggestions(userId, roomId, 10);
+
+		verify(projectMembershipPublicService).assertActiveMember(userId, roomId);
+		assertThat(suggestions).hasSize(1);
+		assertThat(suggestions.getFirst().suggestionType()).isEqualTo(AgentSuggestionType.TODO);
+		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+		verify(agentSuggestionRepository).findByRoomIdAndStatusIn(
+				eq(roomId),
+				eq(List.of(AgentSuggestionStatus.DRAFT, AgentSuggestionStatus.HELD)),
+				pageableCaptor.capture()
+		);
+		assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10);
 	}
 }
