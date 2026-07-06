@@ -121,6 +121,15 @@ public class ChatController {
 		return ApiResponse.success(chatService.markRead(authUser.userId(), chatRoomId, request.lastReadSequence()));
 	}
 
+	@PostMapping("/api/chat/rooms/{chatRoomId}/leave")
+	public ApiResponse<Void> leaveRoom(
+			@CurrentUser AuthUser authUser,
+			@PathVariable UUID chatRoomId
+	) {
+		chatService.leaveRoom(authUser.userId(), chatRoomId);
+		return ApiResponse.success(null);
+	}
+
 	private PageResponse<ChatRoomResponse> mapRoomPage(PageResponse<ChatRoomResult> page) {
 		return new PageResponse<>(
 				page.getItems().stream()

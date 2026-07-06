@@ -17,11 +17,15 @@ public record ChatRoomResult(
 		Instant updatedAt
 ) {
 	public static ChatRoomResult from(ChatRoom chatRoom) {
+		return from(chatRoom, chatRoom.getName());
+	}
+
+	public static ChatRoomResult from(ChatRoom chatRoom, String displayName) {
 		return new ChatRoomResult(
 				chatRoom.getId(),
 				chatRoom.getRoomId(),
 				chatRoom.getChatType(),
-				chatRoom.getName(),
+				displayName,
 				chatRoom.getStatus(),
 				chatRoom.getCreatedAt(),
 				chatRoom.getUpdatedAt()
