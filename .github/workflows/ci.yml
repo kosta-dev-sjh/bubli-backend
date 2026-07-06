@@ -90,3 +90,7 @@ jobs:
           path: |
             build/reports/tests/
             test-output.log
+
+      - name: Checkstyle
+        continue-on-error: true
+        run: ./gradlew checkstyleMain --continue
