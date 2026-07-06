@@ -491,6 +491,59 @@ class ChatServiceTest {
 		assertThat(member.getLastReadSequence()).isEqualTo(roomSequence);
 	}
 
+	@Test
+	void leaveRoomMarksMemberAsLeft() {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		ChatRoom directRoom = ChatRoom.createDirect("상대방");
+		ReflectionTestUtils.setField(directRoom, "id", chatRoomId);
+		ChatRoomMember member = ChatRoomMember.create(chatRoomId, userId);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(directRoom));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(Optional.of(member));
+
+		chatService.leaveRoom(userId, chatRoomId);
+
+		assertThat(member.getStatus()).isEqualTo(ChatMemberStatus.LEFT);
+	}
+
+	@Test
+	void leaveRoomRejectsProjectRoomChat() {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(chatRoom(chatRoomId)));
+
+		assertThatThrownBy(() -> chatService.leaveRoom(userId, chatRoomId))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode")
+				.isEqualTo(ErrorCode.COMMON_400_002);
+
+		verify(chatRoomMemberRepository, never())
+				.findByChatRoomIdAndUserIdAndStatus(any(), any(), any());
+	}
+
+	@Test
+	void leaveRoomRejectsNonMember() {
+		UUID chatRoomId = UUID.randomUUID();
+		UUID userId = UUID.randomUUID();
+		ChatRoom directRoom = ChatRoom.createDirect("상대방");
+		ReflectionTestUtils.setField(directRoom, "id", chatRoomId);
+		given(chatRoomRepository.findById(chatRoomId)).willReturn(Optional.of(directRoom));
+		given(chatRoomMemberRepository.findByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> chatService.leaveRoom(userId, chatRoomId))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode")
+				.isEqualTo(ErrorCode.CHAT_403_001);
+	}
+
 	private ChatRoom chatRoom(UUID chatRoomId) {
 		ChatRoom chatRoom = ChatRoom.createRoom(UUID.randomUUID(), "프로젝트룸 채팅");
 		ReflectionTestUtils.setField(chatRoom, "id", chatRoomId);

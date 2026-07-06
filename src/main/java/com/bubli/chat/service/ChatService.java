@@ -16,6 +16,8 @@ import com.bubli.chat.type.MessageType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.response.PageResponse;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.project.dto.ProjectRoomResult;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.project.service.ProjectRoomPublicService;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,12 +61,15 @@ public class ChatService {
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ObjectMapper objectMapper;
 	private final WebSocketPublishPublicService webSocketPublishPublicService;
+	private final NotificationPublicService notificationPublicService;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ChatRoomResult> getChatRooms(UUID userId, Pageable pageable) {
-		Page<ChatRoomResult> page = chatRoomRepository
-				.findAccessibleRooms(userId, ChatMemberStatus.ACTIVE, pageable)
-				.map(ChatRoomResult::from);
+		Page<ChatRoom> roomPage = chatRoomRepository.findAccessibleRooms(userId, ChatMemberStatus.ACTIVE, pageable);
+		Map<UUID, String> directRoomNames = resolveDirectRoomNames(userId, roomPage.getContent());
+
+		Page<ChatRoomResult> page = roomPage.map(chatRoom ->
+				ChatRoomResult.from(chatRoom, directRoomNames.getOrDefault(chatRoom.getId(), chatRoom.getName())));
 
 		return new PageResponse<>(
 				page.getContent(),
@@ -83,14 +89,15 @@ public class ChatService {
 
 		UserResult targetUser = userPublicService.getUser(targetUserId);
 
-		return chatRoomRepository.findDirectRoomBetween(
+		ChatRoom chatRoom = chatRoomRepository.findDirectRoomBetween(
 						requesterId,
 						targetUserId,
 						ChatType.DIRECT,
 						ChatMemberStatus.ACTIVE
 				)
-				.map(ChatRoomResult::from)
 				.orElseGet(() -> createNewDirectRoom(requesterId, targetUser));
+
+		return ChatRoomResult.from(chatRoom, targetUser.name());
 	}
 
 	@Transactional
@@ -191,8 +198,39 @@ public class ChatService {
 		ChatMessageResult result = toResult(saveResult.message(), sender);
 		if (saveResult.created()) {
 			webSocketPublishPublicService.publishChatMessage(result);
+			notifyRecipients(chatRoomId, senderUserId, sender, command);
 		}
 		return result;
+	}
+
+	private void notifyRecipients(UUID chatRoomId, UUID senderUserId, UserResult sender, SendChatMessageCommand command) {
+		List<ChatRoomMember> recipients = chatRoomMemberRepository
+				.findByChatRoomIdAndUserIdNotAndStatus(chatRoomId, senderUserId, ChatMemberStatus.ACTIVE);
+		if (recipients.isEmpty()) {
+			return;
+		}
+
+		String body = messagePreview(command);
+		recipients.forEach(recipient -> notificationPublicService.create(
+				recipient.getUserId(),
+				NotificationSourceType.MESSAGE,
+				chatRoomId,
+				sender.name(),
+				body
+		));
+	}
+
+	private String messagePreview(SendChatMessageCommand command) {
+		MessageType messageType = command.messageType() == null ? MessageType.TEXT : command.messageType();
+		if (messageType == MessageType.TEXT && command.body() != null && command.body().hasNonNull("text")) {
+			return command.body().get("text").asText();
+		}
+		return switch (messageType) {
+			case FILE -> "파일을 보냈습니다.";
+			case AGENT_COMMAND -> "에이전트 명령을 보냈습니다.";
+			case AGENT_RESPONSE -> "에이전트 응답이 도착했습니다.";
+			default -> "새 메시지가 도착했습니다.";
+		};
 	}
 
 	@Transactional
@@ -209,6 +247,23 @@ public class ChatService {
 		Instant now = Instant.now();
 		member.markRead(message.getId(), message.getRoomSequence(), now);
 		return new ChatRoomReadResponse(chatRoomId, message.getRoomSequence(), now);
+	}
+
+	@Transactional
+	public void leaveRoom(UUID userId, UUID chatRoomId) {
+		ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_404_001));
+		if (chatRoom.getChatType() == ChatType.ROOM) {
+			throw new BusinessException(ErrorCode.COMMON_400_002);
+		}
+
+		ChatRoomMember member = chatRoomMemberRepository.findByChatRoomIdAndUserIdAndStatus(
+				chatRoomId,
+				userId,
+				ChatMemberStatus.ACTIVE
+		).orElseThrow(() -> new BusinessException(ErrorCode.CHAT_403_001));
+
+		member.leave();
 	}
 
 	private ChatMessage createMessage(UUID senderUserId, UUID chatRoomId, SendChatMessageCommand command) {
@@ -250,11 +305,41 @@ public class ChatService {
 		throw lastException;
 	}
 
-	private ChatRoomResult createNewDirectRoom(UUID requesterId, UserResult targetUser) {
+	private ChatRoom createNewDirectRoom(UUID requesterId, UserResult targetUser) {
 		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(targetUser.name()));
 		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), requesterId));
 		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), targetUser.id()));
-		return ChatRoomResult.from(chatRoom);
+		return chatRoom;
+	}
+
+	private Map<UUID, String> resolveDirectRoomNames(UUID viewerUserId, List<ChatRoom> rooms) {
+		List<UUID> directRoomIds = rooms.stream()
+				.filter(room -> room.getChatType() == ChatType.DIRECT)
+				.map(ChatRoom::getId)
+				.toList();
+		if (directRoomIds.isEmpty()) {
+			return Map.of();
+		}
+
+		Map<UUID, UUID> counterpartUserIdByRoomId = chatRoomMemberRepository
+				.findByChatRoomIdInAndUserIdNot(directRoomIds, viewerUserId)
+				.stream()
+				.collect(Collectors.toMap(
+						ChatRoomMember::getChatRoomId,
+						ChatRoomMember::getUserId,
+						(first, second) -> first
+				));
+
+		Map<UUID, UserResult> counterpartUsers = userPublicService.getUsers(counterpartUserIdByRoomId.values());
+
+		Map<UUID, String> names = new HashMap<>();
+		counterpartUserIdByRoomId.forEach((roomId, counterpartUserId) -> {
+			UserResult counterpart = counterpartUsers.get(counterpartUserId);
+			if (counterpart != null) {
+				names.put(roomId, counterpart.name());
+			}
+		});
+		return names;
 	}
 
 	private void addActiveProjectMembers(UUID chatRoomId, UUID roomId) {
