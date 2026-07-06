@@ -1,11 +1,13 @@
 package com.bubli.personal.dashboard.service;
 
 import com.bubli.agent.service.AgentSuggestionPublicService;
+import com.bubli.personal.dashboard.dto.DashboardActivityHeatmapResponse;
 import com.bubli.personal.dashboard.dto.DashboardProjectProgressSummary;
 import com.bubli.personal.dashboard.dto.DashboardWorkResponse;
 import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.timer.dto.TimeLogActivityRow;
 import com.bubli.personal.timer.dto.TimeLogResult;
 import com.bubli.personal.timer.service.TimeLogPublicService;
 import com.bubli.project.dto.ProjectRoomResult;
@@ -24,8 +26,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +45,8 @@ public class DashboardService {
 	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT = 5;
 	private static final int RESOURCE_ANALYSIS_SUMMARY_LIMIT_LENGTH = 100;
 	private static final int PROJECT_PROGRESS_SUMMARY_LIMIT = 5;
+	private static final ZoneId ACTIVITY_HEATMAP_ZONE = ZoneId.of("Asia/Seoul");
+	private static final int ACTIVITY_HEATMAP_MAX_DAYS = 365;
 
 	private final TaskPublicService taskPublicService;
 	private final SchedulePublicService schedulePublicService;
@@ -83,6 +92,44 @@ public class DashboardService {
 						.map(this::projectProgressSummary)
 						.toList()
 		);
+	}
+
+	@Transactional(readOnly = true)
+	public List<DashboardActivityHeatmapResponse> getActivityHeatmap(UUID userId, int days) {
+		int boundedDays = Math.max(1, Math.min(days, ACTIVITY_HEATMAP_MAX_DAYS));
+		LocalDate today = LocalDate.now(ACTIVITY_HEATMAP_ZONE);
+		LocalDate startDate = today.minusDays(boundedDays - 1L);
+		Instant from = startDate.atStartOfDay(ACTIVITY_HEATMAP_ZONE).toInstant();
+		Instant to = today.plusDays(1).atStartOfDay(ACTIVITY_HEATMAP_ZONE).toInstant();
+
+		Map<LocalDate, Long> activityCounts = new HashMap<>();
+		Map<LocalDate, Long> focusSeconds = new HashMap<>();
+
+		for (TimeLogActivityRow row : timeLogPublicService.getActivityBetween(userId, from, to)) {
+			LocalDate date = toKstDate(row.startedAt());
+			activityCounts.merge(date, 1L, Long::sum);
+			focusSeconds.merge(date, row.durationSeconds() == null ? 0L : row.durationSeconds(), Long::sum);
+		}
+		mergeActivityDates(taskPublicService.getCompletedAtBetween(userId, from, to), activityCounts);
+		mergeActivityDates(resourcePublicService.getUploadedAtBetween(userId, from, to), activityCounts);
+
+		List<DashboardActivityHeatmapResponse> heatmap = new ArrayList<>();
+		for (LocalDate date = startDate; !date.isAfter(today); date = date.plusDays(1)) {
+			long count = activityCounts.getOrDefault(date, 0L);
+			long focusMinutes = focusSeconds.getOrDefault(date, 0L) / 60;
+			heatmap.add(new DashboardActivityHeatmapResponse(date, count, focusMinutes));
+		}
+		return heatmap;
+	}
+
+	private void mergeActivityDates(List<Instant> timestamps, Map<LocalDate, Long> counts) {
+		for (Instant timestamp : timestamps) {
+			counts.merge(toKstDate(timestamp), 1L, Long::sum);
+		}
+	}
+
+	private LocalDate toKstDate(Instant instant) {
+		return instant.atZone(ACTIVITY_HEATMAP_ZONE).toLocalDate();
 	}
 
 	private String memoSummaryLine(MemoResult memo) {

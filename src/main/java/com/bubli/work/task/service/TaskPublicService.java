@@ -18,6 +18,8 @@ public interface TaskPublicService {
 
 	List<TaskResult> getDueBetweenTasks(UUID userId, Instant from, Instant to);
 
+	List<Instant> getCompletedAtBetween(UUID userId, Instant from, Instant to);
+
 	boolean existsByWbsItemId(UUID wbsItemId);
 
 	void assertNoTaskLinkedToWbsItem(UUID wbsItemId);

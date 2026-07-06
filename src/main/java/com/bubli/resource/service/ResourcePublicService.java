@@ -6,6 +6,7 @@ import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,4 +36,6 @@ public interface ResourcePublicService {
 	ResourceExtractedTextResult storeExtractedText(UUID userId, StoreResourceExtractedTextCommand command);
 
 	void deletePersonalResource(UUID userId, UUID resourceId);
+
+	List<Instant> getUploadedAtBetween(UUID userId, Instant from, Instant to);
 }
