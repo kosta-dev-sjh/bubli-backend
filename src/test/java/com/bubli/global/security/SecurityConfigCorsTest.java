@@ -16,17 +16,17 @@ public class SecurityConfigCorsTest {
         ReflectionTestUtils.setField(
                 securityConfig,
                 "allowedOriginPatterns",
-                "https://bubli.n-e.kr,http://tauri.localhost,http://localhost:3000"
+                "https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost,http://localhost:3000"
         );
 
         MockHttpServletRequest request = new MockHttpServletRequest("OPTIONS", "/api/me");
-        request.addHeader("Origin", "http://tauri.localhost");
+        request.addHeader("Origin", "tauri://localhost");
 
         CorsConfiguration corsConfiguration = securityConfig.corsConfigurationSource().getCorsConfiguration(request);
 
         assertThat(corsConfiguration).isNotNull();
-        assertThat(corsConfiguration.getAllowedOriginPatterns()).contains("http://tauri.localhost");
-        assertThat(corsConfiguration.checkOrigin("http://tauri.localhost")).isEqualTo("http://tauri.localhost");
+        assertThat(corsConfiguration.getAllowedOriginPatterns()).contains("tauri://localhost");
+        assertThat(corsConfiguration.checkOrigin("tauri://localhost")).isEqualTo("tauri://localhost");
         assertThat(corsConfiguration.getAllowCredentials()).isTrue();
         assertThat(corsConfiguration.getAllowedMethods()).contains("OPTIONS", "GET", "POST");
     }
