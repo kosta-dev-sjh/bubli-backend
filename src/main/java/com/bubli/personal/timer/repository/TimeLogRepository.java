@@ -1,6 +1,5 @@
 package com.bubli.personal.timer.repository;
 
-import com.bubli.personal.timer.dto.TimeLogActivityRow;
 import com.bubli.personal.timer.entity.TimeLog;
 import com.bubli.personal.timer.type.TimeLogStatus;
 import org.springframework.data.domain.Page;
@@ -28,13 +27,13 @@ public interface TimeLogRepository extends JpaRepository<TimeLog, UUID> {
 	Optional<TimeLog> findByIdempotencyKey(String idempotencyKey);
 
 	@Query("""
-			select new com.bubli.personal.timer.dto.TimeLogActivityRow(t.startedAt, t.durationSeconds)
+			select t.startedAt, t.durationSeconds
 			from TimeLog t
 			where t.userId = :userId
 			  and t.startedAt >= :from
 			  and t.startedAt < :to
 			""")
-	List<TimeLogActivityRow> findActivityByUserIdAndStartedAtBetween(
+	List<Object[]> findActivityByUserIdAndStartedAtBetween(
 			@Param("userId") UUID userId,
 			@Param("from") Instant from,
 			@Param("to") Instant to

@@ -44,6 +44,8 @@ public class TimeLogPublicServiceImpl implements TimeLogPublicService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<TimeLogActivityRow> getActivityBetween(UUID userId, Instant from, Instant to) {
-		return timeLogRepository.findActivityByUserIdAndStartedAtBetween(userId, from, to);
+		return timeLogRepository.findActivityByUserIdAndStartedAtBetween(userId, from, to).stream()
+				.map(row -> new TimeLogActivityRow((Instant) row[0], (Long) row[1]))
+				.toList();
 	}
 }
