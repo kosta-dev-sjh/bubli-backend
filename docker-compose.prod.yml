@@ -61,9 +61,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
+          memory: 768m
         reservations:
-          memory: 64m
+          memory: 384m
 
   frontend:
     image: ${DOCKER_USERNAME}/bubli-frontend:latest
