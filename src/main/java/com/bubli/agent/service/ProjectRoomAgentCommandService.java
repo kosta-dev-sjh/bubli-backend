@@ -1,8 +1,8 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dto.AgentSuggestionResponse;
+import com.bubli.agent.dto.ProjectRoomGroundingContext;
 import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
-import com.bubli.agent.dto.ProjectRoomRagContext;
 import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.type.AgentCommandMode;
 import com.bubli.agent.type.AgentSuggestionType;
@@ -37,7 +37,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProjectRoomAgentCommandService {
 
-	private static final String PROMPT_VERSION = "project-room-agent-command-rag-source-only-v1";
+	private static final String PROMPT_VERSION = "project-room-agent-command-project-grounded-v1";
 
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ChatMessagePublicService chatMessagePublicService;
@@ -46,7 +46,7 @@ public class ProjectRoomAgentCommandService {
 	private final ProjectRoomEventPublicService projectRoomEventPublicService;
 	private final UserLocalePublicService userLocalePublicService;
 	private final ResourcePublicService resourcePublicService;
-	private final ProjectRoomRagGroundingService ragGroundingService;
+	private final ProjectRoomGroundingService groundingService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
 	private final ObjectMapper objectMapper;
@@ -71,21 +71,21 @@ public class ProjectRoomAgentCommandService {
 					commandMode,
 					inventoryAnswer.answer(),
 					List.of(),
-					ProjectRoomRagContext.ungrounded(),
+					ProjectRoomGroundingContext.ungrounded(),
 					inventoryAnswer.resources()
 			);
 		}
-		ProjectRoomRagContext ragContext = ragGroundingService.retrieve(userId, roomId, message, locale, commandMode);
-		String answer = answer(message, commandMode, locale, ragContext);
+		ProjectRoomGroundingContext groundingContext = groundingService.retrieve(userId, roomId, message, locale, commandMode);
+		String answer = answer(message, commandMode, locale, groundingContext);
 		List<AgentSuggestionResponse> suggestions = createSuggestions(
 				userId,
 				roomId,
 				message,
 				commandMode,
 				answer,
-				ragContext
+				groundingContext
 		);
-		return persistResponse(userId, roomId, message, commandMode, answer, suggestions, ragContext, List.of());
+		return persistResponse(userId, roomId, message, commandMode, answer, suggestions, groundingContext, List.of());
 	}
 
 	private ProjectRoomAgentCommandResponse persistResponse(
@@ -95,14 +95,14 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode commandMode,
 			String answer,
 			List<AgentSuggestionResponse> suggestions,
-			ProjectRoomRagContext ragContext,
+			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
 	) {
-		UUID responseResourceId = metadataResources.isEmpty() ? ragContext.firstResourceId() : metadataResources.getFirst().id();
+		UUID responseResourceId = metadataResources.isEmpty() ? groundingContext.firstResourceId() : metadataResources.getFirst().id();
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
 				userId,
 				roomId,
-				responseBody(message, commandMode, answer, suggestions, ragContext, metadataResources),
+				responseBody(message, commandMode, answer, suggestions, groundingContext, metadataResources),
 				responseResourceId
 		));
 		RoomMemorySummaryContextResult memory = roomMemoryPublicService.createDraft(
@@ -110,7 +110,7 @@ public class ProjectRoomAgentCommandService {
 				roomId,
 				chatMessage.roomSequence(),
 				chatMessage.roomSequence(),
-				memoryJson(message, commandMode, answer, suggestions, ragContext, metadataResources)
+				memoryJson(message, commandMode, answer, suggestions, groundingContext, metadataResources)
 		);
 		return new ProjectRoomAgentCommandResponse(chatMessage, memory, suggestions);
 	}
@@ -158,8 +158,8 @@ public class ProjectRoomAgentCommandService {
 		return "현재 프로젝트룸에서 업로드된 자료를 찾지 못했습니다.";
 	}
 
-	private String answer(String message, AgentCommandMode mode, String locale, ProjectRoomRagContext ragContext) {
-		if (!ragContext.grounded()) {
+	private String answer(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
+		if (!groundingContext.grounded()) {
 			return noAnswer(locale);
 		}
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
@@ -167,48 +167,48 @@ public class ProjectRoomAgentCommandService {
 			return noAnswer(locale);
 		}
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
-		String prompt = prompt(message, mode, locale, ragContext);
+		String prompt = prompt(message, mode, locale, groundingContext);
 		try {
 			if (executor == null) {
 				return chatModel.call(prompt);
 			}
-			return executor.execute("project-room-agent-command-rag", () -> chatModel.call(prompt));
+			return executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
 		} catch (RuntimeException exception) {
 			log.warn("Project room RAG LLM answer failed.", exception);
 			return noAnswer(locale);
 		}
 	}
 
-	private String prompt(String message, AgentCommandMode mode, String locale, ProjectRoomRagContext ragContext) {
+	private String prompt(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
 		return """
 				You are Bubli's project room agent. %s
 				Mode: %s
 
-				Use ONLY the project material sources listed under "Retrieved project document chunks".
-				Do not use recent chat history, room memory summaries, tasks, WBS, schedules, user memory, general world knowledge, or assumptions as factual evidence.
-				If the retrieved chunks do not contain enough information to answer, reply exactly with this sentence in the response language: %s
-				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved chunks.
+				Use ONLY the project documents and management data listed under "Retrieved project grounding sources".
+				Do not use recent chat history, room memory summaries, user memory, user profile memory, general world knowledge, or assumptions as factual evidence.
+				If the retrieved sources do not contain enough information to answer, reply exactly with this sentence in the response language: %s
+				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved sources.
 				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
 
 				User message:
 				%s
 
-				Retrieved project document chunks:
+				Retrieved project grounding sources:
 				%s
 				""".formatted(
 				languageInstruction(locale),
 				mode,
 				noAnswer(locale),
 				message,
-				ragContext.promptBlock()
+				groundingContext.promptBlock()
 		);
 	}
 
 	private String noAnswer(String locale) {
 		return switch (locale) {
-			case "en-US" -> "I cannot determine that from the project materials.";
-			case "ja-JP" -> "プロジェクト資料の範囲では分かりません。";
-			default -> "프로젝트 자료 기준에서는 알 수 없는 내용입니다.";
+			case "en-US" -> "I cannot determine that from the project documents or management data.";
+			case "ja-JP" -> "プロジェクト資料および管理データの範囲では分かりません。";
+			default -> "프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다.";
 		};
 	}
 
@@ -226,9 +226,9 @@ public class ProjectRoomAgentCommandService {
 			String message,
 			AgentCommandMode mode,
 			String answer,
-			ProjectRoomRagContext ragContext
+			ProjectRoomGroundingContext groundingContext
 	) {
-		if (mode != AgentCommandMode.SUGGEST || !ragContext.grounded()) {
+		if (mode != AgentCommandMode.SUGGEST || !groundingContext.grounded()) {
 			return List.of();
 		}
 		AgentSuggestionType suggestionType = inferSuggestionType(message);
@@ -236,10 +236,10 @@ public class ProjectRoomAgentCommandService {
 				userId,
 				roomId,
 				null,
-				ragContext.firstResourceId(),
+				groundingContext.firstResourceId(),
 				suggestionType,
-				suggestionPayload(suggestionType, message, answer),
-				suggestionEvidence(ragContext)
+				suggestionPayload(suggestionType, message, answer, groundingContext),
+				suggestionEvidence(groundingContext)
 		);
 		projectRoomEventPublicService.recordAgentSuggestionsCreated(
 				userId,
@@ -288,14 +288,20 @@ public class ProjectRoomAgentCommandService {
 		return value == null ? "" : value.toLowerCase(Locale.ROOT);
 	}
 
-	private Map<String, Object> suggestionPayload(AgentSuggestionType suggestionType, String message, String answer) {
+	private Map<String, Object> suggestionPayload(
+			AgentSuggestionType suggestionType,
+			String message,
+			String answer,
+			ProjectRoomGroundingContext groundingContext
+	) {
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("type", suggestionType.name());
 		payload.put("title", suggestionTitle(message, suggestionType));
 		payload.put("description", message);
 		payload.put("agentResponse", answer);
 		payload.put("source", "PROJECT_ROOM_AGENT_COMMAND");
-		payload.put("ragGrounded", true);
+		payload.put("grounded", true);
+		payload.put("sourceTypes", sourceTypes(groundingContext));
 		return payload;
 	}
 
@@ -314,14 +320,11 @@ public class ProjectRoomAgentCommandService {
 		return normalized.length() <= 80 ? normalized : normalized.substring(0, 80);
 	}
 
-	private Map<String, Object> suggestionEvidence(ProjectRoomRagContext ragContext) {
+	private Map<String, Object> suggestionEvidence(ProjectRoomGroundingContext groundingContext) {
 		Map<String, Object> evidence = new LinkedHashMap<>();
 		evidence.put("source", "PROJECT_ROOM_AGENT_COMMAND");
 		evidence.put("promptVersion", PROMPT_VERSION);
-		evidence.put("ragGrounded", ragContext.grounded());
-		evidence.put("ragMaxSimilarity", ragContext.maxSimilarity());
-		evidence.put("resourceIds", ragContext.resourceIds());
-		evidence.put("ragHits", ragHits(ragContext));
+		putGroundingMetadata(evidence, groundingContext);
 		return evidence;
 	}
 
@@ -330,7 +333,7 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode mode,
 			String answer,
 			List<AgentSuggestionResponse> suggestions,
-			ProjectRoomRagContext ragContext,
+			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
 	) {
 		Map<String, Object> body = new LinkedHashMap<>();
@@ -338,14 +341,11 @@ public class ProjectRoomAgentCommandService {
 		body.put("request", request);
 		body.put("mode", mode.name());
 		body.put("promptVersion", PROMPT_VERSION);
-		body.put("contextCharacters", ragContext.promptBlock().length());
+		body.put("contextCharacters", groundingContext.promptBlock().length());
 		body.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
-		body.put("ragGrounded", ragContext.grounded());
-		body.put("ragMaxSimilarity", ragContext.maxSimilarity());
-		body.put("ragHits", ragHits(ragContext));
-		body.put("resourceIds", ragContext.resourceIds());
+		putGroundingMetadata(body, groundingContext);
 		if (!metadataResources.isEmpty()) {
 			body.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
 			body.put("resourceIds", metadataResources.stream().map(ResourceResult::id).toList());
@@ -358,7 +358,7 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode mode,
 			String answer,
 			List<AgentSuggestionResponse> suggestions,
-			ProjectRoomRagContext ragContext,
+			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
 	) {
 		Map<String, Object> memory = new LinkedHashMap<>();
@@ -366,14 +366,11 @@ public class ProjectRoomAgentCommandService {
 		memory.put("mode", mode.name());
 		memory.put("request", request);
 		memory.put("answer", answer);
-		memory.put("contextCharacters", ragContext.promptBlock().length());
+		memory.put("contextCharacters", groundingContext.promptBlock().length());
 		memory.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
-		memory.put("ragGrounded", ragContext.grounded());
-		memory.put("ragMaxSimilarity", ragContext.maxSimilarity());
-		memory.put("ragHits", ragHits(ragContext));
-		memory.put("resourceIds", ragContext.resourceIds());
+		putGroundingMetadata(memory, groundingContext);
 		if (!metadataResources.isEmpty()) {
 			memory.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
 			memory.put("resourceIds", metadataResources.stream().map(ResourceResult::id).toList());
@@ -385,8 +382,30 @@ public class ProjectRoomAgentCommandService {
 		}
 	}
 
-	private List<Map<String, Object>> ragHits(ProjectRoomRagContext ragContext) {
-		return ragContext.hits().stream()
+	private void putGroundingMetadata(Map<String, Object> payload, ProjectRoomGroundingContext groundingContext) {
+		payload.put("grounded", groundingContext.grounded());
+		payload.put("sourceTypes", sourceTypes(groundingContext));
+		payload.put("evidenceItems", groundingContext.evidenceItems().stream()
+				.map(com.bubli.agent.dto.ProjectRoomGroundingEvidence::toPayload)
+				.toList());
+		payload.put("ragGrounded", groundingContext.hasDocumentEvidence());
+		payload.put("ragMaxSimilarity", groundingContext.ragMaxSimilarity());
+		payload.put("ragHits", ragHits(groundingContext));
+		payload.put("resourceIds", groundingContext.resourceIds());
+		payload.put("taskIds", groundingContext.taskIds());
+		payload.put("wbsItemIds", groundingContext.wbsItemIds());
+		payload.put("scheduleIds", groundingContext.scheduleIds());
+		payload.put("agentSuggestionIds", groundingContext.agentSuggestionIds());
+	}
+
+	private List<String> sourceTypes(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.sourceTypes().stream()
+				.map(Enum::name)
+				.toList();
+	}
+
+	private List<Map<String, Object>> ragHits(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.ragHits().stream()
 				.map(this::ragHit)
 				.toList();
 	}
