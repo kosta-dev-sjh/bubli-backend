@@ -146,6 +146,7 @@ tasks.named('checkstyleMain') {
 }
 // OWASP Dependency-Check
 dependencyCheck {
+<<<<<<< HEAD
     analyzers {
         nodeAudit {
             enabled = false
@@ -157,4 +158,17 @@ dependencyCheck {
     nvd {
         apiKey = System.getenv("NVD_API_KEY") ?: ""
     }
+=======
+	analyzers {
+		nodeAudit {
+			enabled = false
+		}
+		retirejs {
+			enabled = false
+		}
+	}
+	nvd {
+		apiKey = System.getenv("NVD_API_KEY") ?: ""
+	}
+>>>>>>> 0bb24f5 (fix: OWASP NVD API 키 주입 추가)
 }

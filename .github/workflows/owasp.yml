@@ -33,6 +33,8 @@ jobs:
         run: chmod +x gradlew
 
       - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: ./gradlew dependencyCheckAnalyze
 
       - name: Upload Dependency-Check report
