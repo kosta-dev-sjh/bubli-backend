@@ -20,7 +20,9 @@ import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
+import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserLocalePublicService;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -332,6 +334,8 @@ class ProjectRoomAgentCommandServiceTest {
 		var promptCaptor = forClass(String.class);
 		verify(chatModel).call(promptCaptor.capture());
 		assertThat(promptCaptor.getValue()).contains("Write a concise natural Japanese response.");
+		assertThat(promptCaptor.getValue()).contains("Requester profile:");
+		assertThat(promptCaptor.getValue()).contains("jobRole=DESIGNER");
 		assertThat(promptCaptor.getValue()).contains("Resolved resource summary:");
 		assertThat(promptCaptor.getValue()).contains("契約期間と検収条件を確認する必要があります。");
 		assertThat(promptCaptor.getValue()).contains("For SUGGEST mode, produce concrete suggestion candidates");
@@ -434,6 +438,16 @@ class ProjectRoomAgentCommandServiceTest {
 		when(chatModelProvider.getIfAvailable()).thenReturn(null);
 		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
 		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
+		UserPublicService userPublicService = mock(UserPublicService.class);
+		when(userPublicService.getUser(any(UUID.class))).thenReturn(new UserResult(
+				UUID.randomUUID(),
+				"requester",
+				"Requester",
+				null,
+				locale,
+				"Asia/Seoul",
+				"PM"
+		));
 		return new ProjectRoomAgentCommandService(
 				mock(ProjectMembershipPublicService.class),
 				contextCollector,
@@ -443,6 +457,7 @@ class ProjectRoomAgentCommandServiceTest {
 				eventPublicService,
 				resourcePublicService,
 				userLocalePublicService,
+				userPublicService,
 				chatModelProvider,
 				mock(ObjectProvider.class),
 				objectMapper
@@ -468,6 +483,16 @@ class ProjectRoomAgentCommandServiceTest {
 		when(aiCallExecutorProvider.getIfAvailable()).thenReturn(null);
 		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
 		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
+		UserPublicService userPublicService = mock(UserPublicService.class);
+		when(userPublicService.getUser(any(UUID.class))).thenReturn(new UserResult(
+				UUID.randomUUID(),
+				"requester",
+				"Requester",
+				null,
+				locale,
+				"Asia/Seoul",
+				"DESIGNER"
+		));
 		return new ProjectRoomAgentCommandService(
 				mock(ProjectMembershipPublicService.class),
 				contextCollector,
@@ -477,6 +502,7 @@ class ProjectRoomAgentCommandServiceTest {
 				eventPublicService,
 				resourcePublicService,
 				userLocalePublicService,
+				userPublicService,
 				chatModelProvider,
 				aiCallExecutorProvider,
 				objectMapper

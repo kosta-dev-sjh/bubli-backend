@@ -39,6 +39,9 @@ public class User {
 	@Column(length = 50)
 	private String timezone;
 
+	@Column(name = "job_role", length = 40)
+	private String jobRole;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private UserStatus status = UserStatus.ACTIVE;
@@ -66,6 +69,10 @@ public class User {
 	}
 
 	public void updateProfile(String name, String avatarUrl, String locale, String timezone) {
+		updateProfile(name, avatarUrl, locale, timezone, null);
+	}
+
+	public void updateProfile(String name, String avatarUrl, String locale, String timezone, String jobRole) {
 		if (name != null) {
 			this.name = name;
 		}
@@ -77,6 +84,9 @@ public class User {
 		}
 		if (timezone != null) {
 			this.timezone = timezone;
+		}
+		if (jobRole != null) {
+			this.jobRole = jobRole;
 		}
 	}
 

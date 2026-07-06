@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN job_role VARCHAR(40);

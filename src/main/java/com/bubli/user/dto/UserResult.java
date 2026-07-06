@@ -11,8 +11,20 @@ public record UserResult(
 		String name,
 		String avatarUrl,
 		String locale,
-		String timezone
+		String timezone,
+		String jobRole
 ) {
+	public UserResult(
+			UUID id,
+			String bubliId,
+			String name,
+			String avatarUrl,
+			String locale,
+			String timezone
+	) {
+		this(id, bubliId, name, avatarUrl, locale, timezone, null);
+	}
+
 	public static UserResult from(User user) {
 		return new UserResult(
 				user.getId(),
@@ -20,7 +32,8 @@ public record UserResult(
 				user.getName(),
 				user.getAvatarUrl(),
 				SupportedLocale.normalize(user.getLocale()),
-				user.getTimezone()
+				user.getTimezone(),
+				user.getJobRole()
 		);
 	}
 }

@@ -18,7 +18,9 @@ import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserLocalePublicService;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,7 @@ public class ProjectRoomAgentCommandService {
 	private final ProjectRoomEventPublicService projectRoomEventPublicService;
 	private final ResourcePublicService resourcePublicService;
 	private final UserLocalePublicService userLocalePublicService;
+	private final UserPublicService userPublicService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
 	private final ObjectMapper objectMapper;
@@ -63,6 +66,7 @@ public class ProjectRoomAgentCommandService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
+		UserResult requester = userPublicService.getUser(userId);
 		ResourceLookup resourceLookup = resolveResourceLookup(userId, roomId, message, resourceIds);
 		AgentJobContext context = contextCollector.collect(new AgentJobQueueMessage(
 				UUID.randomUUID(),
@@ -79,7 +83,7 @@ public class ProjectRoomAgentCommandService {
 				),
 				java.time.Instant.now()
 		));
-		String answer = answer(message, commandMode, context, locale, resourceLookup);
+		String answer = answer(message, commandMode, context, locale, resourceLookup, requester);
 		List<AgentSuggestionResponse> suggestions = createSuggestions(
 				userId,
 				roomId,
@@ -184,14 +188,15 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode mode,
 			AgentJobContext context,
 			String locale,
-			ResourceLookup resourceLookup
+			ResourceLookup resourceLookup,
+			UserResult requester
 	) {
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
 		if (chatModel == null) {
 			return fallbackAnswer(message, mode, context, locale, resourceLookup);
 		}
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
-		String prompt = prompt(message, mode, context, locale, resourceLookup);
+		String prompt = prompt(message, mode, context, locale, resourceLookup, requester);
 		if (executor == null) {
 			return chatModel.call(prompt);
 		}
@@ -203,7 +208,8 @@ public class ProjectRoomAgentCommandService {
 			AgentCommandMode mode,
 			AgentJobContext context,
 			String locale,
-			ResourceLookup resourceLookup
+			ResourceLookup resourceLookup,
+			UserResult requester
 	) {
 		return """
 				You are Bubli's project room agent. %s
@@ -211,8 +217,12 @@ public class ProjectRoomAgentCommandService {
 				Do not invent confirmed facts. Use the provided project context and say what should be checked when context is insufficient.
 				You may answer document questions, extract business facts, or create suggestion candidates such as TODO, TASK, WBS, REQUIREMENT, QUESTION, and REVIEW_ITEM.
 				When a resolved resource summary is provided, ground the answer in that resource first.
+				When requester profile contains a job role, tailor the answer to that role's likely responsibility and vocabulary.
 				For SUGGEST mode, produce concrete suggestion candidates requested by the user, not a generic review explanation.
 				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
+
+				Requester profile:
+				%s
 
 				User message:
 				%s
@@ -222,7 +232,21 @@ public class ProjectRoomAgentCommandService {
 
 				Project context:
 				%s
-				""".formatted(languageInstruction(locale), mode, message, resourceContext(resourceLookup), context.promptBlock());
+				""".formatted(
+				languageInstruction(locale),
+				mode,
+				requesterProfile(requester),
+				message,
+				resourceContext(resourceLookup),
+				context.promptBlock()
+		);
+	}
+
+	private String requesterProfile(UserResult requester) {
+		if (requester == null || requester.jobRole() == null || requester.jobRole().isBlank()) {
+			return "No job role is available for the requester.";
+		}
+		return "jobRole=%s".formatted(requester.jobRole());
 	}
 
 	private String resourceContext(ResourceLookup resourceLookup) {
