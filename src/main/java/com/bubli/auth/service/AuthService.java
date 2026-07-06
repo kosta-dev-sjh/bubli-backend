@@ -36,10 +36,14 @@ import java.util.UUID;
 public class AuthService {
 
 	private static final String GOOGLE_AUTHORIZE_URI = "https://accounts.google.com/o/oauth2/v2/auth";
-	// 로그인은 기존 스코프를 유지한다. 전체 calendar 스코프는 캘린더 "연결" 플로우(CALENDAR_SCOPE)에서만 요청한다.
-	// (#187에서 로그인 스코프에 calendar를 추가했다가 OAuth 동의 화면 미등록 스코프로 로그인이 거부되는 회귀 발생 → 원복)
+	// 로그인 스코프에 전체 calendar를 포함한다. 로그인만 한 계정도 프로젝트룸 이름의 전용
+	// 구글 캘린더를 만들 수 있어야, 룸 일정이 그 캘린더로 저장된다(calendar.events만으로는 캘린더 생성 불가).
+	// (#187에서 calendar를 넣었다가 동의 화면 미등록 스코프로 로그인이 거부된 적이 있으나, 지금은
+	//  같은 OAuth 클라이언트의 캘린더 "연결" 플로우(CALENDAR_SCOPE)가 이미 calendar 스코프로 동작 중이라
+	//  동의 화면에 등록되어 있다. 로그인/캘린더 연결은 google.oauth.client-id == google.calendar.client-id로 동일 클라이언트.)
 	private static final String GOOGLE_LOGIN_SCOPE =
-			"openid profile email https://www.googleapis.com/auth/calendar.events "
+			"openid profile email https://www.googleapis.com/auth/calendar "
+					+ "https://www.googleapis.com/auth/calendar.events "
 					+ "https://www.googleapis.com/auth/calendar.readonly";
 
 	private final GoogleOAuthClient googleOAuthClient;
