@@ -3,6 +3,8 @@ package com.bubli.voice.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.chat.service.ChatRoomAccessPublicService;
+import com.bubli.personal.notification.service.NotificationPublicService;
+import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.user.dto.UserResult;
@@ -45,6 +47,7 @@ public class VoiceRoomService {
     private final ProjectRoomEventPublicService projectRoomEventPublicService;
     private final ChatRoomAccessPublicService chatRoomAccessPublicService;
     private final UserPublicService userPublicService;
+    private final NotificationPublicService notificationPublicService;
     private final LiveKitProperties liveKitProperties;
 
     @Transactional
@@ -95,7 +98,20 @@ public class VoiceRoomService {
         VoiceParticipant participant = voiceParticipantRepository.save(VoiceParticipant.join(voiceRoom.getId(), userId));
 
         UserResult user = userPublicService.getUser(userId);
+        notifyChatVoiceCallStarted(userId, user.name(), chatRoomId);
         return toRoomResponse(voiceRoom, List.of(toParticipantResponse(participant, user.name())));
+    }
+
+    private void notifyChatVoiceCallStarted(UUID callerUserId, String callerName, UUID chatRoomId) {
+        chatRoomAccessPublicService.findActiveMemberIds(chatRoomId).stream()
+                .filter(memberId -> !memberId.equals(callerUserId))
+                .forEach(memberId -> notificationPublicService.create(
+                        memberId,
+                        NotificationSourceType.VOICE_CALL,
+                        chatRoomId,
+                        callerName,
+                        "보이스 통화를 시작했습니다"
+                ));
     }
 
     private String lockKey(UUID roomId) {
