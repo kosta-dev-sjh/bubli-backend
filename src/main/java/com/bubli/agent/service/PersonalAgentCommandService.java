@@ -15,7 +15,11 @@ import com.bubli.personal.memo.dto.MemoResult;
 import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSearchHit;
+import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.resource.service.ResourceSemanticSearchPublicService;
+import com.bubli.resource.type.ResourceSearchScope;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.user.service.UserLocalePublicService;
 import com.bubli.work.schedule.dto.ScheduleResult;
@@ -35,11 +39,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -49,14 +55,18 @@ public class PersonalAgentCommandService {
 	private static final String PROMPT_VERSION = "personal-agent-command-v1";
 	private static final String SOURCE = "PERSONAL_AGENT_WIDGET";
 	private static final int CONTEXT_LIMIT = 8;
+	private static final int TASK_LOOKUP_LIMIT = 20;
 	private static final int MEMORY_LIMIT = 12;
 	private static final int SUMMARY_LIMIT = 5;
 	private static final int RESOURCE_LIMIT = 5;
+	private static final int RESOURCE_LOOKUP_LIMIT = 30;
+	private static final double PERSONAL_RAG_MIN_SIMILARITY = 0.72D;
 
 	private final TaskPublicService taskPublicService;
 	private final SchedulePublicService schedulePublicService;
 	private final MemoPublicService memoPublicService;
 	private final ResourcePublicService resourcePublicService;
+	private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 	private final UserLocalePublicService userLocalePublicService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
@@ -73,11 +83,14 @@ public class PersonalAgentCommandService {
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		PersonalAgentMemoryInput safeMemory = memory == null ? new PersonalAgentMemoryInput(List.of(), List.of()) : memory;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
-		PersonalContext context = collectContext(userId, resourceIds, safeMemory);
+		PersonalContext context = collectContext(userId, message, resourceIds, safeMemory);
 		List<PersonalAgentSuggestionResponse> suggestions = commandMode == AgentCommandMode.SUGGEST
-				? List.of(createLocalSuggestion(message))
+				? List.of()
 				: List.of();
-		String answer = answer(message, commandMode, locale, context, suggestions);
+		AnswerResult answer = answer(message, commandMode, locale, context, suggestions);
+		suggestions = commandMode == AgentCommandMode.SUGGEST
+				? createLocalSuggestions(message, answer.text())
+				: List.of();
 		return new PersonalAgentCommandResponse(
 				new PersonalAgentMessageResponse(
 						"AGENT",
@@ -89,11 +102,20 @@ public class PersonalAgentCommandService {
 		);
 	}
 
-	private PersonalContext collectContext(UUID userId, List<UUID> resourceIds, PersonalAgentMemoryInput memory) {
+	private PersonalContext collectContext(
+			UUID userId,
+			String message,
+			List<UUID> resourceIds,
+			PersonalAgentMemoryInput memory
+	) {
 		Instant now = Instant.now();
 		Instant from = now.minus(30, ChronoUnit.DAYS);
 		Instant to = now.plus(30, ChronoUnit.DAYS);
-		List<TaskResult> tasks = taskPublicService.getPersonalContextTasks(userId, CONTEXT_LIMIT);
+		AgentQuerySupport.WorkStateIntent workStateIntent = AgentQuerySupport.workStateIntent(message);
+		List<TaskResult> tasks = prioritizedTasks(
+				taskPublicService.getPersonalContextTasks(userId, TASK_LOOKUP_LIMIT),
+				workStateIntent
+		);
 		List<ScheduleResult> schedules = schedulePublicService.getSchedulesBetween(userId, now.minus(7, ChronoUnit.DAYS), to)
 				.stream()
 				.filter(schedule -> schedule.roomId() == null)
@@ -107,7 +129,24 @@ public class PersonalAgentCommandService {
 		List<ResourceAnalysisSummaryResult> analysisSummaries = resourcePublicService
 				.getRecentAnalysisSummaries(userId, RESOURCE_LIMIT);
 		List<ResourceResult> selectedResources = selectedPersonalResources(userId, resourceIds);
-		return new PersonalContext(tasks, schedules, memos, analysisSummaries, selectedResources, memory);
+		List<ResourceSearchHit> documentHits = retrievePersonalDocumentHits(userId, message);
+		List<PersonalResourceEvidence> resourceEvidence = personalResourceEvidence(
+				userId,
+				message,
+				selectedResources,
+				documentHits
+		);
+		return new PersonalContext(
+				tasks,
+				schedules,
+				memos,
+				analysisSummaries,
+				selectedResources,
+				documentHits,
+				resourceEvidence,
+				workStateIntent,
+				memory
+		);
 	}
 
 	private List<ResourceResult> selectedPersonalResources(UUID userId, List<UUID> resourceIds) {
@@ -123,7 +162,93 @@ public class PersonalAgentCommandService {
 				.toList();
 	}
 
-	private String answer(
+	private List<ResourceSearchHit> retrievePersonalDocumentHits(UUID userId, String message) {
+		if (!AgentQuerySupport.isDocumentSourceRequest(message)) {
+			return List.of();
+		}
+		try {
+			return resourceSemanticSearchService.search(
+							userId,
+							ResourceSearchScope.PERSONAL,
+							null,
+							AgentQuerySupport.searchQuery(message),
+							RESOURCE_LIMIT
+					)
+					.stream()
+					.filter(hit -> hit.similarityScore() >= PERSONAL_RAG_MIN_SIMILARITY)
+					.toList();
+		} catch (RuntimeException exception) {
+			log.warn("Personal document semantic retrieval failed. userId={}", userId, exception);
+			return List.of();
+		}
+	}
+
+	private List<PersonalResourceEvidence> personalResourceEvidence(
+			UUID userId,
+			String message,
+			List<ResourceResult> selectedResources,
+			List<ResourceSearchHit> documentHits
+	) {
+		List<PersonalResourceEvidence> evidence = new ArrayList<>();
+		Set<UUID> seenResourceIds = documentHits.stream()
+				.map(ResourceSearchHit::resourceId)
+				.collect(Collectors.toSet());
+		for (ResourceResult resource : selectedResources) {
+			if (seenResourceIds.add(resource.id())) {
+				evidence.add(resourceEvidence(userId, resource, "SELECTED_RESOURCE", 100));
+			}
+		}
+		if (!AgentQuerySupport.isDocumentSourceRequest(message)) {
+			return evidence;
+		}
+		List<AgentQuerySupport.ResourceToken> tokens = AgentQuerySupport.resourceTokens(message);
+		if (tokens.isEmpty()) {
+			return evidence;
+		}
+		String normalizedMessage = AgentQuerySupport.compactResourceText(message);
+		List<PersonalResourceEvidence> titleMatches = resourcePublicService
+				.getRecentPersonalResources(userId, RESOURCE_LOOKUP_LIMIT)
+				.stream()
+				.filter(resource -> !seenResourceIds.contains(resource.id()))
+				.map(resource -> titleMatch(userId, resource, normalizedMessage, tokens))
+				.filter(match -> match.matchScore() >= 4)
+				.sorted(Comparator.comparingInt(PersonalResourceEvidence::matchScore).reversed())
+				.limit(3)
+				.toList();
+		evidence.addAll(titleMatches);
+		return evidence;
+	}
+
+	private PersonalResourceEvidence titleMatch(
+			UUID userId,
+			ResourceResult resource,
+			String normalizedMessage,
+			List<AgentQuerySupport.ResourceToken> tokens
+	) {
+		String normalizedTitle = AgentQuerySupport.compactResourceText(resource.title());
+		int score = 0;
+		if (!normalizedTitle.isBlank() && normalizedMessage.contains(normalizedTitle)) {
+			score += 100;
+		}
+		for (AgentQuerySupport.ResourceToken token : tokens) {
+			if (normalizedTitle.contains(token.value())) {
+				score += token.weight();
+			}
+		}
+		return resourceEvidence(userId, resource, "TITLE_MATCH", score);
+	}
+
+	private PersonalResourceEvidence resourceEvidence(
+			UUID userId,
+			ResourceResult resource,
+			String retrievalMode,
+			int matchScore
+	) {
+		ResourceSummaryResult summary = resourcePublicService.findResourceSummary(userId, resource.id()).orElse(null);
+		return new PersonalResourceEvidence(resource, summary, retrievalMode, matchScore);
+	}
+
+	private AnswerResult answer(
 			String message,
 			AgentCommandMode mode,
 			String locale,
@@ -132,18 +257,18 @@ public class PersonalAgentCommandService {
 	) {
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
 		if (chatModel == null) {
-			return fallbackAnswer(mode, suggestions);
+			return new AnswerResult(fallbackAnswer(mode, suggestions), "NO_CHAT_MODEL");
 		}
 		String prompt = prompt(message, mode, locale, context, suggestions);
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
 		try {
 			if (executor == null) {
-				return chatModel.call(prompt);
+				return new AnswerResult(sanitizeAnswer(chatModel.call(prompt)), null);
 			}
-			return executor.execute("personal-agent-command", () -> chatModel.call(prompt));
+			return new AnswerResult(sanitizeAnswer(executor.execute("personal-agent-command", () -> chatModel.call(prompt))), null);
 		} catch (RuntimeException exception) {
 			log.warn("Personal agent command LLM answer failed.", exception);
-			return fallbackAnswer(mode, suggestions);
+			return new AnswerResult(fallbackAnswer(mode, suggestions), "LLM_FAILED");
 		}
 	}
 
@@ -161,7 +286,9 @@ public class PersonalAgentCommandService {
 
 				Use only the personal context and local chat memory below.
 				Do not claim that local chat memory is stored on the server.
-				If TODO or TASK suggestions are needed, describe them as local draft suggestions that the user can approve.
+				If context partially matches the user message, answer with confirmed information and separate missing or unclear items.
+				If TODO or TASK suggestions are needed, write 2-5 concise local draft candidate lines that the user can approve.
+				Do not create or mention WBS suggestions in the personal agent.
 
 				User message:
 				%s
@@ -181,11 +308,31 @@ public class PersonalAgentCommandService {
 		return "I can help with your personal TODOs, schedules, memos, resources, and local chat memory.";
 	}
 
-	private PersonalAgentSuggestionResponse createLocalSuggestion(String message) {
+	private List<PersonalAgentSuggestionResponse> createLocalSuggestions(String message, String answer) {
+		List<String> items = AgentQuerySupport.suggestionItems(answer, "", 5);
+		if (items.isEmpty() || looksLikeFallbackSuggestion(items)) {
+			items = List.of(message == null || message.isBlank() ? "Personal TODO" : message.trim());
+		}
+		return items.stream()
+				.map(item -> createLocalSuggestion(message, item))
+				.toList();
+	}
+
+	private boolean looksLikeFallbackSuggestion(List<String> items) {
+		return items.size() == 1 && AgentQuerySupport.containsAny(
+				AgentQuerySupport.normalize(items.getFirst()),
+				"i prepared a local todo draft",
+				"개인 todo 초안",
+				"도와드릴 수 있습니다"
+		);
+	}
+
+	private PersonalAgentSuggestionResponse createLocalSuggestion(String message, String item) {
 		AgentSuggestionType type = inferSuggestionType(message);
 		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("title", suggestionTitle(message));
-		payload.put("description", message == null ? "" : message.trim());
+		payload.put("title", suggestionTitle(item));
+		payload.put("description", item == null ? "" : item.trim());
+		payload.put("request", message == null ? "" : message.trim());
 		payload.put("status", TaskStatus.TODO.name());
 		payload.put("dueAt", null);
 		Map<String, Object> evidence = new LinkedHashMap<>();
@@ -196,8 +343,8 @@ public class PersonalAgentCommandService {
 	}
 
 	private AgentSuggestionType inferSuggestionType(String message) {
-		String normalized = normalize(message);
-		if (containsAny(normalized, "task")) {
+		String normalized = AgentQuerySupport.normalize(message);
+		if (AgentQuerySupport.containsAny(normalized, "task", "작업", "태스크")) {
 			return AgentSuggestionType.TASK;
 		}
 		return AgentSuggestionType.TODO;
@@ -214,12 +361,12 @@ public class PersonalAgentCommandService {
 	private JsonNode responseBody(
 			String request,
 			AgentCommandMode mode,
-			String answer,
+			AnswerResult answer,
 			PersonalContext context,
 			List<PersonalAgentSuggestionResponse> suggestions
 	) {
 		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("text", answer);
+		body.put("text", answer.text());
 		body.put("request", request);
 		body.put("mode", mode.name());
 		body.put("promptVersion", PROMPT_VERSION);
@@ -227,6 +374,12 @@ public class PersonalAgentCommandService {
 		body.put("contextCharacters", context.promptBlock().length());
 		body.put("localSuggestionCount", suggestions.size());
 		body.put("source", SOURCE);
+		body.put("answerCompleteness", answerCompleteness(answer, context));
+		body.put("retrievalModes", context.retrievalModes());
+		body.put("matchedResources", context.matchedResources());
+		body.put("matchedTasks", context.matchedTasks());
+		body.put("missingInfo", missingInfo(answer, context));
+		body.put("fallbackReason", answer.fallbackReason());
 		return objectMapper.valueToTree(body);
 	}
 
@@ -245,17 +398,61 @@ public class PersonalAgentCommandService {
 		return builder.toString();
 	}
 
-	private boolean containsAny(String value, String... candidates) {
-		for (String candidate : candidates) {
-			if (value.contains(candidate.toLowerCase(Locale.ROOT))) {
-				return true;
-			}
-		}
-		return false;
+	private String sanitizeAnswer(String answer) {
+		String sanitized = AgentQuerySupport.removeAppendedNoAnswer(
+				answer,
+				"프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다."
+		);
+		return sanitized == null ? "" : sanitized;
 	}
 
-	private String normalize(String value) {
-		return value == null ? "" : value.toLowerCase(Locale.ROOT);
+	private List<TaskResult> prioritizedTasks(
+			List<TaskResult> tasks,
+			AgentQuerySupport.WorkStateIntent workStateIntent
+	) {
+		return tasks.stream()
+				.sorted(Comparator.comparingInt(task -> taskPriority(task, workStateIntent)))
+				.limit(CONTEXT_LIMIT)
+				.toList();
+	}
+
+	private int taskPriority(TaskResult task, AgentQuerySupport.WorkStateIntent workStateIntent) {
+		boolean completed = task.status() == TaskStatus.DONE;
+		if (workStateIntent == AgentQuerySupport.WorkStateIntent.COMPLETED) {
+			return completed ? 0 : 1;
+		}
+		if (workStateIntent == AgentQuerySupport.WorkStateIntent.ACTIVE) {
+			return completed ? 1 : 0;
+		}
+		return completed ? 1 : 0;
+	}
+
+	private String answerCompleteness(AnswerResult answer, PersonalContext context) {
+		if (!context.hasAnyContext()) {
+			return "NO_EVIDENCE";
+		}
+		String normalized = AgentQuerySupport.normalize(answer.text());
+		if (AgentQuerySupport.containsAny(normalized, "추가 확인", "확인 필요", "불명확", "부족", "missing", "unclear")) {
+			return "PARTIAL";
+		}
+		return "ANSWERED";
+	}
+
+	private List<String> missingInfo(AnswerResult answer, PersonalContext context) {
+		if (!context.hasAnyContext()) {
+			return List.of("NO_PERSONAL_CONTEXT");
+		}
+		String normalized = AgentQuerySupport.normalize(answer.text());
+		if (AgentQuerySupport.containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear")) {
+			return List.of("PARTIAL_EVIDENCE");
+		}
+		return List.of();
+	}
+
+	private record AnswerResult(
+			String text,
+			String fallbackReason
+	) {
 	}
 
 	private record PersonalContext(
@@ -264,6 +461,9 @@ public class PersonalAgentCommandService {
 			List<MemoResult> memos,
 			List<ResourceAnalysisSummaryResult> analysisSummaries,
 			List<ResourceResult> selectedResources,
+			List<ResourceSearchHit> documentHits,
+			List<PersonalResourceEvidence> resourceEvidence,
+			AgentQuerySupport.WorkStateIntent workStateIntent,
 			PersonalAgentMemoryInput memory
 	) {
 		private String promptBlock() {
@@ -276,14 +476,99 @@ public class PersonalAgentCommandService {
 					.limit(MEMORY_LIMIT)
 					.map(this::messageLine)
 					.toList());
-			appendSection(sections, "Personal TODOs", tasks.stream().map(this::taskLine).toList());
+			appendTaskSections(sections);
 			appendSection(sections, "Personal schedules", schedules.stream().map(this::scheduleLine).toList());
 			appendSection(sections, "Personal memos", memos.stream().map(this::memoLine).toList());
 			appendSection(sections, "Personal resource summaries",
 					analysisSummaries.stream().map(this::analysisSummaryLine).toList());
 			appendSection(sections, "Selected personal resources",
 					selectedResources.stream().map(this::resourceLine).toList());
+			appendSection(sections, "Personal document hits",
+					documentHits.stream().map(this::documentHitLine).toList());
+			appendSection(sections, "Personal matched resource evidence",
+					resourceEvidence.stream().map(this::resourceEvidenceLine).toList());
 			return sections.isEmpty() ? "No personal context was provided." : String.join("\n\n", sections);
+		}
+
+		private void appendTaskSections(List<String> sections) {
+			List<TaskResult> active = tasks.stream()
+					.filter(task -> task.status() != TaskStatus.DONE)
+					.toList();
+			List<TaskResult> completed = tasks.stream()
+					.filter(task -> task.status() == TaskStatus.DONE)
+					.toList();
+			if (workStateIntent == AgentQuerySupport.WorkStateIntent.COMPLETED) {
+				appendSection(sections, "Personal completed TODOs", completed.stream().map(this::taskLine).toList());
+				appendSection(sections, "Personal active TODOs", active.stream().map(this::taskLine).toList());
+				return;
+			}
+			appendSection(sections, "Personal active TODOs", active.stream().map(this::taskLine).toList());
+			appendSection(sections, "Personal completed TODOs", completed.stream().map(this::taskLine).toList());
+		}
+
+		private boolean hasAnyContext() {
+			return !tasks.isEmpty()
+					|| !schedules.isEmpty()
+					|| !memos.isEmpty()
+					|| !analysisSummaries.isEmpty()
+					|| !selectedResources.isEmpty()
+					|| !documentHits.isEmpty()
+					|| !resourceEvidence.isEmpty()
+					|| !memory.summaries().isEmpty()
+					|| !memory.recentMessages().isEmpty();
+		}
+
+		private List<String> retrievalModes() {
+			List<String> modes = new ArrayList<>();
+			if (!documentHits.isEmpty()) {
+				modes.add("SEMANTIC");
+			}
+			for (PersonalResourceEvidence evidence : resourceEvidence) {
+				if (!modes.contains(evidence.retrievalMode())) {
+					modes.add(evidence.retrievalMode());
+				}
+			}
+			if (!tasks.isEmpty() || !schedules.isEmpty() || !memos.isEmpty()) {
+				modes.add("MANAGEMENT_CONTEXT");
+			}
+			if (!analysisSummaries.isEmpty()) {
+				modes.add("RECENT_SUMMARY");
+			}
+			return modes;
+		}
+
+		private List<Map<String, Object>> matchedResources() {
+			List<Map<String, Object>> resources = new ArrayList<>();
+			for (ResourceSearchHit hit : documentHits) {
+				Map<String, Object> item = new LinkedHashMap<>();
+				item.put("resourceId", hit.resourceId());
+				item.put("retrievalMode", "SEMANTIC");
+				item.put("similarityScore", hit.similarityScore());
+				resources.add(item);
+			}
+			for (PersonalResourceEvidence evidence : resourceEvidence) {
+				ResourceResult resource = evidence.resource();
+				Map<String, Object> item = new LinkedHashMap<>();
+				item.put("resourceId", resource.id());
+				item.put("title", resource.title());
+				item.put("retrievalMode", evidence.retrievalMode());
+				item.put("matchScore", evidence.matchScore());
+				resources.add(item);
+			}
+			return resources;
+		}
+
+		private List<Map<String, Object>> matchedTasks() {
+			return tasks.stream()
+					.map(task -> {
+						Map<String, Object> item = new LinkedHashMap<>();
+						item.put("taskId", task.id());
+						item.put("title", task.title());
+						item.put("status", task.status());
+						item.put("workState", task.status() == TaskStatus.DONE ? "COMPLETED" : "ACTIVE");
+						return item;
+					})
+					.toList();
 		}
 
 		private void appendSection(List<String> sections, String title, List<String> lines) {
@@ -301,10 +586,11 @@ public class PersonalAgentCommandService {
 		}
 
 		private String taskLine(TaskResult task) {
-			return "- taskId=%s title=%s status=%s dueAt=%s".formatted(
+			return "- taskId=%s title=%s status=%s workState=%s dueAt=%s".formatted(
 					task.id(),
 					task.title(),
 					task.status(),
+					task.status() == TaskStatus.DONE ? "COMPLETED" : "ACTIVE",
 					task.dueAt()
 			);
 		}
@@ -339,5 +625,39 @@ public class PersonalAgentCommandService {
 					resource.status()
 			);
 		}
+
+		private String documentHitLine(ResourceSearchHit hit) {
+			return "- retrievalMode=SEMANTIC resourceId=%s chunkIndex=%s pageNumber=%s similarityScore=%s chunkText=%s".formatted(
+					hit.resourceId(),
+					hit.chunkIndex(),
+					hit.pageNumber(),
+					hit.similarityScore(),
+					hit.chunkText()
+			);
+		}
+
+		private String resourceEvidenceLine(PersonalResourceEvidence evidence) {
+			ResourceResult resource = evidence.resource();
+			ResourceSummaryResult summary = evidence.summary();
+			return "- retrievalMode=%s resourceId=%s title=%s kind=%s status=%s matchScore=%s summaryJson=%s checklistJson=%s"
+					.formatted(
+							evidence.retrievalMode(),
+							resource.id(),
+							resource.title(),
+							resource.kind(),
+							resource.status(),
+							evidence.matchScore(),
+							summary == null ? "" : summary.summaryJson(),
+							summary == null ? "" : summary.checklistJson()
+					);
+		}
+	}
+
+	private record PersonalResourceEvidence(
+			ResourceResult resource,
+			ResourceSummaryResult summary,
+			String retrievalMode,
+			int matchScore
+	) {
 	}
 }

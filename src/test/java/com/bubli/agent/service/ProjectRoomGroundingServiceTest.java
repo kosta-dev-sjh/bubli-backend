@@ -6,9 +6,16 @@ import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.type.AgentCommandMode;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
+import com.bubli.resource.dto.ResourceSummaryResult;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
+import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceSearchScope;
+import com.bubli.resource.type.ResourceStatus;
+import com.bubli.resource.type.ResourceSummaryStatus;
+import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.schedule.type.ScheduleSyncStatus;
@@ -23,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +52,7 @@ class ProjectRoomGroundingServiceTest {
 		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
 		ResourceSearchHit hit = hit(resourceId, "contract text", 0.9D);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서 내용 알려줘", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
 				.thenReturn(List.of(hit));
 
 		var context = service(searchService).retrieve(
@@ -55,11 +63,55 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		verify(searchService).search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("계약서 내용 알려줘"), eq(5));
+		verify(searchService).search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("계약서"), eq(5));
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.DOCUMENT);
 		assertThat(context.resourceIds()).containsExactly(resourceId);
 		assertThat(context.promptBlock()).contains("[DOCUMENT]").contains("contract text");
+	}
+
+	@Test
+	void documentTitleQuestionUsesMatchedResourceSummaryWhenSemanticSearchIsEmpty() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"02-design-outsourcing-requirements-example.pdf"
+		);
+		ResourceSummaryResult summary = resourceSummary(
+				resourceId,
+				"{\"summary\":\"브랜드 가이드, 화면 시안, 검수 일정 정리가 필요합니다.\"}"
+		);
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId,
+				"02 design outsourcing", 5))
+				.thenReturn(List.of());
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(userId, resourceId))
+				.thenReturn(Optional.of(summary));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 02 design outsourcing pdf 주요 내용",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.DOCUMENT);
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.ragHits()).isEmpty();
+		assertThat(context.promptBlock())
+				.contains("retrievalMode=TITLE_MATCH")
+				.contains("02-design-outsourcing-requirements-example.pdf")
+				.contains("브랜드 가이드");
 	}
 
 	@Test
@@ -68,7 +120,7 @@ class ProjectRoomGroundingServiceTest {
 		UUID taskId = UUID.randomUUID();
 		TaskPublicService taskPublicService = mock(TaskPublicService.class);
 
-		when(taskPublicService.getRecentRoomTasks(roomId, 10))
+		when(taskPublicService.getRecentRoomTasks(roomId, 20))
 				.thenReturn(List.of(task(taskId, roomId, "미완료 계약 검토")));
 
 		var context = service(taskPublicService).retrieve(
@@ -79,11 +131,38 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		verify(taskPublicService).getRecentRoomTasks(roomId, 10);
+		verify(taskPublicService).getRecentRoomTasks(roomId, 20);
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.TASK);
 		assertThat(context.taskIds()).containsExactly(taskId);
 		assertThat(context.promptBlock()).contains("[TASK]").contains("미완료 계약 검토");
+	}
+
+	@Test
+	void completedTaskQuestionPrioritizesDoneTasks() {
+		UUID roomId = UUID.randomUUID();
+		UUID activeTaskId = UUID.randomUUID();
+		UUID completedTaskId = UUID.randomUUID();
+		TaskPublicService taskPublicService = mock(TaskPublicService.class);
+
+		when(taskPublicService.getRecentRoomTasks(roomId, 20))
+				.thenReturn(List.of(
+						task(activeTaskId, roomId, "진행 중 검토", TaskStatus.IN_PROGRESS),
+						task(completedTaskId, roomId, "완료된 산출물 검수", TaskStatus.DONE)
+				));
+
+		var context = service(taskPublicService).retrieve(
+				UUID.randomUUID(),
+				roomId,
+				"완료된 작업 기준으로 회고 정리해줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.taskIds()).containsExactly(completedTaskId, activeTaskId);
+		assertThat(context.promptBlock().indexOf("완료된 산출물 검수"))
+				.isLessThan(context.promptBlock().indexOf("진행 중 검토"));
+		assertThat(context.promptBlock()).contains("workState=COMPLETED");
 	}
 
 	@Test
@@ -92,7 +171,7 @@ class ProjectRoomGroundingServiceTest {
 		UUID wbsItemId = UUID.randomUUID();
 		WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
 
-		when(wbsItemPublicService.getRoomContextItems(roomId, 10))
+		when(wbsItemPublicService.getRoomContextItems(roomId, 20))
 				.thenReturn(List.of(wbsItem(wbsItemId, roomId, "画面設計")));
 
 		var context = service(wbsItemPublicService).retrieve(
@@ -103,11 +182,38 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		verify(wbsItemPublicService).getRoomContextItems(roomId, 10);
+		verify(wbsItemPublicService).getRoomContextItems(roomId, 20);
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.WBS);
 		assertThat(context.wbsItemIds()).containsExactly(wbsItemId);
 		assertThat(context.promptBlock()).contains("[WBS]").contains("画面設計");
+	}
+
+	@Test
+	void completedWbsQuestionPrioritizesDoneItems() {
+		UUID roomId = UUID.randomUUID();
+		UUID activeWbsItemId = UUID.randomUUID();
+		UUID completedWbsItemId = UUID.randomUUID();
+		WbsItemPublicService wbsItemPublicService = mock(WbsItemPublicService.class);
+
+		when(wbsItemPublicService.getRoomContextItems(roomId, 20))
+				.thenReturn(List.of(
+						wbsItem(activeWbsItemId, roomId, "구현 진행", WbsStatus.IN_PROGRESS),
+						wbsItem(completedWbsItemId, roomId, "요구사항 정리 완료", WbsStatus.DONE)
+				));
+
+		var context = service(wbsItemPublicService).retrieve(
+				UUID.randomUUID(),
+				roomId,
+				"끝난 WBS 기준으로 다음 단계 추천해줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.wbsItemIds()).containsExactly(completedWbsItemId, activeWbsItemId);
+		assertThat(context.promptBlock().indexOf("요구사항 정리 완료"))
+				.isLessThan(context.promptBlock().indexOf("구현 진행"));
+		assertThat(context.promptBlock()).contains("workState=COMPLETED");
 	}
 
 	@Test
@@ -167,7 +273,7 @@ class ProjectRoomGroundingServiceTest {
 		TaskPublicService taskPublicService = mock(TaskPublicService.class);
 		SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
 
-		when(taskPublicService.getRecentRoomTasks(roomId, 10))
+		when(taskPublicService.getRecentRoomTasks(roomId, 20))
 				.thenReturn(List.of(task(taskId, roomId, "미완료 화면 구현")));
 		when(schedulePublicService.getRoomSchedulesBetween(eq(roomId), any(Instant.class), any(Instant.class)))
 				.thenReturn(List.of(schedule(scheduleId, roomId, "이번 주 배포")));
@@ -195,7 +301,7 @@ class ProjectRoomGroundingServiceTest {
 		TaskPublicService taskPublicService = mock(TaskPublicService.class);
 		UUID roomId = UUID.randomUUID();
 
-		when(taskPublicService.getRecentRoomTasks(roomId, 10)).thenReturn(List.of());
+		when(taskPublicService.getRecentRoomTasks(roomId, 20)).thenReturn(List.of());
 
 		var context = service(taskPublicService).retrieve(
 				UUID.randomUUID(),
@@ -230,6 +336,7 @@ class ProjectRoomGroundingServiceTest {
 	private ProjectRoomGroundingService service(ResourceSemanticSearchPublicService searchService) {
 		return new ProjectRoomGroundingService(
 				searchService,
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
@@ -241,6 +348,7 @@ class ProjectRoomGroundingServiceTest {
 	private ProjectRoomGroundingService service(TaskPublicService taskPublicService) {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
@@ -252,6 +360,7 @@ class ProjectRoomGroundingServiceTest {
 	private ProjectRoomGroundingService service(WbsItemPublicService wbsItemPublicService) {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				mock(TaskPublicService.class),
 				wbsItemPublicService,
@@ -263,6 +372,7 @@ class ProjectRoomGroundingServiceTest {
 	private ProjectRoomGroundingService service(SchedulePublicService schedulePublicService) {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
@@ -274,6 +384,7 @@ class ProjectRoomGroundingServiceTest {
 	private ProjectRoomGroundingService service(AgentSuggestionPublicService agentSuggestionPublicService) {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
@@ -288,6 +399,7 @@ class ProjectRoomGroundingServiceTest {
 	) {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
@@ -302,8 +414,24 @@ class ProjectRoomGroundingServiceTest {
 	) {
 		return new ProjectRoomGroundingService(
 				searchService,
+				mock(ResourcePublicService.class),
 				new AgentRagProperties(true, 5, 0.72D, 0.0D),
 				taskPublicService,
+				mock(WbsItemPublicService.class),
+				mock(SchedulePublicService.class),
+				mock(AgentSuggestionPublicService.class)
+		);
+	}
+
+	private ProjectRoomGroundingService service(
+			ResourceSemanticSearchPublicService searchService,
+			ResourcePublicService resourcePublicService
+	) {
+		return new ProjectRoomGroundingService(
+				searchService,
+				resourcePublicService,
+				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
 				mock(AgentSuggestionPublicService.class)
@@ -322,7 +450,41 @@ class ProjectRoomGroundingServiceTest {
 		);
 	}
 
+	private ResourceResult resource(UUID resourceId, UUID userId, UUID roomId, String title) {
+		return new ResourceResult(
+				resourceId,
+				userId,
+				roomId,
+				title,
+				ResourceKind.FILE,
+				ResourceVisibility.ROOM_SHARED,
+				ResourceStatus.READY,
+				Instant.parse("2026-07-01T01:00:00Z"),
+				Instant.parse("2026-07-01T01:00:00Z")
+		);
+	}
+
+	private ResourceSummaryResult resourceSummary(UUID resourceId, String summaryJson) {
+		return new ResourceSummaryResult(
+				UUID.randomUUID(),
+				resourceId,
+				UUID.randomUUID(),
+				summaryJson,
+				"[]",
+				ResourceSummaryStatus.READY,
+				"test-prompt",
+				"analysis.v1",
+				"test-model",
+				Instant.parse("2026-07-01T01:00:00Z"),
+				Instant.parse("2026-07-01T01:00:00Z")
+		);
+	}
+
 	private TaskResult task(UUID taskId, UUID roomId, String title) {
+		return task(taskId, roomId, title, TaskStatus.TODO);
+	}
+
+	private TaskResult task(UUID taskId, UUID roomId, String title, TaskStatus status) {
 		return new TaskResult(
 				taskId,
 				UUID.randomUUID(),
@@ -331,7 +493,7 @@ class ProjectRoomGroundingServiceTest {
 				null,
 				title,
 				"description",
-				TaskStatus.TODO,
+				status,
 				Instant.parse("2026-07-08T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z")
@@ -339,13 +501,17 @@ class ProjectRoomGroundingServiceTest {
 	}
 
 	private WbsItemResult wbsItem(UUID wbsItemId, UUID roomId, String title) {
+		return wbsItem(wbsItemId, roomId, title, WbsStatus.TODO);
+	}
+
+	private WbsItemResult wbsItem(UUID wbsItemId, UUID roomId, String title, WbsStatus status) {
 		return new WbsItemResult(
 				wbsItemId,
 				roomId,
 				null,
 				title,
 				1,
-				WbsStatus.TODO,
+				status,
 				Instant.parse("2026-07-01T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z")
 		);

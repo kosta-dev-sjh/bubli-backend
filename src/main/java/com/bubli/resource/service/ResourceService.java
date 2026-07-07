@@ -134,6 +134,19 @@ public class ResourceService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<ResourceResult> getRecentPersonalResources(UUID userId, int limit) {
+		return resourceRepository
+				.findByOwnerIdAndVisibilityAndDeletedAtIsNull(
+						userId,
+						ResourceVisibility.PERSONAL,
+						PageRequest.of(0, Math.max(1, Math.min(limit, 20)))
+				)
+				.stream()
+				.map(ResourceResult::from)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public ResourceResult getResource(UUID userId, UUID resourceId) {
 		return ResourceResult.from(getReadableResource(userId, resourceId));
 	}

@@ -144,6 +144,46 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
+	void groundedAnswerRemovesAppendedNoAnswerSentenceAndAddsDebugMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+		ProjectRoomGroundingContext context = documentContext(
+				resourceId,
+				"납품물은 요구사항 정리서와 화면 설계서입니다."
+		);
+
+		when(chatModel.call(any(String.class))).thenReturn("""
+				확인 가능한 내용: 납품물은 요구사항 정리서와 화면 설계서입니다.
+				프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다.
+				""");
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				context,
+				chatModel
+		).execute(userId, roomId, "/bubli 납품물 알려줘", AgentCommandMode.ANSWER, List.of());
+
+		assertThat(response.message().body().get("text").asText())
+				.isEqualTo("확인 가능한 내용: 납품물은 요구사항 정리서와 화면 설계서입니다.");
+		assertThat(response.message().body().get("answerCompleteness").asText()).isEqualTo("ANSWERED");
+		assertThat(response.message().body().get("retrievalModes").get(0).asText()).isEqualTo("SEMANTIC");
+		assertThat(response.message().body().get("matchedResources").get(0).get("id").asText())
+				.isEqualTo(resourceId.toString());
+	}
+
+	@Test
 	void suggestModeWithoutGroundingDoesNotCreateSuggestion() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -433,7 +473,7 @@ class ProjectRoomAgentCommandServiceTest {
 		ProjectRoomGroundingEvidence evidence = new ProjectRoomGroundingEvidence(
 				ProjectRoomGroundingSourceType.DOCUMENT,
 				resourceId,
-				Map.of("chunkIndex", 0, "pageNumber", 2, "similarityScore", 0.93D)
+				Map.of("retrievalMode", "SEMANTIC", "chunkIndex", 0, "pageNumber", 2, "similarityScore", 0.93D)
 		);
 		String promptBlock = """
 				[DOCUMENT]

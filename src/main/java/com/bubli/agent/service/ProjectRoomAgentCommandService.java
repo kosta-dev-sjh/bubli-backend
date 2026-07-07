@@ -3,6 +3,7 @@ package com.bubli.agent.service;
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.dto.ProjectRoomGroundingContext;
 import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
+import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.type.AgentCommandMode;
 import com.bubli.agent.type.AgentSuggestionType;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -70,22 +72,33 @@ public class ProjectRoomAgentCommandService {
 					message,
 					commandMode,
 					inventoryAnswer.answer(),
+					null,
 					List.of(),
 					ProjectRoomGroundingContext.ungrounded(),
 					inventoryAnswer.resources()
 			);
 		}
 		ProjectRoomGroundingContext groundingContext = groundingService.retrieve(userId, roomId, message, locale, commandMode);
-		String answer = answer(message, commandMode, locale, groundingContext);
+		AnswerResult answer = answer(message, commandMode, locale, groundingContext);
 		List<AgentSuggestionResponse> suggestions = createSuggestions(
 				userId,
 				roomId,
 				message,
 				commandMode,
-				answer,
+				answer.text(),
 				groundingContext
 		);
-		return persistResponse(userId, roomId, message, commandMode, answer, suggestions, groundingContext, List.of());
+		return persistResponse(
+				userId,
+				roomId,
+				message,
+				commandMode,
+				answer.text(),
+				answer.fallbackReason(),
+				suggestions,
+				groundingContext,
+				List.of()
+		);
 	}
 
 	private ProjectRoomAgentCommandResponse persistResponse(
@@ -94,6 +107,7 @@ public class ProjectRoomAgentCommandService {
 			String message,
 			AgentCommandMode commandMode,
 			String answer,
+			String fallbackReason,
 			List<AgentSuggestionResponse> suggestions,
 			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
@@ -102,7 +116,7 @@ public class ProjectRoomAgentCommandService {
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
 				userId,
 				roomId,
-				responseBody(message, commandMode, answer, suggestions, groundingContext, metadataResources),
+				responseBody(message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources),
 				responseResourceId
 		));
 		RoomMemorySummaryContextResult memory = roomMemoryPublicService.createDraft(
@@ -110,7 +124,7 @@ public class ProjectRoomAgentCommandService {
 				roomId,
 				chatMessage.roomSequence(),
 				chatMessage.roomSequence(),
-				memoryJson(message, commandMode, answer, suggestions, groundingContext, metadataResources)
+				memoryJson(message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources)
 		);
 		return new ProjectRoomAgentCommandResponse(chatMessage, memory, suggestions);
 	}
@@ -158,24 +172,30 @@ public class ProjectRoomAgentCommandService {
 		return "현재 프로젝트룸에서 업로드된 자료를 찾지 못했습니다.";
 	}
 
-	private String answer(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
+	private AnswerResult answer(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
 		if (!groundingContext.grounded()) {
-			return noAnswer(locale);
+			return new AnswerResult(noAnswer(locale), "NO_GROUNDING");
 		}
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
 		if (chatModel == null) {
-			return noAnswer(locale);
+			return new AnswerResult(noAnswer(locale), "NO_CHAT_MODEL");
 		}
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
 		String prompt = prompt(message, mode, locale, groundingContext);
 		try {
+			String rawAnswer;
 			if (executor == null) {
-				return chatModel.call(prompt);
+				rawAnswer = chatModel.call(prompt);
+			} else {
+				rawAnswer = executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
 			}
-			return executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
+			return new AnswerResult(
+					AgentQuerySupport.removeAppendedNoAnswer(rawAnswer, noAnswer(locale)),
+					null
+			);
 		} catch (RuntimeException exception) {
 			log.warn("Project room RAG LLM answer failed.", exception);
-			return noAnswer(locale);
+			return new AnswerResult(noAnswer(locale), "LLM_FAILED");
 		}
 	}
 
@@ -186,8 +206,12 @@ public class ProjectRoomAgentCommandService {
 
 				Use ONLY the project documents and management data listed under "Retrieved project grounding sources".
 				Do not use recent chat history, room memory summaries, user memory, user profile memory, general world knowledge, or assumptions as factual evidence.
-				If the retrieved sources do not contain enough information to answer, reply exactly with this sentence in the response language: %s
+				If at least one retrieved source is relevant, answer from the available evidence even when it is partial.
+				When the evidence is partial, separate confirmed facts from missing or unclear items.
+				Never append the no-answer sentence after a useful partial answer.
+				Use this exact no-answer sentence only when none of the retrieved sources are relevant at all: %s
 				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved sources.
+				For SUGGEST mode, write each candidate on its own short bullet line when multiple candidates are useful.
 				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
 
 				User message:
@@ -232,22 +256,29 @@ public class ProjectRoomAgentCommandService {
 			return List.of();
 		}
 		AgentSuggestionType suggestionType = inferSuggestionType(message);
-		AgentSuggestionResponse suggestion = agentSuggestionCommandService.createDraft(
-				userId,
-				roomId,
-				null,
-				groundingContext.firstResourceId(),
-				suggestionType,
-				suggestionPayload(suggestionType, message, answer, groundingContext),
-				suggestionEvidence(groundingContext)
-		);
+		List<String> items = AgentQuerySupport.suggestionItems(answer, noAnswer("ko-KR"), 5);
+		if (items.isEmpty()) {
+			items = List.of(message);
+		}
+		List<AgentSuggestionResponse> suggestions = new ArrayList<>();
+		for (String item : items) {
+			suggestions.add(agentSuggestionCommandService.createDraft(
+					userId,
+					roomId,
+					null,
+					groundingContext.firstResourceId(),
+					suggestionType,
+					suggestionPayload(suggestionType, message, item, answer, groundingContext),
+					suggestionEvidence(groundingContext)
+			));
+		}
 		projectRoomEventPublicService.recordAgentSuggestionsCreated(
 				userId,
 				roomId,
-				List.of(suggestion.suggestionId()),
-				List.of(suggestion.suggestionType().name())
+				suggestions.stream().map(AgentSuggestionResponse::suggestionId).toList(),
+				suggestions.stream().map(suggestion -> suggestion.suggestionType().name()).toList()
 		);
-		return List.of(suggestion);
+		return suggestions;
 	}
 
 	private AgentSuggestionType inferSuggestionType(String message) {
@@ -291,13 +322,15 @@ public class ProjectRoomAgentCommandService {
 	private Map<String, Object> suggestionPayload(
 			AgentSuggestionType suggestionType,
 			String message,
+			String item,
 			String answer,
 			ProjectRoomGroundingContext groundingContext
 	) {
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("type", suggestionType.name());
-		payload.put("title", suggestionTitle(message, suggestionType));
-		payload.put("description", message);
+		payload.put("title", suggestionTitle(item, suggestionType));
+		payload.put("description", item);
+		payload.put("request", message);
 		payload.put("agentResponse", answer);
 		payload.put("source", "PROJECT_ROOM_AGENT_COMMAND");
 		payload.put("grounded", true);
@@ -332,6 +365,7 @@ public class ProjectRoomAgentCommandService {
 			String request,
 			AgentCommandMode mode,
 			String answer,
+			String fallbackReason,
 			List<AgentSuggestionResponse> suggestions,
 			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
@@ -342,6 +376,11 @@ public class ProjectRoomAgentCommandService {
 		body.put("mode", mode.name());
 		body.put("promptVersion", PROMPT_VERSION);
 		body.put("contextCharacters", groundingContext.promptBlock().length());
+		body.put("answerCompleteness", metadataResources.isEmpty()
+				? answerCompleteness(answer, fallbackReason, groundingContext)
+				: "ANSWERED");
+		body.put("fallbackReason", fallbackReason);
+		body.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
 		body.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
@@ -357,6 +396,7 @@ public class ProjectRoomAgentCommandService {
 			String request,
 			AgentCommandMode mode,
 			String answer,
+			String fallbackReason,
 			List<AgentSuggestionResponse> suggestions,
 			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
@@ -367,6 +407,11 @@ public class ProjectRoomAgentCommandService {
 		memory.put("request", request);
 		memory.put("answer", answer);
 		memory.put("contextCharacters", groundingContext.promptBlock().length());
+		memory.put("answerCompleteness", metadataResources.isEmpty()
+				? answerCompleteness(answer, fallbackReason, groundingContext)
+				: "ANSWERED");
+		memory.put("fallbackReason", fallbackReason);
+		memory.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
 		memory.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
@@ -388,14 +433,59 @@ public class ProjectRoomAgentCommandService {
 		payload.put("evidenceItems", groundingContext.evidenceItems().stream()
 				.map(com.bubli.agent.dto.ProjectRoomGroundingEvidence::toPayload)
 				.toList());
+		payload.put("retrievalModes", groundingContext.retrievalModes());
 		payload.put("ragGrounded", groundingContext.hasDocumentEvidence());
 		payload.put("ragMaxSimilarity", groundingContext.ragMaxSimilarity());
 		payload.put("ragHits", ragHits(groundingContext));
 		payload.put("resourceIds", groundingContext.resourceIds());
+		payload.put("matchedResources", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.DOCUMENT));
 		payload.put("taskIds", groundingContext.taskIds());
+		payload.put("matchedTasks", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.TASK));
 		payload.put("wbsItemIds", groundingContext.wbsItemIds());
+		payload.put("matchedWbsItems", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.WBS));
 		payload.put("scheduleIds", groundingContext.scheduleIds());
 		payload.put("agentSuggestionIds", groundingContext.agentSuggestionIds());
+	}
+
+	private String answerCompleteness(
+			String answer,
+			String fallbackReason,
+			ProjectRoomGroundingContext groundingContext
+	) {
+		if (!groundingContext.grounded() || fallbackReason != null) {
+			return "NO_EVIDENCE";
+		}
+		String normalized = normalize(answer);
+		if (containsAny(normalized, "추가 확인", "확인 필요", "불명확", "부족", "missing", "unclear", "確認")) {
+			return "PARTIAL";
+		}
+		return "ANSWERED";
+	}
+
+	private List<String> missingInfo(String answer, ProjectRoomGroundingContext groundingContext) {
+		if (!groundingContext.grounded()) {
+			return List.of("NO_RELEVANT_PROJECT_GROUNDING");
+		}
+		String normalized = normalize(answer);
+		if (containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear")) {
+			return List.of("PARTIAL_EVIDENCE");
+		}
+		return List.of();
+	}
+
+	private List<Map<String, Object>> matchedEvidence(
+			ProjectRoomGroundingContext groundingContext,
+			ProjectRoomGroundingSourceType sourceType
+	) {
+		return groundingContext.evidenceItems().stream()
+				.filter(evidence -> evidence.sourceType() == sourceType)
+				.map(evidence -> {
+					Map<String, Object> item = new LinkedHashMap<>();
+					item.put("id", evidence.id());
+					item.putAll(evidence.metadata());
+					return item;
+				})
+				.toList();
 	}
 
 	private List<String> sourceTypes(ProjectRoomGroundingContext groundingContext) {
@@ -433,6 +523,12 @@ public class ProjectRoomAgentCommandService {
 	private record ResourceInventoryAnswer(
 			List<ResourceResult> resources,
 			String answer
+	) {
+	}
+
+	private record AnswerResult(
+			String text,
+			String fallbackReason
 	) {
 	}
 }

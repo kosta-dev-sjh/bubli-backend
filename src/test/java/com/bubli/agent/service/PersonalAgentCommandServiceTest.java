@@ -12,9 +12,12 @@ import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
+import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.user.service.UserLocalePublicService;
 import com.bubli.work.schedule.dto.ScheduleResult;
@@ -29,6 +32,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,7 +89,7 @@ class PersonalAgentCommandServiceTest {
 		assertThat(promptCaptor.getValue()).contains("Local chat summaries");
 		assertThat(promptCaptor.getValue()).contains("previous local summary");
 		assertThat(promptCaptor.getValue()).contains("Local recent messages");
-		assertThat(promptCaptor.getValue()).contains("Personal TODOs");
+		assertThat(promptCaptor.getValue()).contains("Personal active TODOs");
 		assertThat(promptCaptor.getValue()).contains("Personal schedules");
 		assertThat(promptCaptor.getValue()).contains("Personal memos");
 		assertThat(promptCaptor.getValue()).contains("Personal resource summaries");
@@ -94,17 +98,103 @@ class PersonalAgentCommandServiceTest {
 		assertThat(response.suggestions()).isEmpty();
 	}
 
+	@Test
+	void completedTaskQuestionPlacesCompletedTasksFirst() {
+		UUID userId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		when(chatModel.call(any(String.class))).thenReturn("완료된 작업을 기준으로 정리했습니다.");
+		PersonalAgentCommandService service = service(userId, chatModel);
+
+		var response = service.execute(
+				userId,
+				"완료된 작업 기준으로 정리해줘",
+				AgentCommandMode.ANSWER,
+				List.of(),
+				memory()
+		);
+
+		var promptCaptor = forClass(String.class);
+		verify(chatModel).call(promptCaptor.capture());
+		assertThat(promptCaptor.getValue().indexOf("Personal completed TODOs"))
+				.isLessThan(promptCaptor.getValue().indexOf("Personal active TODOs"));
+		assertThat(response.message().body().get("matchedTasks").get(0).get("workState").asText())
+				.isEqualTo("COMPLETED");
+	}
+
+	@Test
+	void personalSuggestModeNeverCreatesWbsSuggestions() {
+		UUID userId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		when(chatModel.call(any(String.class))).thenReturn("""
+				- 자료 검토
+				- 클라이언트 질문 정리
+				""");
+		PersonalAgentCommandService service = service(userId, chatModel);
+
+		var response = service.execute(
+				userId,
+				"WBS로 정리해줘",
+				AgentCommandMode.SUGGEST,
+				List.of(),
+				memory()
+		);
+
+		assertThat(response.suggestions()).hasSize(2);
+		assertThat(response.suggestions())
+				.allSatisfy(suggestion -> assertThat(suggestion.suggestionType()).isNotEqualTo(AgentSuggestionType.WBS));
+	}
+
+	@Test
+	void promptIncludesPersonalResourceMatchedByTitleWhenLlmIsAvailable() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		when(chatModel.call(any(String.class))).thenReturn("LLM answer");
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(userId, resourceId, "02-design-outsourcing-requirements-example.pdf");
+		when(resourcePublicService.getRecentAnalysisSummaries(userId, 5)).thenReturn(List.of());
+		when(resourcePublicService.getRecentPersonalResources(userId, 30)).thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(userId, resourceId))
+				.thenReturn(Optional.of(resourceSummary(resourceId)));
+		PersonalAgentCommandService service = service(userId, chatModel, resourcePublicService);
+
+		service.execute(
+				userId,
+				"/bubli 02 design outsourcing pdf 주요 내용",
+				AgentCommandMode.ANSWER,
+				List.of(),
+				memory()
+		);
+
+		var promptCaptor = forClass(String.class);
+		verify(chatModel).call(promptCaptor.capture());
+		assertThat(promptCaptor.getValue()).contains("Personal matched resource evidence");
+		assertThat(promptCaptor.getValue()).contains("retrievalMode=TITLE_MATCH");
+		assertThat(promptCaptor.getValue()).contains("02-design-outsourcing-requirements-example.pdf");
+		assertThat(promptCaptor.getValue()).contains("브랜드 가이드");
+	}
+
 	@SuppressWarnings("unchecked")
 	private PersonalAgentCommandService service(UUID userId, ChatModel chatModel) {
+		return service(userId, chatModel, mock(ResourcePublicService.class));
+	}
+
+	@SuppressWarnings("unchecked")
+	private PersonalAgentCommandService service(
+			UUID userId,
+			ChatModel chatModel,
+			ResourcePublicService resourcePublicService
+	) {
 		TaskPublicService taskPublicService = mock(TaskPublicService.class);
 		SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
 		MemoPublicService memoPublicService = mock(MemoPublicService.class);
-		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceSemanticSearchPublicService resourceSemanticSearchService = mock(ResourceSemanticSearchPublicService.class);
 		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
 		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
 		ObjectProvider<AiCallExecutor> aiCallExecutorProvider = mock(ObjectProvider.class);
 
-		when(taskPublicService.getPersonalContextTasks(userId, 8)).thenReturn(List.of(task(userId)));
+		when(taskPublicService.getPersonalContextTasks(userId, 20))
+				.thenReturn(List.of(task(userId), task(userId, TaskStatus.DONE)));
 		when(schedulePublicService.getSchedulesBetween(any(), any(), any())).thenReturn(List.of(schedule(userId)));
 		when(memoPublicService.getUpdatedMemosBetween(any(), any(), any(), anyInt()))
 				.thenReturn(List.of(memo(userId)));
@@ -119,6 +209,7 @@ class PersonalAgentCommandServiceTest {
 				schedulePublicService,
 				memoPublicService,
 				resourcePublicService,
+				resourceSemanticSearchService,
 				userLocalePublicService,
 				chatModelProvider,
 				aiCallExecutorProvider,
@@ -139,6 +230,10 @@ class PersonalAgentCommandServiceTest {
 	}
 
 	private TaskResult task(UUID userId) {
+		return task(userId, TaskStatus.TODO);
+	}
+
+	private TaskResult task(UUID userId, TaskStatus status) {
 		return new TaskResult(
 				UUID.randomUUID(),
 				userId,
@@ -147,7 +242,7 @@ class PersonalAgentCommandServiceTest {
 				null,
 				"Review memo",
 				"Check local agent notes",
-				TaskStatus.TODO,
+				status,
 				null,
 				Instant.now(),
 				Instant.now()
@@ -197,14 +292,34 @@ class PersonalAgentCommandServiceTest {
 	}
 
 	private ResourceResult resource(UUID userId) {
+		return resource(userId, UUID.randomUUID(), "Selected personal file");
+	}
+
+	private ResourceResult resource(UUID userId, UUID resourceId, String title) {
 		return new ResourceResult(
-				UUID.randomUUID(),
+				resourceId,
 				userId,
 				null,
-				"Selected personal file",
+				title,
 				ResourceKind.FILE,
 				ResourceVisibility.PERSONAL,
 				ResourceStatus.ANALYZED,
+				Instant.now(),
+				Instant.now()
+		);
+	}
+
+	private ResourceSummaryResult resourceSummary(UUID resourceId) {
+		return new ResourceSummaryResult(
+				UUID.randomUUID(),
+				resourceId,
+				UUID.randomUUID(),
+				"{\"summary\":\"브랜드 가이드, 화면 시안, 검수 일정 정리가 필요합니다.\"}",
+				"[]",
+				ResourceSummaryStatus.READY,
+				"test-prompt",
+				"analysis.v1",
+				"test-model",
 				Instant.now(),
 				Instant.now()
 		);
