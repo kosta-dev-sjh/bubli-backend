@@ -18,6 +18,8 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
 	Page<Notification> findAllByUserId(UUID userId, Pageable pageable);
 
+	Page<Notification> findAllByUserIdAndStatusNot(UUID userId, NotificationStatus status, Pageable pageable);
+
 	long countByUserIdAndStatus(UUID userId, NotificationStatus status);
 
 	Page<Notification> findAllByUserIdAndCreatedAtBetween(UUID userId, Instant from, Instant to, Pageable pageable);

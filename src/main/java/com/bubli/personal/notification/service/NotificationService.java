@@ -23,7 +23,7 @@ public class NotificationService {
 
 	@Transactional(readOnly = true)
 	public Page<NotificationResponse> getNotifications(UUID userId, Pageable pageable) {
-		return notificationRepository.findAllByUserId(userId, pageable)
+		return notificationRepository.findAllByUserIdAndStatusNot(userId, NotificationStatus.ARCHIVED, pageable)
 				.map(NotificationResponse::from);
 	}
 

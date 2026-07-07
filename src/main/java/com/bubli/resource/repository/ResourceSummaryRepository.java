@@ -16,6 +16,8 @@ public interface ResourceSummaryRepository extends JpaRepository<ResourceSummary
 
     Optional<ResourceSummary> findTopByResourceIdOrderByCreatedAtDesc(UUID resourceId);
 
+    Optional<ResourceSummary> findFirstByJobIdOrderByUpdatedAtDescIdDesc(UUID jobId);
+
     Optional<ResourceSummary> findFirstByResourceIdOrderByUpdatedAtDescIdDesc(UUID resourceId);
 
     @Query("""

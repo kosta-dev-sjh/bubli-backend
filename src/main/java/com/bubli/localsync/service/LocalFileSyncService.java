@@ -50,7 +50,12 @@ public class LocalFileSyncService {
             LocalFileSyncResult result = switch (event.eventType().toUpperCase()) {
                 case "CREATED" -> {
                     String title = event.fileName() != null ? event.fileName() : "untitled";
-                    ResourceResult resource = resourcePublicService.createPersonalResource(userId, title);
+                    ResourceResult resource = resourcePublicService.createPersonalLocalFileResource(
+                            userId,
+                            title,
+                            event.fileSizeBytes(),
+                            event.mimeType()
+                    );
                     yield new LocalFileSyncResult("CREATED", event.localEventId(), resource.id(), "SYNCED");
                 }
                 case "DELETED" -> {
@@ -65,7 +70,13 @@ public class LocalFileSyncService {
                         yield new LocalFileSyncResult("UPDATED", event.localEventId(), null, "SKIPPED");
                     }
                     String title = event.fileName() != null ? event.fileName() : "untitled";
-                    ResourceResult resource = resourcePublicService.updatePersonalResource(userId, event.resourceId(), title);
+                    ResourceResult resource = resourcePublicService.updatePersonalLocalFileResource(
+                            userId,
+                            event.resourceId(),
+                            title,
+                            event.fileSizeBytes(),
+                            event.mimeType()
+                    );
                     yield new LocalFileSyncResult("UPDATED", event.localEventId(), resource.id(), "SYNCED");
                 }
                 default -> {

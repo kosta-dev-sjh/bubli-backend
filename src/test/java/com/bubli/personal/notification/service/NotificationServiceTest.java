@@ -47,7 +47,8 @@ class NotificationServiceTest {
 		);
 		Pageable pageable = PageRequest.of(0, 20);
 		Page<Notification> page = new PageImpl<>(List.of(notification), pageable, 1);
-		given(notificationRepository.findAllByUserId(userId, pageable)).willReturn(page);
+		given(notificationRepository.findAllByUserIdAndStatusNot(userId, NotificationStatus.ARCHIVED, pageable))
+				.willReturn(page);
 
 		Page<NotificationResponse> result = notificationService.getNotifications(userId, pageable);
 
