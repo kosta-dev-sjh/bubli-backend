@@ -149,6 +149,20 @@ public class VoiceRoomService {
                 .toList());
     }
 
+    @Transactional(readOnly = true)
+    public VoiceRoomResponse getOpenVoiceRoomByChatRoom(UUID userId, UUID chatRoomId) {
+        chatRoomAccessPublicService.assertActiveMember(userId, chatRoomId);
+
+        VoiceRoom voiceRoom = voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+
+        return toRoomResponse(voiceRoom, participants.stream()
+                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                .toList());
+    }
+
     @Transactional
     public VoiceTokenResponse issueToken(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
@@ -269,8 +283,15 @@ public class VoiceRoomService {
     @Transactional
     public VoiceRoomResponse endVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        if (!userId.equals(voiceRoom.getCreatedByUserId())) {
+        // 1:1 통화는 "나가기" 개념이 없다 — 둘 중 누구든 종료를 누르면 둘 다 끝나야 하므로
+        // 개설자가 아니어도 종료를 허용한다. 그룹/프로젝트룸은 개설자만 전체 종료 가능(기존 정책 유지).
+        boolean canEnd = userId.equals(voiceRoom.getCreatedByUserId())
+                || (voiceRoom.getChatRoomId() != null && chatRoomAccessPublicService.isDirectChatRoom(voiceRoom.getChatRoomId()));
+        if (!canEnd) {
             throw new BusinessException(ErrorCode.VOICE_403_001);
+        }
+        if (voiceRoom.getChatRoomId() != null) {
+            chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
         }
 
         voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED)
