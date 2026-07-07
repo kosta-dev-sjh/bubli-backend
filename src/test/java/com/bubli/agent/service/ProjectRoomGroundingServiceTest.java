@@ -390,6 +390,8 @@ class ProjectRoomGroundingServiceTest {
 				Map.of(),
 				null,
 				null,
+				null,
+				null,
 				Instant.parse("2026-07-01T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z")
 		);

@@ -20,6 +20,12 @@ public interface AgentJobRepository extends JpaRepository<AgentJob, UUID> {
 
     Optional<AgentJob> findByIdAndRequestedByUserId(UUID id, UUID requestedByUserId);
 
+    Optional<AgentJob> findByRequestedByUserIdAndJobTypeAndIdempotencyKey(
+            UUID requestedByUserId,
+            AgentJobType jobType,
+            String idempotencyKey
+    );
+
     Page<AgentJob> findByStatusAndRetryCountLessThan(
             AgentJobStatus status,
             int retryCount,

@@ -15,6 +15,7 @@ public record ResourceResponse(
 		ResourceKind kind,
 		ResourceVisibility visibility,
 		ResourceStatus status,
+		String downloadUrl,
 		Instant createdAt,
 		Instant updatedAt
 ) {
@@ -27,8 +28,13 @@ public record ResourceResponse(
 				result.kind(),
 				result.visibility(),
 				result.status(),
+				downloadPath(result),
 				result.createdAt(),
 				result.updatedAt()
 		);
+	}
+
+	private static String downloadPath(ResourceResult result) {
+		return result.kind() == ResourceKind.FILE ? "/api/resources/%s/file".formatted(result.id()) : null;
 	}
 }

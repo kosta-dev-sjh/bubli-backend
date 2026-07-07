@@ -139,6 +139,52 @@ class GeneratedDocumentServiceTest {
         assertThat(new String(result.content())).isEqualTo("# Meeting Note");
     }
 
+    @Test
+    void responseIncludesDownloadUrls() {
+        GeneratedDocument document = GeneratedDocument.create(
+                UUID.randomUUID(),
+                null,
+                UUID.randomUUID(),
+                null,
+                "draft",
+                "GENERAL",
+                "# Draft",
+                Map.of()
+        );
+        UUID documentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(document, "id", documentId);
+
+        var response = com.bubli.agent.dto.GeneratedDocumentResponse.from(document);
+
+        assertThat(response.downloadUrl()).isEqualTo("/api/generated-documents/%s/export".formatted(documentId));
+        assertThat(response.exportUrl()).isEqualTo("/api/generated-documents/%s/export".formatted(documentId));
+    }
+
+    @Test
+    void exportFallsBackToMetadataWhenStoredMarkdownIsBlank() {
+        GeneratedDocumentRepository repository = mock(GeneratedDocumentRepository.class);
+        UUID userId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        GeneratedDocument document = GeneratedDocument.create(
+                userId,
+                null,
+                UUID.randomUUID(),
+                null,
+                "draft",
+                "GENERAL",
+                "temporary",
+                Map.of("agentResponse", "# Recovered Draft")
+        );
+        ReflectionTestUtils.setField(document, "id", documentId);
+        ReflectionTestUtils.setField(document, "contentMarkdown", " ");
+        when(repository.findById(documentId)).thenReturn(Optional.of(document));
+
+        var result = new GeneratedDocumentService(repository, mock(ProjectMembershipPublicService.class))
+                .exportMarkdown(userId, documentId);
+
+        assertThat(new String(result.content())).isEqualTo("# Recovered Draft");
+    }
+
     private AgentSuggestion suggestion(UUID suggestionId, UUID roomId, Map<String, Object> payload) {
         AgentSuggestion suggestion = AgentSuggestion.draft(
                 UUID.randomUUID(),

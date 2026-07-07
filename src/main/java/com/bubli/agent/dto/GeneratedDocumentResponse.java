@@ -15,6 +15,8 @@ public record GeneratedDocumentResponse(
         String title,
         String documentType,
         String contentMarkdown,
+        String downloadUrl,
+        String exportUrl,
         Map<String, Object> metadataJson,
         Instant createdAt,
         Instant updatedAt
@@ -30,9 +32,15 @@ public record GeneratedDocumentResponse(
                 document.getTitle(),
                 document.getDocumentType(),
                 document.getContentMarkdown(),
+                exportPath(document.getId()),
+                exportPath(document.getId()),
                 document.getMetadataJson(),
                 document.getCreatedAt(),
                 document.getUpdatedAt()
         );
+    }
+
+    private static String exportPath(UUID documentId) {
+        return "/api/generated-documents/%s/export".formatted(documentId);
     }
 }

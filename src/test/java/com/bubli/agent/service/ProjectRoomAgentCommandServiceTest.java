@@ -479,6 +479,8 @@ class ProjectRoomAgentCommandServiceTest {
 				Map.of("source", "PROJECT_ROOM_AGENT_COMMAND"),
 				null,
 				null,
+				null,
+				null,
 				Instant.now(),
 				Instant.now()
 		);
