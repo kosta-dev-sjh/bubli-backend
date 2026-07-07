@@ -294,12 +294,32 @@ public class VoiceRoomService {
             chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
         }
 
+        // 발신자가 상대가 받기 전에 취소하는 경우 — 종료 처리 전에 판단해야 한다(leave() 이후엔
+        // 참여자가 모두 LEFT라 판단 불가). 상대는 아직 참여 이력이 없으므로 이 시점에 JOINED가
+        // 개설자 한 명뿐이면 "받기 전 취소"로 본다.
+        boolean wasRingingBack = userId.equals(voiceRoom.getCreatedByUserId())
+                && voiceRoom.getChatRoomId() != null
+                && currentParticipants(voiceRoomId).size() <= 1;
+
         voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED)
                 .forEach(VoiceParticipant::leave);
 
         voiceRoom.end();
         if (voiceRoom.getRoomId() != null) {
             projectRoomEventPublicService.recordVoiceRoomEnded(userId, voiceRoom.getRoomId(), voiceRoom.getId());
+        }
+
+        if (wasRingingBack) {
+            UserResult canceler = userPublicService.getUser(userId);
+            chatRoomAccessPublicService.findActiveMemberIds(voiceRoom.getChatRoomId()).stream()
+                    .filter(memberId -> !memberId.equals(userId))
+                    .forEach(memberId -> notificationPublicService.create(
+                            memberId,
+                            NotificationSourceType.VOICE_CALL_CANCELED,
+                            voiceRoom.getChatRoomId(),
+                            canceler.name(),
+                            "전화를 취소했습니다"
+                    ));
         }
 
         VoiceRoomResponse response = buildRoomResponse(voiceRoom);
