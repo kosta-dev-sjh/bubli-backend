@@ -15,6 +15,7 @@ import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import com.bubli.voice.type.VoiceRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +62,9 @@ class VoiceRoomServiceTest {
 	@Mock
 	NotificationPublicService notificationPublicService;
 
+	@Mock
+	WebSocketPublishPublicService webSocketPublishPublicService;
+
 	VoiceRoomService voiceRoomService;
 
 	@BeforeEach
@@ -73,7 +77,8 @@ class VoiceRoomServiceTest {
 				chatRoomAccessPublicService,
 				userPublicService,
 				notificationPublicService,
-				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example")
+				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example"),
+				webSocketPublishPublicService
 		);
 	}
 
@@ -381,6 +386,54 @@ class VoiceRoomServiceTest {
 
 		assertThat(voiceRoom.getStatus()).isEqualTo(VoiceRoomStatus.ENDED);
 		verify(projectRoomEventPublicService).recordVoiceRoomEnded(userId, roomId, voiceRoom.getId());
+	}
+
+	@Test
+	void declineVoiceRoomNotifiesCreator() {
+		UUID callerId = UUID.randomUUID();
+		UUID declinerId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(userPublicService.getUser(declinerId)).willReturn(user(declinerId, "재민"));
+
+		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
+
+		verify(chatRoomAccessPublicService).assertActiveMember(declinerId, chatRoomId);
+		verify(notificationPublicService).create(
+				callerId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_DECLINED,
+				chatRoomId,
+				"재민",
+				"통화를 거절했습니다"
+		);
+	}
+
+	@Test
+	void declineVoiceRoomRejectsProjectRoomVoiceRoom() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+
+		assertThatThrownBy(() -> voiceRoomService.declineVoiceRoom(userId, voiceRoom.getId()))
+				.isInstanceOf(com.bubli.global.error.BusinessException.class);
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void declineVoiceRoomIsNoopWhenAlreadyEnded() {
+		UUID callerId = UUID.randomUUID();
+		UUID declinerId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		voiceRoom.end();
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+
+		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
+
+		verify(chatRoomAccessPublicService, never()).assertActiveMember(any(), any());
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
 	}
 
 	private VoiceRoom voiceRoom(UUID userId, UUID roomId) {
