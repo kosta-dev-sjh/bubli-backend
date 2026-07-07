@@ -19,6 +19,7 @@ import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import com.bubli.voice.type.VoiceRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class VoiceRoomService {
     private final UserPublicService userPublicService;
     private final NotificationPublicService notificationPublicService;
     private final LiveKitProperties liveKitProperties;
+    private final WebSocketPublishPublicService webSocketPublishPublicService;
 
     @Transactional
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId, UUID chatRoomId) {
@@ -147,6 +149,20 @@ public class VoiceRoomService {
                 .toList());
     }
 
+    @Transactional(readOnly = true)
+    public VoiceRoomResponse getOpenVoiceRoomByChatRoom(UUID userId, UUID chatRoomId) {
+        chatRoomAccessPublicService.assertActiveMember(userId, chatRoomId);
+
+        VoiceRoom voiceRoom = voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+
+        return toRoomResponse(voiceRoom, participants.stream()
+                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                .toList());
+    }
+
     @Transactional
     public VoiceTokenResponse issueToken(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
@@ -180,6 +196,10 @@ public class VoiceRoomService {
             );
         }
 
+        if (joined[0]) {
+            broadcastRoomState(voiceRoom);
+        }
+
         Instant expiresAt = Instant.now().plusSeconds(3600);
         String token = generateLiveKitToken(userId, voiceRoom.getLivekitRoomName(), expiresAt);
 
@@ -210,6 +230,7 @@ public class VoiceRoomService {
                     micStatus
             );
         }
+        broadcastRoomState(voiceRoom);
         UserResult user = userPublicService.getUser(userId);
         return toParticipantResponse(participant, user.name());
     }
@@ -233,18 +254,44 @@ public class VoiceRoomService {
             }
         });
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
-        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
-        return toRoomResponse(voiceRoom, participants.stream()
-                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
-                .toList());
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
+    }
+
+    @Transactional
+    public void declineVoiceRoom(UUID userId, UUID voiceRoomId) {
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        if (voiceRoom.getChatRoomId() == null) {
+            throw new BusinessException(ErrorCode.COMMON_400_002);
+        }
+        if (voiceRoom.getStatus() != VoiceRoomStatus.OPEN) {
+            return;
+        }
+        chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+
+        UserResult decliner = userPublicService.getUser(userId);
+        notificationPublicService.create(
+                voiceRoom.getCreatedByUserId(),
+                NotificationSourceType.VOICE_CALL_DECLINED,
+                voiceRoom.getChatRoomId(),
+                decliner.name(),
+                "통화를 거절했습니다"
+        );
     }
 
     @Transactional
     public VoiceRoomResponse endVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        if (!userId.equals(voiceRoom.getCreatedByUserId())) {
+        // 1:1 통화는 "나가기" 개념이 없다 — 둘 중 누구든 종료를 누르면 둘 다 끝나야 하므로
+        // 개설자가 아니어도 종료를 허용한다. 그룹/프로젝트룸은 개설자만 전체 종료 가능(기존 정책 유지).
+        boolean canEnd = userId.equals(voiceRoom.getCreatedByUserId())
+                || (voiceRoom.getChatRoomId() != null && chatRoomAccessPublicService.isDirectChatRoom(voiceRoom.getChatRoomId()));
+        if (!canEnd) {
             throw new BusinessException(ErrorCode.VOICE_403_001);
+        }
+        if (voiceRoom.getChatRoomId() != null) {
+            chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
         }
 
         voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED)
@@ -255,11 +302,21 @@ public class VoiceRoomService {
             projectRoomEventPublicService.recordVoiceRoomEnded(userId, voiceRoom.getRoomId(), voiceRoom.getId());
         }
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
+    }
+
+    private VoiceRoomResponse buildRoomResponse(VoiceRoom voiceRoom) {
+        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId());
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
         return toRoomResponse(voiceRoom, participants.stream()
                 .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
                 .toList());
+    }
+
+    private void broadcastRoomState(VoiceRoom voiceRoom) {
+        webSocketPublishPublicService.publishVoiceRoomEvent(buildRoomResponse(voiceRoom));
     }
 
     private VoiceRoom findRoom(UUID voiceRoomId) {

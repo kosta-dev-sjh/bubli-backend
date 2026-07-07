@@ -8,4 +8,6 @@ public interface ChatRoomAccessPublicService {
     void assertActiveMember(UUID userId, UUID chatRoomId);
 
     List<UUID> findActiveMemberIds(UUID chatRoomId);
+
+    boolean isDirectChatRoom(UUID chatRoomId);
 }

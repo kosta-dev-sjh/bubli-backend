@@ -52,6 +52,14 @@ public class VoiceRoomController {
         return ApiResponse.success(voiceRoomService.getOpenVoiceRoomByProjectRoom(authUser.userId(), roomId));
     }
 
+    @GetMapping(params = "chatRoomId")
+    public ApiResponse<VoiceRoomResponse> getOpenVoiceRoomByChatRoom(
+            @CurrentUser AuthUser authUser,
+            @RequestParam UUID chatRoomId
+    ) {
+        return ApiResponse.success(voiceRoomService.getOpenVoiceRoomByChatRoom(authUser.userId(), chatRoomId));
+    }
+
     @PostMapping("/{id}/token")
     public ApiResponse<VoiceTokenResponse> issueToken(
             @CurrentUser AuthUser authUser,
@@ -75,6 +83,15 @@ public class VoiceRoomController {
             @PathVariable UUID id
     ) {
         return ApiResponse.success(voiceRoomService.leaveVoiceRoom(authUser.userId(), id));
+    }
+
+    @PatchMapping("/{id}/decline")
+    public ApiResponse<Void> declineVoiceRoom(
+            @CurrentUser AuthUser authUser,
+            @PathVariable UUID id
+    ) {
+        voiceRoomService.declineVoiceRoom(authUser.userId(), id);
+        return ApiResponse.success(null);
     }
 
     @PatchMapping("/{id}/end")
