@@ -453,6 +453,53 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void endVoiceRoomNotifiesOtherMemberWhenCancelingBeforeAnswer() {
+		UUID callerId = UUID.randomUUID();
+		UUID calleeId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		VoiceParticipant participant = participant(voiceRoom.getId(), callerId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(participant));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
+		given(chatRoomAccessPublicService.findActiveMemberIds(chatRoomId)).willReturn(List.of(callerId, calleeId));
+		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "재민"));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(callerId, user(callerId)));
+
+		voiceRoomService.endVoiceRoom(callerId, voiceRoom.getId());
+
+		verify(notificationPublicService).create(
+				calleeId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_CANCELED,
+				chatRoomId,
+				"재민",
+				"전화를 취소했습니다"
+		);
+	}
+
+	@Test
+	void endVoiceRoomDoesNotNotifyWhenCalleeAlreadyJoined() {
+		UUID callerId = UUID.randomUUID();
+		UUID calleeId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		VoiceParticipant callerParticipant = participant(voiceRoom.getId(), callerId);
+		VoiceParticipant calleeParticipant = participant(voiceRoom.getId(), calleeId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(callerParticipant, calleeParticipant));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(callerParticipant, calleeParticipant));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(callerId, user(callerId), calleeId, user(calleeId)));
+
+		voiceRoomService.endVoiceRoom(callerId, voiceRoom.getId());
+
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
+	}
+
+	@Test
 	void declineVoiceRoomNotifiesCreator() {
 		UUID callerId = UUID.randomUUID();
 		UUID declinerId = UUID.randomUUID();
