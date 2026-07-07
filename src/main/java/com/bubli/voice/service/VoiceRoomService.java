@@ -241,6 +241,27 @@ public class VoiceRoomService {
     }
 
     @Transactional
+    public void declineVoiceRoom(UUID userId, UUID voiceRoomId) {
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        if (voiceRoom.getChatRoomId() == null) {
+            throw new BusinessException(ErrorCode.COMMON_400_002);
+        }
+        if (voiceRoom.getStatus() != VoiceRoomStatus.OPEN) {
+            return;
+        }
+        chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+
+        UserResult decliner = userPublicService.getUser(userId);
+        notificationPublicService.create(
+                voiceRoom.getCreatedByUserId(),
+                NotificationSourceType.VOICE_CALL_DECLINED,
+                voiceRoom.getChatRoomId(),
+                decliner.name(),
+                "통화를 거절했습니다"
+        );
+    }
+
+    @Transactional
     public VoiceRoomResponse endVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
         if (!userId.equals(voiceRoom.getCreatedByUserId())) {
