@@ -15,6 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +28,7 @@ import java.util.UUID;
 public class LocalFileAnalysisService {
 
     private static final String SOURCE = "LOCAL_MANAGED_FOLDER_KEY_SENTENCES";
+    private static final String ANALYSIS_VERSION = "v1";
 
     private final ResourcePublicService resourcePublicService;
     private final AgentJobPublicService agentJobPublicService;
@@ -34,6 +38,12 @@ public class LocalFileAnalysisService {
         ResourceResult resource = resourcePublicService.getReadableResource(userId, command.resourceId());
         if (resource.visibility() != ResourceVisibility.PERSONAL) {
             throw new BusinessException(ErrorCode.RESOURCE_403_001);
+        }
+
+        String idempotencyKey = idempotencyKey(userId, command);
+        AgentJobResult existingJob = agentJobPublicService.findAnalyzeResourceJobByIdempotencyKey(userId, idempotencyKey);
+        if (existingJob != null) {
+            return existingJob;
         }
 
         ResourceExtractedTextResult extractedText = resourcePublicService.storeExtractedText(
@@ -46,7 +56,7 @@ public class LocalFileAnalysisService {
                 userId,
                 resource.roomId(),
                 resource.id(),
-                requestPayload(command, extractedText.id())
+                requestPayload(command, extractedText.id(), idempotencyKey)
         );
     }
 
@@ -68,9 +78,11 @@ public class LocalFileAnalysisService {
         );
     }
 
-    private Map<String, Object> requestPayload(LocalFileAnalysisCommand command, UUID extractedTextId) {
+    private Map<String, Object> requestPayload(LocalFileAnalysisCommand command, UUID extractedTextId, String idempotencyKey) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("source", SOURCE);
+        payload.put("idempotencyKey", idempotencyKey);
+        payload.put("analysisVersion", ANALYSIS_VERSION);
         payload.put("extractedTextId", extractedTextId.toString());
         payload.put("localFileId", command.localFileId().trim());
         payload.put("fileName", command.fileName().trim());
@@ -81,6 +93,36 @@ public class LocalFileAnalysisService {
         payload.put("analyzedCharCount", command.analyzedCharCount());
         payload.put("textTruncated", command.textTruncated());
         return payload;
+    }
+
+    private String idempotencyKey(UUID userId, LocalFileAnalysisCommand command) {
+        String fileIdentity = hasText(command.checksum())
+                ? "checksum:" + command.checksum().trim()
+                : "localFileId:" + command.localFileId().trim();
+        String rawKey = String.join(
+                ":",
+                SOURCE,
+                ANALYSIS_VERSION,
+                userId.toString(),
+                command.resourceId().toString(),
+                fileIdentity,
+                command.extractionMethod().trim()
+        );
+        return "LOCAL_FILE_ANALYSIS:" + sha256(rawKey);
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available.", exception);
+        }
     }
 
     private boolean hasText(String value) {
