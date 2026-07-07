@@ -388,6 +388,54 @@ class VoiceRoomServiceTest {
 		verify(projectRoomEventPublicService).recordVoiceRoomEnded(userId, roomId, voiceRoom.getId());
 	}
 
+	@Test
+	void declineVoiceRoomNotifiesCreator() {
+		UUID callerId = UUID.randomUUID();
+		UUID declinerId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(userPublicService.getUser(declinerId)).willReturn(user(declinerId, "재민"));
+
+		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
+
+		verify(chatRoomAccessPublicService).assertActiveMember(declinerId, chatRoomId);
+		verify(notificationPublicService).create(
+				callerId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_DECLINED,
+				chatRoomId,
+				"재민",
+				"통화를 거절했습니다"
+		);
+	}
+
+	@Test
+	void declineVoiceRoomRejectsProjectRoomVoiceRoom() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+
+		assertThatThrownBy(() -> voiceRoomService.declineVoiceRoom(userId, voiceRoom.getId()))
+				.isInstanceOf(com.bubli.global.error.BusinessException.class);
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void declineVoiceRoomIsNoopWhenAlreadyEnded() {
+		UUID callerId = UUID.randomUUID();
+		UUID declinerId = UUID.randomUUID();
+		UUID chatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
+		voiceRoom.end();
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+
+		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
+
+		verify(chatRoomAccessPublicService, never()).assertActiveMember(any(), any());
+		verify(notificationPublicService, never()).create(any(), any(), any(), any(), any());
+	}
+
 	private VoiceRoom voiceRoom(UUID userId, UUID roomId) {
 		return withId(VoiceRoom.create(roomId, userId));
 	}

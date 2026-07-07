@@ -77,6 +77,15 @@ public class VoiceRoomController {
         return ApiResponse.success(voiceRoomService.leaveVoiceRoom(authUser.userId(), id));
     }
 
+    @PatchMapping("/{id}/decline")
+    public ApiResponse<Void> declineVoiceRoom(
+            @CurrentUser AuthUser authUser,
+            @PathVariable UUID id
+    ) {
+        voiceRoomService.declineVoiceRoom(authUser.userId(), id);
+        return ApiResponse.success(null);
+    }
+
     @PatchMapping("/{id}/end")
     public ApiResponse<VoiceRoomResponse> endVoiceRoom(
             @CurrentUser AuthUser authUser,
