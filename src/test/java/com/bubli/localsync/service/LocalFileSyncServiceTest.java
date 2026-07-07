@@ -61,7 +61,7 @@ class LocalFileSyncServiceTest {
 		UUID resourceId = UUID.randomUUID();
 		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))
 				.willReturn(true);
-		given(resourcePublicService.updatePersonalResource(userId, resourceId, "updated-contract.pdf"))
+		given(resourcePublicService.updatePersonalLocalFileResource(userId, resourceId, "updated-contract.pdf", 1234L, "application/pdf"))
 				.willReturn(resourceResult(resourceId, "updated-contract.pdf"));
 
 		var response = localFileSyncService.sync(userId, List.of(new LocalFileEvent(
@@ -79,7 +79,7 @@ class LocalFileSyncServiceTest {
 		assertThat(response.results().get(0).resourceId()).isEqualTo(resourceId);
 		assertThat(response.results().get(0).status()).isEqualTo("SYNCED");
 		verify(userPublicService).isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER);
-		verify(resourcePublicService).updatePersonalResource(userId, resourceId, "updated-contract.pdf");
+		verify(resourcePublicService).updatePersonalLocalFileResource(userId, resourceId, "updated-contract.pdf", 1234L, "application/pdf");
 	}
 
 	@Test
@@ -100,7 +100,7 @@ class LocalFileSyncServiceTest {
 		given(localFileSyncEventRepository.findByUserIdAndLocalEventId(userId, localEventId))
 				.willReturn(Optional.empty())
 				.willReturn(Optional.of(LocalFileSyncEvent.create(userId, localEventId, "CREATED", resourceId, "SYNCED")));
-		given(resourcePublicService.createPersonalResource(userId, "brief.txt"))
+		given(resourcePublicService.createPersonalLocalFileResource(userId, "brief.txt", 20L, "text/plain"))
 				.willReturn(resourceResult(resourceId, "brief.txt"));
 
 		var first = localFileSyncService.sync(userId, List.of(event));
@@ -112,7 +112,7 @@ class LocalFileSyncServiceTest {
 		assertThat(retry.results()).hasSize(1);
 		assertThat(retry.results().get(0).resourceId()).isEqualTo(resourceId);
 		assertThat(retry.results().get(0).status()).isEqualTo("SYNCED");
-		verify(resourcePublicService, times(1)).createPersonalResource(userId, "brief.txt");
+		verify(resourcePublicService, times(1)).createPersonalLocalFileResource(userId, "brief.txt", 20L, "text/plain");
 		verify(localFileSyncEventRepository).save(any(LocalFileSyncEvent.class));
 	}
 
@@ -147,9 +147,9 @@ class LocalFileSyncServiceTest {
 		UUID updatedResourceId = UUID.randomUUID();
 		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))
 				.willReturn(true);
-		given(resourcePublicService.updatePersonalResource(userId, missingResourceId, "deleted-local-file.rtf"))
+		given(resourcePublicService.updatePersonalLocalFileResource(userId, missingResourceId, "deleted-local-file.rtf", 10L, null))
 				.willThrow(new BusinessException(ErrorCode.RESOURCE_404_001));
-		given(resourcePublicService.updatePersonalResource(userId, updatedResourceId, "README.md"))
+		given(resourcePublicService.updatePersonalLocalFileResource(userId, updatedResourceId, "README.md", 20L, "text/markdown"))
 				.willReturn(resourceResult(updatedResourceId, "README.md"));
 
 		var response = localFileSyncService.sync(userId, List.of(

@@ -294,6 +294,98 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void createPersonalLocalFileResourceStoresMetadataAndRecordsUsage() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		UUID versionId = UUID.randomUUID();
+		given(resourceRepository.save(any(Resource.class))).willAnswer(invocation -> {
+			Resource resource = invocation.getArgument(0);
+			ReflectionTestUtils.setField(resource, "id", resourceId);
+			return resource;
+		});
+		given(resourceFileRepository.save(any(ResourceFile.class))).willAnswer(invocation -> {
+			ResourceFile file = invocation.getArgument(0);
+			ReflectionTestUtils.setField(file, "id", fileId);
+			return file;
+		});
+		given(resourceVersionRepository.save(any(ResourceVersion.class))).willAnswer(invocation -> {
+			ResourceVersion version = invocation.getArgument(0);
+			ReflectionTestUtils.setField(version, "id", versionId);
+			return version;
+		});
+
+		ResourceResult result = resourceService.createPersonalLocalFileResource(
+				userId,
+				"local-note.md",
+				2048L,
+				"text/markdown"
+		);
+
+		assertThat(result.id()).isEqualTo(resourceId);
+		assertThat(result.title()).isEqualTo("local-note.md");
+		assertThat(result.ownerId()).isEqualTo(userId);
+		assertThat(result.visibility()).isEqualTo(ResourceVisibility.PERSONAL);
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 2048L);
+
+		ArgumentCaptor<ResourceFile> fileCaptor = ArgumentCaptor.forClass(ResourceFile.class);
+		verify(resourceFileRepository).save(fileCaptor.capture());
+		assertThat(fileCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(fileCaptor.getValue().getStorageKey())
+				.startsWith("local-managed-folders/%s/".formatted(resourceId))
+				.endsWith(".md");
+		assertThat(fileCaptor.getValue().getOriginalName()).isEqualTo("local-note.md");
+		assertThat(fileCaptor.getValue().getMimeType()).isEqualTo("text/markdown");
+		assertThat(fileCaptor.getValue().getSizeBytes()).isEqualTo(2048L);
+		assertThat(fileCaptor.getValue().getChecksum()).isNull();
+
+		ArgumentCaptor<ResourceVersion> versionCaptor = ArgumentCaptor.forClass(ResourceVersion.class);
+		verify(resourceVersionRepository).save(versionCaptor.capture());
+		assertThat(versionCaptor.getValue().getResourceId()).isEqualTo(resourceId);
+		assertThat(versionCaptor.getValue().getFileId()).isEqualTo(fileId);
+		assertThat(versionCaptor.getValue().getVersionNo()).isEqualTo(1);
+		assertThat(versionCaptor.getValue().getCreatedBy()).isEqualTo(userId);
+	}
+
+	@Test
+	void updatePersonalLocalFileResourceAdjustsStorageUsageBySizeDelta() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"old-name.txt",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"local-managed-folders/%s/file.txt".formatted(resourceId),
+				"old-name.txt",
+				"text/plain",
+				100L,
+				null
+		);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resourceId)).willReturn(Optional.of(file));
+
+		ResourceResult result = resourceService.updatePersonalLocalFileResource(
+				userId,
+				resourceId,
+				"new-name.txt",
+				150L,
+				"text/plain"
+		);
+
+		assertThat(result.title()).isEqualTo("new-name.txt");
+		assertThat(file.getOriginalName()).isEqualTo("new-name.txt");
+		assertThat(file.getSizeBytes()).isEqualTo(150L);
+		verify(storageUsagePublicService).recordPersonalUpload(userId, 50L);
+	}
+
+	@Test
 	void uploadDeletesStoredObjectWhenMetadataSaveFails() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();

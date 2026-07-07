@@ -172,6 +172,13 @@ public class ResourceService {
 	}
 
 	@Transactional(readOnly = true)
+	public Optional<String> findAnalysisNotificationPreview(UUID jobId) {
+		return resourceSummaryRepository.findFirstByJobIdOrderByUpdatedAtDescIdDesc(jobId)
+				.map(ResourceSummary::getSummaryJson)
+				.flatMap(this::summaryPreview);
+	}
+
+	@Transactional(readOnly = true)
 	public java.util.List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
 		validateRoomResourceAccess(userId, roomId);
 		int size = Math.max(1, Math.min(limit, 10));
@@ -182,6 +189,47 @@ public class ResourceService {
 				).stream()
 				.map(ResourceSummaryResult::from)
 				.toList();
+	}
+
+	@SuppressWarnings("unchecked")
+	private Optional<String> summaryPreview(Map<String, Object> summaryJson) {
+		if (summaryJson == null || summaryJson.isEmpty()) {
+			return Optional.empty();
+		}
+		String summary = readableText(summaryJson.get("summary"))
+				.or(() -> {
+					Object analysis = summaryJson.get("analysis");
+					if (analysis instanceof Map<?, ?> analysisMap) {
+						return readableText(((Map<String, Object>) analysisMap).get("summary"));
+					}
+					return Optional.empty();
+				})
+				.orElse(null);
+		if (summary == null) {
+			return Optional.empty();
+		}
+
+		String originalName = readableText(summaryJson.get("originalName")).orElse(null);
+		String preview = originalName == null ? summary : "%s: %s".formatted(originalName, summary);
+		return Optional.of(truncate(preview));
+	}
+
+	private Optional<String> readableText(Object value) {
+		if (value == null) {
+			return Optional.empty();
+		}
+		String text = value.toString().replaceAll("\\s+", " ").trim();
+		if (text.isBlank()) {
+			return Optional.empty();
+		}
+		return Optional.of(text);
+	}
+
+	private String truncate(String value) {
+		if (value == null || value.length() <= 300) {
+			return value;
+		}
+		return value.substring(0, 300) + "...";
 	}
 
 	@Transactional(readOnly = true)
@@ -387,6 +435,41 @@ public class ResourceService {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
 		resource.updateTitle(title.trim());
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public ResourceResult createPersonalLocalFileResource(UUID userId, String title, Long sizeBytes, String mimeType) {
+		if (!StringUtils.hasText(title)) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		long normalizedSizeBytes = normalizeLocalFileSizeBytes(sizeBytes);
+		Resource resource = resourceRepository.save(Resource.create(
+				userId,
+				null,
+				title.trim(),
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		));
+		resourceRepository.flush();
+		createInitialLocalFileMetadata(resource, userId, title.trim(), mimeType, normalizedSizeBytes);
+		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public ResourceResult updatePersonalLocalFileResource(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType) {
+		Resource resource = getReadableResource(userId, resourceId);
+		if (resource.getVisibility() != ResourceVisibility.PERSONAL) {
+			throw new BusinessException(ErrorCode.RESOURCE_403_001);
+		}
+		if (!StringUtils.hasText(title)) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		resource.updateTitle(title.trim());
+		if (sizeBytes != null) {
+			upsertLocalFileMetadata(resource, userId, title.trim(), mimeType, normalizeLocalFileSizeBytes(sizeBytes));
+		}
 		return ResourceResult.from(resource);
 	}
 
@@ -676,6 +759,87 @@ public class ResourceService {
 		String extension = StringUtils.getFilenameExtension(originalName);
 		String suffix = StringUtils.hasText(extension) ? "." + extension : "";
 		return "resources/%s/%s%s".formatted(resourceId, UUID.randomUUID(), suffix);
+	}
+
+	private String localFileStorageKey(UUID resourceId, String originalName) {
+		String extension = StringUtils.getFilenameExtension(originalName);
+		String suffix = StringUtils.hasText(extension) ? "." + extension : "";
+		return "local-managed-folders/%s/%s%s".formatted(resourceId, UUID.randomUUID(), suffix);
+	}
+
+	private String normalizeLocalFileMimeType(String mimeType) {
+		return StringUtils.hasText(mimeType) ? mimeType.trim() : "application/octet-stream";
+	}
+
+	private long normalizeLocalFileSizeBytes(Long sizeBytes) {
+		if (sizeBytes == null || sizeBytes < 0) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		if (sizeBytes > maxUploadSizeBytes) {
+			throw new BusinessException(ErrorCode.RESOURCE_400_001);
+		}
+		return sizeBytes;
+	}
+
+	private void createInitialLocalFileMetadata(
+			Resource resource,
+			UUID userId,
+			String originalName,
+			String mimeType,
+			long sizeBytes
+	) {
+		boolean storageUsageRecorded = false;
+		try {
+			if (sizeBytes > 0) {
+				recordStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), sizeBytes);
+				storageUsageRecorded = true;
+			}
+			ResourceFile file = resourceFileRepository.save(ResourceFile.create(
+					resource.getId(),
+					localFileStorageKey(resource.getId(), originalName),
+					originalName,
+					normalizeLocalFileMimeType(mimeType),
+					sizeBytes,
+					null
+			));
+			resourceFileRepository.flush();
+			resourceVersionRepository.save(ResourceVersion.first(resource.getId(), file.getId(), userId));
+			resourceVersionRepository.flush();
+		} catch (RuntimeException e) {
+			releaseRecordedStorageUsage(
+					storageUsageRecorded,
+					resource.getOwnerId(),
+					resource.getRoomId(),
+					resource.getVisibility(),
+					sizeBytes,
+					e
+			);
+			throw e;
+		}
+	}
+
+	private void upsertLocalFileMetadata(
+			Resource resource,
+			UUID userId,
+			String originalName,
+			String mimeType,
+			long nextSizeBytes
+	) {
+		ResourceFile latestFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId())
+				.orElse(null);
+		if (latestFile == null) {
+			createInitialLocalFileMetadata(resource, userId, originalName, mimeType, nextSizeBytes);
+			return;
+		}
+
+		long previousSizeBytes = latestFile.getSizeBytes();
+		long deltaBytes = nextSizeBytes - previousSizeBytes;
+		if (deltaBytes > 0) {
+			recordStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), deltaBytes);
+		} else if (deltaBytes < 0) {
+			releaseStorageUsage(resource.getOwnerId(), resource.getRoomId(), resource.getVisibility(), Math.abs(deltaBytes));
+		}
+		latestFile.updateMetadata(originalName, normalizeLocalFileMimeType(mimeType), nextSizeBytes);
 	}
 
 	private void deleteUploadedObject(FileUploadResult uploaded, RuntimeException cause) {
