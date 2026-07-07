@@ -9,6 +9,7 @@ import com.bubli.project.dto.ProjectRoomEventActorResponse;
 import com.bubli.project.dto.ProjectRoomEventResponse;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserPublicService;
+import com.bubli.voice.dto.VoiceRoomResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ public class WebSocketPublishPublicServiceImpl implements WebSocketPublishPublic
 	private static final String CHAT_TOPIC_PREFIX = "/topic/chat/";
 	private static final String PROJECT_ROOM_EVENTS_TOPIC_PREFIX = "/topic/project-rooms/";
 	private static final String PROJECT_ROOM_EVENTS_TOPIC_SUFFIX = "/events";
+	private static final String VOICE_ROOM_TOPIC_PREFIX = "/topic/voice/";
 	private static final String USER_NOTIFICATION_QUEUE = "/queue/notifications";
 	private static final String UNKNOWN_USER_NAME = "Unknown";
 
@@ -62,6 +64,11 @@ public class WebSocketPublishPublicServiceImpl implements WebSocketPublishPublic
 						payload(payloadJson)
 				)
 		);
+	}
+
+	@Override
+	public void publishVoiceRoomEvent(VoiceRoomResponse room) {
+		publishAfterCommit(VOICE_ROOM_TOPIC_PREFIX + room.id(), room);
 	}
 
 	@Override
