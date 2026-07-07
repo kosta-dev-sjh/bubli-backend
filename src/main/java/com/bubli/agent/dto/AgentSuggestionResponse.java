@@ -18,6 +18,8 @@ public record AgentSuggestionResponse(
         AgentSuggestionStatus status,
         Map<String, Object> payloadJson,
         Map<String, Object> evidenceJson,
+        String downloadUrl,
+        String exportUrl,
         UUID reviewedBy,
         Instant reviewedAt,
         Instant createdAt,
@@ -35,10 +37,19 @@ public record AgentSuggestionResponse(
                 suggestion.getStatus(),
                 suggestion.getPayloadJson(),
                 suggestion.getEvidenceJson(),
+                exportPath(suggestion),
+                exportPath(suggestion),
                 suggestion.getReviewedBy(),
                 suggestion.getReviewedAt(),
                 suggestion.getCreatedAt(),
                 suggestion.getUpdatedAt()
         );
+    }
+
+    private static String exportPath(AgentSuggestion suggestion) {
+        if (suggestion.getSuggestionType() != AgentSuggestionType.DOCUMENT_DRAFT) {
+            return null;
+        }
+        return "/api/agent/suggestions/%s/export".formatted(suggestion.getId());
     }
 }

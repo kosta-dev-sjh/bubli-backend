@@ -1183,6 +1183,63 @@ class ResourceServiceTest {
 	}
 
 	@Test
+	void getResourceDownloadUrlFallsBackToResourceFileEndpointWhenProviderIsDisabled() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		UUID fileId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"download resource",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ResourceFile file = ResourceFile.create(
+				resourceId,
+				"resources/%s/v1.pdf".formatted(resourceId),
+				"document.pdf",
+				"application/pdf",
+				4096L,
+				null
+		);
+		ReflectionTestUtils.setField(file, "id", fileId);
+		ResourceVersion version = ResourceVersion.create(resourceId, 1, fileId, userId);
+		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceVersionRepository.findFirstByResourceIdOrderByVersionNoDescIdDesc(resourceId))
+				.willReturn(Optional.of(version));
+		given(resourceFileRepository.findById(fileId)).willReturn(Optional.of(file));
+		given(storageDownloadUrlProvider.issueDownloadUrl(
+				"resources/%s/v1.pdf".formatted(resourceId),
+				"document.pdf"
+		)).willThrow(new BusinessException(ErrorCode.RESOURCE_501_001));
+
+		var result = resourceService.getResourceDownloadUrl(userId, resourceId);
+
+		assertThat(result.downloadUrl()).isEqualTo("/api/resources/%s/file".formatted(resourceId));
+		assertThat(result.expiresAt()).isNull();
+	}
+
+	@Test
+	void fileResourceResponseIncludesDownloadUrl() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		Resource resource = Resource.create(
+				userId,
+				null,
+				"download resource",
+				ResourceKind.FILE,
+				ResourceVisibility.PERSONAL,
+				ResourceStatus.READY
+		);
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+
+		var response = com.bubli.resource.dto.ResourceResponse.from(ResourceResult.from(resource));
+
+		assertThat(response.downloadUrl()).isEqualTo("/api/resources/%s/file".formatted(resourceId));
+	}
+
+	@Test
 	void getResourceSummaryRequiresReadableResourceAndReturnsLatestSummary() {
 		UUID userId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();

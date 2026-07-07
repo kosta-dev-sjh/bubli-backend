@@ -2,6 +2,7 @@ package com.bubli.agent.controller;
 
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.dto.AgentSuggestionUpdateRequest;
+import com.bubli.agent.dto.GeneratedDocumentExportResult;
 import com.bubli.agent.service.AgentSuggestionCommandService;
 import com.bubli.agent.service.AgentSuggestionQueryService;
 import com.bubli.agent.type.AgentSuggestionStatus;
@@ -11,6 +12,8 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -90,6 +94,24 @@ public class AgentSuggestionController {
                 currentUser.userId(),
                 roomId
         )));
+    }
+
+    @GetMapping("/api/agent/suggestions/{suggestionId}/export")
+    public ResponseEntity<byte[]> exportDocumentDraft(
+            @PathVariable UUID suggestionId,
+            @CurrentUser AuthUser currentUser
+    ) {
+        GeneratedDocumentExportResult result = agentSuggestionQueryService.exportDocumentDraft(
+                currentUser.userId(),
+                suggestionId
+        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(result.fileName(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .header(HttpHeaders.CONTENT_TYPE, result.contentType())
+                .body(result.content());
     }
 
     @PatchMapping("/api/agent/suggestions/{suggestionId}")

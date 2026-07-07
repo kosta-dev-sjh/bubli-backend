@@ -6,9 +6,11 @@ import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +117,46 @@ class AgentSuggestionQueryServiceTest {
                 .extracting(response -> response.suggestionType())
                 .containsExactly(AgentSuggestionType.CONTRACT_FIELD, AgentSuggestionType.CONTRACT_REVIEW);
         verify(membershipService).assertActiveMember(userId, roomId);
+    }
+
+    @Test
+    void documentDraftResponseIncludesExportUrls() {
+        UUID userId = UUID.randomUUID();
+        UUID suggestionId = UUID.randomUUID();
+        AgentSuggestion draft = suggestion(userId, AgentSuggestionType.DOCUMENT_DRAFT);
+        ReflectionTestUtils.setField(draft, "id", suggestionId);
+
+        var response = com.bubli.agent.dto.AgentSuggestionResponse.from(draft);
+
+        assertThat(response.downloadUrl()).isEqualTo("/api/agent/suggestions/%s/export".formatted(suggestionId));
+        assertThat(response.exportUrl()).isEqualTo("/api/agent/suggestions/%s/export".formatted(suggestionId));
+    }
+
+    @Test
+    void exportsDocumentDraftSuggestionAsMarkdown() {
+        UUID userId = UUID.randomUUID();
+        UUID suggestionId = UUID.randomUUID();
+        AgentSuggestion draft = AgentSuggestion.draft(
+                userId,
+                null,
+                UUID.randomUUID(),
+                null,
+                AgentSuggestionType.DOCUMENT_DRAFT,
+                Map.of(
+                        "title", "Proposal draft",
+                        "description", "# Proposal\n\nContent"
+                ),
+                null
+        );
+        ReflectionTestUtils.setField(draft, "id", suggestionId);
+        AgentSuggestionRepository repository = mock(AgentSuggestionRepository.class);
+        when(repository.findById(suggestionId)).thenReturn(Optional.of(draft));
+
+        var result = new AgentSuggestionQueryService(repository, mock(ProjectMembershipPublicService.class))
+                .exportDocumentDraft(userId, suggestionId);
+
+        assertThat(result.fileName()).isEqualTo("Proposal draft.md");
+        assertThat(new String(result.content())).isEqualTo("# Proposal\n\nContent");
     }
 
     private AgentSuggestion suggestion(UUID userId, AgentSuggestionType type) {

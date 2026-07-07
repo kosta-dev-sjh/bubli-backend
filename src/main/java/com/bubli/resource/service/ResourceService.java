@@ -273,10 +273,7 @@ public class ResourceService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
 		ResourceFile file = resourceFileRepository.findById(version.getFileId())
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_003));
-		StorageDownloadUrl downloadUrl = storageDownloadUrlProvider.issueDownloadUrl(
-				file.getStorageKey(),
-				file.getOriginalName()
-		);
+		StorageDownloadUrl downloadUrl = issueDownloadUrl(resourceId, file);
 		return new ResourceDownloadUrlResult(
 				resourceId,
 				file.getId(),
@@ -287,6 +284,23 @@ public class ResourceService {
 				file.getMimeType(),
 				file.getSizeBytes()
 		);
+	}
+
+	private StorageDownloadUrl issueDownloadUrl(UUID resourceId, ResourceFile file) {
+		try {
+			StorageDownloadUrl downloadUrl = storageDownloadUrlProvider.issueDownloadUrl(
+					file.getStorageKey(),
+					file.getOriginalName()
+			);
+			if (downloadUrl != null && StringUtils.hasText(downloadUrl.url())) {
+				return downloadUrl;
+			}
+		} catch (BusinessException exception) {
+			if (exception.getErrorCode() != ErrorCode.RESOURCE_501_001) {
+				throw exception;
+			}
+		}
+		return new StorageDownloadUrl("/api/resources/%s/file".formatted(resourceId), null);
 	}
 
 	public record ResourceFileStream(java.io.InputStream inputStream, String originalName, String mimeType, Long sizeBytes) {}
