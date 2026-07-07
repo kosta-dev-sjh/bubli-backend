@@ -15,6 +15,7 @@ import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import com.bubli.voice.type.VoiceRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +62,9 @@ class VoiceRoomServiceTest {
 	@Mock
 	NotificationPublicService notificationPublicService;
 
+	@Mock
+	WebSocketPublishPublicService webSocketPublishPublicService;
+
 	VoiceRoomService voiceRoomService;
 
 	@BeforeEach
@@ -73,7 +77,8 @@ class VoiceRoomServiceTest {
 				chatRoomAccessPublicService,
 				userPublicService,
 				notificationPublicService,
-				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example")
+				new LiveKitProperties("api-key", "test-secret-key-must-be-at-least-32-bytes", "wss://livekit.example"),
+				webSocketPublishPublicService
 		);
 	}
 

@@ -19,6 +19,7 @@ import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import com.bubli.voice.type.VoiceRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class VoiceRoomService {
     private final UserPublicService userPublicService;
     private final NotificationPublicService notificationPublicService;
     private final LiveKitProperties liveKitProperties;
+    private final WebSocketPublishPublicService webSocketPublishPublicService;
 
     @Transactional
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId, UUID chatRoomId) {
@@ -180,6 +182,10 @@ public class VoiceRoomService {
             );
         }
 
+        if (joined[0]) {
+            broadcastRoomState(voiceRoom);
+        }
+
         Instant expiresAt = Instant.now().plusSeconds(3600);
         String token = generateLiveKitToken(userId, voiceRoom.getLivekitRoomName(), expiresAt);
 
@@ -210,6 +216,7 @@ public class VoiceRoomService {
                     micStatus
             );
         }
+        broadcastRoomState(voiceRoom);
         UserResult user = userPublicService.getUser(userId);
         return toParticipantResponse(participant, user.name());
     }
@@ -233,11 +240,9 @@ public class VoiceRoomService {
             }
         });
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
-        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
-        return toRoomResponse(voiceRoom, participants.stream()
-                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
-                .toList());
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
     }
 
     @Transactional
@@ -276,11 +281,21 @@ public class VoiceRoomService {
             projectRoomEventPublicService.recordVoiceRoomEnded(userId, voiceRoom.getRoomId(), voiceRoom.getId());
         }
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
+    }
+
+    private VoiceRoomResponse buildRoomResponse(VoiceRoom voiceRoom) {
+        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId());
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
         return toRoomResponse(voiceRoom, participants.stream()
                 .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
                 .toList());
+    }
+
+    private void broadcastRoomState(VoiceRoom voiceRoom) {
+        webSocketPublishPublicService.publishVoiceRoomEvent(buildRoomResponse(voiceRoom));
     }
 
     private VoiceRoom findRoom(UUID voiceRoomId) {
