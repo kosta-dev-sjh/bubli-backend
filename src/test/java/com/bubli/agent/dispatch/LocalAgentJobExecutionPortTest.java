@@ -136,7 +136,7 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome).isPresent();
         assertThat(outcome.get().successful()).isTrue();
         assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
-                .contains("文書ドラフト候補", "# 文書ドラフト");
+                .contains("文書ドラフト候補", "PROJECT_BRIEF", "contentMarkdown");
     }
 
     @Test
@@ -221,5 +221,28 @@ class LocalAgentJobExecutionPortTest {
         assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType()).isEqualTo(AgentSuggestionType.DOCUMENT_DRAFT);
         assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
                 .contains("proposal", "견적서 초안", sourceResourceId.toString(), "contentMarkdown");
+    }
+
+    @Test
+    void generatesWbsTodoPlanDocumentDraftFromAlias() {
+        LocalAgentJobExecutionPort executionPort = new LocalAgentJobExecutionPort(
+                mock(ResourceAnalysisPublicService.class),
+                new ObjectMapper()
+        );
+
+        var outcome = executionPort.execute(new AgentJobQueueMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                AgentJobType.DRAFT_DOCUMENT,
+                Map.of("documentType", "execution_plan"),
+                Instant.now()
+        ));
+
+        assertThat(outcome).isPresent();
+        assertThat(outcome.get().successful()).isTrue();
+        assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+                .contains("WBS_TODO_PLAN", "WBS/TODO", "contentMarkdown");
     }
 }
