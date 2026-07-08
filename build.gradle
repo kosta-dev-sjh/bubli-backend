@@ -4,10 +4,18 @@ plugins {
 	id 'org.owasp.dependencycheck' version '9.2.0'
 	id 'org.springframework.boot' version '3.4.1'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'io.sentry.jvm.gradle' version '6.14.0'
 }
 
 group = 'com.bubli'
 version = '0.0.1-SNAPSHOT'
+
+sentry {
+	includeSourceContext = true
+	org = "bubli"
+	projectName = "java-spring-boot"
+	authToken = System.getenv("SENTRY_AUTH_TOKEN")
+}
 
 java {
 	toolchain {
@@ -124,6 +132,11 @@ tasks.withType(JavaCompile).configureEach {
 
 clean {
 	delete generatedDir
+}
+
+// Sentry 플러그인이 QueryDSL generated 소스와 충돌하지 않도록 compileJava 완료 후 실행
+tasks.named('generateSentryBundleIdJava') {
+	dependsOn(tasks.named('compileJava'))
 }
 
 tasks.named('test') {
