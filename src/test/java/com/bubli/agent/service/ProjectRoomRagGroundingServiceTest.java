@@ -32,7 +32,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 3, 0.72D, 0.0D)
+				new AgentRagProperties(true, 3, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "payment", "en-US");
 
 		verify(searchService).search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("payment"), eq(3));
@@ -56,7 +56,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D)
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "query", "ko-KR");
 
 		assertThat(context.grounded()).isFalse();
@@ -77,7 +77,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D)
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "make todo", "en-US", AgentCommandMode.SUGGEST);
 
 		assertThat(context.grounded()).isTrue();
@@ -97,7 +97,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D)
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "question", "en-US", AgentCommandMode.ANSWER);
 
 		assertThat(context.grounded()).isFalse();
@@ -110,7 +110,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(false, 5, 0.72D, 0.0D)
+				new AgentRagProperties(false, 5, 0.72D, 0.0D, 0.72D)
 		).retrieve(UUID.randomUUID(), UUID.randomUUID(), "query", "ko-KR");
 
 		assertThat(context.grounded()).isFalse();

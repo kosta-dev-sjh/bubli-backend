@@ -162,13 +162,10 @@ public class AgentSuggestionQueryService {
         if (content == null) {
             content = text(payload.get("content"));
         }
-        if (content == null) {
-            content = text(payload.get("description"));
-        }
         if (content != null) {
             return content;
         }
-        return "# %s".formatted(title(payload));
+        throw new BusinessException(ErrorCode.AGENT_400_001);
     }
 
     private String text(Object value) {

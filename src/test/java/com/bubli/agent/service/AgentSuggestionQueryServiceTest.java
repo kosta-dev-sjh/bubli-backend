@@ -144,7 +144,8 @@ class AgentSuggestionQueryServiceTest {
                 AgentSuggestionType.DOCUMENT_DRAFT,
                 Map.of(
                         "title", "Proposal draft",
-                        "description", "# Proposal\n\nContent"
+                        "contentMarkdown", "# Proposal\n\nContent",
+                        "description", "Proposal summary"
                 ),
                 null
         );

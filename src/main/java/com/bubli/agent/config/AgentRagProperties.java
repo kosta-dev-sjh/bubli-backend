@@ -7,7 +7,8 @@ public record AgentRagProperties(
 		Boolean enabled,
 		Integer topK,
 		Double minSimilarity,
-		Double suggestMinSimilarity
+		Double suggestMinSimilarity,
+		Double personalMinSimilarity
 ) {
 
 	public AgentRagProperties {
@@ -22,6 +23,9 @@ public record AgentRagProperties(
 		}
 		if (suggestMinSimilarity == null) {
 			suggestMinSimilarity = 0.0D;
+		}
+		if (personalMinSimilarity == null) {
+			personalMinSimilarity = 0.72D;
 		}
 	}
 }

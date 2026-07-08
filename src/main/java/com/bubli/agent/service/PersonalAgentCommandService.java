@@ -1,5 +1,6 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.config.AgentRagProperties;
 import com.bubli.agent.dto.PersonalAgentCommandResponse;
 import com.bubli.agent.dto.PersonalAgentMemoryInput;
 import com.bubli.agent.dto.PersonalAgentMemoryMessage;
@@ -60,13 +61,13 @@ public class PersonalAgentCommandService {
 	private static final int SUMMARY_LIMIT = 5;
 	private static final int RESOURCE_LIMIT = 5;
 	private static final int RESOURCE_LOOKUP_LIMIT = 30;
-	private static final double PERSONAL_RAG_MIN_SIMILARITY = 0.72D;
 
 	private final TaskPublicService taskPublicService;
 	private final SchedulePublicService schedulePublicService;
 	private final MemoPublicService memoPublicService;
 	private final ResourcePublicService resourcePublicService;
 	private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
+	private final AgentRagProperties agentRagProperties;
 	private final UserLocalePublicService userLocalePublicService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
@@ -130,6 +131,14 @@ public class PersonalAgentCommandService {
 				.getRecentAnalysisSummaries(userId, RESOURCE_LIMIT);
 		List<ResourceResult> selectedResources = selectedPersonalResources(userId, resourceIds);
 		List<ResourceSearchHit> documentHits = retrievePersonalDocumentHits(userId, message);
+		Map<UUID, String> documentTitles = resourceTitles(
+				userId,
+				documentHits.stream()
+						.map(ResourceSearchHit::resourceId)
+						.distinct()
+						.toList()
+		);
+		documentHits = titleResolvedDocumentHits(documentHits, documentTitles);
 		List<PersonalResourceEvidence> resourceEvidence = personalResourceEvidence(
 				userId,
 				message,
@@ -143,6 +152,7 @@ public class PersonalAgentCommandService {
 				analysisSummaries,
 				selectedResources,
 				documentHits,
+				documentTitles,
 				resourceEvidence,
 				workStateIntent,
 				memory
@@ -175,7 +185,7 @@ public class PersonalAgentCommandService {
 							RESOURCE_LIMIT
 					)
 					.stream()
-					.filter(hit -> hit.similarityScore() >= PERSONAL_RAG_MIN_SIMILARITY)
+					.filter(hit -> hit.similarityScore() >= agentRagProperties.personalMinSimilarity())
 					.toList();
 		} catch (RuntimeException exception) {
 			log.warn("Personal document semantic retrieval failed. userId={}", userId, exception);
@@ -246,6 +256,46 @@ public class PersonalAgentCommandService {
 	) {
 		ResourceSummaryResult summary = resourcePublicService.findResourceSummary(userId, resource.id()).orElse(null);
 		return new PersonalResourceEvidence(resource, summary, retrievalMode, matchScore);
+	}
+
+	private Map<UUID, String> resourceTitles(UUID userId, List<UUID> resourceIds) {
+		Map<UUID, String> titles = new LinkedHashMap<>();
+		for (UUID resourceId : resourceIds) {
+			try {
+				String title = resourcePublicService.getReadableResource(userId, resourceId).title();
+				if (title != null && !title.isBlank()) {
+					titles.put(resourceId, title);
+				}
+			} catch (RuntimeException exception) {
+				log.warn("Failed to resolve personal resource title for citation. userId={}, resourceId={}",
+						userId, resourceId, exception);
+			}
+		}
+		return titles;
+	}
+
+	private List<ResourceSearchHit> titleResolvedDocumentHits(
+			List<ResourceSearchHit> documentHits,
+			Map<UUID, String> documentTitles
+	) {
+		return documentHits.stream()
+				.filter(hit -> {
+					String title = title(hit.originalName(), documentTitles.get(hit.resourceId()));
+					if (title != null && !title.isBlank()) {
+						return true;
+					}
+					log.warn("Dropping personal document hit without resolvable title. resourceId={}, chunkIndex={}",
+							hit.resourceId(), hit.chunkIndex());
+					return false;
+				})
+				.toList();
+	}
+
+	private String title(String originalName, String resourceTitle) {
+		if (originalName != null && !originalName.isBlank()) {
+			return originalName;
+		}
+		return resourceTitle;
 	}
 
 	private AnswerResult answer(
@@ -374,12 +424,12 @@ public class PersonalAgentCommandService {
 		body.put("contextCharacters", context.promptBlock().length());
 		body.put("localSuggestionCount", suggestions.size());
 		body.put("source", SOURCE);
-		body.put("answerCompleteness", answerCompleteness(answer, context));
+		body.put("answerCompleteness", answerCompleteness(request, answer, context));
 		body.put("retrievalModes", context.retrievalModes());
 		body.put("matchedResources", context.matchedResources());
 		body.put("citations", context.citations());
 		body.put("matchedTasks", context.matchedTasks());
-		body.put("missingInfo", missingInfo(answer, context));
+		body.put("missingInfo", missingInfo(request, answer, context));
 		body.put("fallbackReason", answer.fallbackReason());
 		return objectMapper.valueToTree(body);
 	}
@@ -428,8 +478,11 @@ public class PersonalAgentCommandService {
 		return completed ? 1 : 0;
 	}
 
-	private String answerCompleteness(AnswerResult answer, PersonalContext context) {
+	private String answerCompleteness(String request, AnswerResult answer, PersonalContext context) {
 		if (!context.hasAnyContext()) {
+			return "NO_EVIDENCE";
+		}
+		if (AgentQuerySupport.isDocumentSourceRequest(request) && !context.hasDocumentContext()) {
 			return "NO_EVIDENCE";
 		}
 		String normalized = AgentQuerySupport.normalize(answer.text());
@@ -439,15 +492,19 @@ public class PersonalAgentCommandService {
 		return "ANSWERED";
 	}
 
-	private List<String> missingInfo(AnswerResult answer, PersonalContext context) {
+	private List<String> missingInfo(String request, AnswerResult answer, PersonalContext context) {
+		List<String> missing = new ArrayList<>();
 		if (!context.hasAnyContext()) {
 			return List.of("NO_PERSONAL_CONTEXT");
 		}
+		if (AgentQuerySupport.isDocumentSourceRequest(request) && !context.hasDocumentContext()) {
+			missing.add("NO_RELEVANT_PERSONAL_DOCUMENT");
+		}
 		String normalized = AgentQuerySupport.normalize(answer.text());
 		if (AgentQuerySupport.containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear")) {
-			return List.of("PARTIAL_EVIDENCE");
+			missing.add("PARTIAL_EVIDENCE");
 		}
-		return List.of();
+		return missing;
 	}
 
 	private record AnswerResult(
@@ -463,6 +520,7 @@ public class PersonalAgentCommandService {
 			List<ResourceAnalysisSummaryResult> analysisSummaries,
 			List<ResourceResult> selectedResources,
 			List<ResourceSearchHit> documentHits,
+			Map<UUID, String> documentTitles,
 			List<PersonalResourceEvidence> resourceEvidence,
 			AgentQuerySupport.WorkStateIntent workStateIntent,
 			PersonalAgentMemoryInput memory
@@ -519,6 +577,13 @@ public class PersonalAgentCommandService {
 					|| !memory.recentMessages().isEmpty();
 		}
 
+		private boolean hasDocumentContext() {
+			return !documentHits.isEmpty()
+					|| !resourceEvidence.isEmpty()
+					|| !selectedResources.isEmpty()
+					|| !analysisSummaries.isEmpty();
+		}
+
 		private List<String> retrievalModes() {
 			List<String> modes = new ArrayList<>();
 			if (!documentHits.isEmpty()) {
@@ -544,6 +609,7 @@ public class PersonalAgentCommandService {
 				Map<String, Object> item = new LinkedHashMap<>();
 				item.put("resourceId", hit.resourceId());
 				item.put("retrievalMode", "SEMANTIC");
+				item.put("title", title(hit.originalName(), documentTitles.get(hit.resourceId())));
 				item.put("chunkIndex", hit.chunkIndex());
 				item.put("pageNumber", hit.pageNumber());
 				item.put("startLine", hit.startLine());
@@ -573,7 +639,7 @@ public class PersonalAgentCommandService {
 				Map<String, Object> item = new LinkedHashMap<>();
 				item.put("resourceId", hit.resourceId());
 				item.put("retrievalMode", "SEMANTIC");
-				item.put("title", hit.originalName());
+				item.put("title", title(hit.originalName(), documentTitles.get(hit.resourceId())));
 				item.put("pageNumber", hit.pageNumber());
 				item.put("chunkIndex", hit.chunkIndex());
 				item.put("startLine", hit.startLine());
@@ -679,6 +745,13 @@ public class PersonalAgentCommandService {
 		private String quote(String value) {
 			String text = value == null ? "" : value.replaceAll("\\s+", " ").trim();
 			return text.length() <= 500 ? text : text.substring(0, 500).trim();
+		}
+
+		private String title(String originalName, String resourceTitle) {
+			if (originalName != null && !originalName.isBlank()) {
+				return originalName;
+			}
+			return resourceTitle;
 		}
 
 		private String resourceEvidenceLine(PersonalResourceEvidence evidence) {

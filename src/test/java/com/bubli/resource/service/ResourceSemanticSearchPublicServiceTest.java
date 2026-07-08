@@ -49,6 +49,121 @@ class ResourceSemanticSearchPublicServiceTest {
     }
 
     @Test
+    void searchesRoomSharedEmbeddingsWithinResourceIds() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID embeddingId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(embeddingModel.embed("project schedule")).thenReturn(vector(0.2f));
+        when(repository.searchRoomSharedByResourceIds(eq(roomId), eq(List.of(resourceId)), anyString(), eq(4)))
+                .thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":3}")));
+
+        List<ResourceSearchHit> hits = service(repository, accessService, embeddingModel)
+                .searchRoomSharedResources(userId, roomId, List.of(resourceId), "project schedule", 4);
+
+        assertThat(hits).hasSize(1);
+        assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
+        assertThat(hits.get(0).pageNumber()).isEqualTo(3);
+        verify(accessService).requireRoomMember(roomId, userId);
+        verify(repository).searchRoomSharedByResourceIds(eq(roomId), eq(List.of(resourceId)),
+                org.mockito.ArgumentMatchers.startsWith("[0.2,0.2"), eq(4));
+    }
+
+    @Test
+    void searchesRoomSharedChunksWithinResourceIdsByKeywords() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID embeddingId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(repository.searchRoomSharedByResourceIdsAndKeywords(
+                eq(roomId),
+                eq(List.of(resourceId)),
+                eq("프로젝트"),
+                eq("일정"),
+                eq("진행"),
+                eq(""),
+                eq(""),
+                eq(3),
+                eq(6)
+        )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":4}")));
+
+        List<ResourceSearchHit> hits = service(repository, accessService, null)
+                .searchRoomSharedResourceKeywords(
+                        userId,
+                        roomId,
+                        List.of(resourceId),
+                        List.of("프로젝트", "일정", "진행"),
+                        6
+                );
+
+        assertThat(hits).hasSize(1);
+        assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
+        assertThat(hits.get(0).pageNumber()).isEqualTo(4);
+        verify(accessService).requireRoomMember(roomId, userId);
+    }
+
+    @Test
+    void searchesRoomSharedChunksByKeywords() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID embeddingId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(repository.searchRoomSharedByKeywords(
+                eq(roomId),
+                eq("req"),
+                eq("lb"),
+                eq("004"),
+                eq(""),
+                eq(""),
+                eq(3),
+                eq(5)
+        )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":6}")));
+
+        List<ResourceSearchHit> hits = service(repository, accessService, null)
+                .searchRoomSharedKeywords(userId, roomId, List.of("req", "lb", "004"), 5);
+
+        assertThat(hits).hasSize(1);
+        assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
+        assertThat(hits.get(0).pageNumber()).isEqualTo(6);
+        verify(accessService).requireRoomMember(roomId, userId);
+    }
+
+    @Test
+    void loadsRoomSharedRepresentativeChunksAfterAccessCheck() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID embeddingId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(repository.findRoomSharedRepresentativeChunks(
+                eq(roomId),
+                eq(List.of(resourceId)),
+                eq(4)
+        )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":7}")));
+
+        List<ResourceSearchHit> hits = service(repository, accessService, null)
+                .loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 4);
+
+        assertThat(hits).hasSize(1);
+        assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
+        assertThat(hits.get(0).pageNumber()).isEqualTo(7);
+        verify(accessService).requireRoomMember(roomId, userId);
+        verify(repository).findRoomSharedRepresentativeChunks(roomId, List.of(resourceId), 4);
+    }
+
+    @Test
     void searchesPersonalEmbeddingsByOwner() {
         ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
         ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);

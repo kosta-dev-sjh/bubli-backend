@@ -47,6 +47,12 @@ public class GeneratedDocumentService {
         return GeneratedDocumentExportResult.markdown(document.getTitle(), exportContentMarkdown(document));
     }
 
+    @Transactional
+    public void delete(UUID userId, UUID documentId) {
+        GeneratedDocument document = getReadableDocument(userId, documentId);
+        generatedDocumentRepository.delete(document);
+    }
+
     @Transactional(readOnly = true)
     public PageResponse<GeneratedDocumentResponse> getMine(UUID userId, Pageable pageable) {
         Page<GeneratedDocument> page = generatedDocumentRepository.findByUserIdAndRoomIdIsNull(userId, pageable);
@@ -140,9 +146,6 @@ public class GeneratedDocumentService {
             content = text(payload.get("content"));
         }
         if (content == null) {
-            content = text(payload.get("description"));
-        }
-        if (content == null) {
             throw new BusinessException(ErrorCode.AGENT_400_001);
         }
         return content;
@@ -158,9 +161,6 @@ public class GeneratedDocumentService {
             content = text(metadata.get("contentMarkdown"));
             if (content == null) {
                 content = text(metadata.get("content"));
-            }
-            if (content == null) {
-                content = text(metadata.get("description"));
             }
             if (content == null) {
                 content = text(metadata.get("agentResponse"));
