@@ -224,13 +224,20 @@ public class GoogleCalendarEventService {
 	}
 
 	private List<GoogleCalendarListEntry> resolveCalendars(String accessToken, List<String> calendarIds) {
-		List<String> normalizedIds = calendarIds == null || calendarIds.isEmpty()
-				? List.of("primary")
-				: calendarIds.stream()
-						.filter(id -> id != null && !id.isBlank())
-						.distinct()
-						.toList();
-		if (normalizedIds.equals(List.of("primary"))) {
+		if (calendarIds == null || calendarIds.isEmpty()) {
+			List<GoogleCalendarListEntry> calendars = googleCalendarClient.getCalendars(accessToken);
+			return calendars.isEmpty()
+					? List.of(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null))
+					: calendars.stream()
+							.filter(calendar -> !Boolean.FALSE.equals(calendar.selected()))
+							.toList();
+		}
+
+		List<String> normalizedIds = calendarIds.stream()
+				.filter(id -> id != null && !id.isBlank())
+				.distinct()
+				.toList();
+		if (normalizedIds.isEmpty() || normalizedIds.equals(List.of("primary"))) {
 			return List.of(new GoogleCalendarListEntry("primary", "Primary", true, null, true, null));
 		}
 		List<GoogleCalendarListEntry> calendars = googleCalendarClient.getCalendars(accessToken);

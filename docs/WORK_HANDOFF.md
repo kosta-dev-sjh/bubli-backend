@@ -52,6 +52,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### Google Calendar 자동 동기화 범위 보정
+
+처리 시각: 2026-07-09 KST
+
+변경 내용:
+
+- `POST /api/calendar/sync`에서 `calendarIds`가 비어 있으면 기존에는 `primary` 캘린더만 동기화했다.
+- 프론트 자동 동기화가 캘린더 목록을 받기 전에 먼저 실행되면 사용자가 추가로 쓰는 선택 캘린더는 수동 동기화 버튼을 눌러야 반영될 수 있었다.
+- 이제 `calendarIds`가 없으면 Google Calendar 목록을 조회해 사용자가 선택한 캘린더 전체를 동기화한다.
+- 선택 해제된 Google Calendar 항목은 자동 동기화 대상에서 제외한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarGroupServiceTest` 통과
+- `./gradlew test` 통과
+
+남은 작업:
+
+- 프론트는 같은 월 Google 원본 조회를 세션 캐시로 줄이고, 포커스 복귀 시 조용히 재확인한다.
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 초대 수락/취소 동시 처리 상태 꼬임 방지
 
 처리 시각: 2026-07-05 KST

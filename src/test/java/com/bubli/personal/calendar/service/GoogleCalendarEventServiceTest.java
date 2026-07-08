@@ -233,6 +233,109 @@ class GoogleCalendarEventServiceTest {
 	}
 
 	@Test
+	void syncEventsWithEmptyCalendarIdsUsesSelectedGoogleCalendars() {
+		UUID userId = UUID.randomUUID();
+		Instant from = Instant.parse("2026-07-01T00:00:00Z");
+		Instant to = Instant.parse("2026-08-01T00:00:00Z");
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-03T00:00:00Z")
+		);
+		GoogleCalendarEventPayload primaryEvent = new GoogleCalendarEventPayload(
+				"primary-event",
+				"confirmed",
+				"개인 회의",
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-10T01:00:00Z"),
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-10T02:00:00Z")
+		);
+		GoogleCalendarEventPayload clientEvent = new GoogleCalendarEventPayload(
+				"client-event",
+				"confirmed",
+				"클라이언트 미팅",
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-11T01:00:00Z"),
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-11T02:00:00Z")
+		);
+		ScheduleResult primarySynced = new ScheduleResult(
+				UUID.randomUUID(),
+				userId,
+				null,
+				null,
+				null,
+				"primary-event",
+				"primary",
+				"개인",
+				"개인 회의",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false,
+				ScheduleSyncStatus.SYNCED,
+				Instant.parse("2026-07-10T02:00:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z")
+		);
+		ScheduleResult clientSynced = new ScheduleResult(
+				UUID.randomUUID(),
+				userId,
+				null,
+				null,
+				null,
+				"client-event",
+				"client-calendar",
+				"클라이언트",
+				"클라이언트 미팅",
+				Instant.parse("2026-07-11T01:00:00Z"),
+				Instant.parse("2026-07-11T02:00:00Z"),
+				false,
+				ScheduleSyncStatus.SYNCED,
+				Instant.parse("2026-07-11T02:00:00Z"),
+				Instant.parse("2026-07-11T01:00:00Z"),
+				Instant.parse("2026-07-11T01:00:00Z")
+		);
+
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+		given(projectRoomCalendarService.findManagedGoogleCalendarIds(userId)).willReturn(Set.of());
+		given(googleCalendarClient.getCalendars("access-token")).willReturn(List.of(
+				new GoogleCalendarListEntry("primary", "개인", true, "owner", true, null),
+				new GoogleCalendarListEntry("client-calendar", "클라이언트", false, "reader", true, null),
+				new GoogleCalendarListEntry("hidden-calendar", "숨김", false, "reader", false, null)
+		));
+		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
+				.willReturn(List.of(primaryEvent));
+		given(googleCalendarClient.getEvents("access-token", "client-calendar", from.toString(), to.toString()))
+				.willReturn(List.of(clientEvent));
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "primary", List.of("primary-event"))).willReturn(Set.of());
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "client-calendar", List.of("client-event"))).willReturn(Set.of());
+		given(scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				"primary",
+				"개인",
+				"primary-event",
+				"개인 회의",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		)).willReturn(primarySynced);
+		given(scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				"client-calendar",
+				"클라이언트",
+				"client-event",
+				"클라이언트 미팅",
+				Instant.parse("2026-07-11T01:00:00Z"),
+				Instant.parse("2026-07-11T02:00:00Z"),
+				false
+		)).willReturn(clientSynced);
+
+		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to, null);
+
+		assertThat(results).containsExactly(primarySynced, clientSynced);
+		verify(googleCalendarClient, never()).getEvents("access-token", "hidden-calendar", from.toString(), to.toString());
+	}
+
+	@Test
 	void syncEventsDoesNotUpsertCancelledGoogleEvents() {
 		UUID userId = UUID.randomUUID();
 		Instant from = Instant.parse("2026-07-01T00:00:00Z");
