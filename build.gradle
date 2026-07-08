@@ -134,6 +134,11 @@ clean {
 	delete generatedDir
 }
 
+// Sentry 플러그인이 QueryDSL generated 소스와 충돌하지 않도록 compileJava 완료 후 실행
+tasks.named('generateSentryBundleIdJava') {
+	dependsOn(tasks.named('compileJava'))
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 	// Docker Desktop(Mac) API v1.32 거부 대응: docker-java가 최신 버전 경로 사용
