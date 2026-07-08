@@ -26,9 +26,12 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final String CLIENT_TYPE_HEADER = "X-Client-Type";
+    private static final String DESKTOP_CLIENT_TYPE = "desktop";
 
     private final JwtTokenProvider jwtTokenProvider;
     private final WebSocketSubscriptionAuthorizationPort subscriptionAuthorizationPort;
+    private final DesktopPresenceRegistry desktopPresenceRegistry;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -37,7 +40,9 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             accessor = StompHeaderAccessor.wrap(message);
         }
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            accessor.setUser(authenticate(accessor));
+            UsernamePasswordAuthenticationToken authentication = authenticate(accessor);
+            accessor.setUser(authentication);
+            registerDesktopPresence(accessor, authentication);
             return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
         }
         if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
@@ -46,7 +51,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         return message;
     }
 
-    private Principal authenticate(StompHeaderAccessor accessor) {
+    private UsernamePasswordAuthenticationToken authenticate(StompHeaderAccessor accessor) {
         String authorization = accessor.getFirstNativeHeader(AUTHORIZATION_HEADER);
         if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
             throw new MessagingException("WebSocket access token is required.");
@@ -62,6 +67,21 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             );
         } catch (JwtException | IllegalArgumentException e) {
             throw new MessagingException("Invalid WebSocket access token.", e);
+        }
+    }
+
+    // 프론트가 CONNECT 프레임에 X-Client-Type: desktop을 실어 보내면(Tauri 앱/위젯 둘 다) 등록한다.
+    // 세션 정리는 DesktopPresenceDisconnectListener가 STOMP DISCONNECT 시점에 담당한다.
+    private void registerDesktopPresence(StompHeaderAccessor accessor, UsernamePasswordAuthenticationToken authentication) {
+        if (!DESKTOP_CLIENT_TYPE.equals(accessor.getFirstNativeHeader(CLIENT_TYPE_HEADER))) {
+            return;
+        }
+        String sessionId = accessor.getSessionId();
+        if (sessionId == null) {
+            return;
+        }
+        if (authentication.getPrincipal() instanceof AuthUser authUser) {
+            desktopPresenceRegistry.register(authUser.userId(), sessionId);
         }
     }
 
