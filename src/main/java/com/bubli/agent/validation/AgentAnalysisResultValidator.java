@@ -110,11 +110,20 @@ public class AgentAnalysisResultValidator {
                         errors
                 );
                 requireText(
+                        suggestion.description(),
+                        path + ".description",
+                        "DOCUMENT_DRAFT 제안에는 description이 필요합니다.",
+                        errors
+                );
+                requireText(
                         suggestion.contentMarkdown(),
                         path + ".contentMarkdown",
                         "DOCUMENT_DRAFT 제안에는 contentMarkdown이 필요합니다.",
                         errors
                 );
+            }
+            case WBS, QUESTION, REVIEW_ITEM, DAILY_SUMMARY -> {
+                // Other suggestion types are validated by downstream application rules.
             }
         }
     }

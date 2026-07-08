@@ -22,8 +22,94 @@ public record Suggestion(
         String endsAt,
         Boolean allDay,
         String scheduleTitle,
+        String documentType,
         String contentMarkdown
 ) {
+    public Suggestion(
+            SuggestionType type,
+            String title,
+            String description,
+            String sourceText,
+            Double confidence,
+            String fieldKey,
+            String value,
+            String assigneeUserId,
+            String wbsItemId,
+            String parentId,
+            Integer orderNo,
+            String status,
+            String startsAt,
+            String dueAt,
+            String endsAt,
+            Boolean allDay,
+            String scheduleTitle
+    ) {
+        this(
+                type,
+                title,
+                description,
+                sourceText,
+                confidence,
+                fieldKey,
+                value,
+                assigneeUserId,
+                wbsItemId,
+                parentId,
+                orderNo,
+                status,
+                startsAt,
+                dueAt,
+                endsAt,
+                allDay,
+                scheduleTitle,
+                null,
+                null
+        );
+    }
+
+    public Suggestion(
+            SuggestionType type,
+            String title,
+            String description,
+            String sourceText,
+            Double confidence,
+            String fieldKey,
+            String value,
+            String assigneeUserId,
+            String wbsItemId,
+            String parentId,
+            Integer orderNo,
+            String status,
+            String startsAt,
+            String dueAt,
+            String endsAt,
+            Boolean allDay,
+            String scheduleTitle,
+            String contentMarkdown
+    ) {
+        this(
+                type,
+                title,
+                description,
+                sourceText,
+                confidence,
+                fieldKey,
+                value,
+                assigneeUserId,
+                wbsItemId,
+                parentId,
+                orderNo,
+                status,
+                startsAt,
+                dueAt,
+                endsAt,
+                allDay,
+                scheduleTitle,
+                null,
+                contentMarkdown
+        );
+    }
+
     public Suggestion(
             SuggestionType type,
             String title,
@@ -41,6 +127,7 @@ public record Suggestion(
                 confidence,
                 fieldKey,
                 value,
+                null,
                 null,
                 null,
                 null,

@@ -105,6 +105,7 @@ public class VoiceRoomService {
     }
 
     private void notifyChatVoiceCallStarted(UUID callerUserId, String callerName, UUID chatRoomId) {
+        String message = voiceScopeLabel(null, chatRoomId) + "를 시작했습니다";
         chatRoomAccessPublicService.findActiveMemberIds(chatRoomId).stream()
                 .filter(memberId -> !memberId.equals(callerUserId))
                 .forEach(memberId -> notificationPublicService.create(
@@ -112,12 +113,22 @@ public class VoiceRoomService {
                         NotificationSourceType.VOICE_CALL,
                         chatRoomId,
                         callerName,
-                        "보이스 통화를 시작했습니다"
+                        message
                 ));
     }
 
     private String lockKey(UUID roomId) {
         return "voice-room-open:" + roomId;
+    }
+
+    // 알림 문구에 상황(1:1/그룹/프로젝트룸)을 붙여 어떤 통화인지 구분되게 한다 — 예전엔
+    // "보이스 통화를 시작했습니다"/"전화를 취소했습니다"/"통화를 거절했습니다"처럼 표현이
+    // 제각각이라 알림 목록만 봐서는 무슨 통화인지, 심지어 같은 종류의 알림인지도 알기 어려웠다.
+    private String voiceScopeLabel(UUID roomId, UUID chatRoomId) {
+        if (roomId != null) {
+            return "룸 보이스";
+        }
+        return chatRoomAccessPublicService.isDirectChatRoom(chatRoomId) ? "1:1 보이스" : "그룹 보이스";
     }
 
     @Transactional(readOnly = true)
@@ -276,7 +287,7 @@ public class VoiceRoomService {
                 NotificationSourceType.VOICE_CALL_DECLINED,
                 voiceRoom.getChatRoomId(),
                 decliner.name(),
-                "통화를 거절했습니다"
+                voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 거절했습니다"
         );
     }
 
@@ -311,6 +322,7 @@ public class VoiceRoomService {
 
         if (wasRingingBack) {
             UserResult canceler = userPublicService.getUser(userId);
+            String message = voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 취소했습니다";
             chatRoomAccessPublicService.findActiveMemberIds(voiceRoom.getChatRoomId()).stream()
                     .filter(memberId -> !memberId.equals(userId))
                     .forEach(memberId -> notificationPublicService.create(
@@ -318,7 +330,7 @@ public class VoiceRoomService {
                             NotificationSourceType.VOICE_CALL_CANCELED,
                             voiceRoom.getChatRoomId(),
                             canceler.name(),
-                            "전화를 취소했습니다"
+                            message
                     ));
         }
 
