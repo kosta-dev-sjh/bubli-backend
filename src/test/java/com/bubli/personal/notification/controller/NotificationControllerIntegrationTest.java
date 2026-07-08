@@ -86,6 +86,21 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 	}
 
 	@Test
+	void getNotificationsCanFilterByStatus() throws Exception {
+		User user = createUser("google-sub-notif-status", "notification-filter");
+		UUID unread = saveNotification(user.getId(), "Unread notification", Instant.now(), NotificationStatus.UNREAD);
+		saveNotification(user.getId(), "Read notification", Instant.now().minusSeconds(60), NotificationStatus.READ);
+
+		mockMvc.perform(get("/api/notifications")
+						.param("status", "UNREAD")
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(unread.toString()))
+				.andExpect(jsonPath("$.data.items[0].status").value("UNREAD"));
+	}
+
+	@Test
 	void readNotificationMarksAsRead() throws Exception {
 		User user = createUser("google-sub-notif-read", "미연");
 		UUID notifId = saveNotification(user.getId(), "읽음 처리 테스트");
@@ -167,10 +182,14 @@ class NotificationControllerIntegrationTest extends PostgresIntegrationTestSuppo
 	}
 
 	private UUID saveNotification(UUID userId, String title, Instant createdAt) {
+		return saveNotification(userId, title, createdAt, NotificationStatus.UNREAD);
+	}
+
+	private UUID saveNotification(UUID userId, String title, Instant createdAt, NotificationStatus status) {
 		UUID id = UUID.randomUUID();
 		jdbcTemplate.update(
 				"INSERT INTO notifications (id, user_id, source_type, title, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-				id, userId, "MESSAGE", title, "UNREAD", Timestamp.from(createdAt)
+				id, userId, "MESSAGE", title, status.name(), Timestamp.from(createdAt)
 		);
 		return id;
 	}
