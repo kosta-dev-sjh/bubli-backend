@@ -241,12 +241,12 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
-	void deleteWbsItemRejectsWhenScheduleIsLinked() throws Exception {
+	void deleteWbsItemDeletesLinkedSchedules() throws Exception {
 		User user = createUser("google-sub-wbs-schedule-delete", "재민");
 		ProjectRoom room = saveRoom(user.getId(), "WBS 일정 연결 프로젝트");
 		roomMemberRepository.save(RoomMember.createLeader(room.getId(), user.getId()));
 		WbsItem item = wbsItemRepository.save(WbsItem.create(room.getId(), null, "일정 연결 항목", 1, WbsStatus.TODO));
-		scheduleRepository.save(Schedule.create(
+		Schedule schedule = scheduleRepository.save(Schedule.create(
 				user.getId(),
 				room.getId(),
 				null,
@@ -259,12 +259,13 @@ class WbsControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 		mockMvc.perform(delete("/api/wbs-items/{wbsItemId}", item.getId())
 						.header(AUTHORIZATION, bearerToken(user.getId())))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.success").value(false))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").value(nullValue()))
-				.andExpect(jsonPath("$.error.code").value("WORK_400_003"));
+				.andExpect(jsonPath("$.error").value(nullValue()));
 
-		assertThat(wbsItemRepository.findById(item.getId())).isPresent();
+		assertThat(wbsItemRepository.findById(item.getId())).isEmpty();
+		assertThat(scheduleRepository.findById(schedule.getId())).isEmpty();
 	}
 
 	@Test

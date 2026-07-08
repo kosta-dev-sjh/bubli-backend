@@ -370,25 +370,6 @@ class WbsItemServiceTest {
 		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
 	}
 
-	@Test
-	void deleteWbsItemRejectsWhenScheduleIsLinked() {
-		UUID userId = UUID.randomUUID();
-		UUID roomId = UUID.randomUUID();
-		UUID itemId = UUID.randomUUID();
-		WbsItem item = WbsItem.create(roomId, null, "연결 일정", 1, WbsStatus.TODO);
-		ReflectionTestUtils.setField(item, "id", itemId);
-		given(wbsItemRepository.findById(itemId)).willReturn(Optional.of(item));
-		willThrow(new BusinessException(ErrorCode.WORK_400_003))
-				.given(schedulePublicService)
-				.assertNoScheduleLinkedToWbsItem(itemId);
-
-		assertThatThrownBy(() -> wbsItemService.delete(userId, itemId))
-				.isInstanceOfSatisfying(BusinessException.class, exception ->
-						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_003));
-		verify(wbsItemRepository, never()).delete(any(WbsItem.class));
-	}
-
-	@Test
 	void deleteWbsItemRejectsWhenChildItemExists() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -404,7 +385,7 @@ class WbsItemServiceTest {
 	}
 
 	@Test
-	void deleteWbsItemDeletesWhenNoTaskIsLinked() {
+	void deleteWbsItemDeletesLinkedSchedulesBeforeItem() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID itemId = UUID.randomUUID();
@@ -414,6 +395,7 @@ class WbsItemServiceTest {
 
 		wbsItemService.delete(userId, itemId);
 
+		verify(schedulePublicService).deleteSchedulesLinkedToWbsItem(itemId);
 		ArgumentCaptor<WbsItem> itemCaptor = ArgumentCaptor.forClass(WbsItem.class);
 		verify(wbsItemRepository).delete(itemCaptor.capture());
 		assertThat(itemCaptor.getValue().getId()).isEqualTo(itemId);
