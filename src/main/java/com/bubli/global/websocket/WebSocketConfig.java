@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -29,9 +30,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
+        // 서버→클라이언트 10초, 클라이언트→서버 10초 하트비트 — 노트북 절전/네트워크 강제 종료처럼
+        // 정상 DISCONNECT 프레임 없이 끊기는 경우에도 presence(DesktopPresenceRegistry)가 오래
+        // 남아있지 않도록 SessionDisconnectEvent가 제때 발생하게 한다.
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setHeartbeatValue(new long[]{10_000, 10_000})
+                .setTaskScheduler(heartbeatTaskScheduler());
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
+    }
+
+    private ThreadPoolTaskScheduler heartbeatTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("ws-heartbeat-");
+        scheduler.initialize();
+        return scheduler;
     }
 
     @Override
