@@ -16,6 +16,9 @@ class LocaleMessageBundleTest {
             "agent.job.failed.event",
             "agent.job.succeeded.notification.title",
             "agent.job.failed.notification.title",
+            "agent.job.analyze_resource.succeeded.notification.title",
+            "agent.job.analyze_resource.failed.notification.title",
+            "agent.job.analyze_resource.notification.body",
             "agent.job.notification.body"
     );
 

@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
 public class ChatService {
 
 	private static final String USER_SENDER_TYPE = "USER";
+	private static final String AGENT_SENDER_TYPE = "AGENT";
+	private static final String BUBLI_AGENT_NAME = "Bubli Agent";
 	private static final String UNKNOWN_USER_NAME = "알 수 없음";
 	private static final int MESSAGE_SEQUENCE_SAVE_MAX_ATTEMPTS = 3;
 
@@ -434,6 +436,22 @@ public class ChatService {
 	}
 
 	private ChatMessageResult toResult(ChatMessage message, UserResult sender) {
+		if (message.getMessageType() == MessageType.AGENT_RESPONSE) {
+			return new ChatMessageResult(
+					message.getId(),
+					message.getChatRoomId(),
+					AGENT_SENDER_TYPE,
+					message.getSenderUserId(),
+					BUBLI_AGENT_NAME,
+					message.getClientMessageId(),
+					message.getRoomSequence(),
+					message.getMessageType(),
+					readBody(message.getBody()),
+					message.getResourceId(),
+					message.getCreatedAt()
+			);
+		}
+
 		return new ChatMessageResult(
 				message.getId(),
 				message.getChatRoomId(),
