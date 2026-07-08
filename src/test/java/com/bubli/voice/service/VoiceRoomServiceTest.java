@@ -150,6 +150,7 @@ class VoiceRoomServiceTest {
 				.willAnswer(invocation -> withId((VoiceParticipant) invocation.getArgument(0)));
 		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "미연"));
 		given(chatRoomAccessPublicService.findActiveMemberIds(chatRoomId)).willReturn(List.of(callerId, otherMemberId));
+		given(chatRoomAccessPublicService.isDirectChatRoom(chatRoomId)).willReturn(true);
 
 		voiceRoomService.createVoiceRoom(callerId, null, chatRoomId);
 
@@ -159,7 +160,7 @@ class VoiceRoomServiceTest {
 				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL,
 				chatRoomId,
 				"미연",
-				"보이스 통화를 시작했습니다"
+				"1:1 보이스를 시작했습니다"
 		);
 		verify(notificationPublicService, never()).create(
 				org.mockito.ArgumentMatchers.eq(callerId),
@@ -464,6 +465,7 @@ class VoiceRoomServiceTest {
 				.willReturn(List.of(participant));
 		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
 		given(chatRoomAccessPublicService.findActiveMemberIds(chatRoomId)).willReturn(List.of(callerId, calleeId));
+		given(chatRoomAccessPublicService.isDirectChatRoom(chatRoomId)).willReturn(true);
 		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "재민"));
 		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
 				.willReturn(Map.of(callerId, user(callerId)));
@@ -475,7 +477,7 @@ class VoiceRoomServiceTest {
 				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_CANCELED,
 				chatRoomId,
 				"재민",
-				"전화를 취소했습니다"
+				"1:1 보이스를 취소했습니다"
 		);
 	}
 
@@ -507,6 +509,7 @@ class VoiceRoomServiceTest {
 		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(chatRoomId, callerId));
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
 		given(userPublicService.getUser(declinerId)).willReturn(user(declinerId, "재민"));
+		given(chatRoomAccessPublicService.isDirectChatRoom(chatRoomId)).willReturn(true);
 
 		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
 
@@ -516,7 +519,7 @@ class VoiceRoomServiceTest {
 				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_DECLINED,
 				chatRoomId,
 				"재민",
-				"통화를 거절했습니다"
+				"1:1 보이스를 거절했습니다"
 		);
 	}
 
