@@ -31,8 +31,18 @@ public record ProjectRoomGroundingContext(
 	}
 
 	public List<UUID> resourceIds() {
-		return ragHits.stream()
-				.map(ResourceSearchHit::resourceId)
+		return evidenceItems.stream()
+				.filter(evidence -> evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT)
+				.map(ProjectRoomGroundingEvidence::id)
+				.distinct()
+				.toList();
+	}
+
+	public List<String> retrievalModes() {
+		return evidenceItems.stream()
+				.map(evidence -> evidence.metadata().get("retrievalMode"))
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
 				.distinct()
 				.toList();
 	}
@@ -58,7 +68,8 @@ public record ProjectRoomGroundingContext(
 	}
 
 	public boolean hasDocumentEvidence() {
-		return !ragHits.isEmpty();
+		return evidenceItems.stream()
+				.anyMatch(evidence -> evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT);
 	}
 
 	private List<UUID> ids(ProjectRoomGroundingSourceType sourceType) {

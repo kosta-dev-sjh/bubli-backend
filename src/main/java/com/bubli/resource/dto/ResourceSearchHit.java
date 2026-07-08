@@ -8,6 +8,11 @@ public record ResourceSearchHit(
         int chunkIndex,
         String chunkText,
         Integer pageNumber,
+        Integer startLine,
+        Integer endLine,
+        Integer startOffset,
+        Integer endOffset,
+        String originalName,
         String chunkMetadata,
         double similarityScore
 ) {

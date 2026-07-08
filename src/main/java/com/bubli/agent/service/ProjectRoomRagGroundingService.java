@@ -79,6 +79,8 @@ public class ProjectRoomRagGroundingService {
 					.append("resourceId=").append(hit.resourceId()).append('\n')
 					.append("chunkIndex=").append(hit.chunkIndex()).append('\n')
 					.append("pageNumber=").append(hit.pageNumber()).append('\n')
+					.append("startLine=").append(hit.startLine()).append('\n')
+					.append("endLine=").append(hit.endLine()).append('\n')
 					.append("similarityScore=").append(hit.similarityScore()).append('\n')
 					.append("chunkText=\n")
 					.append(hit.chunkText()).append("\n\n");
