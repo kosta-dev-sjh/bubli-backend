@@ -6,8 +6,11 @@ import com.bubli.agent.validation.AgentContractError;
 import com.bubli.agent.validation.AgentContractValidationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -37,7 +40,9 @@ public class AgentAnalysisResultJsonParser {
         }
 
         try {
-            AgentAnalysisResult result = strictObjectMapper.readValue(extractJsonObject(json), AgentAnalysisResult.class);
+            JsonNode root = strictObjectMapper.readTree(extractJsonObject(json));
+            normalizeModelOutput(root);
+            AgentAnalysisResult result = strictObjectMapper.treeToValue(root, AgentAnalysisResult.class);
             resultValidator.validateOrThrow(result);
             return result;
         } catch (JsonProcessingException exception) {
@@ -47,6 +52,29 @@ public class AgentAnalysisResultJsonParser {
                     List.of(new AgentContractError("$", reason))
             );
         }
+    }
+
+    private void normalizeModelOutput(JsonNode root) {
+        if (!(root instanceof ObjectNode objectNode)) {
+            return;
+        }
+        normalizeChecklistSeverity(objectNode);
+    }
+
+    private void normalizeChecklistSeverity(ObjectNode root) {
+        JsonNode checklist = root.path("analysis").path("checklist");
+        if (!(checklist instanceof ArrayNode checklistArray)) {
+            return;
+        }
+        for (JsonNode item : checklistArray) {
+            if (item instanceof ObjectNode itemObject && missingText(itemObject.get("severity"))) {
+                itemObject.put("severity", "MEDIUM");
+            }
+        }
+    }
+
+    private boolean missingText(JsonNode node) {
+        return node == null || node.isNull() || !node.isTextual() || node.asText().isBlank();
     }
 
     private String extractJsonObject(String value) {

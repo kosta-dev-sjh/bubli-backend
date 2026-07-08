@@ -1,6 +1,7 @@
 package com.bubli.agent.model;
 
 import com.bubli.agent.contract.v1.AgentAnalysisResult;
+import com.bubli.agent.contract.v1.ChecklistSeverity;
 import com.bubli.agent.contract.v1.SuggestionType;
 import com.bubli.agent.validation.AgentAnalysisResultValidator;
 import com.bubli.agent.validation.AgentContractValidationException;
@@ -154,6 +155,46 @@ class AgentAnalysisResultJsonParserTest {
 
         assertThat(result.suggestions()).hasSize(1);
         assertThat(result.suggestions().getFirst().sourceText()).contains("두 번째 근거");
+    }
+
+    @Test
+    void defaultsMissingChecklistSeverityForDocumentDraftModelOutput() {
+        String response = """
+                {
+                  "schemaVersion": "analysis.v1",
+                  "resourceId": "44721708-84b3-4cdc-86cd-f403c1efa37a",
+                  "model": {"name": "spring-ai-chat", "promptVersion": "agent-job-llm-v1"},
+                  "analysis": {
+                    "summary": "문서 초안 요약",
+                    "keywords": ["문서 초안"],
+                    "risks": [],
+                    "checklist": [
+                      {"title": "자료 처리 실패 시 대응 방안 마련"}
+                    ]
+                  },
+                  "suggestions": [
+                    {
+                      "type": "DOCUMENT_DRAFT",
+                      "title": "요구사항 문서 초안",
+                      "description": "요구사항을 정리한 문서 초안입니다.",
+                      "sourceText": "요구사항 문서를 바탕으로 작성합니다.",
+                      "confidence": 0.8,
+                      "startsAt": "2026-07-07T15:00:00Z",
+                      "dueAt": "2026-07-29T14:59:59.999Z",
+                      "endsAt": "2026-07-29T14:59:59.999Z",
+                      "documentType": "WBS_TODO_PLAN",
+                      "contentMarkdown": "# 요구사항 문서 초안\\n\\n## 개요\\n문서 초안 내용"
+                    }
+                  ]
+                }
+                """;
+
+        AgentAnalysisResult result = parser.parse(response);
+
+        assertThat(result.analysis().checklist().getFirst().severity()).isEqualTo(ChecklistSeverity.MEDIUM);
+        assertThat(result.suggestions()).hasSize(1);
+        assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.DOCUMENT_DRAFT);
+        assertThat(result.suggestions().getFirst().contentMarkdown()).contains("# 요구사항 문서 초안");
     }
 
     private static String readFixture(String filename) throws IOException {
