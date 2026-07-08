@@ -18,7 +18,9 @@ import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserLocalePublicService;
+import com.bubli.user.service.UserPublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,7 @@ public class ProjectRoomAgentCommandService {
 	private final AgentSuggestionCommandService agentSuggestionCommandService;
 	private final ProjectRoomEventPublicService projectRoomEventPublicService;
 	private final UserLocalePublicService userLocalePublicService;
+	private final UserPublicService userPublicService;
 	private final ResourcePublicService resourcePublicService;
 	private final ProjectRoomGroundingService groundingService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
@@ -129,10 +132,11 @@ public class ProjectRoomAgentCommandService {
 			List<ResourceResult> metadataResources
 	) {
 		UUID responseResourceId = metadataResources.isEmpty() ? groundingContext.firstResourceId() : metadataResources.getFirst().id();
+		UserResult requester = userPublicService.getUser(userId);
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
 				userId,
 				roomId,
-				responseBody(message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources),
+				responseBody(requester, message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources),
 				responseResourceId
 		));
 		RoomMemorySummaryContextResult memory = roomMemoryPublicService.createDraft(
@@ -422,6 +426,7 @@ public class ProjectRoomAgentCommandService {
 	}
 
 	private JsonNode responseBody(
+			UserResult requester,
 			String request,
 			AgentCommandMode mode,
 			String answer,
@@ -433,6 +438,8 @@ public class ProjectRoomAgentCommandService {
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("text", answer);
 		body.put("request", request);
+		body.put("requesterId", requester.id());
+		body.put("requesterName", requester.name());
 		body.put("mode", mode.name());
 		body.put("promptVersion", PROMPT_VERSION);
 		body.put("contextCharacters", groundingContext.promptBlock().length());
