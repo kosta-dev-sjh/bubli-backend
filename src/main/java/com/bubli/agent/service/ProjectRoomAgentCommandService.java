@@ -2,6 +2,7 @@ package com.bubli.agent.service;
 
 import com.bubli.agent.dto.AgentSuggestionResponse;
 import com.bubli.agent.dto.ProjectRoomGroundingContext;
+import com.bubli.agent.dto.ProjectRoomGroundingEvidence;
 import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
 import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.model.AiCallExecutor;
@@ -40,6 +41,7 @@ import java.util.UUID;
 public class ProjectRoomAgentCommandService {
 
 	private static final String PROMPT_VERSION = "project-room-agent-command-project-grounded-v1";
+	private static final String FALLBACK_AMBIGUOUS_RESOURCE_INTENT = "AMBIGUOUS_RESOURCE_INTENT";
 
 	private final ProjectMembershipPublicService projectMembershipPublicService;
 	private final ChatMessagePublicService chatMessagePublicService;
@@ -64,6 +66,20 @@ public class ProjectRoomAgentCommandService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
+		String clarificationAnswer = ambiguousResourceAnswer(message, locale);
+		if (clarificationAnswer != null) {
+			return persistResponse(
+					userId,
+					roomId,
+					message,
+					commandMode,
+					clarificationAnswer,
+					FALLBACK_AMBIGUOUS_RESOURCE_INTENT,
+					List.of(),
+					ProjectRoomGroundingContext.ungrounded(),
+					List.of()
+			);
+		}
 		ResourceInventoryAnswer inventoryAnswer = resourceInventoryAnswer(userId, roomId, message, locale);
 		if (inventoryAnswer != null) {
 			return persistResponse(
@@ -140,22 +156,55 @@ public class ProjectRoomAgentCommandService {
 		return new ResourceInventoryAnswer(resources, uploadedResourcesAnswer(resources, locale));
 	}
 
+	private String ambiguousResourceAnswer(String message, String locale) {
+		if (!isAmbiguousResourceRequest(message)) {
+			return null;
+		}
+		return switch (locale) {
+			case "en-US" -> "Do you want the uploaded file list, or should I summarize a file's contents?";
+			case "ja-JP" -> "アップロード済みファイルの一覧が必要ですか、それともファイル内容の要約が必要ですか？";
+			default -> "업로드된 파일 목록을 원하시나요, 아니면 특정 파일의 내용을 요약할까요?";
+		};
+	}
+
+	private boolean isAmbiguousResourceRequest(String message) {
+		String normalized = normalize(message);
+		if (isResourceContentRequest(normalized)) {
+			return false;
+		}
+		return hasResourceTerm(normalized)
+				&& containsAny(normalized, "알려", "말해", "教え", "tell")
+				&& !hasInventoryIntent(normalized);
+	}
+
 	private boolean isResourceInventoryRequest(String message) {
 		String normalized = normalize(message);
 		if (isResourceContentRequest(normalized)) {
 			return false;
 		}
+		return hasResourceTerm(normalized) && hasInventoryIntent(normalized);
+	}
+
+	private boolean hasResourceTerm(String normalized) {
 		return containsAny(normalized, "업로드", "올라온", "파일", "자료", "문서", "resource", "file", "upload",
-				"資料", "文書", "ファイル", "アップロード", "アップロード済み", "登録", "添付")
-				&& containsAny(normalized, "무엇", "뭐", "목록", "리스트", "보여", "알려", "현재", "있", "what", "list",
-				"show", "which", "?", "？", "何", "どんな", "どの", "一覧", "教え", "見せて", "表示", "ある", "あります");
+				"資料", "文書", "ファイル", "アップロード", "アップロード済み", "登録", "添付");
+	}
+
+	private boolean hasInventoryIntent(String normalized) {
+		return containsAny(normalized, "업로드", "올라온", "무엇", "뭐", "목록", "리스트", "보여", "현재", "있",
+				"what", "list", "show", "which", "?", "？", "何", "どんな", "どの", "一覧", "見せて", "表示",
+				"ある", "あります");
 	}
 
 	private boolean isResourceContentRequest(String normalized) {
-		return containsAny(normalized,
+		return AgentQuerySupport.hasRequirementIdentifier(normalized)
+				|| containsAny(normalized,
 				"내용", "핵심", "요약", "정리", "분석", "설명", "주요", "무슨 내용", "어떤 내용",
+				"기능", "요구사항", "요구 사항", "요건", "말하는", "어떤 것을", "어떤것", "무슨 기능", "어떤 기능",
 				"summary", "summarize", "summarise", "content", "key point", "main point", "explain",
-				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ", "説明");
+				"requirement", "feature", "means", "refer to",
+				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ", "説明",
+				"機能", "要件", "何を指", "どの機能");
 	}
 
 	private String uploadedResourcesAnswer(List<ResourceResult> resources, String locale) {
@@ -223,6 +272,7 @@ public class ProjectRoomAgentCommandService {
 				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved sources.
 				For SUGGEST mode, write each candidate on its own short bullet line when multiple candidates are useful.
 				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
+				Do not print raw retrieval blocks, resourceId values, retrievalMode values, or metadata lines in the answer body.
 
 				User message:
 				%s
@@ -390,7 +440,9 @@ public class ProjectRoomAgentCommandService {
 				? answerCompleteness(answer, fallbackReason, groundingContext)
 				: "ANSWERED");
 		body.put("fallbackReason", fallbackReason);
-		body.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
+		body.put("missingInfo", metadataResources.isEmpty()
+				? missingInfo(request, answer, fallbackReason, groundingContext)
+				: List.of());
 		body.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
@@ -421,7 +473,9 @@ public class ProjectRoomAgentCommandService {
 				? answerCompleteness(answer, fallbackReason, groundingContext)
 				: "ANSWERED");
 		memory.put("fallbackReason", fallbackReason);
-		memory.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
+		memory.put("missingInfo", metadataResources.isEmpty()
+				? missingInfo(request, answer, fallbackReason, groundingContext)
+				: List.of());
 		memory.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
@@ -473,8 +527,19 @@ public class ProjectRoomAgentCommandService {
 		return "ANSWERED";
 	}
 
-	private List<String> missingInfo(String answer, ProjectRoomGroundingContext groundingContext) {
+	private List<String> missingInfo(
+			String request,
+			String answer,
+			String fallbackReason,
+			ProjectRoomGroundingContext groundingContext
+	) {
+		if (FALLBACK_AMBIGUOUS_RESOURCE_INTENT.equals(fallbackReason)) {
+			return List.of("AMBIGUOUS_RESOURCE_INTENT");
+		}
 		if (!groundingContext.grounded()) {
+			if (AgentQuerySupport.isDocumentSourceRequest(request)) {
+				return List.of("NO_RELEVANT_DOCUMENT");
+			}
 			return List.of("NO_RELEVANT_PROJECT_GROUNDING");
 		}
 		String normalized = normalize(answer);
@@ -500,27 +565,62 @@ public class ProjectRoomAgentCommandService {
 	}
 
 	private List<Map<String, Object>> citations(ProjectRoomGroundingContext groundingContext) {
-		return groundingContext.evidenceItems().stream()
-				.filter(evidence -> evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT)
-				.map(evidence -> {
-					Map<String, Object> citation = new LinkedHashMap<>();
-					citation.put("resourceId", evidence.id());
-					citation.put("retrievalMode", evidence.metadata().get("retrievalMode"));
-					citation.put("title", firstNonNull(
-							evidence.metadata().get("originalName"),
-							evidence.metadata().get("title")
-					));
-					citation.put("pageNumber", evidence.metadata().get("pageNumber"));
-					citation.put("chunkIndex", evidence.metadata().get("chunkIndex"));
-					citation.put("startLine", evidence.metadata().get("startLine"));
-					citation.put("endLine", evidence.metadata().get("endLine"));
-					citation.put("startOffset", evidence.metadata().get("startOffset"));
-					citation.put("endOffset", evidence.metadata().get("endOffset"));
-					citation.put("quote", evidence.metadata().get("quote"));
-					citation.put("similarityScore", evidence.metadata().get("similarityScore"));
-					return citation;
-				})
-				.toList();
+		List<Map<String, Object>> citations = new ArrayList<>();
+		for (ProjectRoomGroundingEvidence evidence : groundingContext.evidenceItems()) {
+			Object title = citationTitle(evidence);
+			if (title == null || title.toString().isBlank()) {
+				continue;
+			}
+			Map<String, Object> citation = new LinkedHashMap<>();
+			citation.put("sourceType", evidence.sourceType().name());
+			citation.put("sourceId", evidence.id());
+			if (evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT) {
+				citation.put("resourceId", evidence.id());
+			} else {
+				citation.put("resourceId", evidence.metadata().get("resourceId"));
+			}
+			citation.put("retrievalMode", firstNonNull(
+					evidence.metadata().get("retrievalMode"),
+					evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT ? null : "MANAGEMENT_CONTEXT"
+			));
+			citation.put("title", title);
+			citation.put("pageNumber", evidence.metadata().get("pageNumber"));
+			citation.put("chunkIndex", evidence.metadata().get("chunkIndex"));
+			citation.put("startLine", evidence.metadata().get("startLine"));
+			citation.put("endLine", evidence.metadata().get("endLine"));
+			citation.put("startOffset", evidence.metadata().get("startOffset"));
+			citation.put("endOffset", evidence.metadata().get("endOffset"));
+			citation.put("quote", evidence.metadata().get("quote"));
+			citation.put("similarityScore", evidence.metadata().get("similarityScore"));
+			citations.add(citation);
+		}
+		return citations;
+	}
+
+	private Object citationTitle(ProjectRoomGroundingEvidence evidence) {
+		Object title = firstNonNull(
+				evidence.metadata().get("originalName"),
+				evidence.metadata().get("title")
+		);
+		if (title != null && !title.toString().isBlank()) {
+			return title;
+		}
+		if (evidence.sourceType() == ProjectRoomGroundingSourceType.AGENT_SUGGESTION) {
+			Object payload = evidence.metadata().get("payload");
+			if (payload instanceof Map<?, ?> payloadMap) {
+				Object payloadTitle = payloadMap.get("title");
+				if (payloadTitle != null && !payloadTitle.toString().isBlank()) {
+					return payloadTitle;
+				}
+			}
+		}
+		return switch (evidence.sourceType()) {
+			case DOCUMENT -> null;
+			case TASK -> "TODO";
+			case WBS -> "WBS";
+			case SCHEDULE -> "일정";
+			case AGENT_SUGGESTION -> "AI 후보";
+		};
 	}
 
 	private Object firstNonNull(Object first, Object second) {

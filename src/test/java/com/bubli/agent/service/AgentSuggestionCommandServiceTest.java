@@ -257,7 +257,8 @@ class AgentSuggestionCommandServiceTest {
                                 null,
                                 "2026-07-10T02:00:00Z",
                                 false,
-                                "중간 리뷰 준비"
+                                "중간 리뷰 준비",
+                                null
                         )
                 )
         );

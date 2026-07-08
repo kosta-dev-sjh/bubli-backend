@@ -21,7 +21,8 @@ public record Suggestion(
         String dueAt,
         String endsAt,
         Boolean allDay,
-        String scheduleTitle
+        String scheduleTitle,
+        String contentMarkdown
 ) {
     public Suggestion(
             SuggestionType type,
@@ -40,6 +41,7 @@ public record Suggestion(
                 confidence,
                 fieldKey,
                 value,
+                null,
                 null,
                 null,
                 null,

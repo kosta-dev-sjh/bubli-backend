@@ -1,5 +1,6 @@
 package com.bubli.agent.service;
 
+import com.bubli.agent.config.AgentRagProperties;
 import com.bubli.agent.dto.PersonalAgentMemoryMessage;
 import com.bubli.agent.dto.PersonalAgentMemoryInput;
 import com.bubli.agent.dto.PersonalAgentMemorySummary;
@@ -12,10 +13,12 @@ import com.bubli.personal.memo.service.MemoPublicService;
 import com.bubli.personal.memo.type.MemoStatus;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceResult;
+import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceKind;
+import com.bubli.resource.type.ResourceSearchScope;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceSummaryStatus;
 import com.bubli.resource.type.ResourceVisibility;
@@ -39,6 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -174,6 +179,55 @@ class PersonalAgentCommandServiceTest {
 		assertThat(promptCaptor.getValue()).contains("브랜드 가이드");
 	}
 
+	@Test
+	void personalDocumentSearchUsesConfiguredPersonalMinSimilarity() {
+		UUID userId = UUID.randomUUID();
+		UUID lowResourceId = UUID.randomUUID();
+		UUID highResourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+
+		when(chatModel.call(any(String.class))).thenReturn("LLM answer");
+		when(resourcePublicService.getRecentPersonalResources(userId, 30)).thenReturn(List.of());
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.PERSONAL),
+				isNull(),
+				any(String.class),
+				eq(5)
+		)).thenReturn(List.of(
+				hit(lowResourceId, "low confidence contract clause", "low.pdf", 0.84D),
+				hit(highResourceId, "high confidence contract clause", "high.pdf", 0.91D)
+		));
+
+		PersonalAgentCommandService service = service(
+				userId,
+				chatModel,
+				resourcePublicService,
+				searchService,
+				new AgentRagProperties(true, 5, 0.72D, 0.68D, 0.85D),
+				List.of()
+		);
+
+		var response = service.execute(
+				userId,
+				"/bubli 계약서 내용 알려줘",
+				AgentCommandMode.ANSWER,
+				List.of(),
+				memory()
+		);
+
+		var promptCaptor = forClass(String.class);
+		verify(chatModel).call(promptCaptor.capture());
+		assertThat(promptCaptor.getValue())
+				.contains("high confidence contract clause")
+				.doesNotContain("low confidence contract clause");
+		assertThat(response.message().body().get("citations").size()).isEqualTo(1);
+		assertThat(response.message().body().get("citations").get(0).get("title").asText())
+				.isEqualTo("high.pdf");
+	}
+
 	@SuppressWarnings("unchecked")
 	private PersonalAgentCommandService service(UUID userId, ChatModel chatModel) {
 		return service(userId, chatModel, mock(ResourcePublicService.class));
@@ -185,10 +239,28 @@ class PersonalAgentCommandServiceTest {
 			ChatModel chatModel,
 			ResourcePublicService resourcePublicService
 	) {
+		return service(
+				userId,
+				chatModel,
+				resourcePublicService,
+				mock(ResourceSemanticSearchPublicService.class),
+				new AgentRagProperties(true, 5, 0.72D, 0.68D, 0.72D),
+				List.of(resourceSummary())
+		);
+	}
+
+	@SuppressWarnings("unchecked")
+	private PersonalAgentCommandService service(
+			UUID userId,
+			ChatModel chatModel,
+			ResourcePublicService resourcePublicService,
+			ResourceSemanticSearchPublicService resourceSemanticSearchService,
+			AgentRagProperties agentRagProperties,
+			List<ResourceAnalysisSummaryResult> analysisSummaries
+	) {
 		TaskPublicService taskPublicService = mock(TaskPublicService.class);
 		SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
 		MemoPublicService memoPublicService = mock(MemoPublicService.class);
-		ResourceSemanticSearchPublicService resourceSemanticSearchService = mock(ResourceSemanticSearchPublicService.class);
 		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
 		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
 		ObjectProvider<AiCallExecutor> aiCallExecutorProvider = mock(ObjectProvider.class);
@@ -198,7 +270,7 @@ class PersonalAgentCommandServiceTest {
 		when(schedulePublicService.getSchedulesBetween(any(), any(), any())).thenReturn(List.of(schedule(userId)));
 		when(memoPublicService.getUpdatedMemosBetween(any(), any(), any(), anyInt()))
 				.thenReturn(List.of(memo(userId)));
-		when(resourcePublicService.getRecentAnalysisSummaries(userId, 5)).thenReturn(List.of(resourceSummary()));
+		when(resourcePublicService.getRecentAnalysisSummaries(userId, 5)).thenReturn(analysisSummaries);
 		when(resourcePublicService.getReadableResource(any(), any())).thenReturn(resource(userId));
 		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn("ko-KR");
 		when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
@@ -210,6 +282,7 @@ class PersonalAgentCommandServiceTest {
 				memoPublicService,
 				resourcePublicService,
 				resourceSemanticSearchService,
+				agentRagProperties,
 				userLocalePublicService,
 				chatModelProvider,
 				aiCallExecutorProvider,
@@ -288,6 +361,23 @@ class PersonalAgentCommandServiceTest {
 				"Personal resource",
 				"Resource summary",
 				Instant.now()
+		);
+	}
+
+	private ResourceSearchHit hit(UUID resourceId, String chunkText, String originalName, double similarityScore) {
+		return new ResourceSearchHit(
+				UUID.randomUUID(),
+				resourceId,
+				0,
+				chunkText,
+				2,
+				10,
+				12,
+				120,
+				260,
+				originalName,
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260}",
+				similarityScore
 		);
 	}
 

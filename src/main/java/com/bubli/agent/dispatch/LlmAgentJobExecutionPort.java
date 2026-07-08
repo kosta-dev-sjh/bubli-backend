@@ -372,7 +372,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "confidence": 0.0,
 				      "startsAt": "optional ISO-8601 UTC instant for WBS or schedule-like work",
 				      "dueAt": "optional ISO-8601 UTC due date/time for TASK or WBS",
-				      "endsAt": "optional ISO-8601 UTC end time for WBS schedule"
+				      "endsAt": "optional ISO-8601 UTC end time for WBS schedule",
+				      "contentMarkdown": "required only for DOCUMENT_DRAFT. Full markdown document body, not a one-line summary."
 				    }
 				  ]
 				}
@@ -383,7 +384,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- GENERATE_WBS: propose one WBS work item. Include scheduleTitle, startsAt/dueAt, endsAt, and allDay only when the request or context has a concrete date/time.
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
-				- DRAFT_DOCUMENT: propose a document draft outline.
+				- DRAFT_DOCUMENT: write a complete markdown document draft in contentMarkdown. Include a title, overview, WBS section, TODO section, assumptions, and source/evidence notes when available. Do not put the real document body only in description.
 				- DAILY_SUMMARY: propose a daily summary draft using only the target date context. The description must contain JSON-like fields: summaryDate, timezone, done, remaining, todaySchedules, tomorrowFocus, risks, evidence. Do not include private raw source text beyond the provided concise evidence labels.
 
 				Job context:
@@ -446,6 +447,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		putIfPresent(payload, "endsAt", suggestion.endsAt());
 		putIfPresent(payload, "allDay", suggestion.allDay());
 		putIfPresent(payload, "scheduleTitle", suggestion.scheduleTitle());
+		putIfPresent(payload, "contentMarkdown", suggestion.contentMarkdown());
 		payload.put("jobType", message.jobType().name());
 		payload.put("roomId", value(message.roomId()));
 		payload.put("resourceId", value(message.resourceId()));

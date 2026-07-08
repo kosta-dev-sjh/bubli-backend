@@ -75,7 +75,59 @@ class ProjectRoomGroundingServiceTest {
 	}
 
 	@Test
-	void documentTitleQuestionUsesMatchedResourceSummaryWhenSemanticSearchIsEmpty() {
+	void semanticDocumentEvidenceUsesResourceTitleWhenOriginalNameIsMissing() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+				.thenReturn(List.of(hitWithoutOriginalName(resourceId, "contract text", 0.9D)));
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "01_UI디자이너_김서연.pdf"));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"계약서 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.evidenceItems().getFirst().metadata().get("title"))
+				.isEqualTo("01_UI디자이너_김서연.pdf");
+	}
+
+	@Test
+	void semanticDocumentEvidenceIsDroppedWhenTitleCannotBeResolved() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+				.thenReturn(List.of(hitWithoutOriginalName(resourceId, "contract text", 0.9D)));
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenThrow(new IllegalArgumentException("missing title"));
+		when(resourcePublicService.getRecentRoomSummaries(userId, roomId, 5)).thenReturn(List.of());
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"계약서 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.ragHits()).isEmpty();
+	}
+
+	@Test
+	void documentContentQuestionDoesNotFallbackToTitleSummaryWhenSemanticSearchIsEmpty() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -95,6 +147,8 @@ class ProjectRoomGroundingServiceTest {
 		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId,
 				"02 design outsourcing", 5))
 				.thenReturn(List.of());
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 15))
+				.thenReturn(List.of());
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
 		when(resourcePublicService.findResourceSummary(userId, resourceId))
@@ -108,14 +162,338 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		assertThat(context.grounded()).isTrue();
-		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.DOCUMENT);
-		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.grounded()).isFalse();
 		assertThat(context.ragHits()).isEmpty();
-		assertThat(context.promptBlock())
-				.contains("retrievalMode=TITLE_MATCH")
-				.contains("02-design-outsourcing-requirements-example.pdf")
-				.contains("브랜드 가이드");
+		assertThat(context.evidenceItems()).isEmpty();
+		assertThat(context.promptBlock()).isBlank();
+	}
+
+	@Test
+	void documentOverviewQuestionUsesRepresentativeChunksFromMatchedTitle() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"05_공공도서관_좌석대출_요구명세서_예시.pdf"
+		);
+		ResourceSearchHit representativeHit = hitWithoutOriginalName(
+				resourceId,
+				"본 문서는 공공도서관 좌석 예약과 도서 대출 서비스의 요구사항을 정의한다.",
+				1.0D
+		);
+		String cleanedQuery = "공공도서관 핵심적인";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResourceKeywords(
+				eq(userId),
+				eq(roomId),
+				eq(List.of(resourceId)),
+				any(),
+				eq(15)
+		)).thenReturn(List.of());
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 15))
+				.thenReturn(List.of(representativeHit));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 공공도서관 문서에서 핵심적인 내용을 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("pageNumber")).isEqualTo(2);
+		assertThat(context.evidenceItems().getFirst().metadata().get("startLine")).isEqualTo(10);
+		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
+		assertThat(context.evidenceItems().getFirst().metadata().get("quote").toString())
+				.contains("공공도서관 좌석 예약");
+	}
+
+	@Test
+	void documentContentQuestionUsesSemanticKeywordFallbackForCitableChunk() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"05_공공도서관_좌석대출_요구명세서_예시.pdf"
+		);
+		String cleanedQuery = "데이터 요구사항 있는가";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedKeywords(
+				eq(userId),
+				eq(roomId),
+				any(),
+				eq(5)
+		)).thenReturn(List.of(hitWithoutOriginalName(
+				resourceId,
+				"주요 데이터 요구사항에는 사용자 정보, 도서 정보, 대출 정보, 좌석 예약 정보가 포함된다.",
+				0.67D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 데이터 요구사항에 주요 데이터에는 어떤 내용이 있는가?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("pageNumber")).isEqualTo(2);
+		assertThat(context.evidenceItems().getFirst().metadata().get("startLine")).isEqualTo(10);
+		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
+		assertThat(context.evidenceItems().getFirst().metadata().get("quote").toString())
+				.contains("주요 데이터 요구사항");
+	}
+
+	@Test
+	void preciseDocumentLocationQuestionDoesNotFallbackToTitleSummary() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"01_업무관리_프로젝트룸_요구명세서_예시.pdf"
+		);
+		ResourceSummaryResult summary = resourceSummary(
+				resourceId,
+				"{\"summary\":\"프로젝트 일정 관리 기능이 필요합니다.\"}"
+		);
+		String cleanedQuery = "업무관리 프로젝트 일정 관리";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+				.thenReturn(List.of());
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(userId, resourceId))
+				.thenReturn(Optional.of(summary));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 업무관리 문서에서 프로젝트 일정 관리 내용은 어디에 있어?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.evidenceItems()).isEmpty();
+		assertThat(context.promptBlock()).isBlank();
+	}
+
+	@Test
+	void preciseDocumentLocationQuestionUsesKeywordChunkFallbackWhenVectorSearchMisses() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"01_업무관리_프로젝트룸_요구명세서_예시.pdf"
+		);
+		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResourceKeywords(
+				userId,
+				roomId,
+				List.of(resourceId),
+				List.of("업무관리", "프로젝트", "일정", "진행", "상황"),
+				15
+		)).thenReturn(List.of(hitWithoutOriginalName(
+				resourceId,
+				"프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
+				0.8D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 업무관리 문서에서 프로젝트 일정 및 진행 상황 관리에 대한 내용은 어디에있어?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.promptBlock()).contains("프로젝트 일정 및 진행 상황 관리 기능");
+	}
+
+	@Test
+	void requirementIdQuestionUsesRoomKeywordChunkSearchWithoutTitleMatch() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"05_공공도서관_좌석대출_요구명세서_예시.pdf"
+		);
+		String cleanedQuery = "req-lb-004 req lb 004";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedKeywords(
+				userId,
+				roomId,
+				List.of("req-lb-004", "req", "lb", "004"),
+				5
+		)).thenReturn(List.of(hitWithoutOriginalName(
+				resourceId,
+				"REQ-LB-004 프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
+				1.0D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"REQ-LB-004 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.promptBlock()).contains("REQ-LB-004 프로젝트 일정 및 진행 상황 관리 기능");
+	}
+
+	@Test
+	void requirementIdQuestionWithAttachedKoreanTextPreservesExactIdKeyword() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"05_공공도서관_좌석대출_요구명세서_예시.pdf"
+		);
+
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId),
+				any(String.class), eq(5)))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedKeywords(
+				userId,
+				roomId,
+				List.of("req-lb-007", "req", "lb", "007", "공공도서관"),
+				5
+		)).thenReturn(List.of(hitWithoutOriginalName(
+				resourceId,
+				"REQ-LB-007 좌석 예약 현황 확인 기능을 제공한다.",
+				0.8D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 공공도서관 문서에서 REQ-LB-007해당 기능은 어떤 것을 말하는거야?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.promptBlock()).contains("REQ-LB-007 좌석 예약 현황 확인 기능");
+	}
+
+	@Test
+	void failedTitleMatchedDocumentWithoutSummaryIsNotGroundingEvidence() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"01_업무관리_프로젝트룸_요구명세서_예시.pdf",
+				ResourceStatus.FAILED
+		);
+
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId),
+				any(String.class), eq(5)))
+				.thenReturn(List.of());
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(userId, resourceId))
+				.thenReturn(Optional.empty());
+		when(resourcePublicService.getRecentRoomSummaries(userId, roomId, 5))
+				.thenReturn(List.of());
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 업무관리 문서에서 프로젝트 일정 및 진행 상황 관리에 대한 내용은 어디에있어?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.promptBlock()).isBlank();
 	}
 
 	@Test
@@ -154,7 +532,7 @@ class ProjectRoomGroundingServiceTest {
 		var context = new ProjectRoomGroundingService(
 				searchService,
 				resourcePublicService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -172,6 +550,64 @@ class ProjectRoomGroundingServiceTest {
 		assertThat(context.promptBlock())
 				.contains("김서연 UI/UX 디자인 계약서")
 				.doesNotContain("이준호 프론트엔드 개발 계약서");
+	}
+
+	@Test
+	void titleScopedSemanticSearchFindsMatchedDocumentWhenGlobalSearchMissesIt() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID targetResourceId = UUID.randomUUID();
+		UUID otherResourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult targetResource = resource(
+				targetResourceId,
+				userId,
+				roomId,
+				"01_업무관리_프로젝트룸_요구명세서_예시.pdf"
+		);
+		ResourceResult otherResource = resource(
+				otherResourceId,
+				userId,
+				roomId,
+				"05_공공도서관_좌석대출_요구명세서_예시.pdf"
+		);
+		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+				.thenReturn(List.of(hit(otherResourceId, "공공도서관 좌석 예약 기능", 0.93D)));
+		when(searchService.searchRoomSharedResources(
+				userId,
+				roomId,
+				List.of(targetResourceId),
+				cleanedQuery,
+				15
+		)).thenReturn(List.of(hitWithoutOriginalName(
+				targetResourceId,
+				"프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
+				0.58D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(targetResource, otherResource));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+		when(resourcePublicService.getReadableResource(userId, targetResourceId))
+				.thenReturn(targetResource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 업무관리 문서에서 프로젝트 일정 및 진행 상황 관리에 대한 내용은 어디에있어?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(targetResourceId);
+		assertThat(context.ragHits()).extracting(ResourceSearchHit::resourceId).containsExactly(targetResourceId);
+		assertThat(context.promptBlock())
+				.contains("프로젝트 일정 및 진행 상황 관리 기능")
+				.doesNotContain("공공도서관 좌석 예약 기능");
 	}
 
 	@Test
@@ -397,7 +833,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				searchService,
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -409,7 +845,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -421,7 +857,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				mock(TaskPublicService.class),
 				wbsItemPublicService,
 				mock(SchedulePublicService.class),
@@ -433,7 +869,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
@@ -445,7 +881,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -460,7 +896,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
@@ -475,7 +911,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				searchService,
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -490,7 +926,7 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				searchService,
 				resourcePublicService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -515,7 +951,34 @@ class ProjectRoomGroundingServiceTest {
 		);
 	}
 
+	private ResourceSearchHit hitWithoutOriginalName(UUID resourceId, String chunkText, double similarityScore) {
+		return new ResourceSearchHit(
+				UUID.randomUUID(),
+				resourceId,
+				0,
+				chunkText,
+				2,
+				10,
+				12,
+				120,
+				260,
+				null,
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260}",
+				similarityScore
+		);
+	}
+
 	private ResourceResult resource(UUID resourceId, UUID userId, UUID roomId, String title) {
+		return resource(resourceId, userId, roomId, title, ResourceStatus.READY);
+	}
+
+	private ResourceResult resource(
+			UUID resourceId,
+			UUID userId,
+			UUID roomId,
+			String title,
+			ResourceStatus status
+	) {
 		return new ResourceResult(
 				resourceId,
 				userId,
@@ -523,7 +986,7 @@ class ProjectRoomGroundingServiceTest {
 				title,
 				ResourceKind.FILE,
 				ResourceVisibility.ROOM_SHARED,
-				ResourceStatus.READY,
+				status,
 				Instant.parse("2026-07-01T01:00:00Z"),
 				Instant.parse("2026-07-01T01:00:00Z")
 		);

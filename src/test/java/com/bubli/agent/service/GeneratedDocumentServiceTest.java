@@ -140,6 +140,57 @@ class GeneratedDocumentServiceTest {
     }
 
     @Test
+    void deletesOwnedGeneratedDocument() {
+        GeneratedDocumentRepository repository = mock(GeneratedDocumentRepository.class);
+        UUID userId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        GeneratedDocument document = GeneratedDocument.create(
+                userId,
+                null,
+                UUID.randomUUID(),
+                null,
+                "draft",
+                "GENERAL",
+                "# Draft",
+                Map.of()
+        );
+        ReflectionTestUtils.setField(document, "id", documentId);
+        when(repository.findById(documentId)).thenReturn(Optional.of(document));
+
+        new GeneratedDocumentService(repository, mock(ProjectMembershipPublicService.class))
+                .delete(userId, documentId);
+
+        verify(repository).delete(document);
+    }
+
+    @Test
+    void deletesRoomGeneratedDocumentAfterMembershipCheck() {
+        GeneratedDocumentRepository repository = mock(GeneratedDocumentRepository.class);
+        ProjectMembershipPublicService membershipService = mock(ProjectMembershipPublicService.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        GeneratedDocument document = GeneratedDocument.create(
+                UUID.randomUUID(),
+                roomId,
+                UUID.randomUUID(),
+                null,
+                "room draft",
+                "GENERAL",
+                "# Draft",
+                Map.of()
+        );
+        ReflectionTestUtils.setField(document, "id", documentId);
+        when(repository.findById(documentId)).thenReturn(Optional.of(document));
+
+        new GeneratedDocumentService(repository, membershipService)
+                .delete(userId, documentId);
+
+        verify(membershipService).assertActiveMember(userId, roomId);
+        verify(repository).delete(document);
+    }
+
+    @Test
     void responseIncludesDownloadUrls() {
         GeneratedDocument document = GeneratedDocument.create(
                 UUID.randomUUID(),

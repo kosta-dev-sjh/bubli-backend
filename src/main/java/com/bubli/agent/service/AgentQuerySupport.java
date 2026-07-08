@@ -3,8 +3,13 @@ package com.bubli.agent.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class AgentQuerySupport {
+
+	private static final Pattern REQUIREMENT_IDENTIFIER_PATTERN =
+			Pattern.compile("req[-_\\s]*[a-z0-9]+[-_\\s]*\\d{2,}", Pattern.CASE_INSENSITIVE);
 
 	enum WorkStateIntent {
 		ACTIVE,
@@ -21,6 +26,18 @@ final class AgentQuerySupport {
 			"document", "file", "resource", "material"
 	);
 
+	private static final List<String> SEARCH_QUERY_STOPWORDS = List.of(
+			"bubli", "파일", "문서", "자료", "내용", "대한", "대해", "대해서", "어디", "어디에", "어디에있어",
+			"어디있어", "있는지", "있어", "나와", "나오는", "부분", "위치", "몇", "몇번째", "페이지", "쪽",
+			"행", "줄", "시작", "끝", "원문", "인용", "출처", "근거", "문장", "확인", "찾아", "찾아줘",
+			"알려", "알려줘", "보여", "보여줘", "설명", "설명해줘", "요약", "요약해줘", "후보", "만들어",
+			"만들어줘", "생성", "생성해줘", "초안", "바탕", "기반", "기준", "토대로", "보고", "pdf",
+			"where", "which", "what", "page", "line", "quote", "citation", "source", "evidence",
+			"show", "tell", "find", "summarize", "summary", "based", "from", "using", "document", "file",
+			"資料", "文書", "ファイル", "内容", "どこ", "何ページ", "ページ", "行", "引用", "出典",
+			"根拠", "原文", "教えて", "探して", "要約", "基準", "もと", "基づ"
+	);
+
 	private AgentQuerySupport() {
 	}
 
@@ -29,20 +46,36 @@ final class AgentQuerySupport {
 	}
 
 	static String searchQuery(String value) {
-		List<ResourceToken> tokens = resourceTokens(value);
-		if (tokens.isEmpty()) {
+		List<String> requirementIdentifiers = requirementIdentifiers(value);
+		List<String> queryTokens = resourceTokens(value).stream()
+				.map(ResourceToken::value)
+				.map(AgentQuerySupport::normalizeSearchToken)
+				.filter(token -> token.length() >= 2 && !isSearchQueryStopword(token))
+				.distinct()
+				.toList();
+		List<String> mergedTokens = new ArrayList<>();
+		for (String identifier : requirementIdentifiers) {
+			if (!mergedTokens.contains(identifier)) {
+				mergedTokens.add(identifier);
+			}
+		}
+		for (String token : queryTokens) {
+			if (!mergedTokens.contains(token)) {
+				mergedTokens.add(token);
+			}
+		}
+		if (mergedTokens.isEmpty()) {
 			String normalized = compactResourceText(value);
 			return normalized.isBlank() ? nullToEmpty(value).trim() : normalized;
 		}
-		return tokens.stream()
-				.map(ResourceToken::value)
-				.distinct()
-				.reduce((left, right) -> left + " " + right)
-				.orElse(nullToEmpty(value).trim());
+		return String.join(" ", mergedTokens);
 	}
 
 	static boolean isDocumentSourceRequest(String value) {
 		String normalized = normalize(value);
+		if (hasRequirementIdentifier(normalized)) {
+			return true;
+		}
 		if (containsAny(normalized,
 				"문서", "자료", "파일", "요구사항", "요구 명세", "요구명세", "명세서", "계약", "계약서",
 				"회의록", "제안서", "보고서", "pdf", "resource", "document", "file", "contract",
@@ -90,6 +123,37 @@ final class AgentQuerySupport {
 		return containsAny(normalized, "기준", "바탕", "기반", "보고", "토대로", "현재", "기존", "미완료", "완료",
 				"목록", "정리", "참고", "based on", "from", "using", "current", "existing", "基準", "もと",
 				"基づ", "見て", "現在", "既存", "未完了", "一覧");
+	}
+
+	static boolean hasPreciseDocumentGroundingIntent(String value) {
+		String normalized = normalize(value);
+		return containsAny(normalized,
+				"어디", "몇 페이지", "몇페이지", "몇 번째", "몇번째", "몇 줄", "몇줄", "행", "라인",
+				"원문", "인용", "출처", "근거", "근거 문장", "문장", "찾아", "확인",
+				"where", "page", "line", "quote", "citation", "source", "evidence",
+				"どこ", "何ページ", "ページ", "行", "引用", "出典", "根拠", "原文");
+	}
+
+	static boolean requiresSemanticDocumentEvidence(String value) {
+		String normalized = normalize(value);
+		return hasPreciseDocumentGroundingIntent(normalized)
+				|| hasRequirementIdentifier(normalized)
+				|| containsAny(normalized,
+				"내용", "핵심", "요약", "정리", "분석", "설명", "주요", "데이터", "요구사항", "요구 명세",
+				"요구명세", "명세", "기능", "무엇", "뭐", "어떤", "무슨", "말하는", "포함", "있는가",
+				"나와", "나오는",
+				"summary", "summarize", "summarise", "content", "key point", "main point", "explain",
+				"data", "requirement", "requirements", "feature", "include", "contain", "means",
+				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ",
+				"説明", "データ", "要件", "機能", "含む", "何", "どんな", "どの");
+	}
+
+	static boolean isDocumentOverviewRequest(String value) {
+		String normalized = normalize(value);
+		return containsAny(normalized,
+				"핵심", "요약", "주요 내용", "주요내용", "전체 내용", "전체내용", "어떤 내용", "무슨 내용",
+				"개요", "정리", "summary", "summarize", "summarise", "overview", "key point", "main point",
+				"内容", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ");
 	}
 
 	static WorkStateIntent workStateIntent(String value) {
@@ -195,6 +259,44 @@ final class AgentQuerySupport {
 
 	private static boolean isResourceStopword(String token) {
 		return COMMAND_STOPWORDS.contains(token);
+	}
+
+	private static boolean isSearchQueryStopword(String token) {
+		return COMMAND_STOPWORDS.contains(token) || SEARCH_QUERY_STOPWORDS.contains(token);
+	}
+
+	static boolean hasRequirementIdentifier(String value) {
+		return !requirementIdentifiers(value).isEmpty();
+	}
+
+	static List<String> requirementIdentifiers(String value) {
+		String normalized = normalize(value);
+		if (normalized.isBlank()) {
+			return List.of();
+		}
+		List<String> identifiers = new ArrayList<>();
+		Matcher matcher = REQUIREMENT_IDENTIFIER_PATTERN.matcher(normalized);
+		while (matcher.find()) {
+			String identifier = matcher.group()
+					.replaceAll("[_\\s]+", "-")
+					.replaceAll("-+", "-");
+			if (!identifiers.contains(identifier)) {
+				identifiers.add(identifier);
+			}
+		}
+		return identifiers;
+	}
+
+	private static String normalizeSearchToken(String token) {
+		String normalized = nullToEmpty(token).trim();
+		for (String suffix : List.of("에서는", "에서", "으로는", "으로", "로는", "에는", "에게", "한테",
+				"까지", "부터", "보다", "처럼", "은", "는", "이", "가", "을", "를", "에", "의", "도", "만",
+				"와", "과", "로")) {
+			if (normalized.length() > suffix.length() + 1 && normalized.endsWith(suffix)) {
+				return normalized.substring(0, normalized.length() - suffix.length());
+			}
+		}
+		return normalized;
 	}
 
 	private static String cleanupSuggestionLine(String line) {

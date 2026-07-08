@@ -70,6 +70,123 @@ public class ResourceSemanticSearchPublicService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ResourceSearchHit> searchRoomSharedResources(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            String query,
+            Integer topK
+    ) {
+        require(userId, "userId");
+        require(roomId, "roomId");
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return List.of();
+        }
+        String normalizedQuery = requireText(query, "query");
+        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
+        if (embeddingModel == null) {
+            throw new IllegalStateException("EmbeddingModel is not available. Enable the ai profile to search resources.");
+        }
+        projectRoomAccessService.requireRoomMember(roomId, userId);
+        String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(embeddingModel.embed(normalizedQuery));
+        return resourceEmbeddingRepository.searchRoomSharedByResourceIds(
+                        roomId,
+                        resourceIds.stream().distinct().toList(),
+                        queryEmbedding,
+                        normalizeTopK(topK)
+                )
+                .stream()
+                .map(this::toHit)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResourceSearchHit> searchRoomSharedResourceKeywords(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            List<String> keywords,
+            Integer topK
+    ) {
+        require(userId, "userId");
+        require(roomId, "roomId");
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalizedKeywords = normalizeKeywords(keywords);
+        if (normalizedKeywords.isEmpty()) {
+            return List.of();
+        }
+        projectRoomAccessService.requireRoomMember(roomId, userId);
+        return resourceEmbeddingRepository.searchRoomSharedByResourceIdsAndKeywords(
+                        roomId,
+                        resourceIds.stream().distinct().toList(),
+                        keyword(normalizedKeywords, 0),
+                        keyword(normalizedKeywords, 1),
+                        keyword(normalizedKeywords, 2),
+                        keyword(normalizedKeywords, 3),
+                        keyword(normalizedKeywords, 4),
+                        normalizedKeywords.size(),
+                        normalizeTopK(topK)
+                )
+                .stream()
+                .map(this::toHit)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResourceSearchHit> searchRoomSharedKeywords(
+            UUID userId,
+            UUID roomId,
+            List<String> keywords,
+            Integer topK
+    ) {
+        require(userId, "userId");
+        require(roomId, "roomId");
+        List<String> normalizedKeywords = normalizeKeywords(keywords);
+        if (normalizedKeywords.isEmpty()) {
+            return List.of();
+        }
+        projectRoomAccessService.requireRoomMember(roomId, userId);
+        return resourceEmbeddingRepository.searchRoomSharedByKeywords(
+                        roomId,
+                        keyword(normalizedKeywords, 0),
+                        keyword(normalizedKeywords, 1),
+                        keyword(normalizedKeywords, 2),
+                        keyword(normalizedKeywords, 3),
+                        keyword(normalizedKeywords, 4),
+                        normalizedKeywords.size(),
+                        normalizeTopK(topK)
+                )
+                .stream()
+                .map(this::toHit)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResourceSearchHit> loadRoomSharedResourceChunks(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            Integer topK
+    ) {
+        require(userId, "userId");
+        require(roomId, "roomId");
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return List.of();
+        }
+        projectRoomAccessService.requireRoomMember(roomId, userId);
+        return resourceEmbeddingRepository.findRoomSharedRepresentativeChunks(
+                        roomId,
+                        resourceIds.stream().distinct().toList(),
+                        normalizeTopK(topK)
+                )
+                .stream()
+                .map(this::toHit)
+                .toList();
+    }
+
     private ResourceSearchHit toHit(ResourceEmbeddingSearchRow row) {
         Map<String, Object> metadata = metadata(row.getChunkMetadata());
         return new ResourceSearchHit(
@@ -124,6 +241,24 @@ public class ResourceSemanticSearchPublicService {
             return 1;
         }
         return Math.min(topK, MAX_TOP_K);
+    }
+
+    private List<String> normalizeKeywords(List<String> keywords) {
+        if (keywords == null) {
+            return List.of();
+        }
+        return keywords.stream()
+                .filter(keyword -> keyword != null && !keyword.isBlank())
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .filter(keyword -> keyword.length() >= 2)
+                .distinct()
+                .limit(5)
+                .toList();
+    }
+
+    private String keyword(List<String> keywords, int index) {
+        return index < keywords.size() ? keywords.get(index) : "";
     }
 
     private static <T> T require(T value, String field) {

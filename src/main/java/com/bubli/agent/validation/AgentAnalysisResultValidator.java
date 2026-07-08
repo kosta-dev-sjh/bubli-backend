@@ -102,6 +102,20 @@ public class AgentAnalysisResultValidator {
                         errors
                 );
             }
+            case DOCUMENT_DRAFT -> {
+                requireText(
+                        suggestion.title(),
+                        path + ".title",
+                        "DOCUMENT_DRAFT 제안에는 title이 필요합니다.",
+                        errors
+                );
+                requireText(
+                        suggestion.contentMarkdown(),
+                        path + ".contentMarkdown",
+                        "DOCUMENT_DRAFT 제안에는 contentMarkdown이 필요합니다.",
+                        errors
+                );
+            }
         }
     }
 

@@ -77,6 +77,34 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
+	void ungroundedDocumentQuestionMarksNoRelevantDocument() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				ProjectRoomGroundingContext.ungrounded(),
+				chatModel
+		).execute(userId, roomId, "/bubli 계약서 내용 알려줘", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		assertThat(response.message().body().get("missingInfo").get(0).asText())
+				.isEqualTo("NO_RELEVANT_DOCUMENT");
+	}
+
+	@Test
 	void returnsLocalizedNoAnswer() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -193,6 +221,50 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
+	void titlelessDocumentEvidenceIsExcludedFromCitations() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+		ProjectRoomGroundingEvidence evidence = new ProjectRoomGroundingEvidence(
+				ProjectRoomGroundingSourceType.DOCUMENT,
+				resourceId,
+				Map.of(
+						"retrievalMode", "SEMANTIC",
+						"chunkIndex", 0,
+						"quote", "계약서 본문"
+				)
+		);
+		ProjectRoomGroundingContext context = new ProjectRoomGroundingContext(
+				true,
+				List.of(),
+				0.0D,
+				List.of(evidence),
+				"[DOCUMENT]\nchunkText=\n계약서 본문"
+		);
+
+		when(chatModel.call(any(String.class))).thenReturn("계약서 답변입니다.");
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				context,
+				chatModel
+		).execute(userId, roomId, "/bubli 계약서 내용 알려줘", AgentCommandMode.ANSWER, List.of());
+
+		assertThat(response.message().body().get("citations").size()).isZero();
+	}
+
+	@Test
 	void suggestModeWithoutGroundingDoesNotCreateSuggestion() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -283,6 +355,12 @@ class ProjectRoomAgentCommandServiceTest {
 		);
 		assertThat(response.suggestions()).hasSize(1);
 		assertThat(response.message().body().get("scheduleIds").get(0).asText()).isEqualTo(scheduleId.toString());
+		assertThat(response.message().body().get("citations").get(0).get("sourceType").asText())
+				.isEqualTo("SCHEDULE");
+		assertThat(response.message().body().get("citations").get(0).get("retrievalMode").asText())
+				.isEqualTo("MANAGEMENT_CONTEXT");
+		assertThat(response.message().body().get("citations").get(0).get("title").asText())
+				.isEqualTo("source");
 	}
 
 	@Test
@@ -419,6 +497,42 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
+	void ambiguousResourceRequestAsksClarificationWithoutGroundingOrLlm() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ProjectRoomGroundingService groundingService = mock(ProjectRoomGroundingService.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				ProjectRoomGroundingContext.ungrounded(),
+				chatModel,
+				resourcePublicService,
+				groundingService
+		).execute(userId, roomId, "/bubli 자료 알려줘", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		verify(resourcePublicService, never()).getRecentRoomResources(any(), any(), anyInt());
+		verify(groundingService, never()).retrieve(any(), any(), any(), any(), any());
+		assertThat(response.message().body().get("text").asText())
+				.isEqualTo("업로드된 파일 목록을 원하시나요, 아니면 특정 파일의 내용을 요약할까요?");
+		assertThat(response.message().body().get("missingInfo").get(0).asText())
+				.isEqualTo("AMBIGUOUS_RESOURCE_INTENT");
+	}
+
+	@Test
 	void koreanResourceContentQuestionUsesGroundingInsteadOfInventory() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -451,6 +565,51 @@ class ProjectRoomAgentCommandServiceTest {
 		verify(resourcePublicService, never()).getRecentRoomResources(any(), any(), anyInt());
 		verify(groundingService).retrieve(eq(userId), eq(roomId), any(String.class), eq("ko-KR"), eq(AgentCommandMode.ANSWER));
 		assertThat(response.message().body().get("text").asText()).isEqualTo("김서연 파일의 핵심 내용 요약입니다.");
+	}
+
+	@Test
+	void requirementIdFeatureQuestionUsesGroundingInsteadOfInventory() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ProjectRoomGroundingService groundingService = mock(ProjectRoomGroundingService.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+		ProjectRoomGroundingContext context = documentContext(
+				resourceId,
+				"REQ-LB-007 좌석 예약 현황 확인 기능을 제공한다."
+		);
+
+		when(chatModel.call(any(String.class))).thenReturn("REQ-LB-007은 좌석 예약 현황 확인 기능입니다.");
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				context,
+				chatModel,
+				resourcePublicService,
+				groundingService
+		).execute(
+				userId,
+				roomId,
+				"/bubli 공공도서관 문서에서 REQ-LB-007해당 기능은 어떤 것을 말하는거야?",
+				AgentCommandMode.ANSWER,
+				List.of()
+		);
+
+		verify(resourcePublicService, never()).getRecentRoomResources(any(), any(), anyInt());
+		verify(groundingService).retrieve(eq(userId), eq(roomId), any(String.class), eq("ko-KR"), eq(AgentCommandMode.ANSWER));
+		assertThat(response.message().body().get("text").asText())
+				.isEqualTo("REQ-LB-007은 좌석 예약 현황 확인 기능입니다.");
 	}
 
 	@Test
@@ -587,7 +746,10 @@ class ProjectRoomAgentCommandServiceTest {
 		ProjectRoomGroundingEvidence evidence = new ProjectRoomGroundingEvidence(
 				sourceType,
 				sourceId,
-				Map.of("title", "source")
+				Map.of(
+						"retrievalMode", "MANAGEMENT_CONTEXT",
+						"title", "source"
+				)
 		);
 		return new ProjectRoomGroundingContext(true, List.of(), 0.0D, List.of(evidence), promptBlock);
 	}
