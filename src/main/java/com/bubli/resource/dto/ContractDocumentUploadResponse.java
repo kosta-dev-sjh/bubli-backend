@@ -10,7 +10,8 @@ public record ContractDocumentUploadResponse(
         UUID resourceId,
         UUID jobId,
         AgentJobStatus status,
-        boolean autoAnalyze
+        boolean autoAnalyze,
+        String downloadUrl
 ) {
 
     public static ContractDocumentUploadResponse of(Resource resource, AgentJobTicket job, boolean autoAnalyze) {
@@ -18,7 +19,8 @@ public record ContractDocumentUploadResponse(
                 resource.getId(),
                 job == null ? null : job.jobId(),
                 job == null ? null : job.status(),
-                autoAnalyze
+                autoAnalyze,
+                "/api/resources/%s/file".formatted(resource.getId())
         );
     }
 }

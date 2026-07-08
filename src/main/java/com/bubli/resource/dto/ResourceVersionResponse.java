@@ -9,12 +9,13 @@ public record ResourceVersionResponse(
 		Integer versionNo,
 		UUID fileId,
 		String storageKey,
-		String originalName,
-		String mimeType,
-		Long sizeBytes,
-		String checksum,
-		UUID createdBy,
-		Instant createdAt
+	String originalName,
+	String mimeType,
+	Long sizeBytes,
+	String checksum,
+	String downloadUrl,
+	UUID createdBy,
+	Instant createdAt
 ) {
 	public static ResourceVersionResponse from(ResourceVersionResult result) {
 		return new ResourceVersionResponse(
@@ -27,6 +28,7 @@ public record ResourceVersionResponse(
 				result.mimeType(),
 				result.sizeBytes(),
 				result.checksum(),
+				"/api/resources/%s/file".formatted(result.resourceId()),
 				result.createdBy(),
 				result.createdAt()
 		);

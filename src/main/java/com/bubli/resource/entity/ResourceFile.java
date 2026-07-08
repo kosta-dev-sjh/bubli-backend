@@ -89,6 +89,15 @@ public class ResourceFile extends BaseTimeEntity {
         return new ResourceFile(resourceId, originalName, mimeType, sizeBytes, storageKey, checksum);
     }
 
+    public void updateMetadata(String originalName, String mimeType, long sizeBytes) {
+        this.originalName = requireText(originalName, "originalName");
+        this.mimeType = requireText(mimeType, "mimeType");
+        if (sizeBytes < 0) {
+            throw new IllegalArgumentException("sizeBytes must not be negative.");
+        }
+        this.sizeBytes = sizeBytes;
+    }
+
     private static <T> T require(T value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " is required.");

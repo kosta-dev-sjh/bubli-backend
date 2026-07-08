@@ -44,7 +44,7 @@ public class GeneratedDocumentService {
     @Transactional(readOnly = true)
     public GeneratedDocumentExportResult exportMarkdown(UUID userId, UUID documentId) {
         GeneratedDocument document = getReadableDocument(userId, documentId);
-        return GeneratedDocumentExportResult.markdown(document.getTitle(), document.getContentMarkdown());
+        return GeneratedDocumentExportResult.markdown(document.getTitle(), exportContentMarkdown(document));
     }
 
     @Transactional(readOnly = true)
@@ -125,6 +125,18 @@ public class GeneratedDocumentService {
     private String contentMarkdown(Map<String, Object> payload) {
         String content = text(payload.get("contentMarkdown"));
         if (content == null) {
+            content = text(payload.get("markdown"));
+        }
+        if (content == null) {
+            content = text(payload.get("draftMarkdown"));
+        }
+        if (content == null) {
+            content = nestedText(payload.get("document"), "contentMarkdown");
+        }
+        if (content == null) {
+            content = nestedText(payload.get("draft"), "contentMarkdown");
+        }
+        if (content == null) {
             content = text(payload.get("content"));
         }
         if (content == null) {
@@ -134,6 +146,30 @@ public class GeneratedDocumentService {
             throw new BusinessException(ErrorCode.AGENT_400_001);
         }
         return content;
+    }
+
+    private String exportContentMarkdown(GeneratedDocument document) {
+        String content = text(document.getContentMarkdown());
+        if (content != null) {
+            return content;
+        }
+        Map<String, Object> metadata = document.getMetadataJson();
+        if (metadata != null) {
+            content = text(metadata.get("contentMarkdown"));
+            if (content == null) {
+                content = text(metadata.get("content"));
+            }
+            if (content == null) {
+                content = text(metadata.get("description"));
+            }
+            if (content == null) {
+                content = text(metadata.get("agentResponse"));
+            }
+        }
+        if (content != null) {
+            return content;
+        }
+        return "# %s".formatted(document.getTitle());
     }
 
     private Map<String, Object> metadata(UUID reviewerId, AgentSuggestion suggestion, Map<String, Object> payload) {
@@ -153,5 +189,12 @@ public class GeneratedDocumentService {
         }
         String text = value.toString().trim();
         return text.isBlank() ? null : text;
+    }
+
+    private String nestedText(Object value, String key) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return text(map.get(key));
     }
 }

@@ -5,12 +5,14 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.personal.notification.dto.NotificationResponse;
 import com.bubli.personal.notification.entity.Notification;
 import com.bubli.personal.notification.repository.NotificationRepository;
+import com.bubli.personal.notification.type.NotificationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -21,7 +23,7 @@ public class NotificationService {
 
 	@Transactional(readOnly = true)
 	public Page<NotificationResponse> getNotifications(UUID userId, Pageable pageable) {
-		return notificationRepository.findAllByUserId(userId, pageable)
+		return notificationRepository.findAllByUserIdAndStatusNot(userId, NotificationStatus.ARCHIVED, pageable)
 				.map(NotificationResponse::from);
 	}
 
@@ -35,6 +37,11 @@ public class NotificationService {
 	public void archiveNotification(UUID userId, UUID notificationId) {
 		Notification notification = getOwnedNotification(userId, notificationId);
 		notification.markAsArchived();
+	}
+
+	@Transactional
+	public void readAllNotifications(UUID userId) {
+		notificationRepository.markAllAsRead(userId, NotificationStatus.UNREAD, NotificationStatus.READ, Instant.now());
 	}
 
 	private Notification getOwnedNotification(UUID userId, UUID notificationId) {

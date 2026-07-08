@@ -17,19 +17,25 @@ public interface ResourcePublicService {
 
 	ResourceResult getReadableResource(UUID userId, UUID resourceId);
 
+	List<ResourceResult> getRecentPersonalResources(UUID userId, int limit);
+
+	List<ResourceResult> getRecentRoomResources(UUID userId, UUID roomId, int limit);
+
 	List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit);
 
 	List<ResourceAnalysisSummaryResult> getRecentAnalysisSummaries(UUID userId, int limit);
 
 	Optional<ResourceSummaryResult> findResourceSummary(UUID userId, UUID resourceId);
 
+	Optional<String> findAnalysisNotificationPreview(UUID jobId);
+
 	Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords);
 
 	Optional<ResourceResult> findLatestRoomFile(UUID userId, UUID roomId);
 
-	ResourceResult createPersonalResource(UUID userId, String title);
+	ResourceResult createPersonalLocalFileResource(UUID userId, String title, Long sizeBytes, String mimeType);
 
-	ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title);
+	ResourceResult updatePersonalLocalFileResource(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType);
 
 	ResourceResult startAnalysis(UUID userId, UUID resourceId);
 

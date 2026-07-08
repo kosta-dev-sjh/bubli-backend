@@ -2,7 +2,9 @@ package com.bubli.chat.service;
 
 import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
+import com.bubli.chat.repository.ChatRoomRepository;
 import com.bubli.chat.type.ChatMemberStatus;
+import com.bubli.chat.type.ChatType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import java.util.UUID;
 public class ChatRoomAccessPublicServiceImpl implements ChatRoomAccessPublicService {
 
     private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final ChatRoomRepository chatRoomRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -38,5 +41,13 @@ public class ChatRoomAccessPublicServiceImpl implements ChatRoomAccessPublicServ
                 .stream()
                 .map(ChatRoomMember::getUserId)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isDirectChatRoom(UUID chatRoomId) {
+        return chatRoomRepository.findById(chatRoomId)
+                .map(chatRoom -> chatRoom.getChatType() == ChatType.DIRECT)
+                .orElse(false);
     }
 }

@@ -9,6 +9,7 @@ import com.bubli.global.locale.SupportedLocale;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.project.service.ProjectRoomEventPublicService;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -35,6 +37,7 @@ public class AgentJobExecutionResultRecorder {
     private final AgentJobEventRepository agentJobEventRepository;
     private final NotificationPublicService notificationPublicService;
     private final ProjectRoomEventPublicService projectRoomEventPublicService;
+    private final ResourcePublicService resourcePublicService;
     private final MessageSource messageSource;
     private final UserLocalePublicService userLocalePublicService;
 
@@ -154,6 +157,10 @@ public class AgentJobExecutionResultRecorder {
     }
 
     private String notificationBody(AgentJob agentJob, String message, Locale locale) {
+        Optional<String> analysisPreview = analysisNotificationPreview(agentJob);
+        if (analysisPreview.isPresent()) {
+            return analysisPreview.get();
+        }
         return messageSource.getMessage(
                 "agent.job.notification.body",
                 new Object[]{agentJob.getJobType(), agentJob.getId(), message},
@@ -164,6 +171,13 @@ public class AgentJobExecutionResultRecorder {
                 ),
                 locale
         );
+    }
+
+    private Optional<String> analysisNotificationPreview(AgentJob agentJob) {
+        if (agentJob.getResourceId() == null) {
+            return Optional.empty();
+        }
+        return resourcePublicService.findAnalysisNotificationPreview(agentJob.getId());
     }
 
     private Locale locale(UUID userId) {

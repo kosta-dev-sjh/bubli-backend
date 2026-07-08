@@ -10,6 +10,7 @@ import com.bubli.chat.type.ChatType;
 import com.bubli.chat.type.MessageType;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.personal.notification.repository.NotificationRepository;
 import com.bubli.support.PostgresIntegrationTestSupport;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
@@ -52,6 +53,9 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	@Autowired
 	ChatMessageRepository chatMessageRepository;
 
+	@Autowired
+	NotificationRepository notificationRepository;
+
 	@BeforeEach
 	void setUp() {
 		cleanup();
@@ -63,6 +67,7 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	private void cleanup() {
+		notificationRepository.deleteAll();
 		chatRoomMemberRepository.deleteAll();
 		chatMessageRepository.deleteAll();
 		chatRoomRepository.deleteAll();

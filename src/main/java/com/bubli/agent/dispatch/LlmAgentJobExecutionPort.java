@@ -262,8 +262,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "description": "field meaning",
 				      "sourceText": "short evidence text from the document",
 				      "confidence": 0.0,
-				      "fieldKey": "field_key",
-				      "value": "extracted value"
+				      "fieldKey": "contract_amount",
+				      "value": "1500000"
 				    }
 				  ]
 				}
@@ -272,6 +272,7 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- Use REVIEW_ITEM for review actions.
 				- Use QUESTION for missing or ambiguous information.
 				- Use CONTRACT_FIELD only when a concrete field value exists; fieldKey and value are required.
+				- For CONTRACT_FIELD, prefer these standard fieldKey values when the field matches: contract_amount (total contract or estimate amount, digits only, no currency symbol or thousands separators), payment_due_date (expected payment date as YYYY-MM-DD), payment_date (actual paid date as YYYY-MM-DD), client_name (client or company name), project_name, contract_period, deliverable. Use a concise lowercase snake_case key for any other field.
 				- Use REQUIREMENT, TASK, or WBS only when the document clearly implies them.
 				- For TASK, you may include assigneeUserId, wbsItemId, status(TODO/IN_PROGRESS/REVIEW/DONE/BLOCKED), dueAt.
 				- For WBS, you may include parentId, orderNo, status(TODO/IN_PROGRESS/DONE), scheduleTitle, startsAt, dueAt, endsAt, allDay.
@@ -371,7 +372,9 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				      "confidence": 0.0,
 				      "startsAt": "optional ISO-8601 UTC instant for WBS or schedule-like work",
 				      "dueAt": "optional ISO-8601 UTC due date/time for TASK or WBS",
-				      "endsAt": "optional ISO-8601 UTC end time for WBS schedule"
+				      "endsAt": "optional ISO-8601 UTC end time for WBS schedule",
+				      "documentType": "required for DOCUMENT_DRAFT. One of PROJECT_BRIEF, CLARIFICATION_ITEMS, CLIENT_QUESTIONS, MEETING_NOTE, WBS_TODO_PLAN",
+				      "contentMarkdown": "required for DOCUMENT_DRAFT. Full Markdown draft body"
 				    }
 				  ]
 				}
@@ -382,7 +385,13 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 				- GENERATE_WBS: propose one WBS work item. Include scheduleTitle, startsAt/dueAt, endsAt, and allDay only when the request or context has a concrete date/time.
 				- GENERATE_QUESTIONS: propose one clarification question.
 				- REVIEW_CONTRACT_DOCUMENTS: propose one document review item.
-				- DRAFT_DOCUMENT: propose a document draft outline.
+				- DRAFT_DOCUMENT: propose one freelancer-facing document draft, not a decorative document. Put the full Markdown body in contentMarkdown.
+				  Preferred documentType values:
+				  PROJECT_BRIEF: project purpose, scope, deliverables, due dates, client, references, items to confirm.
+				  CLARIFICATION_ITEMS: conflicting or missing statements across documents. Do not make legal judgments; phrase them as items to confirm.
+				  CLIENT_QUESTIONS: client-ready questions or message text based on unclear items.
+				  MEETING_NOTE: decisions, action items, changed requirements, and next questions.
+				  WBS_TODO_PLAN: high-level work, detailed tasks, owner, deadline, and evidence. Approval may later split this into WBS/TODO candidates.
 				- DAILY_SUMMARY: propose a daily summary draft using only the target date context. The description must contain JSON-like fields: summaryDate, timezone, done, remaining, todaySchedules, tomorrowFocus, risks, evidence. Do not include private raw source text beyond the provided concise evidence labels.
 
 				Job context:
@@ -445,6 +454,8 @@ public class LlmAgentJobExecutionPort implements AgentJobExecutionPort {
 		putIfPresent(payload, "endsAt", suggestion.endsAt());
 		putIfPresent(payload, "allDay", suggestion.allDay());
 		putIfPresent(payload, "scheduleTitle", suggestion.scheduleTitle());
+		putIfPresent(payload, "documentType", suggestion.documentType());
+		putIfPresent(payload, "contentMarkdown", suggestion.contentMarkdown());
 		payload.put("jobType", message.jobType().name());
 		payload.put("roomId", value(message.roomId()));
 		payload.put("resourceId", value(message.resourceId()));

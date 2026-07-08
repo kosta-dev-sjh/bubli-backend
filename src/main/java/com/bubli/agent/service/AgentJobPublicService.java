@@ -44,4 +44,8 @@ public class AgentJobPublicService {
         ));
         return result;
     }
+
+    public AgentJobResult findAnalyzeResourceJobByIdempotencyKey(UUID requestedByUserId, String idempotencyKey) {
+        return agentJobService.findAnalyzeResourceJobByIdempotencyKey(requestedByUserId, idempotencyKey);
+    }
 }

@@ -1,12 +1,11 @@
 package com.bubli.agent.service;
 
-import com.bubli.agent.dispatch.AgentJobQueueMessage;
-import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.dto.AgentSuggestionResponse;
+import com.bubli.agent.dto.ProjectRoomGroundingContext;
 import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
+import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.type.AgentCommandMode;
-import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.chat.dto.ChatMessageResponse;
 import com.bubli.chat.service.ChatMessagePublicService;
@@ -16,38 +15,40 @@ import com.bubli.memory.service.RoomMemoryPublicService;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
 import com.bubli.resource.dto.ResourceResult;
-import com.bubli.resource.dto.ResourceSummaryResult;
+import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProjectRoomAgentCommandService {
 
-	private static final String PROMPT_VERSION = "project-room-agent-command-v1";
+	private static final String PROMPT_VERSION = "project-room-agent-command-project-grounded-v1";
 
 	private final ProjectMembershipPublicService projectMembershipPublicService;
-	private final AgentJobContextCollector contextCollector;
 	private final ChatMessagePublicService chatMessagePublicService;
 	private final RoomMemoryPublicService roomMemoryPublicService;
 	private final AgentSuggestionCommandService agentSuggestionCommandService;
 	private final ProjectRoomEventPublicService projectRoomEventPublicService;
-	private final ResourcePublicService resourcePublicService;
 	private final UserLocalePublicService userLocalePublicService;
+	private final ResourcePublicService resourcePublicService;
+	private final ProjectRoomGroundingService groundingService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
 	private final ObjectMapper objectMapper;
@@ -63,38 +64,59 @@ public class ProjectRoomAgentCommandService {
 		projectMembershipPublicService.assertActiveMember(userId, roomId);
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
-		ResourceLookup resourceLookup = resolveResourceLookup(userId, roomId, message, resourceIds);
-		AgentJobContext context = contextCollector.collect(new AgentJobQueueMessage(
-				UUID.randomUUID(),
-				userId,
-				roomId,
-				resourceIds == null || resourceIds.isEmpty() ? null : resourceIds.getFirst(),
-				AgentJobType.GENERATE_QUESTIONS,
-				Map.of(
-						"source", "PROJECT_ROOM_AGENT_COMMAND",
-						"mode", commandMode.name(),
-						"locale", locale,
-						"message", message,
-						"resourceIds", resourceIds == null ? List.of() : resourceIds
-				),
-				java.time.Instant.now()
-		));
-		String answer = answer(message, commandMode, context, locale, resourceLookup);
+		ResourceInventoryAnswer inventoryAnswer = resourceInventoryAnswer(userId, roomId, message, locale);
+		if (inventoryAnswer != null) {
+			return persistResponse(
+					userId,
+					roomId,
+					message,
+					commandMode,
+					inventoryAnswer.answer(),
+					null,
+					List.of(),
+					ProjectRoomGroundingContext.ungrounded(),
+					inventoryAnswer.resources()
+			);
+		}
+		ProjectRoomGroundingContext groundingContext = groundingService.retrieve(userId, roomId, message, locale, commandMode);
+		AnswerResult answer = answer(message, commandMode, locale, groundingContext);
 		List<AgentSuggestionResponse> suggestions = createSuggestions(
 				userId,
 				roomId,
 				message,
 				commandMode,
-				answer,
-				context,
-				resourceIds,
-				resourceLookup
+				answer.text(),
+				groundingContext
 		);
-		UUID responseResourceId = responseResourceId(resourceIds, resourceLookup.resource());
+		return persistResponse(
+				userId,
+				roomId,
+				message,
+				commandMode,
+				answer.text(),
+				answer.fallbackReason(),
+				suggestions,
+				groundingContext,
+				List.of()
+		);
+	}
+
+	private ProjectRoomAgentCommandResponse persistResponse(
+			UUID userId,
+			UUID roomId,
+			String message,
+			AgentCommandMode commandMode,
+			String answer,
+			String fallbackReason,
+			List<AgentSuggestionResponse> suggestions,
+			ProjectRoomGroundingContext groundingContext,
+			List<ResourceResult> metadataResources
+	) {
+		UUID responseResourceId = metadataResources.isEmpty() ? groundingContext.firstResourceId() : metadataResources.getFirst().id();
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
 				userId,
 				roomId,
-				responseBody(message, commandMode, answer, context, suggestions, resourceLookup),
+				responseBody(message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources),
 				responseResourceId
 		));
 		RoomMemorySummaryContextResult memory = roomMemoryPublicService.createDraft(
@@ -102,203 +124,126 @@ public class ProjectRoomAgentCommandService {
 				roomId,
 				chatMessage.roomSequence(),
 				chatMessage.roomSequence(),
-				memoryJson(message, commandMode, answer, context, suggestions, resourceLookup)
+				memoryJson(message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources)
 		);
 		return new ProjectRoomAgentCommandResponse(chatMessage, memory, suggestions);
 	}
 
-	private ResourceLookup resolveResourceLookup(UUID userId, UUID roomId, String message, List<UUID> resourceIds) {
-		if (resourceIds != null && !resourceIds.isEmpty()) {
-			ResourceResult resource = resourcePublicService.getReadableResource(userId, resourceIds.getFirst());
-			return new ResourceLookup(
-					true,
-					List.of("selected-resource"),
-					Optional.of(resource),
-					resourcePublicService.findResourceSummary(userId, resource.id())
-			);
+	private ResourceInventoryAnswer resourceInventoryAnswer(UUID userId, UUID roomId, String message, String locale) {
+		if (!isResourceInventoryRequest(message)) {
+			return null;
 		}
-		if (isLatestRoomFileRequest(message)) {
-			Optional<ResourceResult> resource = resourcePublicService.findLatestRoomFile(userId, roomId);
-			return lookupWithSummary(userId, List.of("file"), resource);
+		List<ResourceResult> resources = resourcePublicService.getRecentRoomResources(userId, roomId, 10);
+		if (resources.isEmpty()) {
+			return new ResourceInventoryAnswer(resources, noUploadedResourcesAnswer(locale));
 		}
-		List<String> keywords = resourceKeywords(message);
-		if (keywords.isEmpty()) {
-			return ResourceLookup.notRequested();
-		}
-		return lookupWithSummary(userId, keywords, resourcePublicService.findLatestRoomResource(userId, roomId, keywords));
+		return new ResourceInventoryAnswer(resources, uploadedResourcesAnswer(resources, locale));
 	}
 
-	private ResourceLookup lookupWithSummary(UUID userId, List<String> keywords, Optional<ResourceResult> resource) {
-		return new ResourceLookup(
-				true,
-				keywords,
-				resource,
-				resource.flatMap(result -> resourcePublicService.findResourceSummary(userId, result.id()))
-		);
-	}
-
-	private boolean isLatestRoomFileRequest(String message) {
+	private boolean isResourceInventoryRequest(String message) {
 		String normalized = normalize(message);
-		return containsAny(normalized, "최근", "마지막", "최신", "latest", "newest", "last")
-				&& containsAny(normalized, "파일", "업로드", "file", "upload");
+		if (isResourceContentRequest(normalized)) {
+			return false;
+		}
+		return containsAny(normalized, "업로드", "올라온", "파일", "자료", "문서", "resource", "file", "upload",
+				"資料", "文書", "ファイル", "アップロード", "アップロード済み", "登録", "添付")
+				&& containsAny(normalized, "무엇", "뭐", "목록", "리스트", "보여", "알려", "현재", "있", "what", "list",
+				"show", "which", "?", "？", "何", "どんな", "どの", "一覧", "教え", "見せて", "表示", "ある", "あります");
 	}
 
-	private List<String> resourceKeywords(String message) {
-		String normalized = normalize(message);
-		if (containsAny(normalized, "계약", "contract", "agreement", "契約", "契約書")) {
-			return List.of("계약", "contract", "契約");
-		}
-		if (containsAny(normalized, "견적", "estimate", "quotation", "quote", "見積")) {
-			return List.of("견적", "estimate", "見積");
-		}
-		if (containsAny(normalized, "발주", "purchase order", "po", "注文")) {
-			return List.of("발주", "purchase", "注文");
-		}
-		if (containsAny(normalized, "요구사항", "요구", "requirements", "requirement", "要件")) {
-			return List.of("요구사항", "requirement", "要件");
-		}
-		if (containsAny(normalized, "회의록", "회의", "meeting minutes", "minutes", "議事録")) {
-			return List.of("회의록", "meeting", "議事録");
-		}
-		if (containsAny(normalized, "참고자료", "참고", "reference", "参考")) {
-			return List.of("참고", "reference", "参考");
-		}
-		if (containsAny(normalized, "일반자료", "일반", "general", "一般")) {
-			return List.of("일반", "general", "general");
-		}
-		if (containsAny(normalized, "자료", "문서", "resource", "document", "file", "資料", "文書", "ファイル")) {
-			return List.of("자료", "document", "資料");
-		}
-		return List.of();
+	private boolean isResourceContentRequest(String normalized) {
+		return containsAny(normalized,
+				"내용", "핵심", "요약", "정리", "분석", "설명", "주요", "무슨 내용", "어떤 내용",
+				"summary", "summarize", "summarise", "content", "key point", "main point", "explain",
+				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ", "説明");
 	}
 
-	private UUID responseResourceId(List<UUID> resourceIds, Optional<ResourceResult> resource) {
-		if (resourceIds != null && !resourceIds.isEmpty()) {
-			return resourceIds.getFirst();
+	private String uploadedResourcesAnswer(List<ResourceResult> resources, String locale) {
+		String lines = resources.stream()
+				.map(resource -> "- %s (%s, %s)".formatted(resource.title(), resource.kind(), resource.status()))
+				.reduce((left, right) -> left + "\n" + right)
+				.orElse("");
+		if ("en-US".equals(locale)) {
+			return "The current project room has these uploaded resources:\n%s".formatted(lines);
 		}
-		return resource.map(ResourceResult::id).orElse(null);
+		if ("ja-JP".equals(locale)) {
+			return "現在のプロジェクトルームにアップロードされている資料は次のとおりです。\n%s".formatted(lines);
+		}
+		return "현재 프로젝트룸에 업로드된 자료는 다음과 같습니다.\n%s".formatted(lines);
 	}
 
-	private String answer(
-			String message,
-			AgentCommandMode mode,
-			AgentJobContext context,
-			String locale,
-			ResourceLookup resourceLookup
-	) {
+	private String noUploadedResourcesAnswer(String locale) {
+		if ("en-US".equals(locale)) {
+			return "No uploaded resources were found in the current project room.";
+		}
+		if ("ja-JP".equals(locale)) {
+			return "現在のプロジェクトルームでアップロード済みの資料は見つかりませんでした。";
+		}
+		return "현재 프로젝트룸에서 업로드된 자료를 찾지 못했습니다.";
+	}
+
+	private AnswerResult answer(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
+		if (!groundingContext.grounded()) {
+			return new AnswerResult(noAnswer(locale), "NO_GROUNDING");
+		}
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
 		if (chatModel == null) {
-			return fallbackAnswer(message, mode, context, locale, resourceLookup);
+			return new AnswerResult(noAnswer(locale), "NO_CHAT_MODEL");
 		}
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
-		String prompt = prompt(message, mode, context, locale, resourceLookup);
-		if (executor == null) {
-			return chatModel.call(prompt);
+		String prompt = prompt(message, mode, locale, groundingContext);
+		try {
+			String rawAnswer;
+			if (executor == null) {
+				rawAnswer = chatModel.call(prompt);
+			} else {
+				rawAnswer = executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
+			}
+			return new AnswerResult(
+					AgentQuerySupport.removeAppendedNoAnswer(rawAnswer, noAnswer(locale)),
+					null
+			);
+		} catch (RuntimeException exception) {
+			log.warn("Project room RAG LLM answer failed.", exception);
+			return new AnswerResult(noAnswer(locale), "LLM_FAILED");
 		}
-		return executor.execute("project-room-agent-command", () -> chatModel.call(prompt));
 	}
 
-	private String prompt(
-			String message,
-			AgentCommandMode mode,
-			AgentJobContext context,
-			String locale,
-			ResourceLookup resourceLookup
-	) {
+	private String prompt(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
 		return """
 				You are Bubli's project room agent. %s
 				Mode: %s
-				Do not invent confirmed facts. Use the provided project context and say what should be checked when context is insufficient.
-				You may answer document questions, extract business facts, or create suggestion candidates such as TODO, TASK, WBS, REQUIREMENT, QUESTION, and REVIEW_ITEM.
-				When a resolved resource summary is provided, ground the answer in that resource first.
-				For SUGGEST mode, produce concrete suggestion candidates requested by the user, not a generic review explanation.
+
+				Use ONLY the project documents and management data listed under "Retrieved project grounding sources".
+				Do not use recent chat history, room memory summaries, user memory, user profile memory, general world knowledge, or assumptions as factual evidence.
+				If at least one retrieved source is relevant, answer from the available evidence even when it is partial.
+				When the evidence is partial, separate confirmed facts from missing or unclear items.
+				Never append the no-answer sentence after a useful partial answer.
+				Use this exact no-answer sentence only when none of the retrieved sources are relevant at all: %s
+				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved sources.
+				For SUGGEST mode, write each candidate on its own short bullet line when multiple candidates are useful.
 				Keep source names and direct evidence in the original language, but write user-facing explanation in the requested response language.
 
 				User message:
 				%s
 
-				Resolved resource context:
+				Retrieved project grounding sources:
 				%s
-
-				Project context:
-				%s
-				""".formatted(languageInstruction(locale), mode, message, resourceContext(resourceLookup), context.promptBlock());
+				""".formatted(
+				languageInstruction(locale),
+				mode,
+				noAnswer(locale),
+				message,
+				groundingContext.promptBlock()
+		);
 	}
 
-	private String resourceContext(ResourceLookup resourceLookup) {
-		if (!resourceLookup.requested()) {
-			return "No explicit latest resource lookup was requested.";
-		}
-		return resourceLookup.resource()
-				.map(resource -> """
-						Resolved resource: id=%s, title=%s, createdAt=%s, keywords=%s
-						Resolved resource summary:
-						%s
-						Resolved resource checklist:
-						%s
-						""".formatted(
-								resource.id(),
-								resource.title(),
-								resource.createdAt(),
-								resourceLookup.keywords(),
-								resourceLookup.summary().map(ResourceSummaryResult::summaryJson).orElse("No summary is available."),
-								resourceLookup.summary().map(ResourceSummaryResult::checklistJson).orElse("No checklist is available.")
-						))
-				.orElse("Latest resource lookup requested but no matching resource was found. keywords=%s"
-						.formatted(resourceLookup.keywords()));
-	}
-
-	private String fallbackAnswer(
-			String message,
-			AgentCommandMode mode,
-			AgentJobContext context,
-			String locale,
-			ResourceLookup resourceLookup
-	) {
-		if (resourceLookup.requested()) {
-			return resourceLookup.resource()
-					.map(resource -> latestResourceFoundAnswer(resource, locale))
-					.orElseGet(() -> latestResourceNotFoundAnswer(locale));
-		}
-		if ("en-US".equals(locale)) {
-			return switch (mode) {
-				case ANSWER -> "I checked the currently collected project context. Request: %s".formatted(message);
-				case SUMMARIZE -> "Current project context summary: %s".formatted(context.promptBlock());
-				case SUGGEST -> "Create a TODO, WBS, requirement, question, or review item from the request and confirm it through the approval flow.";
-			};
-		}
-		if ("ja-JP".equals(locale)) {
-			return switch (mode) {
-				case ANSWER -> "現在収集されているプロジェクト文脈を確認しました。リクエスト: %s".formatted(message);
-				case SUMMARIZE -> "現在のプロジェクト文脈の要約です: %s".formatted(context.promptBlock());
-				case SUGGEST -> "リクエスト内容をもとにTODO、WBS、要件、質問、またはレビュー項目を作成し、承認フローで確定してください。";
-			};
-		}
-		return switch (mode) {
-			case ANSWER -> "현재 수집된 프로젝트 맥락을 기준으로 확인했습니다. 요청: %s".formatted(message);
-			case SUMMARIZE -> "현재 프로젝트 맥락 요약입니다: %s".formatted(context.promptBlock());
-			case SUGGEST -> "요청 내용을 기준으로 TODO, WBS, 요구사항, 질문 또는 검토 항목을 생성하고 승인 흐름에서 확정하세요.";
+	private String noAnswer(String locale) {
+		return switch (locale) {
+			case "en-US" -> "I cannot determine that from the project documents or management data.";
+			case "ja-JP" -> "プロジェクト資料および管理データの範囲では分かりません。";
+			default -> "프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다.";
 		};
-	}
-
-	private String latestResourceFoundAnswer(ResourceResult resource, String locale) {
-		if ("en-US".equals(locale)) {
-			return "The most recent matching resource appears to be \"%s\".".formatted(resource.title());
-		}
-		if ("ja-JP".equals(locale)) {
-			return "最も最近アップロードされた該当資料は「%s」と判断されます。".formatted(resource.title());
-		}
-		return "가장 최근에 올라온 관련 자료는 \"%s\"입니다.".formatted(resource.title());
-	}
-
-	private String latestResourceNotFoundAnswer(String locale) {
-		if ("en-US".equals(locale)) {
-			return "I could not find a matching resource in the current project room.";
-		}
-		if ("ja-JP".equals(locale)) {
-			return "現在のプロジェクトルームで該当する資料を見つけられませんでした。";
-		}
-		return "현재 프로젝트룸에서 조건에 맞는 자료를 찾지 못했습니다.";
 	}
 
 	private String languageInstruction(String locale) {
@@ -315,31 +260,35 @@ public class ProjectRoomAgentCommandService {
 			String message,
 			AgentCommandMode mode,
 			String answer,
-			AgentJobContext context,
-			List<UUID> resourceIds,
-			ResourceLookup resourceLookup
+			ProjectRoomGroundingContext groundingContext
 	) {
-		if (mode != AgentCommandMode.SUGGEST) {
+		if (mode != AgentCommandMode.SUGGEST || !groundingContext.grounded()) {
 			return List.of();
 		}
 		AgentSuggestionType suggestionType = inferSuggestionType(message);
-		UUID suggestionResourceId = responseResourceId(resourceIds, resourceLookup.resource());
-		AgentSuggestionResponse suggestion = agentSuggestionCommandService.createDraft(
-				userId,
-				roomId,
-				null,
-				suggestionResourceId,
-				suggestionType,
-				suggestionPayload(suggestionType, message, answer),
-				suggestionEvidence(context, resourceIds, resourceLookup)
-		);
+		List<String> items = AgentQuerySupport.suggestionItems(answer, noAnswer("ko-KR"), 5);
+		if (items.isEmpty()) {
+			items = List.of(message);
+		}
+		List<AgentSuggestionResponse> suggestions = new ArrayList<>();
+		for (String item : items) {
+			suggestions.add(agentSuggestionCommandService.createDraft(
+					userId,
+					roomId,
+					null,
+					groundingContext.firstResourceId(),
+					suggestionType,
+					suggestionPayload(suggestionType, message, item, answer, groundingContext),
+					suggestionEvidence(groundingContext)
+			));
+		}
 		projectRoomEventPublicService.recordAgentSuggestionsCreated(
 				userId,
 				roomId,
-				List.of(suggestion.suggestionId()),
-				List.of(suggestion.suggestionType().name())
+				suggestions.stream().map(AgentSuggestionResponse::suggestionId).toList(),
+				suggestions.stream().map(suggestion -> suggestion.suggestionType().name()).toList()
 		);
-		return List.of(suggestion);
+		return suggestions;
 	}
 
 	private AgentSuggestionType inferSuggestionType(String message) {
@@ -380,13 +329,22 @@ public class ProjectRoomAgentCommandService {
 		return value == null ? "" : value.toLowerCase(Locale.ROOT);
 	}
 
-	private Map<String, Object> suggestionPayload(AgentSuggestionType suggestionType, String message, String answer) {
+	private Map<String, Object> suggestionPayload(
+			AgentSuggestionType suggestionType,
+			String message,
+			String item,
+			String answer,
+			ProjectRoomGroundingContext groundingContext
+	) {
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("type", suggestionType.name());
-		payload.put("title", suggestionTitle(message, suggestionType));
-		payload.put("description", message);
+		payload.put("title", suggestionTitle(item, suggestionType));
+		payload.put("description", item);
+		payload.put("request", message);
 		payload.put("agentResponse", answer);
 		payload.put("source", "PROJECT_ROOM_AGENT_COMMAND");
+		payload.put("grounded", true);
+		payload.put("sourceTypes", sourceTypes(groundingContext));
 		return payload;
 	}
 
@@ -405,18 +363,11 @@ public class ProjectRoomAgentCommandService {
 		return normalized.length() <= 80 ? normalized : normalized.substring(0, 80);
 	}
 
-	private Map<String, Object> suggestionEvidence(
-			AgentJobContext context,
-			List<UUID> resourceIds,
-			ResourceLookup resourceLookup
-	) {
+	private Map<String, Object> suggestionEvidence(ProjectRoomGroundingContext groundingContext) {
 		Map<String, Object> evidence = new LinkedHashMap<>();
 		evidence.put("source", "PROJECT_ROOM_AGENT_COMMAND");
 		evidence.put("promptVersion", PROMPT_VERSION);
-		evidence.put("contextCharacters", context.characterCount());
-		evidence.put("resourceIds", resourceIds == null ? List.of() : resourceIds);
-		resourceLookup.resource().ifPresent(resource -> evidence.put("resolvedResourceId", resource.id().toString()));
-		resourceLookup.summary().ifPresent(summary -> evidence.put("resourceSummaryId", summary.id().toString()));
+		putGroundingMetadata(evidence, groundingContext);
 		return evidence;
 	}
 
@@ -424,21 +375,30 @@ public class ProjectRoomAgentCommandService {
 			String request,
 			AgentCommandMode mode,
 			String answer,
-			AgentJobContext context,
+			String fallbackReason,
 			List<AgentSuggestionResponse> suggestions,
-			ResourceLookup resourceLookup
+			ProjectRoomGroundingContext groundingContext,
+			List<ResourceResult> metadataResources
 	) {
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("text", answer);
 		body.put("request", request);
 		body.put("mode", mode.name());
 		body.put("promptVersion", PROMPT_VERSION);
-		body.put("contextCharacters", context.characterCount());
+		body.put("contextCharacters", groundingContext.promptBlock().length());
+		body.put("answerCompleteness", metadataResources.isEmpty()
+				? answerCompleteness(answer, fallbackReason, groundingContext)
+				: "ANSWERED");
+		body.put("fallbackReason", fallbackReason);
+		body.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
 		body.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
-		resourceLookup.resource().ifPresent(resource -> body.put("resources", List.of(resourcePayload(resource))));
-		resourceLookup.summary().ifPresent(summary -> body.put("resourceSummaryId", summary.id().toString()));
+		putGroundingMetadata(body, groundingContext);
+		if (!metadataResources.isEmpty()) {
+			body.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
+			body.put("resourceIds", metadataResources.stream().map(ResourceResult::id).toList());
+		}
 		return objectMapper.valueToTree(body);
 	}
 
@@ -446,21 +406,30 @@ public class ProjectRoomAgentCommandService {
 			String request,
 			AgentCommandMode mode,
 			String answer,
-			AgentJobContext context,
+			String fallbackReason,
 			List<AgentSuggestionResponse> suggestions,
-			ResourceLookup resourceLookup
+			ProjectRoomGroundingContext groundingContext,
+			List<ResourceResult> metadataResources
 	) {
 		Map<String, Object> memory = new LinkedHashMap<>();
 		memory.put("source", "PROJECT_ROOM_AGENT_COMMAND");
 		memory.put("mode", mode.name());
 		memory.put("request", request);
 		memory.put("answer", answer);
-		memory.put("contextCharacters", context.characterCount());
+		memory.put("contextCharacters", groundingContext.promptBlock().length());
+		memory.put("answerCompleteness", metadataResources.isEmpty()
+				? answerCompleteness(answer, fallbackReason, groundingContext)
+				: "ANSWERED");
+		memory.put("fallbackReason", fallbackReason);
+		memory.put("missingInfo", metadataResources.isEmpty() ? missingInfo(answer, groundingContext) : List.of());
 		memory.put("suggestionIds", suggestions.stream()
 				.map(AgentSuggestionResponse::suggestionId)
 				.toList());
-		resourceLookup.resource().ifPresent(resource -> memory.put("resources", List.of(resourcePayload(resource))));
-		resourceLookup.summary().ifPresent(summary -> memory.put("resourceSummaryId", summary.id().toString()));
+		putGroundingMetadata(memory, groundingContext);
+		if (!metadataResources.isEmpty()) {
+			memory.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
+			memory.put("resourceIds", metadataResources.stream().map(ResourceResult::id).toList());
+		}
 		try {
 			return objectMapper.writeValueAsString(memory);
 		} catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
@@ -468,22 +437,142 @@ public class ProjectRoomAgentCommandService {
 		}
 	}
 
+	private void putGroundingMetadata(Map<String, Object> payload, ProjectRoomGroundingContext groundingContext) {
+		payload.put("grounded", groundingContext.grounded());
+		payload.put("sourceTypes", sourceTypes(groundingContext));
+		payload.put("evidenceItems", groundingContext.evidenceItems().stream()
+				.map(com.bubli.agent.dto.ProjectRoomGroundingEvidence::toPayload)
+				.toList());
+		payload.put("retrievalModes", groundingContext.retrievalModes());
+		payload.put("ragGrounded", groundingContext.hasDocumentEvidence());
+		payload.put("ragMaxSimilarity", groundingContext.ragMaxSimilarity());
+		payload.put("ragHits", ragHits(groundingContext));
+		payload.put("resourceIds", groundingContext.resourceIds());
+		payload.put("matchedResources", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.DOCUMENT));
+		payload.put("citations", citations(groundingContext));
+		payload.put("taskIds", groundingContext.taskIds());
+		payload.put("matchedTasks", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.TASK));
+		payload.put("wbsItemIds", groundingContext.wbsItemIds());
+		payload.put("matchedWbsItems", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.WBS));
+		payload.put("scheduleIds", groundingContext.scheduleIds());
+		payload.put("agentSuggestionIds", groundingContext.agentSuggestionIds());
+	}
+
+	private String answerCompleteness(
+			String answer,
+			String fallbackReason,
+			ProjectRoomGroundingContext groundingContext
+	) {
+		if (!groundingContext.grounded() || fallbackReason != null) {
+			return "NO_EVIDENCE";
+		}
+		String normalized = normalize(answer);
+		if (containsAny(normalized, "추가 확인", "확인 필요", "불명확", "부족", "missing", "unclear", "確認")) {
+			return "PARTIAL";
+		}
+		return "ANSWERED";
+	}
+
+	private List<String> missingInfo(String answer, ProjectRoomGroundingContext groundingContext) {
+		if (!groundingContext.grounded()) {
+			return List.of("NO_RELEVANT_PROJECT_GROUNDING");
+		}
+		String normalized = normalize(answer);
+		if (containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear")) {
+			return List.of("PARTIAL_EVIDENCE");
+		}
+		return List.of();
+	}
+
+	private List<Map<String, Object>> matchedEvidence(
+			ProjectRoomGroundingContext groundingContext,
+			ProjectRoomGroundingSourceType sourceType
+	) {
+		return groundingContext.evidenceItems().stream()
+				.filter(evidence -> evidence.sourceType() == sourceType)
+				.map(evidence -> {
+					Map<String, Object> item = new LinkedHashMap<>();
+					item.put("id", evidence.id());
+					item.putAll(evidence.metadata());
+					return item;
+				})
+				.toList();
+	}
+
+	private List<Map<String, Object>> citations(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.evidenceItems().stream()
+				.filter(evidence -> evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT)
+				.map(evidence -> {
+					Map<String, Object> citation = new LinkedHashMap<>();
+					citation.put("resourceId", evidence.id());
+					citation.put("retrievalMode", evidence.metadata().get("retrievalMode"));
+					citation.put("title", firstNonNull(
+							evidence.metadata().get("originalName"),
+							evidence.metadata().get("title")
+					));
+					citation.put("pageNumber", evidence.metadata().get("pageNumber"));
+					citation.put("chunkIndex", evidence.metadata().get("chunkIndex"));
+					citation.put("startLine", evidence.metadata().get("startLine"));
+					citation.put("endLine", evidence.metadata().get("endLine"));
+					citation.put("startOffset", evidence.metadata().get("startOffset"));
+					citation.put("endOffset", evidence.metadata().get("endOffset"));
+					citation.put("quote", evidence.metadata().get("quote"));
+					citation.put("similarityScore", evidence.metadata().get("similarityScore"));
+					return citation;
+				})
+				.toList();
+	}
+
+	private Object firstNonNull(Object first, Object second) {
+		return first != null ? first : second;
+	}
+
+	private List<String> sourceTypes(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.sourceTypes().stream()
+				.map(Enum::name)
+				.toList();
+	}
+
+	private List<Map<String, Object>> ragHits(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.ragHits().stream()
+				.map(this::ragHit)
+				.toList();
+	}
+
+	private Map<String, Object> ragHit(ResourceSearchHit hit) {
+		Map<String, Object> payload = new LinkedHashMap<>();
+		payload.put("resourceId", hit.resourceId());
+		payload.put("chunkIndex", hit.chunkIndex());
+		payload.put("pageNumber", hit.pageNumber());
+		payload.put("startLine", hit.startLine());
+		payload.put("endLine", hit.endLine());
+		payload.put("startOffset", hit.startOffset());
+		payload.put("endOffset", hit.endOffset());
+		payload.put("originalName", hit.originalName());
+		payload.put("similarityScore", hit.similarityScore());
+		return payload;
+	}
+
 	private Map<String, Object> resourcePayload(ResourceResult resource) {
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("resourceId", resource.id());
 		payload.put("title", resource.title());
+		payload.put("kind", resource.kind().name());
+		payload.put("visibility", resource.visibility().name());
+		payload.put("status", resource.status().name());
 		payload.put("createdAt", resource.createdAt() == null ? null : resource.createdAt().toString());
 		return payload;
 	}
 
-	private record ResourceLookup(
-			boolean requested,
-			List<String> keywords,
-			Optional<ResourceResult> resource,
-			Optional<ResourceSummaryResult> summary
+	private record ResourceInventoryAnswer(
+			List<ResourceResult> resources,
+			String answer
 	) {
-		private static ResourceLookup notRequested() {
-			return new ResourceLookup(false, List.of(), Optional.empty(), Optional.empty());
-		}
+	}
+
+	private record AnswerResult(
+			String text,
+			String fallbackReason
+	) {
 	}
 }

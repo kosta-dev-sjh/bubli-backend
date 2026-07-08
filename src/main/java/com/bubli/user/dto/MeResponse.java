@@ -8,7 +8,8 @@ public record MeResponse(
 		String name,
 		String avatarUrl,
 		String locale,
-		String timezone
+		String timezone,
+		String jobRole
 ) {
 	public static MeResponse from(UserResult result) {
 		return new MeResponse(
@@ -17,7 +18,8 @@ public record MeResponse(
 				result.name(),
 				result.avatarUrl(),
 				result.locale(),
-				result.timezone()
+				result.timezone(),
+				result.jobRole()
 		);
 	}
 }

@@ -9,6 +9,7 @@ import com.bubli.agent.entity.AgentJob;
 import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.agent.type.AgentJobType;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.global.locale.SupportedLocale;
@@ -17,6 +18,7 @@ import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgentJobService {
 
+	private static final String IDEMPOTENCY_KEY_PAYLOAD_FIELD = "idempotencyKey";
+
 	private final AgentJobRepository agentJobRepository;
 	private final AgentJobEventRepository agentJobEventRepository;
 	private final ApplicationEventPublisher eventPublisher;
@@ -42,18 +46,39 @@ public class AgentJobService {
 	@Transactional
 	public AgentJobResult create(UUID requestedByUserId, CreateAgentJobCommand command) {
 		Map<String, Object> requestPayload = withResolvedLocale(requestedByUserId, command.requestPayload());
+		String idempotencyKey = idempotencyKey(requestPayload);
+		if (idempotencyKey != null) {
+			var existingJob = findByIdempotencyKey(requestedByUserId, command.jobType(), idempotencyKey);
+			if (existingJob != null) {
+				return existingJob;
+			}
+		}
 		AgentJob agentJob = AgentJob.create(
 				requestedByUserId,
 				command.roomId(),
 				command.resourceId(),
 				command.jobType(),
-				requestPayload
+				requestPayload,
+				idempotencyKey
 		);
-		AgentJob savedAgentJob = agentJobRepository.save(agentJob);
+		AgentJob savedAgentJob;
+		try {
+			savedAgentJob = agentJobRepository.save(agentJob);
+		} catch (DataIntegrityViolationException exception) {
+			if (idempotencyKey == null) {
+				throw exception;
+			}
+			return findRequiredByIdempotencyKey(requestedByUserId, command.jobType(), idempotencyKey);
+		}
 		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);
 		dispatchOutboxRecorder.recordPending(dispatchEvent.command());
 		eventPublisher.publishEvent(dispatchEvent);
 		return AgentJobResult.from(savedAgentJob);
+	}
+
+	@Transactional(readOnly = true)
+	public AgentJobResult findAnalyzeResourceJobByIdempotencyKey(UUID requestedByUserId, String idempotencyKey) {
+		return findByIdempotencyKey(requestedByUserId, AgentJobType.ANALYZE_RESOURCE, idempotencyKey);
 	}
 
 	@Transactional(readOnly = true)
@@ -122,6 +147,24 @@ public class AgentJobService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
 	}
 
+	private AgentJobResult findByIdempotencyKey(UUID requestedByUserId, AgentJobType jobType, String idempotencyKey) {
+		if (idempotencyKey == null || idempotencyKey.isBlank()) {
+			return null;
+		}
+		return agentJobRepository
+				.findByRequestedByUserIdAndJobTypeAndIdempotencyKey(requestedByUserId, jobType, idempotencyKey.trim())
+				.map(AgentJobResult::from)
+				.orElse(null);
+	}
+
+	private AgentJobResult findRequiredByIdempotencyKey(UUID requestedByUserId, AgentJobType jobType, String idempotencyKey) {
+		AgentJobResult result = findByIdempotencyKey(requestedByUserId, jobType, idempotencyKey);
+		if (result == null) {
+			throw new BusinessException(ErrorCode.AGENT_404_001);
+		}
+		return result;
+	}
+
 	private PageResponse<AgentJobEventResult> toEventPageResponse(Page<AgentJobEventResult> page) {
 		return new PageResponse<>(
 				page.getContent(),
@@ -169,5 +212,16 @@ public class AgentJobService {
 			resolvedPayload.put("locale", SupportedLocale.normalize(locale.toString()));
 		}
 		return resolvedPayload;
+	}
+
+	private String idempotencyKey(Map<String, Object> requestPayload) {
+		if (requestPayload == null) {
+			return null;
+		}
+		Object value = requestPayload.get(IDEMPOTENCY_KEY_PAYLOAD_FIELD);
+		if (value == null || value.toString().isBlank()) {
+			return null;
+		}
+		return value.toString().trim();
 	}
 }

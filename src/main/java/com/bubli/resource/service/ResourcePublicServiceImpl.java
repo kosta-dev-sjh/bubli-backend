@@ -1,13 +1,10 @@
 package com.bubli.resource.service;
 
-import com.bubli.resource.dto.CreateResourceCommand;
 import com.bubli.resource.dto.ResourceAnalysisSummaryResult;
 import com.bubli.resource.dto.ResourceExtractedTextResult;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.dto.StoreResourceExtractedTextCommand;
-import com.bubli.resource.type.ResourceKind;
-import com.bubli.resource.type.ResourceVisibility;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +34,18 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<ResourceResult> getRecentPersonalResources(UUID userId, int limit) {
+		return resourceService.getRecentPersonalResources(userId, limit);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ResourceResult> getRecentRoomResources(UUID userId, UUID roomId, int limit) {
+		return resourceService.getRecentRoomResources(userId, roomId, limit);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<ResourceSummaryResult> getRecentRoomSummaries(UUID userId, UUID roomId, int limit) {
 		return resourceService.getRecentRoomSummaries(userId, roomId, limit);
 	}
@@ -55,6 +64,12 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Optional<String> findAnalysisNotificationPreview(UUID jobId) {
+		return resourceService.findAnalysisNotificationPreview(jobId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public Optional<ResourceResult> findLatestRoomResource(UUID userId, UUID roomId, List<String> titleKeywords) {
 		return resourceService.findLatestRoomResource(userId, roomId, titleKeywords);
 	}
@@ -67,15 +82,14 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional
-	public ResourceResult createPersonalResource(UUID userId, String title) {
-		return resourceService.create(userId,
-				new CreateResourceCommand(title, ResourceKind.FILE, ResourceVisibility.PERSONAL, null));
+	public ResourceResult createPersonalLocalFileResource(UUID userId, String title, Long sizeBytes, String mimeType) {
+		return resourceService.createPersonalLocalFileResource(userId, title, sizeBytes, mimeType);
 	}
 
 	@Override
 	@Transactional
-	public ResourceResult updatePersonalResource(UUID userId, UUID resourceId, String title) {
-		return resourceService.updateResource(userId, resourceId, title);
+	public ResourceResult updatePersonalLocalFileResource(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType) {
+		return resourceService.updatePersonalLocalFileResource(userId, resourceId, title, sizeBytes, mimeType);
 	}
 
 	@Override

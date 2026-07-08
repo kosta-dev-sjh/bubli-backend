@@ -63,6 +63,9 @@ public class AgentJob extends BaseTimeEntity {
     @Column(name = "resource_id")
     private UUID resourceId;
 
+    @Column(name = "idempotency_key", length = 300)
+    private String idempotencyKey;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "request_payload", columnDefinition = "jsonb")
     private Map<String, Object> requestPayload;
@@ -99,14 +102,27 @@ public class AgentJob extends BaseTimeEntity {
             UUID roomId,
             UUID resourceId,
             AgentJobType jobType,
-            Map<String, Object> requestPayload
+            Map<String, Object> requestPayload,
+            String idempotencyKey
     ) {
         this.requestedByUserId = require(requestedByUserId, "requestedByUserId");
         this.roomId = roomId;
         this.resourceId = resourceId;
         this.jobType = require(jobType, "jobType");
         this.requestPayload = immutableJsonMap(requestPayload);
+        this.idempotencyKey = blankToNull(idempotencyKey);
         this.status = AgentJobStatus.PENDING;
+    }
+
+    public static AgentJob pending(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            AgentJobType jobType,
+            Map<String, Object> requestPayload,
+            String idempotencyKey
+    ) {
+        return new AgentJob(requestedByUserId, roomId, resourceId, jobType, requestPayload, idempotencyKey);
     }
 
     public static AgentJob pending(
@@ -116,7 +132,7 @@ public class AgentJob extends BaseTimeEntity {
             AgentJobType jobType,
             Map<String, Object> requestPayload
     ) {
-        return new AgentJob(requestedByUserId, roomId, resourceId, jobType, requestPayload);
+        return pending(requestedByUserId, roomId, resourceId, jobType, requestPayload, null);
     }
 
     public static AgentJob pending(
@@ -133,9 +149,20 @@ public class AgentJob extends BaseTimeEntity {
             UUID roomId,
             UUID resourceId,
             AgentJobType jobType,
+            Map<String, Object> requestPayload,
+            String idempotencyKey
+    ) {
+        return pending(requestedByUserId, roomId, resourceId, jobType, requestPayload, idempotencyKey);
+    }
+
+    public static AgentJob create(
+            UUID requestedByUserId,
+            UUID roomId,
+            UUID resourceId,
+            AgentJobType jobType,
             Map<String, Object> requestPayload
     ) {
-        return pending(requestedByUserId, roomId, resourceId, jobType, requestPayload);
+        return create(requestedByUserId, roomId, resourceId, jobType, requestPayload, null);
     }
 
     public static AgentJob create(
@@ -222,6 +249,13 @@ public class AgentJob extends BaseTimeEntity {
             throw new IllegalArgumentException(field + " is required.");
         }
         return value;
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private static Map<String, Object> immutableJsonMap(Map<String, Object> value) {

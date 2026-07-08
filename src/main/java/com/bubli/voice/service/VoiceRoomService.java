@@ -19,6 +19,7 @@ import com.bubli.voice.repository.VoiceParticipantRepository;
 import com.bubli.voice.repository.VoiceRoomRepository;
 import com.bubli.voice.type.VoiceParticipantStatus;
 import com.bubli.voice.type.VoiceRoomStatus;
+import com.bubli.websocket.service.WebSocketPublishPublicService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class VoiceRoomService {
     private final UserPublicService userPublicService;
     private final NotificationPublicService notificationPublicService;
     private final LiveKitProperties liveKitProperties;
+    private final WebSocketPublishPublicService webSocketPublishPublicService;
 
     @Transactional
     public VoiceRoomResponse createVoiceRoom(UUID userId, UUID roomId, UUID chatRoomId) {
@@ -103,6 +105,7 @@ public class VoiceRoomService {
     }
 
     private void notifyChatVoiceCallStarted(UUID callerUserId, String callerName, UUID chatRoomId) {
+        String message = voiceScopeLabel(null, chatRoomId) + "를 시작했습니다";
         chatRoomAccessPublicService.findActiveMemberIds(chatRoomId).stream()
                 .filter(memberId -> !memberId.equals(callerUserId))
                 .forEach(memberId -> notificationPublicService.create(
@@ -110,12 +113,22 @@ public class VoiceRoomService {
                         NotificationSourceType.VOICE_CALL,
                         chatRoomId,
                         callerName,
-                        "보이스 통화를 시작했습니다"
+                        message
                 ));
     }
 
     private String lockKey(UUID roomId) {
         return "voice-room-open:" + roomId;
+    }
+
+    // 알림 문구에 상황(1:1/그룹/프로젝트룸)을 붙여 어떤 통화인지 구분되게 한다 — 예전엔
+    // "보이스 통화를 시작했습니다"/"전화를 취소했습니다"/"통화를 거절했습니다"처럼 표현이
+    // 제각각이라 알림 목록만 봐서는 무슨 통화인지, 심지어 같은 종류의 알림인지도 알기 어려웠다.
+    private String voiceScopeLabel(UUID roomId, UUID chatRoomId) {
+        if (roomId != null) {
+            return "룸 보이스";
+        }
+        return chatRoomAccessPublicService.isDirectChatRoom(chatRoomId) ? "1:1 보이스" : "그룹 보이스";
     }
 
     @Transactional(readOnly = true)
@@ -138,6 +151,20 @@ public class VoiceRoomService {
         projectRoomAccessPublicService.requireRoomMember(roomId, userId);
 
         VoiceRoom voiceRoom = voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
+        List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
+        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
+
+        return toRoomResponse(voiceRoom, participants.stream()
+                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
+                .toList());
+    }
+
+    @Transactional(readOnly = true)
+    public VoiceRoomResponse getOpenVoiceRoomByChatRoom(UUID userId, UUID chatRoomId) {
+        chatRoomAccessPublicService.assertActiveMember(userId, chatRoomId);
+
+        VoiceRoom voiceRoom = voiceRoomRepository.findByChatRoomIdAndStatus(chatRoomId, VoiceRoomStatus.OPEN)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VOICE_404_001));
         List<VoiceParticipant> participants = currentParticipants(voiceRoom.getId());
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
@@ -180,6 +207,10 @@ public class VoiceRoomService {
             );
         }
 
+        if (joined[0]) {
+            broadcastRoomState(voiceRoom);
+        }
+
         Instant expiresAt = Instant.now().plusSeconds(3600);
         String token = generateLiveKitToken(userId, voiceRoom.getLivekitRoomName(), expiresAt);
 
@@ -210,6 +241,7 @@ public class VoiceRoomService {
                     micStatus
             );
         }
+        broadcastRoomState(voiceRoom);
         UserResult user = userPublicService.getUser(userId);
         return toParticipantResponse(participant, user.name());
     }
@@ -233,19 +265,52 @@ public class VoiceRoomService {
             }
         });
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
-        Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
-        return toRoomResponse(voiceRoom, participants.stream()
-                .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
-                .toList());
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
+    }
+
+    @Transactional
+    public void declineVoiceRoom(UUID userId, UUID voiceRoomId) {
+        VoiceRoom voiceRoom = findRoom(voiceRoomId);
+        if (voiceRoom.getChatRoomId() == null) {
+            throw new BusinessException(ErrorCode.COMMON_400_002);
+        }
+        if (voiceRoom.getStatus() != VoiceRoomStatus.OPEN) {
+            return;
+        }
+        chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+
+        UserResult decliner = userPublicService.getUser(userId);
+        notificationPublicService.create(
+                voiceRoom.getCreatedByUserId(),
+                NotificationSourceType.VOICE_CALL_DECLINED,
+                voiceRoom.getChatRoomId(),
+                decliner.name(),
+                voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 거절했습니다"
+        );
     }
 
     @Transactional
     public VoiceRoomResponse endVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        if (!userId.equals(voiceRoom.getCreatedByUserId())) {
+        // 1:1 통화는 "나가기" 개념이 없다 — 둘 중 누구든 종료를 누르면 둘 다 끝나야 하므로
+        // 개설자가 아니어도 종료를 허용한다. 그룹/프로젝트룸은 개설자만 전체 종료 가능(기존 정책 유지).
+        boolean canEnd = userId.equals(voiceRoom.getCreatedByUserId())
+                || (voiceRoom.getChatRoomId() != null && chatRoomAccessPublicService.isDirectChatRoom(voiceRoom.getChatRoomId()));
+        if (!canEnd) {
             throw new BusinessException(ErrorCode.VOICE_403_001);
         }
+        if (voiceRoom.getChatRoomId() != null) {
+            chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+        }
+
+        // 발신자가 상대가 받기 전에 취소하는 경우 — 종료 처리 전에 판단해야 한다(leave() 이후엔
+        // 참여자가 모두 LEFT라 판단 불가). 상대는 아직 참여 이력이 없으므로 이 시점에 JOINED가
+        // 개설자 한 명뿐이면 "받기 전 취소"로 본다.
+        boolean wasRingingBack = userId.equals(voiceRoom.getCreatedByUserId())
+                && voiceRoom.getChatRoomId() != null
+                && currentParticipants(voiceRoomId).size() <= 1;
 
         voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED)
                 .forEach(VoiceParticipant::leave);
@@ -255,11 +320,35 @@ public class VoiceRoomService {
             projectRoomEventPublicService.recordVoiceRoomEnded(userId, voiceRoom.getRoomId(), voiceRoom.getId());
         }
 
-        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoomId);
+        if (wasRingingBack) {
+            UserResult canceler = userPublicService.getUser(userId);
+            String message = voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 취소했습니다";
+            chatRoomAccessPublicService.findActiveMemberIds(voiceRoom.getChatRoomId()).stream()
+                    .filter(memberId -> !memberId.equals(userId))
+                    .forEach(memberId -> notificationPublicService.create(
+                            memberId,
+                            NotificationSourceType.VOICE_CALL_CANCELED,
+                            voiceRoom.getChatRoomId(),
+                            canceler.name(),
+                            message
+                    ));
+        }
+
+        VoiceRoomResponse response = buildRoomResponse(voiceRoom);
+        webSocketPublishPublicService.publishVoiceRoomEvent(response);
+        return response;
+    }
+
+    private VoiceRoomResponse buildRoomResponse(VoiceRoom voiceRoom) {
+        List<VoiceParticipant> participants = voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId());
         Map<UUID, String> nameMap = fetchUserNames(participants.stream().map(VoiceParticipant::getUserId).toList());
         return toRoomResponse(voiceRoom, participants.stream()
                 .map(p -> toParticipantResponse(p, nameMap.getOrDefault(p.getUserId(), "")))
                 .toList());
+    }
+
+    private void broadcastRoomState(VoiceRoom voiceRoom) {
+        webSocketPublishPublicService.publishVoiceRoomEvent(buildRoomResponse(voiceRoom));
     }
 
     private VoiceRoom findRoom(UUID voiceRoomId) {

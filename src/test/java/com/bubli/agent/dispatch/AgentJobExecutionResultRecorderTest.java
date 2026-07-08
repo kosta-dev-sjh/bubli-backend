@@ -9,14 +9,15 @@ import com.bubli.agent.type.AgentJobType;
 import com.bubli.personal.notification.type.NotificationSourceType;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.project.service.ProjectRoomEventPublicService;
+import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Optional;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,6 +114,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobEventRepository,
 				notificationPublicService,
 				mock(ProjectRoomEventPublicService.class),
+				mock(ResourcePublicService.class),
 				messageSource,
 				localeService
 		);
@@ -132,6 +134,40 @@ class AgentJobExecutionResultRecorderTest {
 	}
 
 	@Test
+	void recordSucceededUsesResourceAnalysisSummaryPreviewForNotificationBody() {
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
+		NotificationPublicService notificationPublicService = mock(NotificationPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		UserLocalePublicService localeService = mock(UserLocalePublicService.class);
+		when(localeService.resolveLocaleCode(any(UUID.class), any())).thenReturn("ko-KR");
+		AgentJobExecutionResultRecorder recorder = new AgentJobExecutionResultRecorder(
+				agentJobRepository,
+				agentJobEventRepository,
+				notificationPublicService,
+				mock(ProjectRoomEventPublicService.class),
+				resourcePublicService,
+				new StaticMessageSource(),
+				localeService
+		);
+		UUID jobId = UUID.randomUUID();
+		AgentJob agentJob = runningJob(jobId);
+		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
+		when(resourcePublicService.findAnalysisNotificationPreview(jobId))
+				.thenReturn(Optional.of("contract.pdf: delivery schedule and revision scope were detected."));
+
+		recorder.recordSucceeded(jobId);
+
+		verify(notificationPublicService).create(
+				eq(agentJob.getRequestedByUserId()),
+				eq(NotificationSourceType.AGENT),
+				eq(jobId),
+				eq(AgentJobExecutionResultRecorder.SUCCEEDED_NOTIFICATION_TITLE),
+				eq("contract.pdf: delivery schedule and revision scope were detected.")
+		);
+	}
+
+	@Test
 	void recordSucceededPublishesProjectRoomEventWhenJobBelongsToRoom() {
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
@@ -144,6 +180,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobEventRepository,
 				notificationPublicService,
 				projectRoomEventPublicService,
+				mock(ResourcePublicService.class),
 				new StaticMessageSource(),
 				localeService
 		);
@@ -222,6 +259,7 @@ class AgentJobExecutionResultRecorderTest {
 				agentJobEventRepository,
 				mock(NotificationPublicService.class),
 				mock(ProjectRoomEventPublicService.class),
+				mock(ResourcePublicService.class),
 				new StaticMessageSource(),
 				localeService
 		);

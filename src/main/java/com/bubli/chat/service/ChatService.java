@@ -89,13 +89,25 @@ public class ChatService {
 
 		UserResult targetUser = userPublicService.getUser(targetUserId);
 
-		ChatRoom chatRoom = chatRoomRepository.findDirectRoomBetween(
-						requesterId,
-						targetUserId,
-						ChatType.DIRECT,
-						ChatMemberStatus.ACTIVE
-				)
-				.orElseGet(() -> createNewDirectRoom(requesterId, targetUser));
+		ChatRoom existingRoom = chatRoomRepository.findDirectRoomBetween(
+				requesterId,
+				targetUserId,
+				ChatType.DIRECT,
+				ChatMemberStatus.ACTIVE
+		).orElse(null);
+		if (existingRoom != null) {
+			return ChatRoomResult.from(existingRoom, targetUser.name());
+		}
+
+		ChatRoom chatRoom = createNewDirectRoom(requesterId, targetUser);
+		UserResult requester = userPublicService.getUser(requesterId);
+		notificationPublicService.create(
+				targetUserId,
+				NotificationSourceType.CHAT_INVITE,
+				chatRoom.getId(),
+				requester.name(),
+				"1:1 대화를 시작했습니다"
+		);
 
 		return ChatRoomResult.from(chatRoom, targetUser.name());
 	}
@@ -113,6 +125,18 @@ public class ChatService {
 
 		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createGroup(name.trim()));
 		memberIds.forEach(memberId -> chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), memberId)));
+
+		UserResult creator = userPublicService.getUser(creatorId);
+		memberIds.stream()
+				.filter(memberId -> !memberId.equals(creatorId))
+				.forEach(memberId -> notificationPublicService.create(
+						memberId,
+						NotificationSourceType.CHAT_INVITE,
+						chatRoom.getId(),
+						creator.name(),
+						name.trim() + " 그룹 채팅에 초대했습니다"
+				));
+
 		return ChatRoomResult.from(chatRoom);
 	}
 
@@ -143,6 +167,15 @@ public class ChatService {
 
 		memberIds.forEach(userPublicService::getUser);
 		syncChatRoomMembers(chatRoomId, memberIds);
+
+		UserResult inviter = userPublicService.getUser(inviterId);
+		memberIds.forEach(memberId -> notificationPublicService.create(
+				memberId,
+				NotificationSourceType.CHAT_INVITE,
+				chatRoomId,
+				inviter.name(),
+				chatRoom.getName() + " 그룹 채팅에 초대했습니다"
+		));
 
 		return ChatRoomResult.from(chatRoom);
 	}

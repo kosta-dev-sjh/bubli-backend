@@ -2,6 +2,7 @@ package com.bubli.project.controller;
 
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.personal.notification.repository.NotificationRepository;
 import com.bubli.personal.timer.entity.TimeLog;
 import com.bubli.personal.timer.repository.TimeLogRepository;
 import com.bubli.personal.timer.type.TimeLogStatus;
@@ -78,8 +79,12 @@ class ProjectRoomControllerIntegrationTest extends PostgresIntegrationTestSuppor
 	@Autowired
 	TimeLogRepository timeLogRepository;
 
+	@Autowired
+	NotificationRepository notificationRepository;
+
 	@BeforeEach
 	void setUp() {
+		notificationRepository.deleteAll();
 		projectRoomEventRepository.deleteAll();
 		invitationRepository.deleteAll();
 		timeLogRepository.deleteAll();
