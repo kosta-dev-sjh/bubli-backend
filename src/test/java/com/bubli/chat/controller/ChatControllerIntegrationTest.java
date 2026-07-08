@@ -146,6 +146,31 @@ class ChatControllerIntegrationTest extends PostgresIntegrationTestSupport {
 	}
 
 	@Test
+	void getMessagesKeepsAgentResponseSenderAsBubliAgent() throws Exception {
+		User user = createUser("google-sub-chat-agent-list", "마렌");
+		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createRoom(null, "프로젝트룸 채팅"));
+		chatRoomMemberRepository.save(ChatRoomMember.create(chatRoom.getId(), user.getId()));
+		chatMessageRepository.save(ChatMessage.create(
+				chatRoom.getId(),
+				user.getId(),
+				"agent-response-list",
+				1L,
+				MessageType.AGENT_RESPONSE,
+				"{\"text\":\"자료 기준에서는 알 수 없는 내용입니다.\",\"request\":\"/bubli 안녕\"}",
+				null
+		));
+
+		mockMvc.perform(get("/api/chat/rooms/{chatRoomId}/messages", chatRoom.getId())
+						.header(AUTHORIZATION, bearerToken(user)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.items[0].messageType").value("AGENT_RESPONSE"))
+				.andExpect(jsonPath("$.data.items[0].sender.type").value("AGENT"))
+				.andExpect(jsonPath("$.data.items[0].sender.name").value("Bubli Agent"))
+				.andExpect(jsonPath("$.data.items[0].sender.id").value(user.getId().toString()));
+	}
+
+	@Test
 	void getMessagesRequiresActiveChatRoomMember() throws Exception {
 		User user = createUser("google-sub-chat-forbidden", "민서");
 		ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createRoom(null, "접근 불가 채팅"));
