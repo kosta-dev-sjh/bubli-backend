@@ -142,10 +142,20 @@ public class ProjectRoomAgentCommandService {
 
 	private boolean isResourceInventoryRequest(String message) {
 		String normalized = normalize(message);
+		if (isResourceContentRequest(normalized)) {
+			return false;
+		}
 		return containsAny(normalized, "업로드", "올라온", "파일", "자료", "문서", "resource", "file", "upload",
 				"資料", "文書", "ファイル", "アップロード", "アップロード済み", "登録", "添付")
 				&& containsAny(normalized, "무엇", "뭐", "목록", "리스트", "보여", "알려", "현재", "있", "what", "list",
 				"show", "which", "?", "？", "何", "どんな", "どの", "一覧", "教え", "見せて", "表示", "ある", "あります");
+	}
+
+	private boolean isResourceContentRequest(String normalized) {
+		return containsAny(normalized,
+				"내용", "핵심", "요약", "정리", "분석", "설명", "주요", "무슨 내용", "어떤 내용",
+				"summary", "summarize", "summarise", "content", "key point", "main point", "explain",
+				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ", "説明");
 	}
 
 	private String uploadedResourcesAnswer(List<ResourceResult> resources, String locale) {
@@ -439,6 +449,7 @@ public class ProjectRoomAgentCommandService {
 		payload.put("ragHits", ragHits(groundingContext));
 		payload.put("resourceIds", groundingContext.resourceIds());
 		payload.put("matchedResources", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.DOCUMENT));
+		payload.put("citations", citations(groundingContext));
 		payload.put("taskIds", groundingContext.taskIds());
 		payload.put("matchedTasks", matchedEvidence(groundingContext, ProjectRoomGroundingSourceType.TASK));
 		payload.put("wbsItemIds", groundingContext.wbsItemIds());
@@ -488,6 +499,34 @@ public class ProjectRoomAgentCommandService {
 				.toList();
 	}
 
+	private List<Map<String, Object>> citations(ProjectRoomGroundingContext groundingContext) {
+		return groundingContext.evidenceItems().stream()
+				.filter(evidence -> evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT)
+				.map(evidence -> {
+					Map<String, Object> citation = new LinkedHashMap<>();
+					citation.put("resourceId", evidence.id());
+					citation.put("retrievalMode", evidence.metadata().get("retrievalMode"));
+					citation.put("title", firstNonNull(
+							evidence.metadata().get("originalName"),
+							evidence.metadata().get("title")
+					));
+					citation.put("pageNumber", evidence.metadata().get("pageNumber"));
+					citation.put("chunkIndex", evidence.metadata().get("chunkIndex"));
+					citation.put("startLine", evidence.metadata().get("startLine"));
+					citation.put("endLine", evidence.metadata().get("endLine"));
+					citation.put("startOffset", evidence.metadata().get("startOffset"));
+					citation.put("endOffset", evidence.metadata().get("endOffset"));
+					citation.put("quote", evidence.metadata().get("quote"));
+					citation.put("similarityScore", evidence.metadata().get("similarityScore"));
+					return citation;
+				})
+				.toList();
+	}
+
+	private Object firstNonNull(Object first, Object second) {
+		return first != null ? first : second;
+	}
+
 	private List<String> sourceTypes(ProjectRoomGroundingContext groundingContext) {
 		return groundingContext.sourceTypes().stream()
 				.map(Enum::name)
@@ -505,6 +544,11 @@ public class ProjectRoomAgentCommandService {
 		payload.put("resourceId", hit.resourceId());
 		payload.put("chunkIndex", hit.chunkIndex());
 		payload.put("pageNumber", hit.pageNumber());
+		payload.put("startLine", hit.startLine());
+		payload.put("endLine", hit.endLine());
+		payload.put("startOffset", hit.startOffset());
+		payload.put("endOffset", hit.endOffset());
+		payload.put("originalName", hit.originalName());
 		payload.put("similarityScore", hit.similarityScore());
 		return payload;
 	}

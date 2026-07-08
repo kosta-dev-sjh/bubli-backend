@@ -377,6 +377,7 @@ public class PersonalAgentCommandService {
 		body.put("answerCompleteness", answerCompleteness(answer, context));
 		body.put("retrievalModes", context.retrievalModes());
 		body.put("matchedResources", context.matchedResources());
+		body.put("citations", context.citations());
 		body.put("matchedTasks", context.matchedTasks());
 		body.put("missingInfo", missingInfo(answer, context));
 		body.put("fallbackReason", answer.fallbackReason());
@@ -543,7 +544,15 @@ public class PersonalAgentCommandService {
 				Map<String, Object> item = new LinkedHashMap<>();
 				item.put("resourceId", hit.resourceId());
 				item.put("retrievalMode", "SEMANTIC");
+				item.put("chunkIndex", hit.chunkIndex());
+				item.put("pageNumber", hit.pageNumber());
+				item.put("startLine", hit.startLine());
+				item.put("endLine", hit.endLine());
+				item.put("startOffset", hit.startOffset());
+				item.put("endOffset", hit.endOffset());
+				item.put("originalName", hit.originalName());
 				item.put("similarityScore", hit.similarityScore());
+				item.put("quote", quote(hit.chunkText()));
 				resources.add(item);
 			}
 			for (PersonalResourceEvidence evidence : resourceEvidence) {
@@ -556,6 +565,35 @@ public class PersonalAgentCommandService {
 				resources.add(item);
 			}
 			return resources;
+		}
+
+		private List<Map<String, Object>> citations() {
+			List<Map<String, Object>> citations = new ArrayList<>();
+			for (ResourceSearchHit hit : documentHits) {
+				Map<String, Object> item = new LinkedHashMap<>();
+				item.put("resourceId", hit.resourceId());
+				item.put("retrievalMode", "SEMANTIC");
+				item.put("title", hit.originalName());
+				item.put("pageNumber", hit.pageNumber());
+				item.put("chunkIndex", hit.chunkIndex());
+				item.put("startLine", hit.startLine());
+				item.put("endLine", hit.endLine());
+				item.put("startOffset", hit.startOffset());
+				item.put("endOffset", hit.endOffset());
+				item.put("quote", quote(hit.chunkText()));
+				item.put("similarityScore", hit.similarityScore());
+				citations.add(item);
+			}
+			for (PersonalResourceEvidence evidence : resourceEvidence) {
+				ResourceResult resource = evidence.resource();
+				Map<String, Object> item = new LinkedHashMap<>();
+				item.put("resourceId", resource.id());
+				item.put("retrievalMode", evidence.retrievalMode());
+				item.put("title", resource.title());
+				item.put("matchScore", evidence.matchScore());
+				citations.add(item);
+			}
+			return citations;
 		}
 
 		private List<Map<String, Object>> matchedTasks() {
@@ -627,13 +665,20 @@ public class PersonalAgentCommandService {
 		}
 
 		private String documentHitLine(ResourceSearchHit hit) {
-			return "- retrievalMode=SEMANTIC resourceId=%s chunkIndex=%s pageNumber=%s similarityScore=%s chunkText=%s".formatted(
+			return "- retrievalMode=SEMANTIC resourceId=%s chunkIndex=%s pageNumber=%s startLine=%s endLine=%s similarityScore=%s chunkText=%s".formatted(
 					hit.resourceId(),
 					hit.chunkIndex(),
 					hit.pageNumber(),
+					hit.startLine(),
+					hit.endLine(),
 					hit.similarityScore(),
 					hit.chunkText()
 			);
+		}
+
+		private String quote(String value) {
+			String text = value == null ? "" : value.replaceAll("\\s+", " ").trim();
+			return text.length() <= 500 ? text : text.substring(0, 500).trim();
 		}
 
 		private String resourceEvidenceLine(PersonalResourceEvidence evidence) {

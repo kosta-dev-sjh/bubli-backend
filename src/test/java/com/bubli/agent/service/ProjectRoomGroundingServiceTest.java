@@ -67,7 +67,11 @@ class ProjectRoomGroundingServiceTest {
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.DOCUMENT);
 		assertThat(context.resourceIds()).containsExactly(resourceId);
-		assertThat(context.promptBlock()).contains("[DOCUMENT]").contains("contract text");
+		assertThat(context.promptBlock())
+				.contains("[DOCUMENT]")
+				.contains("startLine=10")
+				.contains("endLine=12")
+				.contains("contract text");
 	}
 
 	@Test
@@ -112,6 +116,62 @@ class ProjectRoomGroundingServiceTest {
 				.contains("retrievalMode=TITLE_MATCH")
 				.contains("02-design-outsourcing-requirements-example.pdf")
 				.contains("브랜드 가이드");
+	}
+
+	@Test
+	void documentTitleHintRestrictsSemanticHitsToMatchedResource() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID targetResourceId = UUID.randomUUID();
+		UUID otherResourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		TaskPublicService taskPublicService = mock(TaskPublicService.class);
+		ResourceResult targetResource = resource(
+				targetResourceId,
+				userId,
+				roomId,
+				"01_UI디자이너_김서연.pdf"
+		);
+		ResourceResult otherResource = resource(
+				otherResourceId,
+				userId,
+				roomId,
+				"02_프론트엔드개발자_이준호.pdf"
+		);
+
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+				.thenReturn(List.of(
+						hit(otherResourceId, "이준호 프론트엔드 개발 계약서", 0.94D),
+						hit(targetResourceId, "김서연 UI/UX 디자인 계약서", 0.91D)
+				));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(targetResource, otherResource));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+		when(taskPublicService.getRecentRoomTasks(roomId, 20)).thenReturn(List.of());
+
+		var context = new ProjectRoomGroundingService(
+				searchService,
+				resourcePublicService,
+				new AgentRagProperties(true, 5, 0.72D, 0.0D),
+				taskPublicService,
+				mock(WbsItemPublicService.class),
+				mock(SchedulePublicService.class),
+				mock(AgentSuggestionPublicService.class)
+		).retrieve(
+				userId,
+				roomId,
+				"/bubli todo 김서연 파일 바탕으로 todo 후보 만들어줘",
+				"ko-KR",
+				AgentCommandMode.SUGGEST
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(targetResourceId);
+		assertThat(context.promptBlock())
+				.contains("김서연 UI/UX 디자인 계약서")
+				.doesNotContain("이준호 프론트엔드 개발 계약서");
 	}
 
 	@Test
@@ -445,7 +505,12 @@ class ProjectRoomGroundingServiceTest {
 				0,
 				chunkText,
 				2,
-				"{\"pageNumber\":2}",
+				10,
+				12,
+				120,
+				260,
+				"contract.pdf",
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260,\"originalName\":\"contract.pdf\"}",
 				similarityScore
 		);
 	}

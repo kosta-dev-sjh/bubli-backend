@@ -41,6 +41,7 @@ import java.util.UUID;
 public class ProjectRoomGroundingService {
 
 	private static final int DEFAULT_CONTEXT_LIMIT = 10;
+	private static final int RESOURCE_TITLE_MATCH_MIN_SCORE = 3;
 	private static final Duration SCHEDULE_LOOKBACK = Duration.ofDays(7);
 	private static final Duration SCHEDULE_LOOKAHEAD = Duration.ofDays(30);
 
@@ -68,14 +69,16 @@ public class ProjectRoomGroundingService {
 
 			String searchQuery = AgentQuerySupport.searchQuery(message);
 			AgentQuerySupport.WorkStateIntent workStateIntent = AgentQuerySupport.workStateIntent(message);
-			List<ResourceSearchHit> ragHits = retrieveDocumentHits(userId, roomId, searchQuery, mode, requestedSources);
 			List<ResourceTitleMatch> titleMatches = retrieveDocumentTitleMatches(
 					userId,
 					roomId,
 					message,
 					requestedSources,
-					ragHits
+					List.of()
 			);
+			List<ResourceSearchHit> ragHits = retrieveDocumentHits(userId, roomId, searchQuery, mode, requestedSources);
+			ragHits = restrictDocumentHitsToTitleMatches(ragHits, titleMatches);
+			titleMatches = excludeTitleMatchesAlreadyCoveredByRag(titleMatches, ragHits);
 			List<ProjectRoomGroundingEvidence> evidenceItems = new ArrayList<>();
 			StringBuilder prompt = new StringBuilder();
 
@@ -169,7 +172,7 @@ public class ProjectRoomGroundingService {
 			UUID roomId,
 			String message,
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
-			List<ResourceSearchHit> ragHits
+			List<UUID> excludedResourceIds
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)) {
 			return List.of();
@@ -178,15 +181,11 @@ public class ProjectRoomGroundingService {
 		if (queryTokens.isEmpty()) {
 			return List.of();
 		}
-		List<UUID> ragResourceIds = ragHits.stream()
-				.map(ResourceSearchHit::resourceId)
-				.distinct()
-				.toList();
 		String normalizedMessage = AgentQuerySupport.compactResourceText(message);
 		return resourcePublicService.getRecentRoomResources(userId, roomId, 30).stream()
-				.filter(resource -> !ragResourceIds.contains(resource.id()))
+				.filter(resource -> !excludedResourceIds.contains(resource.id()))
 				.map(resource -> titleMatch(userId, resource, normalizedMessage, queryTokens))
-				.filter(match -> match.score() >= 4)
+				.filter(match -> match.score() >= RESOURCE_TITLE_MATCH_MIN_SCORE)
 				.sorted(Comparator.comparingInt(ResourceTitleMatch::score).reversed())
 				.limit(3)
 				.toList();
@@ -212,6 +211,39 @@ public class ProjectRoomGroundingService {
 		return new ResourceTitleMatch(resource, summary, score);
 	}
 
+	private List<ResourceSearchHit> restrictDocumentHitsToTitleMatches(
+			List<ResourceSearchHit> ragHits,
+			List<ResourceTitleMatch> titleMatches
+	) {
+		if (ragHits.isEmpty() || titleMatches.isEmpty()) {
+			return ragHits;
+		}
+		List<UUID> matchedResourceIds = titleMatches.stream()
+				.map(match -> match.resource().id())
+				.distinct()
+				.toList();
+		List<ResourceSearchHit> restrictedHits = ragHits.stream()
+				.filter(hit -> matchedResourceIds.contains(hit.resourceId()))
+				.toList();
+		return restrictedHits;
+	}
+
+	private List<ResourceTitleMatch> excludeTitleMatchesAlreadyCoveredByRag(
+			List<ResourceTitleMatch> titleMatches,
+			List<ResourceSearchHit> ragHits
+	) {
+		if (titleMatches.isEmpty() || ragHits.isEmpty()) {
+			return titleMatches;
+		}
+		List<UUID> ragResourceIds = ragHits.stream()
+				.map(ResourceSearchHit::resourceId)
+				.distinct()
+				.toList();
+		return titleMatches.stream()
+				.filter(match -> !ragResourceIds.contains(match.resource().id()))
+				.toList();
+	}
+
 	private void appendDocumentEvidence(
 			List<ResourceSearchHit> ragHits,
 			List<ProjectRoomGroundingEvidence> evidenceItems,
@@ -222,7 +254,13 @@ public class ProjectRoomGroundingService {
 			metadata.put("retrievalMode", "SEMANTIC");
 			metadata.put("chunkIndex", hit.chunkIndex());
 			metadata.put("pageNumber", hit.pageNumber());
+			metadata.put("startLine", hit.startLine());
+			metadata.put("endLine", hit.endLine());
+			metadata.put("startOffset", hit.startOffset());
+			metadata.put("endOffset", hit.endOffset());
+			metadata.put("originalName", hit.originalName());
 			metadata.put("similarityScore", hit.similarityScore());
+			metadata.put("quote", quote(hit.chunkText()));
 			evidenceItems.add(new ProjectRoomGroundingEvidence(
 					ProjectRoomGroundingSourceType.DOCUMENT,
 					hit.resourceId(),
@@ -232,6 +270,8 @@ public class ProjectRoomGroundingService {
 					.append("resourceId=").append(hit.resourceId()).append('\n')
 					.append("chunkIndex=").append(hit.chunkIndex()).append('\n')
 					.append("pageNumber=").append(hit.pageNumber()).append('\n')
+					.append("startLine=").append(hit.startLine()).append('\n')
+					.append("endLine=").append(hit.endLine()).append('\n')
 					.append("similarityScore=").append(hit.similarityScore()).append('\n')
 					.append("chunkText=\n")
 					.append(hit.chunkText()).append("\n\n");
@@ -496,6 +536,11 @@ public class ProjectRoomGroundingService {
 				.map(ResourceSearchHit::similarityScore)
 				.max(Comparator.naturalOrder())
 				.orElse(0.0D);
+	}
+
+	private String quote(String value) {
+		String text = nullToEmpty(value).replaceAll("\\s+", " ").trim();
+		return text.length() <= 500 ? text : text.substring(0, 500).trim();
 	}
 
 	private String nullToEmpty(String value) {

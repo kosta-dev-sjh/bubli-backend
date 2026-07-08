@@ -156,3 +156,8 @@ agent:
         enabled: ${AGENT_RETRY_SCHEDULER_ENABLED:true}
         fixed-delay-ms: ${AGENT_RETRY_SCHEDULER_FIXED_DELAY_MS:60000}
       max-retry-count: ${AGENT_JOB_MAX_RETRY_COUNT:3}
+  rag:
+    enabled: true
+    top-k: 5
+    min-similarity: 0.72
+    suggest-min-similarity: 0.68

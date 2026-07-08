@@ -71,35 +71,49 @@ public class ResourceSemanticSearchPublicService {
     }
 
     private ResourceSearchHit toHit(ResourceEmbeddingSearchRow row) {
+        Map<String, Object> metadata = metadata(row.getChunkMetadata());
         return new ResourceSearchHit(
                 row.getId(),
                 row.getResourceId(),
                 row.getChunkIndex(),
                 row.getChunkText(),
-                pageNumber(row.getChunkMetadata()),
+                integerValue(metadata, "pageNumber"),
+                integerValue(metadata, "startLine"),
+                integerValue(metadata, "endLine"),
+                integerValue(metadata, "startOffset"),
+                integerValue(metadata, "endOffset"),
+                stringValue(metadata, "originalName"),
                 row.getChunkMetadata(),
                 row.getSimilarityScore()
         );
     }
 
-    private Integer pageNumber(String chunkMetadata) {
+    private Map<String, Object> metadata(String chunkMetadata) {
         if (chunkMetadata == null || chunkMetadata.isBlank()) {
-            return null;
+            return Map.of();
         }
         try {
-            Map<String, Object> metadata = objectMapper.readValue(
+            return objectMapper.readValue(
                     chunkMetadata,
                     new TypeReference<>() {
                     }
             );
-            Object value = metadata.get("pageNumber");
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-            return null;
         } catch (JsonProcessingException e) {
-            return null;
+            return Map.of();
         }
+    }
+
+    private Integer integerValue(Map<String, Object> metadata, String key) {
+        Object value = metadata.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return null;
+    }
+
+    private String stringValue(Map<String, Object> metadata, String key) {
+        Object value = metadata.get(key);
+        return value instanceof String text ? text : null;
     }
 
     private int normalizeTopK(Integer topK) {

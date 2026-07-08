@@ -147,6 +147,8 @@ public class ResourceEmbeddingIndexPublicService {
         metadata.put("pageNumber", chunk.pageNumber());
         metadata.put("startOffset", chunk.startOffset());
         metadata.put("endOffset", chunk.endOffset());
+        metadata.put("startLine", chunk.startLine());
+        metadata.put("endLine", chunk.endLine());
         metadata.put("characterCount", chunk.text().length());
         return metadata;
     }

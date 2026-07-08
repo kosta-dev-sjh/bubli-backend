@@ -124,7 +124,12 @@ class ProjectRoomRagGroundingServiceTest {
 				0,
 				chunkText,
 				2,
-				"{\"pageNumber\":2}",
+				10,
+				12,
+				120,
+				260,
+				"contract.pdf",
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260,\"originalName\":\"contract.pdf\"}",
 				similarityScore
 		);
 	}

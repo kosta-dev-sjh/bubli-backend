@@ -58,7 +58,15 @@ public class TextChunker {
             int end = preferredEnd(normalized, start);
             String chunkText = normalized.substring(start, end).trim();
             if (!chunkText.isBlank()) {
-                chunks.add(new TextChunk(chunks.size(), chunkText, start, end, pageNumber));
+                chunks.add(new TextChunk(
+                        chunks.size(),
+                        chunkText,
+                        start,
+                        end,
+                        pageNumber,
+                        lineNumber(normalized, start),
+                        lineNumber(normalized, Math.max(start, end - 1))
+                ));
             }
             if (end == normalized.length()) {
                 break;
@@ -105,12 +113,25 @@ public class TextChunker {
                 .trim();
     }
 
+    private int lineNumber(String text, int offset) {
+        int safeOffset = Math.max(0, Math.min(offset, text.length()));
+        int line = 1;
+        for (int index = 0; index < safeOffset; index++) {
+            if (text.charAt(index) == '\n') {
+                line++;
+            }
+        }
+        return line;
+    }
+
     public record TextChunk(
             int index,
             String text,
             int startOffset,
             int endOffset,
-            Integer pageNumber
+            Integer pageNumber,
+            int startLine,
+            int endLine
     ) {
     }
 
