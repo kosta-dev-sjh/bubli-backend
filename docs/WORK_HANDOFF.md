@@ -1594,6 +1594,13 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 처리: 룸 캘린더 생성 실패는 `Optional.empty()`로 흡수하고, 일정 저장은 유지한 채 `SYNC_FAILED`로 남기게 했다. 사용자가 룸 캘린더 상태를 직접 조회하면 `needsReconsent=true`로 재연결이 필요함을 알려준다.
 - 검증: `ProjectRoomCalendarServiceTest`, `ScheduleControllerIntegrationTest`, `WbsControllerIntegrationTest`, 전체 `./gradlew cleanTest test` 통과.
 
+## 2026-07-09 에이전트 명령 요청자 메타 보존
+
+- 증상: 프로젝트룸 채팅에서 `/bubli` 명령을 다른 참여자가 보낸 뒤 새로고침하면 합성된 명령 말풍선 작성자가 실제 닉네임이 아니라 `참여자`로 표시될 수 있었다.
+- 원인: 에이전트 응답 메시지는 발신자를 `Bubli Agent`로 보여주지만, 프론트가 응답의 요청자 이름을 복원할 영구 메타가 없었다.
+- 처리: 프로젝트룸 에이전트 응답 body에 `requesterId`, `requesterName`을 저장해 프론트가 명령 말풍선을 복원할 때 실제 요청자 닉네임을 사용할 수 있게 했다.
+- 검증: `ProjectRoomAgentCommandServiceTest`에 requester 메타 검증 추가.
+
 ## 갱신 규칙
 
 - PR을 새로 만들거나 수정하면 이 문서의 열린 PR 상태를 갱신한다.

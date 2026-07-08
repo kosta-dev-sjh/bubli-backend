@@ -22,6 +22,8 @@ import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceStatus;
 import com.bubli.resource.type.ResourceVisibility;
 import com.bubli.user.service.UserLocalePublicService;
+import com.bubli.user.service.UserPublicService;
+import com.bubli.user.dto.UserResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -74,6 +76,8 @@ class ProjectRoomAgentCommandServiceTest {
 		assertThat(response.message().body().get("text").asText())
 				.isEqualTo("프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다.");
 		assertThat(response.message().body().get("grounded").asBoolean()).isFalse();
+		assertThat(response.message().body().get("requesterId").asText()).isEqualTo(userId.toString());
+		assertThat(response.message().body().get("requesterName").asText()).isEqualTo("요청자");
 	}
 
 	@Test
@@ -685,6 +689,9 @@ class ProjectRoomAgentCommandServiceTest {
 	) {
 		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
 		when(userLocalePublicService.resolveLocaleCode(any(UUID.class), any())).thenReturn(locale);
+		UserPublicService userPublicService = mock(UserPublicService.class);
+		when(userPublicService.getUser(any(UUID.class)))
+				.thenAnswer(invocation -> new UserResult(invocation.getArgument(0), "requester", "요청자", null, locale, "Asia/Seoul"));
 		when(groundingService.retrieve(any(UUID.class), any(UUID.class), any(String.class), eq(locale), any(AgentCommandMode.class)))
 				.thenReturn(groundingContext);
 		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
@@ -698,6 +705,7 @@ class ProjectRoomAgentCommandServiceTest {
 				suggestionCommandService,
 				eventPublicService,
 				userLocalePublicService,
+				userPublicService,
 				resourcePublicService,
 				groundingService,
 				chatModelProvider,
