@@ -13,6 +13,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,6 +50,15 @@ public class GeneratedDocumentController {
             @PathVariable UUID documentId
     ) {
         return ApiResponse.success(generatedDocumentService.get(authUser.userId(), documentId));
+    }
+
+    @DeleteMapping("/api/generated-documents/{documentId}")
+    public ApiResponse<Void> delete(
+            @CurrentUser AuthUser authUser,
+            @PathVariable UUID documentId
+    ) {
+        generatedDocumentService.delete(authUser.userId(), documentId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/api/generated-documents/{documentId}/export")

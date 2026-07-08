@@ -12,6 +12,7 @@ import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceSearchScope;
+import com.bubli.resource.type.ResourceStatus;
 import com.bubli.work.schedule.dto.ScheduleResult;
 import com.bubli.work.schedule.service.SchedulePublicService;
 import com.bubli.work.task.dto.TaskResult;
@@ -42,6 +43,11 @@ public class ProjectRoomGroundingService {
 
 	private static final int DEFAULT_CONTEXT_LIMIT = 10;
 	private static final int RESOURCE_TITLE_MATCH_MIN_SCORE = 3;
+	private static final int STRONG_RESOURCE_TITLE_MATCH_SCORE = 8;
+	private static final int TITLE_SCOPED_SEARCH_TOP_K_MULTIPLIER = 3;
+	private static final double PRECISE_GROUNDING_RELAXED_MIN_SIMILARITY = 0.62D;
+	private static final double TITLE_SCOPED_RELAXED_MIN_SIMILARITY = 0.55D;
+	private static final double TITLE_SCOPED_KEYWORD_MIN_SCORE = 0.35D;
 	private static final Duration SCHEDULE_LOOKBACK = Duration.ofDays(7);
 	private static final Duration SCHEDULE_LOOKAHEAD = Duration.ofDays(30);
 
@@ -68,6 +74,10 @@ public class ProjectRoomGroundingService {
 			}
 
 			String searchQuery = AgentQuerySupport.searchQuery(message);
+			boolean requireSemanticDocumentEvidence = requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
+					&& mode == AgentCommandMode.ANSWER
+					&& AgentQuerySupport.requiresSemanticDocumentEvidence(message);
+			boolean documentOverviewRequest = AgentQuerySupport.isDocumentOverviewRequest(message);
 			AgentQuerySupport.WorkStateIntent workStateIntent = AgentQuerySupport.workStateIntent(message);
 			List<ResourceTitleMatch> titleMatches = retrieveDocumentTitleMatches(
 					userId,
@@ -76,15 +86,69 @@ public class ProjectRoomGroundingService {
 					requestedSources,
 					List.of()
 			);
-			List<ResourceSearchHit> ragHits = retrieveDocumentHits(userId, roomId, searchQuery, mode, requestedSources);
-			ragHits = restrictDocumentHitsToTitleMatches(ragHits, titleMatches);
+			List<ResourceSearchHit> ragHits = retrieveDocumentHits(
+					userId,
+					roomId,
+					searchQuery,
+					mode,
+					requestedSources,
+					requireSemanticDocumentEvidence
+			);
+			List<ResourceSearchHit> keywordHits = retrieveKeywordDocumentHits(
+					userId,
+					roomId,
+					searchQuery,
+					requestedSources
+			);
+			List<ResourceSearchHit> titleScopedHits = retrieveTitleScopedDocumentHits(
+					userId,
+					roomId,
+					searchQuery,
+					mode,
+					requestedSources,
+					titleMatches
+			);
+			List<ResourceSearchHit> titleScopedKeywordHits = retrieveTitleScopedKeywordDocumentHits(
+					userId,
+					roomId,
+					searchQuery,
+					requestedSources,
+					titleMatches
+			);
+			List<ResourceSearchHit> representativeDocumentHits = retrieveRepresentativeDocumentChunks(
+					userId,
+					roomId,
+					requestedSources,
+					requireSemanticDocumentEvidence,
+					documentOverviewRequest,
+					titleMatches
+			);
+			titleScopedHits = mergeDocumentHits(titleScopedHits, titleScopedKeywordHits);
+			ragHits = mergeDocumentHits(ragHits, keywordHits);
+			ragHits = selectDocumentHits(ragHits, titleScopedHits, titleMatches);
+			if (ragHits.isEmpty()) {
+				ragHits = representativeDocumentHits;
+			}
+			Map<UUID, String> ragResourceTitles = resourceTitles(
+					userId,
+					ragHits.stream()
+							.map(ResourceSearchHit::resourceId)
+							.distinct()
+							.toList()
+			);
+			ragHits = titleResolvedDocumentHits(ragHits, ragResourceTitles);
 			titleMatches = excludeTitleMatchesAlreadyCoveredByRag(titleMatches, ragHits);
+			titleMatches = titleMatches.stream()
+					.filter(this::hasUsableTitleMatchEvidence)
+					.toList();
 			List<ProjectRoomGroundingEvidence> evidenceItems = new ArrayList<>();
 			StringBuilder prompt = new StringBuilder();
 
-			appendDocumentEvidence(ragHits, evidenceItems, prompt);
-			appendResourceTitleEvidence(titleMatches, evidenceItems, prompt);
-			appendRecentResourceSummaryEvidence(userId, roomId, requestedSources, evidenceItems, prompt);
+			appendDocumentEvidence(ragHits, ragResourceTitles, evidenceItems, prompt);
+			if (!requireSemanticDocumentEvidence) {
+				appendResourceTitleEvidence(titleMatches, evidenceItems, prompt);
+				appendRecentResourceSummaryEvidence(userId, roomId, requestedSources, evidenceItems, prompt);
+			}
 			appendTaskEvidence(roomId, requestedSources, workStateIntent, evidenceItems, prompt);
 			appendWbsEvidence(roomId, requestedSources, workStateIntent, evidenceItems, prompt);
 			appendScheduleEvidence(roomId, requestedSources, evidenceItems, prompt);
@@ -141,7 +205,8 @@ public class ProjectRoomGroundingService {
 			UUID roomId,
 			String searchQuery,
 			AgentCommandMode mode,
-			EnumSet<ProjectRoomGroundingSourceType> requestedSources
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			boolean requireSemanticDocumentEvidence
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) || !agentRagProperties.enabled()) {
 			return List.of();
@@ -159,12 +224,143 @@ public class ProjectRoomGroundingService {
 			log.warn("Project room semantic document retrieval failed. userId={}, roomId={}", userId, roomId, exception);
 			return List.of();
 		}
-		double minSimilarity = mode == AgentCommandMode.SUGGEST
-				? agentRagProperties.suggestMinSimilarity()
-				: agentRagProperties.minSimilarity();
 		return hits.stream()
-				.filter(hit -> hit.similarityScore() >= minSimilarity)
+				.filter(hit -> hit.similarityScore() >= documentMinSimilarity(mode, requireSemanticDocumentEvidence))
 				.toList();
+	}
+
+	private List<ResourceSearchHit> retrieveTitleScopedDocumentHits(
+			UUID userId,
+			UUID roomId,
+			String searchQuery,
+			AgentCommandMode mode,
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			List<ResourceTitleMatch> titleMatches
+	) {
+		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
+				|| !agentRagProperties.enabled()
+				|| titleMatches.isEmpty()) {
+			return List.of();
+		}
+		List<UUID> resourceIds = titleMatches.stream()
+				.map(match -> match.resource().id())
+				.distinct()
+				.toList();
+		try {
+			return resourceSemanticSearchService.searchRoomSharedResources(
+							userId,
+							roomId,
+							resourceIds,
+							searchQuery,
+							titleScopedTopK(resourceIds.size())
+					)
+					.stream()
+					.filter(hit -> hit.similarityScore() >= titleScopedMinSimilarity(mode))
+					.toList();
+		} catch (RuntimeException exception) {
+			log.warn("Project room title-scoped semantic document retrieval failed. userId={}, roomId={}",
+					userId, roomId, exception);
+			return List.of();
+		}
+	}
+
+	private List<ResourceSearchHit> retrieveKeywordDocumentHits(
+			UUID userId,
+			UUID roomId,
+			String searchQuery,
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources
+	) {
+		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)) {
+			return List.of();
+		}
+		List<String> keywords = keywordTokens(searchQuery);
+		if (keywords.isEmpty()) {
+			return List.of();
+		}
+		try {
+			return resourceSemanticSearchService.searchRoomSharedKeywords(
+							userId,
+							roomId,
+							keywords,
+							agentRagProperties.topK()
+					)
+					.stream()
+					.filter(hit -> hit.similarityScore() >= TITLE_SCOPED_KEYWORD_MIN_SCORE)
+					.toList();
+		} catch (RuntimeException exception) {
+			log.warn("Project room keyword document retrieval failed. userId={}, roomId={}",
+					userId, roomId, exception);
+			return List.of();
+		}
+	}
+
+	private List<ResourceSearchHit> retrieveTitleScopedKeywordDocumentHits(
+			UUID userId,
+			UUID roomId,
+			String searchQuery,
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			List<ResourceTitleMatch> titleMatches
+	) {
+		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) || titleMatches.isEmpty()) {
+			return List.of();
+		}
+		List<String> keywords = keywordTokens(searchQuery);
+		if (keywords.isEmpty()) {
+			return List.of();
+		}
+		List<UUID> resourceIds = titleMatches.stream()
+				.map(match -> match.resource().id())
+				.distinct()
+				.toList();
+		try {
+			return resourceSemanticSearchService.searchRoomSharedResourceKeywords(
+							userId,
+							roomId,
+							resourceIds,
+							keywords,
+							titleScopedTopK(resourceIds.size())
+					)
+					.stream()
+					.filter(hit -> hit.similarityScore() >= TITLE_SCOPED_KEYWORD_MIN_SCORE)
+					.toList();
+		} catch (RuntimeException exception) {
+			log.warn("Project room title-scoped keyword document retrieval failed. userId={}, roomId={}",
+					userId, roomId, exception);
+			return List.of();
+		}
+	}
+
+	private List<ResourceSearchHit> retrieveRepresentativeDocumentChunks(
+			UUID userId,
+			UUID roomId,
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			boolean requireSemanticDocumentEvidence,
+			boolean documentOverviewRequest,
+			List<ResourceTitleMatch> titleMatches
+	) {
+		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
+				|| !requireSemanticDocumentEvidence
+				|| !documentOverviewRequest
+				|| titleMatches.isEmpty()) {
+			return List.of();
+		}
+		List<UUID> resourceIds = titleMatches.stream()
+				.map(match -> match.resource().id())
+				.distinct()
+				.toList();
+		try {
+			List<ResourceSearchHit> hits = resourceSemanticSearchService.loadRoomSharedResourceChunks(
+					userId,
+					roomId,
+					resourceIds,
+					titleScopedTopK(resourceIds.size())
+			);
+			return hits == null ? List.of() : hits;
+		} catch (RuntimeException exception) {
+			log.warn("Project room representative document chunk retrieval failed. userId={}, roomId={}",
+					userId, roomId, exception);
+			return List.of();
+		}
 	}
 
 	private List<ResourceTitleMatch> retrieveDocumentTitleMatches(
@@ -211,21 +407,98 @@ public class ProjectRoomGroundingService {
 		return new ResourceTitleMatch(resource, summary, score);
 	}
 
-	private List<ResourceSearchHit> restrictDocumentHitsToTitleMatches(
+	private boolean hasUsableTitleMatchEvidence(ResourceTitleMatch match) {
+		ResourceStatus status = match.resource().status();
+		return (status == ResourceStatus.READY || status == ResourceStatus.ANALYZED)
+				&& match.summary() != null;
+	}
+
+	private List<ResourceSearchHit> selectDocumentHits(
 			List<ResourceSearchHit> ragHits,
+			List<ResourceSearchHit> titleScopedHits,
 			List<ResourceTitleMatch> titleMatches
 	) {
-		if (ragHits.isEmpty() || titleMatches.isEmpty()) {
+		if (titleMatches.isEmpty()) {
 			return ragHits;
 		}
 		List<UUID> matchedResourceIds = titleMatches.stream()
 				.map(match -> match.resource().id())
 				.distinct()
 				.toList();
-		List<ResourceSearchHit> restrictedHits = ragHits.stream()
+		List<ResourceSearchHit> matchedHits = mergeDocumentHits(titleScopedHits, ragHits).stream()
 				.filter(hit -> matchedResourceIds.contains(hit.resourceId()))
+				.sorted(Comparator.comparingDouble(ResourceSearchHit::similarityScore).reversed())
 				.toList();
-		return restrictedHits;
+		if (!matchedHits.isEmpty()) {
+			return matchedHits;
+		}
+		if (hasStrongTitleMatch(titleMatches)) {
+			return List.of();
+		}
+		return ragHits;
+	}
+
+	private List<ResourceSearchHit> mergeDocumentHits(List<ResourceSearchHit> first, List<ResourceSearchHit> second) {
+		Map<UUID, ResourceSearchHit> hitsByEmbeddingId = new LinkedHashMap<>();
+		for (ResourceSearchHit hit : first) {
+			hitsByEmbeddingId.putIfAbsent(hit.embeddingId(), hit);
+		}
+		for (ResourceSearchHit hit : second) {
+			hitsByEmbeddingId.putIfAbsent(hit.embeddingId(), hit);
+		}
+		return new ArrayList<>(hitsByEmbeddingId.values());
+	}
+
+	private boolean hasStrongTitleMatch(List<ResourceTitleMatch> titleMatches) {
+		return titleMatches.stream()
+				.anyMatch(match -> match.score() >= STRONG_RESOURCE_TITLE_MATCH_SCORE);
+	}
+
+	private int titleScopedTopK(int resourceCount) {
+		int baseTopK = agentRagProperties.topK() == null ? 5 : agentRagProperties.topK();
+		return Math.max(baseTopK, baseTopK * Math.max(1, resourceCount) * TITLE_SCOPED_SEARCH_TOP_K_MULTIPLIER);
+	}
+
+	private double titleScopedMinSimilarity(AgentCommandMode mode) {
+		double configuredMinSimilarity = minSimilarity(mode);
+		if (mode == AgentCommandMode.SUGGEST) {
+			return configuredMinSimilarity;
+		}
+		return Math.min(configuredMinSimilarity, TITLE_SCOPED_RELAXED_MIN_SIMILARITY);
+	}
+
+	private double documentMinSimilarity(AgentCommandMode mode, boolean requireSemanticDocumentEvidence) {
+		double configuredMinSimilarity = minSimilarity(mode);
+		if (mode == AgentCommandMode.SUGGEST || !requireSemanticDocumentEvidence) {
+			return configuredMinSimilarity;
+		}
+		return Math.min(configuredMinSimilarity, PRECISE_GROUNDING_RELAXED_MIN_SIMILARITY);
+	}
+
+	private double minSimilarity(AgentCommandMode mode) {
+		return mode == AgentCommandMode.SUGGEST
+				? agentRagProperties.suggestMinSimilarity()
+				: agentRagProperties.minSimilarity();
+	}
+
+	private List<String> keywordTokens(String searchQuery) {
+		String normalized = AgentQuerySupport.compactResourceText(searchQuery);
+		List<String> tokens = new ArrayList<>(AgentQuerySupport.requirementIdentifiers(searchQuery));
+		if (normalized.isBlank()) {
+			return tokens;
+		}
+		for (String token : normalized.split(" ")) {
+			if (tokens.size() >= 5) {
+				break;
+			}
+			if (token.length() >= 2 && !tokens.contains(token)) {
+				tokens.add(token);
+			}
+		}
+		if (tokens.isEmpty()) {
+			return List.of();
+		}
+		return tokens;
 	}
 
 	private List<ResourceTitleMatch> excludeTitleMatchesAlreadyCoveredByRag(
@@ -246,10 +519,15 @@ public class ProjectRoomGroundingService {
 
 	private void appendDocumentEvidence(
 			List<ResourceSearchHit> ragHits,
+			Map<UUID, String> resourceTitles,
 			List<ProjectRoomGroundingEvidence> evidenceItems,
 			StringBuilder prompt
 	) {
 		for (ResourceSearchHit hit : ragHits) {
+			String title = title(hit.originalName(), resourceTitles.get(hit.resourceId()));
+			if (title == null || title.isBlank()) {
+				continue;
+			}
 			Map<String, Object> metadata = new LinkedHashMap<>();
 			metadata.put("retrievalMode", "SEMANTIC");
 			metadata.put("chunkIndex", hit.chunkIndex());
@@ -259,6 +537,7 @@ public class ProjectRoomGroundingService {
 			metadata.put("startOffset", hit.startOffset());
 			metadata.put("endOffset", hit.endOffset());
 			metadata.put("originalName", hit.originalName());
+			metadata.put("title", title);
 			metadata.put("similarityScore", hit.similarityScore());
 			metadata.put("quote", quote(hit.chunkText()));
 			evidenceItems.add(new ProjectRoomGroundingEvidence(
@@ -323,8 +602,13 @@ public class ProjectRoomGroundingService {
 				roomId,
 				Math.min(DEFAULT_CONTEXT_LIMIT, 5)
 		)) {
+			String title = resourceTitle(userId, summary.resourceId());
+			if (title == null || title.isBlank()) {
+				continue;
+			}
 			Map<String, Object> metadata = new LinkedHashMap<>();
 			metadata.put("retrievalMode", "RECENT_SUMMARY");
+			metadata.put("title", title);
 			metadata.put("status", summary.status());
 			metadata.put("updatedAt", summary.updatedAt());
 			evidenceItems.add(new ProjectRoomGroundingEvidence(
@@ -536,6 +820,51 @@ public class ProjectRoomGroundingService {
 				.map(ResourceSearchHit::similarityScore)
 				.max(Comparator.naturalOrder())
 				.orElse(0.0D);
+	}
+
+	private Map<UUID, String> resourceTitles(UUID userId, List<UUID> resourceIds) {
+		Map<UUID, String> titles = new LinkedHashMap<>();
+		for (UUID resourceId : resourceIds) {
+			String title = resourceTitle(userId, resourceId);
+			if (title != null && !title.isBlank()) {
+				titles.put(resourceId, title);
+			}
+		}
+		return titles;
+	}
+
+	private List<ResourceSearchHit> titleResolvedDocumentHits(
+			List<ResourceSearchHit> ragHits,
+			Map<UUID, String> resourceTitles
+	) {
+		return ragHits.stream()
+				.filter(hit -> {
+					String title = title(hit.originalName(), resourceTitles.get(hit.resourceId()));
+					if (title != null && !title.isBlank()) {
+						return true;
+					}
+					log.warn("Dropping document grounding hit without resolvable title. resourceId={}, chunkIndex={}",
+							hit.resourceId(), hit.chunkIndex());
+					return false;
+				})
+				.toList();
+	}
+
+	private String resourceTitle(UUID userId, UUID resourceId) {
+		try {
+			return resourcePublicService.getReadableResource(userId, resourceId).title();
+		} catch (RuntimeException exception) {
+			log.warn("Failed to resolve resource title for grounding citation. userId={}, resourceId={}",
+					userId, resourceId, exception);
+			return null;
+		}
+	}
+
+	private String title(String originalName, String resourceTitle) {
+		if (originalName != null && !originalName.isBlank()) {
+			return originalName;
+		}
+		return resourceTitle;
 	}
 
 	private String quote(String value) {

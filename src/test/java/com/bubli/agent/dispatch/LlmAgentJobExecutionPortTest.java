@@ -227,6 +227,50 @@ class LlmAgentJobExecutionPortTest {
 	}
 
 	@Test
+	void preservesDocumentDraftContentMarkdownFromLlmContractResult() {
+		given(chatModel.call(contains("DRAFT_DOCUMENT"))).willReturn("""
+				{
+				  "schemaVersion": "analysis.v1",
+				  "resourceId": "00000000-0000-0000-0000-000000000000",
+				  "model": {"name": "bedrock-test", "promptVersion": "prompt-test"},
+				  "analysis": {
+				    "summary": "문서 초안을 생성했습니다.",
+				    "keywords": ["document", "draft"],
+				    "risks": [],
+				    "checklist": []
+				  },
+				  "suggestions": [
+				    {
+				      "type": "DOCUMENT_DRAFT",
+				      "title": "공공도서관 WBS/TODO 문서 초안",
+				      "description": "공공도서관 서비스의 WBS와 TODO 초안을 작성합니다.",
+				      "contentMarkdown": "# 공공도서관 WBS/TODO 문서 초안\\n\\n## WBS\\n- 회원 로그인 및 관리\\n- 도서 검색 및 대출 신청\\n\\n## TODO\\n- 기능 요구사항 상세화\\n- 개발 일정 수립\\n",
+				      "sourceText": "공공도서관 서비스 기능 요구사항",
+				      "confidence": 0.91
+				    }
+				  ]
+				}
+				""");
+
+		var outcome = executionPort.execute(new AgentJobQueueMessage(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				AgentJobType.DRAFT_DOCUMENT,
+				Map.of("documentType", "WBS_TODO", "instruction", "WBS/TODO 문서 초안"),
+				Instant.now()
+		));
+
+		assertThat(outcome).isPresent();
+		assertThat(outcome.get().successful()).isTrue();
+		assertThat(outcome.get().suggestionDrafts().getFirst().suggestionType())
+				.isEqualTo(AgentSuggestionType.DOCUMENT_DRAFT);
+		assertThat(outcome.get().suggestionDrafts().getFirst().payloadJson())
+				.contains("contentMarkdown", "# 공공도서관 WBS/TODO 문서 초안", "## WBS", "## TODO");
+	}
+
+	@Test
 	void promptUsesJapaneseInstructionWhenRequestLocaleIsJapanese() {
 		given(chatModel.call(contains("natural Japanese"))).willReturn("""
 				{
