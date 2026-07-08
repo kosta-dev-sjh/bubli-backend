@@ -6,6 +6,7 @@ import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.CurrentUser;
 import com.bubli.personal.notification.dto.NotificationResponse;
 import com.bubli.personal.notification.service.NotificationService;
+import com.bubli.personal.notification.type.NotificationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -27,9 +29,10 @@ public class NotificationController {
 	@GetMapping("/api/notifications")
 	public ApiResponse<PageResponse<NotificationResponse>> getNotifications(
 			@CurrentUser AuthUser authUser,
+			@RequestParam(required = false) NotificationStatus status,
 			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
 	) {
-		Page<NotificationResponse> page = notificationService.getNotifications(authUser.userId(), pageable);
+		Page<NotificationResponse> page = notificationService.getNotifications(authUser.userId(), status, pageable);
 		return ApiResponse.success(new PageResponse<>(
 				page.getContent(),
 				page.getNumber(),
