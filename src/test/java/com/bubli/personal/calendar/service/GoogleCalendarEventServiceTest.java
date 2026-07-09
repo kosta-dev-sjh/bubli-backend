@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -135,6 +136,85 @@ class GoogleCalendarEventServiceTest {
 	}
 
 	@Test
+	void updateGoogleEventDefaultsEndWhenOnlyStartTimeChanges() {
+		UUID userId = UUID.randomUUID();
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-03T00:00:00Z")
+		);
+		GoogleCalendarEventPayload updated = new GoogleCalendarEventPayload(
+				"google-event-1",
+				"confirmed",
+				"시작만 바뀐 일정",
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-10T01:00:00Z"),
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-10T01:30:00Z")
+		);
+		ScheduleResult cached = new ScheduleResult(
+				UUID.randomUUID(),
+				userId,
+				null,
+				null,
+				null,
+				"google-event-1",
+				"primary",
+				null,
+				"시작만 바뀐 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:30:00Z"),
+				false,
+				ScheduleSyncStatus.SYNCED,
+				Instant.parse("2026-07-10T01:30:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z")
+		);
+
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+		given(googleCalendarClient.updateEvent(
+				eq("access-token"),
+				eq("primary"),
+				eq("google-event-1"),
+				any(GoogleCalendarEventPayload.class)
+		)).willReturn(updated);
+		given(scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				"primary",
+				null,
+				"google-event-1",
+				"시작만 바뀐 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:30:00Z"),
+				false
+		)).willReturn(cached);
+
+		googleCalendarEventService.updateGoogleEvent(
+				userId,
+				"primary",
+				"google-event-1",
+				new UpdateScheduleCommand(
+						"시작만 바뀐 일정",
+						Instant.parse("2026-07-10T01:00:00Z"),
+						null,
+						false,
+						null,
+						null
+				)
+		);
+
+		var payloadCaptor = forClass(GoogleCalendarEventPayload.class);
+		verify(googleCalendarClient).updateEvent(
+				eq("access-token"),
+				eq("primary"),
+				eq("google-event-1"),
+				payloadCaptor.capture()
+		);
+		assertThat(payloadCaptor.getValue().end()).isNotNull();
+		assertThat(payloadCaptor.getValue().end().dateTime()).isEqualTo("2026-07-10T01:30:00Z");
+	}
+
+	@Test
 	void deleteGoogleEventRemovesGoogleEventAndCachedSchedule() {
 		UUID userId = UUID.randomUUID();
 		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
@@ -228,6 +308,75 @@ class GoogleCalendarEventServiceTest {
 				"검토 회의",
 				Instant.parse("2026-07-10T01:00:00Z"),
 				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		);
+	}
+
+	@Test
+	void syncEventsDefaultsMissingGoogleEndTime() {
+		UUID userId = UUID.randomUUID();
+		Instant from = Instant.parse("2026-07-01T00:00:00Z");
+		Instant to = Instant.parse("2026-08-01T00:00:00Z");
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-03T00:00:00Z")
+		);
+		GoogleCalendarEventPayload eventWithoutEnd = new GoogleCalendarEventPayload(
+				"google-no-end",
+				"confirmed",
+				"종료 없는 구글 일정",
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-10T01:00:00Z"),
+				null
+		);
+		ScheduleResult synced = new ScheduleResult(
+				UUID.randomUUID(),
+				userId,
+				null,
+				null,
+				null,
+				"google-no-end",
+				"primary",
+				"Primary",
+				"종료 없는 구글 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:30:00Z"),
+				false,
+				ScheduleSyncStatus.SYNCED,
+				Instant.parse("2026-07-10T01:30:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:00:00Z")
+		);
+
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+		given(projectRoomCalendarService.findManagedGoogleCalendarIds(userId)).willReturn(Set.of());
+		given(googleCalendarClient.getEvents("access-token", "primary", from.toString(), to.toString()))
+				.willReturn(List.of(eventWithoutEnd));
+		given(deleteRequestService.findPendingGoogleEventIds(userId, "primary", List.of("google-no-end"))).willReturn(Set.of());
+		given(scheduleCalendarPublicService.upsertGoogleEvent(
+				userId,
+				"primary",
+				"Primary",
+				"google-no-end",
+				"종료 없는 구글 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:30:00Z"),
+				false
+		)).willReturn(synced);
+
+		List<ScheduleResult> results = googleCalendarEventService.syncEvents(userId, from, to);
+
+		assertThat(results).containsExactly(synced);
+		verify(scheduleCalendarPublicService).upsertGoogleEvent(
+				userId,
+				"primary",
+				"Primary",
+				"google-no-end",
+				"종료 없는 구글 일정",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T01:30:00Z"),
 				false
 		);
 	}

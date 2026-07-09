@@ -275,12 +275,20 @@ public class GoogleCalendarEventService {
 	}
 
 	private GoogleCalendarEventPayload patchPayload(UpdateScheduleCommand command) {
+		GoogleCalendarEventPayload.EventDateTime start =
+				command.startsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.startsAt().toString());
+		GoogleCalendarEventPayload.EventDateTime end =
+				command.endsAt() == null
+						? command.startsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(
+								GoogleCalendarEventPayload.normalizeEnd(command.startsAt(), null).toString()
+						)
+						: new GoogleCalendarEventPayload.EventDateTime(command.endsAt().toString());
 		return new GoogleCalendarEventPayload(
 				null,
 				null,
 				command.title(),
-				command.startsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.startsAt().toString()),
-				command.endsAt() == null ? null : new GoogleCalendarEventPayload.EventDateTime(command.endsAt().toString())
+				start,
+				end
 		);
 	}
 
@@ -300,15 +308,18 @@ public class GoogleCalendarEventService {
 			GoogleCalendarEventPayload.EventDateTime start = event.start();
 			GoogleCalendarEventPayload.EventDateTime end = event.end();
 			if (start.dateTime() != null) {
+				Instant startsAt = Instant.parse(start.dateTime());
 				return new EventTimeRange(
-						Instant.parse(start.dateTime()),
-						end == null || end.dateTime() == null ? null : Instant.parse(end.dateTime()),
+						startsAt,
+						end == null || end.dateTime() == null
+								? GoogleCalendarEventPayload.normalizeEnd(startsAt, null)
+								: Instant.parse(end.dateTime()),
 						false
 				);
 			}
 			Instant startsAt = LocalDate.parse(start.date()).atStartOfDay().toInstant(ZoneOffset.UTC);
 			Instant endsAt = end == null || end.date() == null
-					? null
+					? LocalDate.parse(start.date()).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
 					: LocalDate.parse(end.date()).atStartOfDay().toInstant(ZoneOffset.UTC);
 			return new EventTimeRange(startsAt, endsAt, true);
 		}

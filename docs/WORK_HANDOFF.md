@@ -1601,6 +1601,13 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 처리: 프로젝트룸 에이전트 응답 body에 `requesterId`, `requesterName`을 저장해 프론트가 명령 말풍선을 복원할 때 실제 요청자 닉네임을 사용할 수 있게 했다.
 - 검증: `ProjectRoomAgentCommandServiceTest`에 requester 메타 검증 추가.
 
+## 2026-07-09 Google Calendar end 누락 400 수정
+
+- 증상: Google Calendar API 호출에서 `Missing end time.` 400 응답이 서버 로그에 남을 수 있었다.
+- 원인: Bubli 일정의 `endsAt`은 nullable인데 Google Calendar 이벤트 생성/수정 payload는 `end`가 필수다. 끝 시간이 없는 일정이 자동 push되거나, 시작 시간만 수정하는 PATCH 요청이 나가면 Google 쪽에서 거절했다.
+- 처리: Google로 보내는 timed event payload에서 `endsAt`이 없으면 시작 시각 기준 30분 뒤를 기본 `end.dateTime`으로 채운다. Google에서 end 없이 내려온 이벤트도 가져올 때 30분 뒤로 보정해 재동기화 실패를 막는다.
+- 검증: `GoogleCalendarScheduleSyncServiceTest`, `GoogleCalendarEventServiceTest`에 end 누락 회귀 테스트 추가.
+
 ## 갱신 규칙
 
 - PR을 새로 만들거나 수정하면 이 문서의 열린 PR 상태를 갱신한다.
