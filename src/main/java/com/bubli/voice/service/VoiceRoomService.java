@@ -80,6 +80,7 @@ public class VoiceRoomService {
         projectRoomEventPublicService.recordVoiceParticipantJoined(userId, roomId, voiceRoom.getId(), participant.getId(), participant.getUserId());
 
         UserResult user = userPublicService.getUser(userId);
+        notifyRoomVoiceCallStarted(userId, user.name(), roomId);
         return toRoomResponse(voiceRoom, List.of(toParticipantResponse(participant, user.name())));
     }
 
@@ -115,6 +116,31 @@ public class VoiceRoomService {
                         callerName,
                         message
                 ));
+    }
+
+    // 프로젝트룸 보이스는 지금까지 활동 이벤트(프로젝트룸 이벤트 피드)만 기록하고 실제 알림은
+    // 하나도 안 보내서, 다른 멤버는 화면에 룸이 떠 있지 않으면 통화가 시작된 걸 전혀 알 방법이
+    // 없었다(수신 팝업 자체가 안 뜸). 멤버 목록은 프로젝트룸에 항상 연결돼 있는 소통 채팅방
+    // (RoomChatPublicService가 멤버십을 동기화해 둔다) 걸 재사용해서 구한다. sourceId는
+    // roomId로 보낸다 — 수락 시 프론트가 voiceApi.createRoom({ roomId })로 같은 방에 들어가야
+    // 하므로, chatRoomId를 넣으면 엉뚱한 채팅 전용 보이스룸이 새로 생겨 서로 연결되지 않는다.
+    private void notifyRoomVoiceCallStarted(UUID callerUserId, String callerName, UUID roomId) {
+        String message = voiceScopeLabel(roomId, null) + "를 시작했습니다";
+        findRoomVoiceMemberIds(roomId).stream()
+                .filter(memberId -> !memberId.equals(callerUserId))
+                .forEach(memberId -> notificationPublicService.create(
+                        memberId,
+                        NotificationSourceType.VOICE_CALL_ROOM,
+                        roomId,
+                        callerName,
+                        message
+                ));
+    }
+
+    private List<UUID> findRoomVoiceMemberIds(UUID roomId) {
+        return chatRoomAccessPublicService.findRoomChatRoomId(roomId)
+                .map(chatRoomAccessPublicService::findActiveMemberIds)
+                .orElseGet(List::of);
     }
 
     private String lockKey(UUID roomId) {
@@ -273,21 +299,29 @@ public class VoiceRoomService {
     @Transactional
     public void declineVoiceRoom(UUID userId, UUID voiceRoomId) {
         VoiceRoom voiceRoom = findRoom(voiceRoomId);
-        if (voiceRoom.getChatRoomId() == null) {
+        if (voiceRoom.getChatRoomId() == null && voiceRoom.getRoomId() == null) {
             throw new BusinessException(ErrorCode.COMMON_400_002);
         }
         if (voiceRoom.getStatus() != VoiceRoomStatus.OPEN) {
             return;
         }
-        chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+
+        UUID sourceId;
+        if (voiceRoom.getChatRoomId() != null) {
+            chatRoomAccessPublicService.assertActiveMember(userId, voiceRoom.getChatRoomId());
+            sourceId = voiceRoom.getChatRoomId();
+        } else {
+            projectRoomAccessPublicService.requireRoomMember(voiceRoom.getRoomId(), userId);
+            sourceId = voiceRoom.getRoomId();
+        }
 
         UserResult decliner = userPublicService.getUser(userId);
         notificationPublicService.create(
                 voiceRoom.getCreatedByUserId(),
                 NotificationSourceType.VOICE_CALL_DECLINED,
-                voiceRoom.getChatRoomId(),
+                sourceId,
                 decliner.name(),
-                voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 거절했습니다"
+                voiceScopeLabel(voiceRoom.getRoomId(), voiceRoom.getChatRoomId()) + "를 거절했습니다"
         );
     }
 
@@ -309,7 +343,7 @@ public class VoiceRoomService {
         // 참여자가 모두 LEFT라 판단 불가). 상대는 아직 참여 이력이 없으므로 이 시점에 JOINED가
         // 개설자 한 명뿐이면 "받기 전 취소"로 본다.
         boolean wasRingingBack = userId.equals(voiceRoom.getCreatedByUserId())
-                && voiceRoom.getChatRoomId() != null
+                && (voiceRoom.getChatRoomId() != null || voiceRoom.getRoomId() != null)
                 && currentParticipants(voiceRoomId).size() <= 1;
 
         voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoomId, VoiceParticipantStatus.JOINED)
@@ -322,13 +356,17 @@ public class VoiceRoomService {
 
         if (wasRingingBack) {
             UserResult canceler = userPublicService.getUser(userId);
-            String message = voiceScopeLabel(null, voiceRoom.getChatRoomId()) + "를 취소했습니다";
-            chatRoomAccessPublicService.findActiveMemberIds(voiceRoom.getChatRoomId()).stream()
+            String message = voiceScopeLabel(voiceRoom.getRoomId(), voiceRoom.getChatRoomId()) + "를 취소했습니다";
+            UUID sourceId = voiceRoom.getChatRoomId() != null ? voiceRoom.getChatRoomId() : voiceRoom.getRoomId();
+            List<UUID> targetMemberIds = voiceRoom.getChatRoomId() != null
+                    ? chatRoomAccessPublicService.findActiveMemberIds(voiceRoom.getChatRoomId())
+                    : findRoomVoiceMemberIds(voiceRoom.getRoomId());
+            targetMemberIds.stream()
                     .filter(memberId -> !memberId.equals(userId))
                     .forEach(memberId -> notificationPublicService.create(
                             memberId,
                             NotificationSourceType.VOICE_CALL_CANCELED,
-                            voiceRoom.getChatRoomId(),
+                            sourceId,
                             canceler.name(),
                             message
                     ));
