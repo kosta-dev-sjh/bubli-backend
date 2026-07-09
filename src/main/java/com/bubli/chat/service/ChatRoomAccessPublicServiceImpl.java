@@ -1,5 +1,6 @@
 package com.bubli.chat.service;
 
+import com.bubli.chat.entity.ChatRoom;
 import com.bubli.chat.entity.ChatRoomMember;
 import com.bubli.chat.repository.ChatRoomMemberRepository;
 import com.bubli.chat.repository.ChatRoomRepository;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -49,5 +51,12 @@ public class ChatRoomAccessPublicServiceImpl implements ChatRoomAccessPublicServ
         return chatRoomRepository.findById(chatRoomId)
                 .map(chatRoom -> chatRoom.getChatType() == ChatType.DIRECT)
                 .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findRoomChatRoomId(UUID roomId) {
+        return chatRoomRepository.findByRoomIdAndChatType(roomId, ChatType.ROOM)
+                .map(ChatRoom::getId);
     }
 }
