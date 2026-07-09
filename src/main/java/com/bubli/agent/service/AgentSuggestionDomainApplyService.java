@@ -19,15 +19,16 @@ import com.bubli.work.wbs.service.WbsItemPublicService;
 import com.bubli.work.wbs.type.WbsStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
@@ -269,7 +270,15 @@ public class AgentSuggestionDomainApplyService {
         try {
             return Instant.parse(text);
         } catch (DateTimeParseException exception) {
-            throw invalidPayload();
+            try {
+                return OffsetDateTime.parse(text).toInstant();
+            } catch (DateTimeParseException ignored) {
+                try {
+                    return LocalDate.parse(text).atStartOfDay().toInstant(ZoneOffset.UTC);
+                } catch (DateTimeParseException ignoredAgain) {
+                    throw invalidPayload();
+                }
+            }
         }
     }
 
