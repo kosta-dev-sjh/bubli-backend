@@ -1608,6 +1608,13 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 처리: Google로 보내는 timed event payload에서 `endsAt`이 없으면 시작 시각 기준 30분 뒤를 기본 `end.dateTime`으로 채운다. Google에서 end 없이 내려온 이벤트도 가져올 때 30분 뒤로 보정해 재동기화 실패를 막는다.
 - 검증: `GoogleCalendarScheduleSyncServiceTest`, `GoogleCalendarEventServiceTest`에 end 누락 회귀 테스트 추가.
 
+## 2026-07-09 로컬 파일 동기화 중복 이벤트 충돌 수정
+
+- 증상: `/api/local-file-events/sync` 처리 중 `uk_local_file_sync_events_user_event` unique constraint 위반 로그가 간헐적으로 남을 수 있었다.
+- 원인: 같은 `localEventId`가 재전송되거나 동시에 들어오면 두 요청 모두 기존 기록을 못 보고 리소스 처리를 먼저 수행한 뒤, 마지막 이벤트 기록 저장에서 중복 키가 터지는 경쟁 조건이 있었다.
+- 처리: 이벤트 처리 전에 `INSERT ... ON CONFLICT DO NOTHING`으로 `PROCESSING` 이벤트를 먼저 예약한다. 예약에 실패한 중복 요청은 기존 이벤트 결과를 반환하고, 처리 실패 시 예약 row를 제거해 다음 재시도가 가능하게 했다.
+- 검증: `LocalFileSyncServiceTest`에 동시 중복 예약 회귀 테스트 추가.
+
 ## 갱신 규칙
 
 - PR을 새로 만들거나 수정하면 이 문서의 열린 PR 상태를 갱신한다.
