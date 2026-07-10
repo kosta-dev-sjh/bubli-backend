@@ -1,6 +1,0 @@
-# Copy this file to terraform.tfvars and fill in real values.
-# terraform.tfvars should not be committed.
-
-aws_region     = "ap-northeast-2"
-project_name   = "bubli"
-s3_bucket_name = "bubli-storage-bubli12345"
