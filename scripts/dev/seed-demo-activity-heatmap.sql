@@ -1,15 +1,20 @@
 -- Bubli demo account activity seed.
 -- Target: Docker Postgres database created by this backend repo.
--- Purpose: 30 days of time_logs (heatmap) + activity_logs (app usage stats)
+-- Purpose: 365 days of time_logs (heatmap) + activity_logs (app usage stats)
 --          for the demo account so dashboard/heatmap screens have data to show.
 --
 -- Demo account: bubliteam1234@gmail.com
 -- users.bubli_id has no email column, so the account is resolved via its
 -- Bubli ID suffix shown in 설정 > 계정 (표시된 값: -qbnt3130).
 --
--- NOT idempotent: re-running this appends another 30 days of random rows
--- on top of whatever is already there. If you need a clean re-seed, delete
--- the previously generated rows for this user/date range first.
+-- Activity coverage: not every day has data.
+--   - Weekdays: 40% chance of no activity at all that day.
+--   - Weekends (Sat/Sun): 70% chance of no activity at all that day.
+--   A day with no activity has neither time_logs nor activity_logs rows.
+--
+-- Idempotent: previously seeded rows for the demo user
+-- (user_id = '4c495add-d066-4623-87da-4d8ed9e457d7') are deleted before
+-- inserting the new 365-day set.
 
 BEGIN;
 
@@ -30,19 +35,33 @@ BEGIN
     END IF;
 END $$;
 
--- 1) time_logs: 30 days, 1~3 timers/day, 30min~2h each, 09:00~20:00 KST, ENDED
+-- 0) Clean up previously seeded rows for the demo user before reseeding.
+DELETE FROM activity_logs WHERE user_id = '4c495add-d066-4623-87da-4d8ed9e457d7';
+DELETE FROM time_logs WHERE user_id = '4c495add-d066-4623-87da-4d8ed9e457d7';
+
+-- Shared per-day "did the user show up at all" roll, reused by both
+-- time_logs and activity_logs below so a no-activity day has no rows
+-- in either table.
+CREATE TEMP TABLE demo_seed_active_days ON COMMIT DROP AS
+SELECT day_offset
+FROM generate_series(0, 364) AS day_offset
+WHERE
+    CASE
+        WHEN EXTRACT(DOW FROM (CURRENT_DATE - day_offset)) IN (0, 6)
+            THEN random() < 0.3  -- weekend: 70% no-activity -> keep 30%
+        ELSE random() < 0.6      -- weekday: 40% no-activity -> keep 60%
+    END;
+
+-- 1) time_logs: active days only, 1~3 timers/day, 30min~2h each, 09:00~20:00 KST, ENDED
 WITH target_user AS (
     SELECT id AS user_id
     FROM users
     WHERE bubli_id LIKE '%qbnt3130'
     LIMIT 1
 ),
-days AS (
-    SELECT generate_series(0, 29) AS day_offset
-),
 day_log_counts AS (
     SELECT day_offset, (1 + floor(random() * 3))::int AS log_count
-    FROM days
+    FROM demo_seed_active_days
 ),
 day_logs AS (
     SELECT dlc.day_offset, gs AS seq
@@ -90,7 +109,7 @@ CROSS JOIN LATERAL (
         start_point.started_at + (tls.duration_seconds || ' seconds')::interval AS ended_at
 ) AS win;
 
--- 2) activity_logs: 30 days, 3~5 distinct apps/day, 10min~90min each, 09:00~20:00 KST
+-- 2) activity_logs: active days only, 3~5 distinct apps/day, 10min~90min each, 09:00~20:00 KST
 WITH target_user AS (
     SELECT id AS user_id
     FROM users
@@ -106,12 +125,9 @@ apps (app_name, window_title) AS (
         ('Notion', '주간 회의록'),
         ('Postman', 'API 테스트 - /api/time-logs')
 ),
-days AS (
-    SELECT generate_series(0, 29) AS day_offset
-),
 day_app_counts AS (
     SELECT day_offset, (3 + floor(random() * 3))::int AS app_count
-    FROM days
+    FROM demo_seed_active_days
 ),
 day_apps AS (
     SELECT
