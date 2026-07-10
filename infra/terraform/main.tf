@@ -13,6 +13,25 @@ provider "aws" {
 }
 
 # ============================================================
+# Data Sources
+# ============================================================
+
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# ============================================================
 # VPC
 # ============================================================
 
@@ -146,6 +165,150 @@ resource "aws_security_group" "rds" {
   tags = { Name = "${var.project_name}-rds-sg" }
 }
 
-# Billing resources (EC2, RDS, S3, and the IAM role/AMI data that only
-# served them) were removed to stop charges. VPC/subnets/SGs/routing
-# below are free and kept for a future re-deploy.
+# ============================================================
+# IAM (EC2 → S3)
+# ============================================================
+
+resource "aws_iam_role" "ec2" {
+  name = "${var.project_name}-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+
+  tags = { Name = "${var.project_name}-ec2-role" }
+}
+
+resource "aws_iam_policy" "ec2_s3" {
+  name        = "${var.project_name}-ec2-s3-policy"
+  description = "Allow EC2 to access the project S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ]
+      Resource = [
+        aws_s3_bucket.storage.arn,
+        "${aws_s3_bucket.storage.arn}/*"
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_s3" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = aws_iam_policy.ec2_s3.arn
+}
+
+resource "aws_iam_instance_profile" "ec2" {
+  name = "${var.project_name}-ec2-profile"
+  role = aws_iam_role.ec2.name
+}
+
+# ============================================================
+# EC2
+# ============================================================
+
+resource "aws_instance" "app" {
+  ami                    = data.aws_ami.amazon_linux_2023.id
+  instance_type          = var.ec2_instance_type
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.ec2.id]
+  key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2.name
+
+  root_block_device {
+    volume_type = "gp3"
+    volume_size = 20
+  }
+
+  user_data = <<-EOF
+    #!/bin/bash
+    dnf update -y
+    dnf install -y docker
+    systemctl enable docker
+    systemctl start docker
+    usermod -aG docker ec2-user
+    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+      -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+  EOF
+
+  tags = { Name = "${var.project_name}-app" }
+}
+
+# ============================================================
+# RDS PostgreSQL
+# ============================================================
+
+resource "aws_db_subnet_group" "main" {
+  name       = "${var.project_name}-db-subnet-group"
+  subnet_ids = [aws_subnet.private_a.id, aws_subnet.private_c.id]
+
+  tags = { Name = "${var.project_name}-db-subnet-group" }
+}
+
+resource "aws_db_instance" "postgres" {
+  identifier        = "${var.project_name}-postgres"
+  engine            = "postgres"
+  engine_version    = "16"
+  instance_class    = var.rds_instance_type
+  allocated_storage = 20
+  storage_type      = "gp3"
+
+  db_name  = var.db_name
+  username = var.db_username
+  password = var.db_password
+
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+
+  multi_az                  = false
+  publicly_accessible       = false
+  backup_retention_period   = 7
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "bubli-rds-final-snapshot"
+  deletion_protection       = true
+
+  tags = { Name = "${var.project_name}-postgres" }
+}
+
+# ============================================================
+# S3
+# ============================================================
+
+resource "aws_s3_bucket" "storage" {
+  bucket = var.s3_bucket_name
+
+  tags = { Name = "${var.project_name}-storage" }
+}
+
+resource "aws_s3_bucket_public_access_block" "storage" {
+  bucket = aws_s3_bucket.storage.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "storage" {
+  bucket = aws_s3_bucket.storage.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
