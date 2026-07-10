@@ -58,6 +58,27 @@ class NotificationServiceTest {
 	}
 
 	@Test
+	void getNotificationsCanFilterByStatus() {
+		UUID userId = UUID.randomUUID();
+		Notification notification = Notification.create(
+				userId,
+				NotificationSourceType.AGENT,
+				UUID.randomUUID(),
+				"AI ?뚮┝",
+				null
+		);
+		Pageable pageable = PageRequest.of(0, 20);
+		Page<Notification> page = new PageImpl<>(List.of(notification), pageable, 1);
+		given(notificationRepository.findAllByUserIdAndStatus(userId, NotificationStatus.UNREAD, pageable))
+				.willReturn(page);
+
+		Page<NotificationResponse> result = notificationService.getNotifications(userId, NotificationStatus.UNREAD, pageable);
+
+		assertThat(result.getContent()).hasSize(1);
+		assertThat(result.getContent().getFirst().status()).isEqualTo(NotificationStatus.UNREAD);
+	}
+
+	@Test
 	void readNotificationMarksAsReadForOwner() {
 		UUID userId = UUID.randomUUID();
 		UUID notificationId = UUID.randomUUID();

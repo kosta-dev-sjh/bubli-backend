@@ -122,10 +122,10 @@ public class WbsItemService {
 		WbsItem item = getItem(itemId);
 		checkRoomMember(userId, item.getRoomId());
 		taskPublicService.assertNoTaskLinkedToWbsItem(itemId);
-		schedulePublicService.assertNoScheduleLinkedToWbsItem(itemId);
 		if (wbsItemRepository.existsByParentId(itemId)) {
 			throw new BusinessException(ErrorCode.WORK_400_002);
 		}
+		schedulePublicService.deleteSchedulesLinkedToWbsItem(itemId);
 		wbsItemRepository.delete(item);
 	}
 

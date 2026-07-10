@@ -99,6 +99,16 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 	}
 
 	@Override
+	@Transactional
+	public void deleteSchedulesLinkedToWbsItem(UUID wbsItemId) {
+		List<Schedule> schedules = scheduleRepository.findByWbsItemId(wbsItemId);
+		for (Schedule schedule : schedules) {
+			deleteSyncedSchedule(schedule);
+		}
+		scheduleRepository.deleteAll(schedules);
+	}
+
+	@Override
 	@Transactional(readOnly = true)
 	public void assertNoScheduleLinkedToTask(UUID taskId) {
 		if (scheduleRepository.existsByTaskId(taskId)) {
@@ -121,6 +131,17 @@ public class SchedulePublicServiceImpl implements SchedulePublicService {
 			return googleCalendarScheduleSyncPublicService.syncCreatedOrUpdatedSchedule(userId, schedule);
 		} catch (RuntimeException exception) {
 			return GoogleCalendarSyncResult.failed();
+		}
+	}
+
+	private void deleteSyncedSchedule(Schedule schedule) {
+		try {
+			googleCalendarScheduleSyncPublicService.deleteSyncedSchedule(
+					schedule.getOwnerUserId(),
+					ScheduleSyncTarget.from(schedule)
+			);
+		} catch (RuntimeException exception) {
+			// 외부 캘린더 삭제 실패가 Bubli WBS 삭제를 막지 않게 한다.
 		}
 	}
 

@@ -52,6 +52,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 
 ## 최근 완료 작업
 
+### Google Calendar 자동 동기화 범위 보정
+
+처리 시각: 2026-07-09 KST
+
+변경 내용:
+
+- `POST /api/calendar/sync`에서 `calendarIds`가 비어 있으면 기존에는 `primary` 캘린더만 동기화했다.
+- 프론트 자동 동기화가 캘린더 목록을 받기 전에 먼저 실행되면 사용자가 추가로 쓰는 선택 캘린더는 수동 동기화 버튼을 눌러야 반영될 수 있었다.
+- 이제 `calendarIds`가 없으면 Google Calendar 목록을 조회해 사용자가 선택한 캘린더 전체를 동기화한다.
+- 선택 해제된 Google Calendar 항목은 자동 동기화 대상에서 제외한다.
+
+검증 결과:
+
+- `./gradlew test --tests com.bubli.personal.calendar.service.GoogleCalendarEventServiceTest --tests com.bubli.personal.calendar.service.GoogleCalendarGroupServiceTest` 통과
+- `./gradlew test` 통과
+
+남은 작업:
+
+- 프론트는 같은 월 Google 원본 조회를 세션 캐시로 줄이고, 포커스 복귀 시 조용히 재확인한다.
+- GitHub Actions CI 확인 후 develop 머지 상태를 확인한다.
+
 ### 초대 수락/취소 동시 처리 상태 꼬임 방지
 
 처리 시각: 2026-07-05 KST
@@ -1572,6 +1593,27 @@ stacked PR이라 GitHub Actions가 실행되지 않으면 로컬 검증 결과�
 - 원인: 룸 일정은 Google Calendar에 프로젝트룸 전용 캘린더를 보장한 뒤 이벤트를 만들도록 되어 있다. 기존 Google 토큰에 캘린더 생성 권한이 없거나 Google 호출이 실패하면 `ProjectRoomCalendarService.ensureRoomCalendar()`에서 예외가 트랜잭션 경계 밖으로 나갔다. 바깥 일정 서비스가 예외를 잡아도 Spring 트랜잭션이 rollback-only가 되어 최종 응답이 500이 될 수 있었다.
 - 처리: 룸 캘린더 생성 실패는 `Optional.empty()`로 흡수하고, 일정 저장은 유지한 채 `SYNC_FAILED`로 남기게 했다. 사용자가 룸 캘린더 상태를 직접 조회하면 `needsReconsent=true`로 재연결이 필요함을 알려준다.
 - 검증: `ProjectRoomCalendarServiceTest`, `ScheduleControllerIntegrationTest`, `WbsControllerIntegrationTest`, 전체 `./gradlew cleanTest test` 통과.
+
+## 2026-07-09 에이전트 명령 요청자 메타 보존
+
+- 증상: 프로젝트룸 채팅에서 `/bubli` 명령을 다른 참여자가 보낸 뒤 새로고침하면 합성된 명령 말풍선 작성자가 실제 닉네임이 아니라 `참여자`로 표시될 수 있었다.
+- 원인: 에이전트 응답 메시지는 발신자를 `Bubli Agent`로 보여주지만, 프론트가 응답의 요청자 이름을 복원할 영구 메타가 없었다.
+- 처리: 프로젝트룸 에이전트 응답 body에 `requesterId`, `requesterName`을 저장해 프론트가 명령 말풍선을 복원할 때 실제 요청자 닉네임을 사용할 수 있게 했다.
+- 검증: `ProjectRoomAgentCommandServiceTest`에 requester 메타 검증 추가.
+
+## 2026-07-09 Google Calendar end 누락 400 수정
+
+- 증상: Google Calendar API 호출에서 `Missing end time.` 400 응답이 서버 로그에 남을 수 있었다.
+- 원인: Bubli 일정의 `endsAt`은 nullable인데 Google Calendar 이벤트 생성/수정 payload는 `end`가 필수다. 끝 시간이 없는 일정이 자동 push되거나, 시작 시간만 수정하는 PATCH 요청이 나가면 Google 쪽에서 거절했다.
+- 처리: Google로 보내는 timed event payload에서 `endsAt`이 없으면 시작 시각 기준 30분 뒤를 기본 `end.dateTime`으로 채운다. Google에서 end 없이 내려온 이벤트도 가져올 때 30분 뒤로 보정해 재동기화 실패를 막는다.
+- 검증: `GoogleCalendarScheduleSyncServiceTest`, `GoogleCalendarEventServiceTest`에 end 누락 회귀 테스트 추가.
+
+## 2026-07-09 로컬 파일 동기화 중복 이벤트 충돌 수정
+
+- 증상: `/api/local-file-events/sync` 처리 중 `uk_local_file_sync_events_user_event` unique constraint 위반 로그가 간헐적으로 남을 수 있었다.
+- 원인: 같은 `localEventId`가 재전송되거나 동시에 들어오면 두 요청 모두 기존 기록을 못 보고 리소스 처리를 먼저 수행한 뒤, 마지막 이벤트 기록 저장에서 중복 키가 터지는 경쟁 조건이 있었다.
+- 처리: 이벤트 처리 전에 `INSERT ... ON CONFLICT DO NOTHING`으로 `PROCESSING` 이벤트를 먼저 예약한다. 예약에 실패한 중복 요청은 기존 이벤트 결과를 반환하고, 처리 실패 시 예약 row를 제거해 다음 재시도가 가능하게 했다.
+- 검증: `LocalFileSyncServiceTest`에 동시 중복 예약 회귀 테스트 추가.
 
 ## 갱신 규칙
 

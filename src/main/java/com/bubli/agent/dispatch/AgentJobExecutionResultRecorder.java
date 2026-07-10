@@ -5,6 +5,7 @@ import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.agent.type.AgentJobType;
 import com.bubli.global.locale.SupportedLocale;
 import com.bubli.personal.notification.service.NotificationPublicService;
 import com.bubli.personal.notification.type.NotificationSourceType;
@@ -87,9 +88,9 @@ public class AgentJobExecutionResultRecorder {
         ));
         notificationPublicService.create(
                 agentJob.getRequestedByUserId(),
-                NotificationSourceType.AGENT,
-                agentJob.getId(),
-                message("agent.job.succeeded.notification.title", locale, SUCCEEDED_NOTIFICATION_TITLE),
+                notificationSourceType(agentJob),
+                notificationSourceId(agentJob),
+                notificationTitle(agentJob, locale, false),
                 notificationBody(agentJob, message, locale)
         );
         recordProjectRoomEvent(agentJob, "SUCCEEDED", message);
@@ -126,9 +127,9 @@ public class AgentJobExecutionResultRecorder {
         ));
         notificationPublicService.create(
                 agentJob.getRequestedByUserId(),
-                NotificationSourceType.AGENT,
-                agentJob.getId(),
-                message("agent.job.failed.notification.title", locale, FAILED_NOTIFICATION_TITLE),
+                notificationSourceType(agentJob),
+                notificationSourceId(agentJob),
+                notificationTitle(agentJob, locale, true),
                 notificationBody(agentJob, message, locale)
         );
         recordProjectRoomEvent(agentJob, "FAILED", message);
@@ -161,6 +162,17 @@ public class AgentJobExecutionResultRecorder {
         if (analysisPreview.isPresent()) {
             return analysisPreview.get();
         }
+        if (agentJob.getJobType() == AgentJobType.ANALYZE_RESOURCE) {
+            String fallbackTarget = agentJob.getResourceId() == null
+                    ? agentJob.getId().toString()
+                    : agentJob.getResourceId().toString();
+            return messageSource.getMessage(
+                    "agent.job.analyze_resource.notification.body",
+                    new Object[]{resourceTitle(agentJob).orElse(fallbackTarget)},
+                    "분석한 자료: %s".formatted(fallbackTarget),
+                    locale
+            );
+        }
         return messageSource.getMessage(
                 "agent.job.notification.body",
                 new Object[]{agentJob.getJobType(), agentJob.getId(), message},
@@ -178,6 +190,61 @@ public class AgentJobExecutionResultRecorder {
             return Optional.empty();
         }
         return resourcePublicService.findAnalysisNotificationPreview(agentJob.getId());
+    }
+
+    private NotificationSourceType notificationSourceType(AgentJob agentJob) {
+        if (agentJob.getJobType() == AgentJobType.ANALYZE_RESOURCE && agentJob.getResourceId() != null) {
+            return NotificationSourceType.RESOURCE;
+        }
+        return NotificationSourceType.AGENT;
+    }
+
+    private UUID notificationSourceId(AgentJob agentJob) {
+        if (agentJob.getJobType() == AgentJobType.ANALYZE_RESOURCE && agentJob.getResourceId() != null) {
+            return agentJob.getResourceId();
+        }
+        return agentJob.getId();
+    }
+
+    private String notificationTitle(AgentJob agentJob, Locale locale, boolean failed) {
+        if (agentJob.getJobType() == AgentJobType.ANALYZE_RESOURCE) {
+            return messageSource.getMessage(
+                    failed
+                            ? "agent.job.analyze_resource.failed.notification.title"
+                            : "agent.job.analyze_resource.succeeded.notification.title",
+                    null,
+                    failed ? "자료 분석이 실패했습니다." : "자료 분석이 완료되었습니다.",
+                    locale
+            );
+        }
+        return message(
+                failed ? "agent.job.failed.notification.title" : "agent.job.succeeded.notification.title",
+                locale,
+                failed ? FAILED_NOTIFICATION_TITLE : SUCCEEDED_NOTIFICATION_TITLE
+        );
+    }
+
+    private Optional<String> resourceTitle(AgentJob agentJob) {
+        if (agentJob.getResourceId() == null) {
+            return Optional.empty();
+        }
+        try {
+            var resource = resourcePublicService.getReadableResource(
+                    agentJob.getRequestedByUserId(),
+                    agentJob.getResourceId()
+            );
+            if (resource == null || resource.title() == null || resource.title().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(resource.title().trim());
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to resolve resource title for agent notification. jobId={}, resourceId={}",
+                    agentJob.getId(),
+                    agentJob.getResourceId()
+            );
+            return Optional.empty();
+        }
     }
 
     private Locale locale(UUID userId) {

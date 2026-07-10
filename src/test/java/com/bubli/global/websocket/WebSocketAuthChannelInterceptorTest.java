@@ -25,6 +25,7 @@ class WebSocketAuthChannelInterceptorTest {
 
     private JwtTokenProvider jwtTokenProvider;
     private WebSocketSubscriptionAuthorizationPort subscriptionAuthorizationPort;
+    private DesktopPresenceRegistry desktopPresenceRegistry;
     private WebSocketAuthChannelInterceptor interceptor;
 
     @BeforeEach
@@ -36,7 +37,8 @@ class WebSocketAuthChannelInterceptorTest {
         ReflectionTestUtils.invokeMethod(jwtTokenProvider, "init");
 
         subscriptionAuthorizationPort = Mockito.mock(WebSocketSubscriptionAuthorizationPort.class);
-        interceptor = new WebSocketAuthChannelInterceptor(jwtTokenProvider, subscriptionAuthorizationPort);
+        desktopPresenceRegistry = new DesktopPresenceRegistry();
+        interceptor = new WebSocketAuthChannelInterceptor(jwtTokenProvider, subscriptionAuthorizationPort, desktopPresenceRegistry);
     }
 
     @Test
@@ -53,6 +55,26 @@ class WebSocketAuthChannelInterceptorTest {
         assertThat(authentication.getAuthorities())
                 .extracting("authority")
                 .containsExactly("ROLE_USER");
+    }
+
+    @Test
+    void connectWithDesktopClientTypeRegistersDesktopPresence() {
+        UUID userId = UUID.randomUUID();
+        String token = jwtTokenProvider.createAccessToken(new AuthUser(userId));
+
+        preSend(connectMessage("Bearer " + token, "desktop"));
+
+        assertThat(desktopPresenceRegistry.isActive(userId)).isTrue();
+    }
+
+    @Test
+    void connectWithoutDesktopClientTypeDoesNotRegisterDesktopPresence() {
+        UUID userId = UUID.randomUUID();
+        String token = jwtTokenProvider.createAccessToken(new AuthUser(userId));
+
+        preSend(connectMessage("Bearer " + token, null));
+
+        assertThat(desktopPresenceRegistry.isActive(userId)).isFalse();
     }
 
     @Test
@@ -104,9 +126,17 @@ class WebSocketAuthChannelInterceptorTest {
     }
 
     private Message<byte[]> connectMessage(String authorization) {
+        return connectMessage(authorization, null);
+    }
+
+    private Message<byte[]> connectMessage(String authorization, String clientType) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setSessionId(UUID.randomUUID().toString());
         if (authorization != null) {
             accessor.setNativeHeader("Authorization", authorization);
+        }
+        if (clientType != null) {
+            accessor.setNativeHeader("X-Client-Type", clientType);
         }
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }

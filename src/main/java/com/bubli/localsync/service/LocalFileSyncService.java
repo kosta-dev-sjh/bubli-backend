@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class LocalFileSyncService {
+
+    private static final String STATUS_PROCESSING = "PROCESSING";
+    private static final String STATUS_FAILED = "FAILED";
 
     private final ResourcePublicService resourcePublicService;
     private final UserPublicService userPublicService;
@@ -44,6 +48,17 @@ public class LocalFileSyncService {
                 .orElse(null);
         if (existing != null) {
             return existing;
+        }
+        if (!reserveEvent(userId, event)) {
+            return localFileSyncEventRepository
+                    .findByUserIdAndLocalEventId(userId, event.localEventId())
+                    .map(this::toResult)
+                    .orElseGet(() -> new LocalFileSyncResult(
+                            event.eventType(),
+                            event.localEventId(),
+                            event.resourceId(),
+                            STATUS_PROCESSING
+                    ));
         }
 
         try {
@@ -87,23 +102,40 @@ public class LocalFileSyncService {
             rememberCompletedEvent(userId, result);
             return result;
         } catch (Exception e) {
+            releaseReservedEvent(userId, event);
             log.warn("Failed to sync local file event: {} - {}", event.eventType(), e.getMessage());
-            return new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), "FAILED");
+            return new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), STATUS_FAILED);
         }
     }
 
+    private boolean reserveEvent(UUID userId, LocalFileEvent event) {
+        int inserted = localFileSyncEventRepository.insertProcessingIfAbsent(
+                UUID.randomUUID(),
+                userId,
+                event.localEventId(),
+                event.eventType(),
+                Instant.now()
+        );
+        return inserted > 0;
+    }
+
     private void rememberCompletedEvent(UUID userId, LocalFileSyncResult result) {
-        if ("FAILED".equalsIgnoreCase(result.status())) {
+        if (STATUS_FAILED.equalsIgnoreCase(result.status())) {
             return;
         }
 
-        localFileSyncEventRepository.save(LocalFileSyncEvent.create(
+        localFileSyncEventRepository.updateResult(
                 userId,
                 result.localEventId(),
                 result.eventType(),
                 result.resourceId(),
-                result.status()
-        ));
+                result.status(),
+                Instant.now()
+        );
+    }
+
+    private void releaseReservedEvent(UUID userId, LocalFileEvent event) {
+        localFileSyncEventRepository.deleteProcessingEvent(userId, event.localEventId());
     }
 
     private LocalFileSyncResult toResult(LocalFileSyncEvent event) {

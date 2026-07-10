@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -91,6 +92,47 @@ class GoogleCalendarScheduleSyncServiceTest {
 				eq("room-calendar-id"),
 				any(GoogleCalendarEventPayload.class)
 		);
+	}
+
+	@Test
+	void scheduleWithoutEndTimeUsesDefaultGoogleEndTime() {
+		UUID userId = UUID.randomUUID();
+		GoogleCalendarConnection connection = GoogleCalendarConnection.create(
+				userId,
+				"user@example.com",
+				"access-token",
+				"refresh-token",
+				Instant.parse("2026-07-05T01:00:00Z")
+		);
+		GoogleCalendarEventPayload created = new GoogleCalendarEventPayload(
+				"google-event-1",
+				"confirmed",
+				"끝 시간이 없는 일정",
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-05T01:00:00Z"),
+				new GoogleCalendarEventPayload.EventDateTime("2026-07-05T01:30:00Z")
+		);
+
+		given(connectionService.getActiveConnectionWithFreshToken(userId)).willReturn(Optional.of(connection));
+		given(googleCalendarClient.createEvent(eq("access-token"), eq("primary"), any(GoogleCalendarEventPayload.class)))
+				.willReturn(created);
+
+		syncService.syncCreatedOrUpdatedSchedule(
+				userId,
+				new ScheduleSyncTarget(
+						null,
+						null,
+						null,
+						null,
+						"끝 시간이 없는 일정",
+						Instant.parse("2026-07-05T01:00:00Z"),
+						null
+				)
+		);
+
+		var payloadCaptor = forClass(GoogleCalendarEventPayload.class);
+		verify(googleCalendarClient).createEvent(eq("access-token"), eq("primary"), payloadCaptor.capture());
+		assertThat(payloadCaptor.getValue().end()).isNotNull();
+		assertThat(payloadCaptor.getValue().end().dateTime()).isEqualTo("2026-07-05T01:30:00Z");
 	}
 
 	@Test

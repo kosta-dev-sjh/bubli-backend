@@ -119,7 +119,7 @@ class AgentJobExecutionResultRecorderTest {
 				localeService
 		);
 		UUID jobId = UUID.randomUUID();
-		AgentJob agentJob = runningJob(jobId);
+		AgentJob agentJob = runningJob(jobId, AgentJobType.GENERATE_WBS, UUID.randomUUID(), null);
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 
 		recorder.recordSucceeded(jobId);
@@ -160,9 +160,9 @@ class AgentJobExecutionResultRecorderTest {
 
 		verify(notificationPublicService).create(
 				eq(agentJob.getRequestedByUserId()),
-				eq(NotificationSourceType.AGENT),
-				eq(jobId),
-				eq(AgentJobExecutionResultRecorder.SUCCEEDED_NOTIFICATION_TITLE),
+				eq(NotificationSourceType.RESOURCE),
+				eq(agentJob.getResourceId()),
+				eq("자료 분석이 완료되었습니다."),
 				eq("contract.pdf: delivery schedule and revision scope were detected.")
 		);
 	}
@@ -237,11 +237,15 @@ class AgentJobExecutionResultRecorderTest {
 	}
 
 	private AgentJob runningJob(UUID jobId) {
+		return runningJob(jobId, AgentJobType.ANALYZE_RESOURCE, UUID.randomUUID(), UUID.randomUUID());
+	}
+
+	private AgentJob runningJob(UUID jobId, AgentJobType jobType, UUID roomId, UUID resourceId) {
 		AgentJob agentJob = AgentJob.create(
 				UUID.randomUUID(),
-				UUID.randomUUID(),
-				UUID.randomUUID(),
-				AgentJobType.ANALYZE_RESOURCE
+				roomId,
+				resourceId,
+				jobType
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
 		agentJob.markRunning();

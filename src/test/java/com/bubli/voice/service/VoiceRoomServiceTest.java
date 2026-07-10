@@ -113,6 +113,38 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void createProjectVoiceRoomNotifiesOtherActiveMembersOnCreate() {
+		UUID callerId = UUID.randomUUID();
+		UUID otherMemberId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID roomChatRoomId = UUID.randomUUID();
+		given(voiceRoomRepository.findByRoomIdAndStatus(roomId, VoiceRoomStatus.OPEN)).willReturn(Optional.empty());
+		given(voiceRoomRepository.save(any(VoiceRoom.class))).willAnswer(invocation -> withId((VoiceRoom) invocation.getArgument(0)));
+		given(voiceParticipantRepository.save(any(VoiceParticipant.class)))
+				.willAnswer(invocation -> withId((VoiceParticipant) invocation.getArgument(0)));
+		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "미연"));
+		given(chatRoomAccessPublicService.findRoomChatRoomId(roomId)).willReturn(Optional.of(roomChatRoomId));
+		given(chatRoomAccessPublicService.findActiveMemberIds(roomChatRoomId)).willReturn(List.of(callerId, otherMemberId));
+
+		voiceRoomService.createVoiceRoom(callerId, roomId, null);
+
+		verify(notificationPublicService).create(
+				otherMemberId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_ROOM,
+				roomId,
+				"미연",
+				"룸 보이스를 시작했습니다"
+		);
+		verify(notificationPublicService, never()).create(
+				org.mockito.ArgumentMatchers.eq(callerId),
+				any(),
+				any(),
+				any(),
+				any()
+		);
+	}
+
+	@Test
 	void createVoiceRoomReturnsExistingOpenRoomAfterLock() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -482,6 +514,35 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
+	void endVoiceRoomNotifiesOtherMemberWhenCancelingProjectRoomVoiceBeforeAnswer() {
+		UUID callerId = UUID.randomUUID();
+		UUID otherMemberId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID roomChatRoomId = UUID.randomUUID();
+		VoiceRoom voiceRoom = voiceRoom(callerId, roomId);
+		VoiceParticipant participant = participant(voiceRoom.getId(), callerId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(voiceParticipantRepository.findByVoiceRoomIdAndStatus(voiceRoom.getId(), VoiceParticipantStatus.JOINED))
+				.willReturn(List.of(participant));
+		given(voiceParticipantRepository.findByVoiceRoomId(voiceRoom.getId())).willReturn(List.of(participant));
+		given(chatRoomAccessPublicService.findRoomChatRoomId(roomId)).willReturn(Optional.of(roomChatRoomId));
+		given(chatRoomAccessPublicService.findActiveMemberIds(roomChatRoomId)).willReturn(List.of(callerId, otherMemberId));
+		given(userPublicService.getUser(callerId)).willReturn(user(callerId, "재민"));
+		given(userPublicService.getUsers(org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
+				.willReturn(Map.of(callerId, user(callerId)));
+
+		voiceRoomService.endVoiceRoom(callerId, voiceRoom.getId());
+
+		verify(notificationPublicService).create(
+				otherMemberId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_CANCELED,
+				roomId,
+				"재민",
+				"룸 보이스를 취소했습니다"
+		);
+	}
+
+	@Test
 	void endVoiceRoomDoesNotNotifyWhenCalleeAlreadyJoined() {
 		UUID callerId = UUID.randomUUID();
 		UUID calleeId = UUID.randomUUID();
@@ -524,10 +585,30 @@ class VoiceRoomServiceTest {
 	}
 
 	@Test
-	void declineVoiceRoomRejectsProjectRoomVoiceRoom() {
-		UUID userId = UUID.randomUUID();
+	void declineVoiceRoomNotifiesCreatorForProjectRoomVoice() {
+		UUID callerId = UUID.randomUUID();
+		UUID declinerId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
-		VoiceRoom voiceRoom = voiceRoom(userId, roomId);
+		VoiceRoom voiceRoom = voiceRoom(callerId, roomId);
+		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
+		given(userPublicService.getUser(declinerId)).willReturn(user(declinerId, "재민"));
+
+		voiceRoomService.declineVoiceRoom(declinerId, voiceRoom.getId());
+
+		verify(projectRoomAccessPublicService).requireRoomMember(roomId, declinerId);
+		verify(notificationPublicService).create(
+				callerId,
+				com.bubli.personal.notification.type.NotificationSourceType.VOICE_CALL_DECLINED,
+				roomId,
+				"재민",
+				"룸 보이스를 거절했습니다"
+		);
+	}
+
+	@Test
+	void declineVoiceRoomRejectsWhenNeitherScopeSet() {
+		UUID userId = UUID.randomUUID();
+		VoiceRoom voiceRoom = withId(VoiceRoom.createForChatRoom(null, userId));
 		given(voiceRoomRepository.findById(voiceRoom.getId())).willReturn(Optional.of(voiceRoom));
 
 		assertThatThrownBy(() -> voiceRoomService.declineVoiceRoom(userId, voiceRoom.getId()))

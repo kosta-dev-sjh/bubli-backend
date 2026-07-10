@@ -276,4 +276,54 @@ class SchedulePublicServiceImplTest {
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.WORK_400_004));
 	}
+
+	@Test
+	void deleteSchedulesLinkedToWbsItemDeletesGoogleCopiesAndLocalSchedules() {
+		UUID ownerId = UUID.randomUUID();
+		UUID wbsItemId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				ownerId,
+				UUID.randomUUID(),
+				null,
+				wbsItemId,
+				"WBS 기간",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		);
+		schedule.markSynced("room-calendar", "프로젝트룸", "google-event-1");
+		given(scheduleRepository.findByWbsItemId(wbsItemId)).willReturn(List.of(schedule));
+
+		schedulePublicService.deleteSchedulesLinkedToWbsItem(wbsItemId);
+
+		verify(googleCalendarScheduleSyncPublicService).deleteSyncedSchedule(
+				eq(ownerId),
+				any(ScheduleSyncTarget.class)
+		);
+		verify(scheduleRepository).deleteAll(List.of(schedule));
+	}
+
+	@Test
+	void deleteSchedulesLinkedToWbsItemDeletesLocalSchedulesWhenGoogleDeleteFails() {
+		UUID wbsItemId = UUID.randomUUID();
+		Schedule schedule = Schedule.create(
+				UUID.randomUUID(),
+				UUID.randomUUID(),
+				null,
+				wbsItemId,
+				"WBS 기간",
+				Instant.parse("2026-07-10T01:00:00Z"),
+				Instant.parse("2026-07-10T02:00:00Z"),
+				false
+		);
+		schedule.markSynced("room-calendar", "프로젝트룸", "google-event-1");
+		given(scheduleRepository.findByWbsItemId(wbsItemId)).willReturn(List.of(schedule));
+		willThrow(new IllegalStateException("calendar unavailable"))
+				.given(googleCalendarScheduleSyncPublicService)
+				.deleteSyncedSchedule(eq(schedule.getOwnerUserId()), any(ScheduleSyncTarget.class));
+
+		schedulePublicService.deleteSchedulesLinkedToWbsItem(wbsItemId);
+
+		verify(scheduleRepository).deleteAll(List.of(schedule));
+	}
 }

@@ -1,19 +1,19 @@
 package com.bubli.agent.model;
 
 import com.bubli.agent.contract.v1.AgentAnalysisResult;
+import com.bubli.agent.contract.v1.ChecklistSeverity;
 import com.bubli.agent.contract.v1.SuggestionType;
 import com.bubli.agent.validation.AgentAnalysisResultValidator;
 import com.bubli.agent.validation.AgentContractValidationException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -154,6 +154,95 @@ class AgentAnalysisResultJsonParserTest {
 
         assertThat(result.suggestions()).hasSize(1);
         assertThat(result.suggestions().getFirst().sourceText()).contains("두 번째 근거");
+    }
+
+    @Test
+    void defaultsMissingChecklistSeverityForDocumentDraftModelOutput() {
+        String response = """
+                {
+                  "schemaVersion": "analysis.v1",
+                  "resourceId": "44721708-84b3-4cdc-86cd-f403c1efa37a",
+                  "model": {"name": "spring-ai-chat", "promptVersion": "agent-job-llm-v1"},
+                  "analysis": {
+                    "summary": "문서 초안 요약",
+                    "keywords": ["문서 초안"],
+                    "risks": [],
+                    "checklist": [
+                      {"title": "자료 처리 실패 시 대응 방안 마련"}
+                    ]
+                  },
+                  "suggestions": [
+                    {
+                      "type": "DOCUMENT_DRAFT",
+                      "title": "요구사항 문서 초안",
+                      "description": "요구사항을 정리한 문서 초안입니다.",
+                      "sourceText": "요구사항 문서를 바탕으로 작성합니다.",
+                      "confidence": 0.8,
+                      "startsAt": "2026-07-07T15:00:00Z",
+                      "dueAt": "2026-07-29T14:59:59.999Z",
+                      "endsAt": "2026-07-29T14:59:59.999Z",
+                      "documentType": "WBS_TODO_PLAN",
+                      "contentMarkdown": "# 요구사항 문서 초안\\n\\n## 개요\\n문서 초안 내용"
+                    }
+                  ]
+                }
+                """;
+
+        AgentAnalysisResult result = parser.parse(response);
+
+        assertThat(result.analysis().checklist().getFirst().severity()).isEqualTo(ChecklistSeverity.MEDIUM);
+        assertThat(result.suggestions()).hasSize(1);
+        assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.DOCUMENT_DRAFT);
+        assertThat(result.suggestions().getFirst().contentMarkdown()).contains("# 요구사항 문서 초안");
+    }
+
+    @Test
+    void repairsChecklistTitleMissingClosingQuoteAndDropsUnsupportedItems() {
+        String response = """
+                {
+                  "schemaVersion": "analysis.v1",
+                  "resourceId": "00000000-0000-0000-0000-000000000000",
+                  "model": {"name": "spring-ai-chat", "promptVersion": "agent-job-llm-v1"},
+                  "analysis": {
+                    "summary": "Task draft summary",
+                    "keywords": ["task"],
+                    "risks": [],
+                    "checklist": [
+                      {
+                        "title": "Project schedule checklist,
+                        "items": [
+                          "Confirm scope",
+                          "Confirm milestone"
+                        ]
+                      }
+                    ]
+                  },
+                  "suggestions": [
+                    {
+                      "type": "task",
+                      "title": "Confirm project scope",
+                      "description": "Confirm project scope and goals.",
+                      "sourceText": "Project schedule planning requires scope confirmation.",
+                      "confidence": "80%",
+                      "status": "todo",
+                      "assigneeUserId": "not-a-uuid",
+                      "startsAt": "2026-07-09",
+                      "dueAt": "2026-07-10"
+                    }
+                  ]
+                }
+                """;
+
+        AgentAnalysisResult result = parser.parse(response);
+
+        assertThat(result.analysis().checklist().getFirst().title()).isEqualTo("Project schedule checklist");
+        assertThat(result.analysis().checklist().getFirst().severity()).isEqualTo(ChecklistSeverity.MEDIUM);
+        assertThat(result.suggestions().getFirst().type()).isEqualTo(SuggestionType.TASK);
+        assertThat(result.suggestions().getFirst().confidence()).isEqualTo(0.8);
+        assertThat(result.suggestions().getFirst().status()).isEqualTo("TODO");
+        assertThat(result.suggestions().getFirst().assigneeUserId()).isNull();
+        assertThat(result.suggestions().getFirst().startsAt()).isEqualTo("2026-07-09T00:00:00Z");
+        assertThat(result.suggestions().getFirst().dueAt()).isEqualTo("2026-07-10T00:00:00Z");
     }
 
     private static String readFixture(String filename) throws IOException {

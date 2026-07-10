@@ -27,10 +27,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -51,8 +54,10 @@ class LocalFileSyncServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		lenient().when(localFileSyncEventRepository.save(any(LocalFileSyncEvent.class)))
-				.thenAnswer(invocation -> invocation.getArgument(0));
+		lenient().when(localFileSyncEventRepository.insertProcessingIfAbsent(any(), any(), anyString(), anyString(), any()))
+				.thenReturn(1);
+		lenient().when(localFileSyncEventRepository.updateResult(any(), anyString(), anyString(), any(), anyString(), any()))
+				.thenReturn(1);
 	}
 
 	@Test
@@ -113,7 +118,45 @@ class LocalFileSyncServiceTest {
 		assertThat(retry.results().get(0).resourceId()).isEqualTo(resourceId);
 		assertThat(retry.results().get(0).status()).isEqualTo("SYNCED");
 		verify(resourcePublicService, times(1)).createPersonalLocalFileResource(userId, "brief.txt", 20L, "text/plain");
-		verify(localFileSyncEventRepository).save(any(LocalFileSyncEvent.class));
+		verify(localFileSyncEventRepository).updateResult(
+				eq(userId),
+				eq(localEventId),
+				eq("CREATED"),
+				eq(resourceId),
+				eq("SYNCED"),
+				any()
+		);
+	}
+
+	@Test
+	void syncCreatedLocalFileReturnsCachedResultWhenConcurrentRetryAlreadyReservedEvent() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		String localEventId = "local-event-concurrent-1";
+		LocalFileEvent event = new LocalFileEvent(
+				"CREATED",
+				"brief.txt",
+				20L,
+				localEventId,
+				"text/plain",
+				null
+		);
+		given(userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER))
+				.willReturn(true);
+		given(localFileSyncEventRepository.findByUserIdAndLocalEventId(userId, localEventId))
+				.willReturn(Optional.empty())
+				.willReturn(Optional.of(LocalFileSyncEvent.create(userId, localEventId, "CREATED", resourceId, "SYNCED")));
+		given(localFileSyncEventRepository.insertProcessingIfAbsent(any(), eq(userId), eq(localEventId), eq("CREATED"), any()))
+				.willReturn(0);
+
+		var response = localFileSyncService.sync(userId, List.of(event));
+
+		assertThat(response.results()).hasSize(1);
+		assertThat(response.results().get(0).eventType()).isEqualTo("CREATED");
+		assertThat(response.results().get(0).localEventId()).isEqualTo(localEventId);
+		assertThat(response.results().get(0).resourceId()).isEqualTo(resourceId);
+		assertThat(response.results().get(0).status()).isEqualTo("SYNCED");
+		verify(resourcePublicService, times(0)).createPersonalLocalFileResource(userId, "brief.txt", 20L, "text/plain");
 	}
 
 	@Test
@@ -137,6 +180,14 @@ class LocalFileSyncServiceTest {
 		assertThat(response.results().get(0).resourceId()).isNull();
 		assertThat(response.results().get(0).status()).isEqualTo("SKIPPED");
 		verify(userPublicService).isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER);
+		verify(localFileSyncEventRepository).updateResult(
+				eq(userId),
+				eq("local-event-2"),
+				eq("UPDATED"),
+				isNull(),
+				eq("SKIPPED"),
+				any()
+		);
 		verifyNoMoreInteractions(resourcePublicService);
 	}
 
@@ -178,6 +229,15 @@ class LocalFileSyncServiceTest {
 		assertThat(response.results().get(1).localEventId()).isEqualTo("local-event-synced");
 		assertThat(response.results().get(1).resourceId()).isEqualTo(updatedResourceId);
 		assertThat(response.results().get(1).status()).isEqualTo("SYNCED");
+		verify(localFileSyncEventRepository).deleteProcessingEvent(userId, "local-event-failed");
+		verify(localFileSyncEventRepository).updateResult(
+				eq(userId),
+				eq("local-event-synced"),
+				eq("UPDATED"),
+				eq(updatedResourceId),
+				eq("SYNCED"),
+				any()
+		);
 	}
 
 	@Test
