@@ -1,9 +1,9 @@
 package com.bubli.agent.service;
 
 import com.bubli.agent.dto.AgentSuggestionResponse;
+import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
 import com.bubli.agent.dto.ProjectRoomGroundingContext;
 import com.bubli.agent.dto.ProjectRoomGroundingEvidence;
-import com.bubli.agent.dto.ProjectRoomAgentCommandResponse;
 import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.model.AiCallExecutor;
 import com.bubli.agent.type.AgentCommandMode;
@@ -21,6 +21,7 @@ import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.dto.UserResult;
 import com.bubli.user.service.UserLocalePublicService;
 import com.bubli.user.service.UserPublicService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProjectRoomAgentCommandService {
 
-	private static final String PROMPT_VERSION = "project-room-agent-command-project-grounded-v1";
+	private static final String PROMPT_VERSION = "project-room-agent-command-project-grounded-v2";
 	private static final String FALLBACK_AMBIGUOUS_RESOURCE_INTENT = "AMBIGUOUS_RESOURCE_INTENT";
 
 	private final ProjectMembershipPublicService projectMembershipPublicService;
@@ -71,31 +72,13 @@ public class ProjectRoomAgentCommandService {
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
 		String clarificationAnswer = ambiguousResourceAnswer(message, locale);
 		if (clarificationAnswer != null) {
-			return persistResponse(
-					userId,
-					roomId,
-					message,
-					commandMode,
-					clarificationAnswer,
-					FALLBACK_AMBIGUOUS_RESOURCE_INTENT,
-					List.of(),
-					ProjectRoomGroundingContext.ungrounded(),
-					List.of()
-			);
+			return persistResponse(userId, roomId, message, commandMode, clarificationAnswer,
+					FALLBACK_AMBIGUOUS_RESOURCE_INTENT, List.of(), ProjectRoomGroundingContext.ungrounded(), List.of());
 		}
 		ResourceInventoryAnswer inventoryAnswer = resourceInventoryAnswer(userId, roomId, message, locale);
 		if (inventoryAnswer != null) {
-			return persistResponse(
-					userId,
-					roomId,
-					message,
-					commandMode,
-					inventoryAnswer.answer(),
-					null,
-					List.of(),
-					ProjectRoomGroundingContext.ungrounded(),
-					inventoryAnswer.resources()
-			);
+			return persistResponse(userId, roomId, message, commandMode, inventoryAnswer.answer(), null,
+					List.of(), ProjectRoomGroundingContext.ungrounded(), inventoryAnswer.resources());
 		}
 		ProjectRoomGroundingContext groundingContext = groundingService.retrieve(userId, roomId, message, locale, commandMode);
 		AnswerResult answer = answer(message, commandMode, locale, groundingContext);
@@ -107,17 +90,8 @@ public class ProjectRoomAgentCommandService {
 				answer.text(),
 				groundingContext
 		);
-		return persistResponse(
-				userId,
-				roomId,
-				message,
-				commandMode,
-				answer.text(),
-				answer.fallbackReason(),
-				suggestions,
-				groundingContext,
-				List.of()
-		);
+		return persistResponse(userId, roomId, message, commandMode, answer.text(), answer.fallbackReason(),
+				suggestions, groundingContext, List.of());
 	}
 
 	private ProjectRoomAgentCommandResponse persistResponse(
@@ -131,12 +105,24 @@ public class ProjectRoomAgentCommandService {
 			ProjectRoomGroundingContext groundingContext,
 			List<ResourceResult> metadataResources
 	) {
-		UUID responseResourceId = metadataResources.isEmpty() ? groundingContext.firstResourceId() : metadataResources.getFirst().id();
+		UUID responseResourceId = metadataResources.isEmpty()
+				? groundingContext.firstResourceId()
+				: metadataResources.getFirst().id();
 		UserResult requester = userPublicService.getUser(userId);
+		JsonNode body = responseBody(
+				requester,
+				message,
+				commandMode,
+				answer,
+				fallbackReason,
+				suggestions,
+				groundingContext,
+				metadataResources
+		);
 		ChatMessageResponse chatMessage = ChatMessageResponse.from(chatMessagePublicService.createRoomAgentResponse(
 				userId,
 				roomId,
-				responseBody(requester, message, commandMode, answer, fallbackReason, suggestions, groundingContext, metadataResources),
+				body,
 				responseResourceId
 		));
 		RoomMemorySummaryContextResult memory = roomMemoryPublicService.createDraft(
@@ -166,7 +152,7 @@ public class ProjectRoomAgentCommandService {
 		}
 		return switch (locale) {
 			case "en-US" -> "Do you want the uploaded file list, or should I summarize a file's contents?";
-			case "ja-JP" -> "アップロード済みファイルの一覧が必要ですか、それともファイル内容の要約が必要ですか？";
+			case "ja-JP" -> "アップロード済みファイルの一覧が必要ですか？それとも特定ファイルの内容を要約しますか？";
 			default -> "업로드된 파일 목록을 원하시나요, 아니면 특정 파일의 내용을 요약할까요?";
 		};
 	}
@@ -177,7 +163,7 @@ public class ProjectRoomAgentCommandService {
 			return false;
 		}
 		return hasResourceTerm(normalized)
-				&& containsAny(normalized, "알려", "말해", "教え", "tell")
+				&& containsAny(normalized, "알려", "말해", "설명", "요약", "tell", "explain", "summarize", "教えて", "説明", "要約")
 				&& !hasInventoryIntent(normalized);
 	}
 
@@ -190,25 +176,26 @@ public class ProjectRoomAgentCommandService {
 	}
 
 	private boolean hasResourceTerm(String normalized) {
-		return containsAny(normalized, "업로드", "올라온", "파일", "자료", "문서", "resource", "file", "upload",
-				"資料", "文書", "ファイル", "アップロード", "アップロード済み", "登録", "添付");
+		return containsAny(normalized,
+				"업로드", "올린", "파일", "자료", "문서", "resource", "file", "upload", "document",
+				"アップロード", "ファイル", "資料", "文書");
 	}
 
 	private boolean hasInventoryIntent(String normalized) {
-		return containsAny(normalized, "업로드", "올라온", "무엇", "뭐", "목록", "리스트", "보여", "현재", "있",
-				"what", "list", "show", "which", "?", "？", "何", "どんな", "どの", "一覧", "見せて", "表示",
-				"ある", "あります");
+		return containsAny(normalized,
+				"무엇", "뭐", "목록", "리스트", "보여", "현재", "어떤 파일", "업로드된 파일",
+				"what", "list", "show", "which",
+				"何", "一覧", "リスト", "見せて", "どのファイル", "どんなファイル", "ある", "アップロード済み");
 	}
 
 	private boolean isResourceContentRequest(String normalized) {
 		return AgentQuerySupport.hasRequirementIdentifier(normalized)
 				|| containsAny(normalized,
-				"내용", "핵심", "요약", "정리", "분석", "설명", "주요", "무슨 내용", "어떤 내용",
-				"기능", "요구사항", "요구 사항", "요건", "말하는", "어떤 것을", "어떤것", "무슨 기능", "어떤 기능",
+				"내용", "뜻", "요약", "정리", "분석", "설명", "주요", "무슨 내용", "어떤 내용",
+				"기능", "요구사항", "요구 사항", "요건", "말하", "어떤 것을", "어떤것", "무슨 기능", "어떤 기능",
 				"summary", "summarize", "summarise", "content", "key point", "main point", "explain",
 				"requirement", "feature", "means", "refer to",
-				"内容", "中身", "要約", "概要", "核心", "要点", "重要", "主な", "ポイント", "まとめ", "説明",
-				"機能", "要件", "何を指", "どの機能");
+				"内容", "意味", "要約", "整理", "分析", "説明", "主な", "機能", "要件", "何を指す");
 	}
 
 	private String uploadedResourcesAnswer(List<ResourceResult> resources, String locale) {
@@ -220,7 +207,7 @@ public class ProjectRoomAgentCommandService {
 			return "The current project room has these uploaded resources:\n%s".formatted(lines);
 		}
 		if ("ja-JP".equals(locale)) {
-			return "現在のプロジェクトルームにアップロードされている資料は次のとおりです。\n%s".formatted(lines);
+			return "現在のプロジェクトルームには、次のアップロード済み資料があります:\n%s".formatted(lines);
 		}
 		return "현재 프로젝트룸에 업로드된 자료는 다음과 같습니다.\n%s".formatted(lines);
 	}
@@ -230,7 +217,7 @@ public class ProjectRoomAgentCommandService {
 			return "No uploaded resources were found in the current project room.";
 		}
 		if ("ja-JP".equals(locale)) {
-			return "現在のプロジェクトルームでアップロード済みの資料は見つかりませんでした。";
+			return "現在のプロジェクトルームにアップロード済み資料は見つかりませんでした。";
 		}
 		return "현재 프로젝트룸에서 업로드된 자료를 찾지 못했습니다.";
 	}
@@ -246,16 +233,10 @@ public class ProjectRoomAgentCommandService {
 		AiCallExecutor executor = aiCallExecutorProvider.getIfAvailable();
 		String prompt = prompt(message, mode, locale, groundingContext);
 		try {
-			String rawAnswer;
-			if (executor == null) {
-				rawAnswer = chatModel.call(prompt);
-			} else {
-				rawAnswer = executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
-			}
-			return new AnswerResult(
-					AgentQuerySupport.removeAppendedNoAnswer(rawAnswer, noAnswer(locale)),
-					null
-			);
+			String rawAnswer = executor == null
+					? chatModel.call(prompt)
+					: executor.execute("project-room-agent-command-grounded", () -> chatModel.call(prompt));
+			return new AnswerResult(AgentQuerySupport.removeAppendedNoAnswer(rawAnswer, noAnswer(locale)), null);
 		} catch (RuntimeException exception) {
 			log.warn("Project room RAG LLM answer failed.", exception);
 			return new AnswerResult(noAnswer(locale), "LLM_FAILED");
@@ -271,6 +252,8 @@ public class ProjectRoomAgentCommandService {
 				Do not use recent chat history, room memory summaries, user memory, user profile memory, general world knowledge, or assumptions as factual evidence.
 				If at least one retrieved source is relevant, answer from the available evidence even when it is partial.
 				When the evidence is partial, separate confirmed facts from missing or unclear items.
+				Prefer sources with higher fusionScore and matchReason values such as REQUIREMENT_ID_MATCH, QUOTED_PHRASE_MATCH, KEYWORD_MATCH, or TITLE_MATCHED_RESOURCE.
+				If the highest ranked sources still do not support the user's question, use the no-answer sentence instead of guessing.
 				Never append the no-answer sentence after a useful partial answer.
 				Use this exact no-answer sentence only when none of the retrieved sources are relevant at all: %s
 				For SUGGEST mode, produce TODO, TASK, WBS, REQUIREMENT, QUESTION, or REVIEW_ITEM candidates only from the retrieved sources.
@@ -283,13 +266,7 @@ public class ProjectRoomAgentCommandService {
 
 				Retrieved project grounding sources:
 				%s
-				""".formatted(
-				languageInstruction(locale),
-				mode,
-				noAnswer(locale),
-				message,
-				groundingContext.promptBlock()
-		);
+				""".formatted(languageInstruction(locale), mode, noAnswer(locale), message, groundingContext.promptBlock());
 	}
 
 	private String noAnswer(String locale) {
@@ -350,21 +327,21 @@ public class ProjectRoomAgentCommandService {
 		if (containsAny(normalized, "wbs", "work breakdown")) {
 			return AgentSuggestionType.WBS;
 		}
-		if (containsAny(normalized, "작업", "태스크", "task")) {
+		if (containsAny(normalized, "작업", "태스크", "task", "タスク")) {
 			return AgentSuggestionType.TASK;
 		}
-		if (containsAny(normalized, "todo", "할 일", "할일", "to-do")) {
+		if (containsAny(normalized, "todo", "할일", "to-do")) {
 			return AgentSuggestionType.TODO;
 		}
 		if (containsAny(normalized, "요구사항", "요구", "requirement", "要件")) {
 			return AgentSuggestionType.REQUIREMENT;
 		}
-		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "누락", "불명확",
+		if (containsAny(normalized, "?", "질문", "확인", "물어", "문의", "연락", "불명확",
 				"question", "ask", "unclear", "missing", "質問", "確認", "不明")) {
 			return AgentSuggestionType.QUESTION;
 		}
 		if (containsAny(normalized, "검토", "리뷰", "위험", "리스크", "이슈", "조건", "계약", "확인 필요",
-				"review", "risk", "issue", "condition", "contract", "契約", "リスク", "条件")) {
+				"review", "risk", "issue", "condition", "contract", "レビュー", "リスク", "課題")) {
 			return AgentSuggestionType.REVIEW_ITEM;
 		}
 		return AgentSuggestionType.TODO;
@@ -450,9 +427,7 @@ public class ProjectRoomAgentCommandService {
 		body.put("missingInfo", metadataResources.isEmpty()
 				? missingInfo(request, answer, fallbackReason, groundingContext)
 				: List.of());
-		body.put("suggestionIds", suggestions.stream()
-				.map(AgentSuggestionResponse::suggestionId)
-				.toList());
+		body.put("suggestionIds", suggestions.stream().map(AgentSuggestionResponse::suggestionId).toList());
 		putGroundingMetadata(body, groundingContext);
 		if (!metadataResources.isEmpty()) {
 			body.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
@@ -483,9 +458,7 @@ public class ProjectRoomAgentCommandService {
 		memory.put("missingInfo", metadataResources.isEmpty()
 				? missingInfo(request, answer, fallbackReason, groundingContext)
 				: List.of());
-		memory.put("suggestionIds", suggestions.stream()
-				.map(AgentSuggestionResponse::suggestionId)
-				.toList());
+		memory.put("suggestionIds", suggestions.stream().map(AgentSuggestionResponse::suggestionId).toList());
 		putGroundingMetadata(memory, groundingContext);
 		if (!metadataResources.isEmpty()) {
 			memory.put("resources", metadataResources.stream().map(this::resourcePayload).toList());
@@ -493,7 +466,7 @@ public class ProjectRoomAgentCommandService {
 		}
 		try {
 			return objectMapper.writeValueAsString(memory);
-		} catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+		} catch (JsonProcessingException exception) {
 			throw new IllegalStateException("Failed to serialize room memory summary.", exception);
 		}
 	}
@@ -502,7 +475,7 @@ public class ProjectRoomAgentCommandService {
 		payload.put("grounded", groundingContext.grounded());
 		payload.put("sourceTypes", sourceTypes(groundingContext));
 		payload.put("evidenceItems", groundingContext.evidenceItems().stream()
-				.map(com.bubli.agent.dto.ProjectRoomGroundingEvidence::toPayload)
+				.map(ProjectRoomGroundingEvidence::toPayload)
 				.toList());
 		payload.put("retrievalModes", groundingContext.retrievalModes());
 		payload.put("ragGrounded", groundingContext.hasDocumentEvidence());
@@ -519,16 +492,12 @@ public class ProjectRoomAgentCommandService {
 		payload.put("agentSuggestionIds", groundingContext.agentSuggestionIds());
 	}
 
-	private String answerCompleteness(
-			String answer,
-			String fallbackReason,
-			ProjectRoomGroundingContext groundingContext
-	) {
+	private String answerCompleteness(String answer, String fallbackReason, ProjectRoomGroundingContext groundingContext) {
 		if (!groundingContext.grounded() || fallbackReason != null) {
 			return "NO_EVIDENCE";
 		}
 		String normalized = normalize(answer);
-		if (containsAny(normalized, "추가 확인", "확인 필요", "불명확", "부족", "missing", "unclear", "確認")) {
+		if (containsAny(normalized, "추가 확인", "확인 필요", "불명확", "부족", "missing", "unclear", "不明", "確認が必要")) {
 			return "PARTIAL";
 		}
 		return "ANSWERED";
@@ -550,7 +519,7 @@ public class ProjectRoomAgentCommandService {
 			return List.of("NO_RELEVANT_PROJECT_GROUNDING");
 		}
 		String normalized = normalize(answer);
-		if (containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear")) {
+		if (containsAny(normalized, "추가 확인", "확인 필요", "missing", "unclear", "確認が必要")) {
 			return List.of("PARTIAL_EVIDENCE");
 		}
 		return List.of();
@@ -581,11 +550,9 @@ public class ProjectRoomAgentCommandService {
 			Map<String, Object> citation = new LinkedHashMap<>();
 			citation.put("sourceType", evidence.sourceType().name());
 			citation.put("sourceId", evidence.id());
-			if (evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT) {
-				citation.put("resourceId", evidence.id());
-			} else {
-				citation.put("resourceId", evidence.metadata().get("resourceId"));
-			}
+			citation.put("resourceId", evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT
+					? evidence.id()
+					: evidence.metadata().get("resourceId"));
 			citation.put("retrievalMode", firstNonNull(
 					evidence.metadata().get("retrievalMode"),
 					evidence.sourceType() == ProjectRoomGroundingSourceType.DOCUMENT ? null : "MANAGEMENT_CONTEXT"
@@ -599,16 +566,14 @@ public class ProjectRoomAgentCommandService {
 			citation.put("endOffset", evidence.metadata().get("endOffset"));
 			citation.put("quote", evidence.metadata().get("quote"));
 			citation.put("similarityScore", evidence.metadata().get("similarityScore"));
+			citation.put("fusionScore", evidence.metadata().get("fusionScore"));
 			citations.add(citation);
 		}
 		return citations;
 	}
 
 	private Object citationTitle(ProjectRoomGroundingEvidence evidence) {
-		Object title = firstNonNull(
-				evidence.metadata().get("originalName"),
-				evidence.metadata().get("title")
-		);
+		Object title = firstNonNull(evidence.metadata().get("originalName"), evidence.metadata().get("title"));
 		if (title != null && !title.toString().isBlank()) {
 			return title;
 		}
@@ -635,15 +600,11 @@ public class ProjectRoomAgentCommandService {
 	}
 
 	private List<String> sourceTypes(ProjectRoomGroundingContext groundingContext) {
-		return groundingContext.sourceTypes().stream()
-				.map(Enum::name)
-				.toList();
+		return groundingContext.sourceTypes().stream().map(Enum::name).toList();
 	}
 
 	private List<Map<String, Object>> ragHits(ProjectRoomGroundingContext groundingContext) {
-		return groundingContext.ragHits().stream()
-				.map(this::ragHit)
-				.toList();
+		return groundingContext.ragHits().stream().map(this::ragHit).toList();
 	}
 
 	private Map<String, Object> ragHit(ResourceSearchHit hit) {

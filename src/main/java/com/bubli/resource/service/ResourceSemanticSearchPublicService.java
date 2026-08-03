@@ -32,9 +32,27 @@ public class ResourceSemanticSearchPublicService {
     private final EmbeddingVectorFormatter embeddingVectorFormatter;
     private final ProjectRoomAccessPublicService projectRoomAccessService;
     private final ObjectMapper objectMapper;
+    private final ResourceSearchMetricsPublicService resourceSearchMetrics;
 
     @Transactional(readOnly = true)
     public List<ResourceSearchHit> search(
+            UUID userId,
+            ResourceSearchScope scope,
+            UUID roomId,
+            String query,
+            Integer topK
+    ) {
+        String metricScope = scope == ResourceSearchScope.PERSONAL ? "personal" : "room";
+        return resourceSearchMetrics.observe("semantic", metricScope, () -> searchSemantic(
+                userId,
+                scope,
+                roomId,
+                query,
+                topK
+        ));
+    }
+
+    private List<ResourceSearchHit> searchSemantic(
             UUID userId,
             ResourceSearchScope scope,
             UUID roomId,
@@ -78,6 +96,17 @@ public class ResourceSemanticSearchPublicService {
             String query,
             Integer topK
     ) {
+        return resourceSearchMetrics.observe("semantic", "room_resources", () ->
+                searchRoomSharedResourcesInternal(userId, roomId, resourceIds, query, topK));
+    }
+
+    private List<ResourceSearchHit> searchRoomSharedResourcesInternal(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            String query,
+            Integer topK
+    ) {
         require(userId, "userId");
         require(roomId, "roomId");
         if (resourceIds == null || resourceIds.isEmpty()) {
@@ -103,6 +132,17 @@ public class ResourceSemanticSearchPublicService {
 
     @Transactional(readOnly = true)
     public List<ResourceSearchHit> searchRoomSharedResourceKeywords(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            List<String> keywords,
+            Integer topK
+    ) {
+        return resourceSearchMetrics.observe("keyword", "room_resources", () ->
+                searchRoomSharedResourceKeywordsInternal(userId, roomId, resourceIds, keywords, topK));
+    }
+
+    private List<ResourceSearchHit> searchRoomSharedResourceKeywordsInternal(
             UUID userId,
             UUID roomId,
             List<UUID> resourceIds,
@@ -142,6 +182,16 @@ public class ResourceSemanticSearchPublicService {
             List<String> keywords,
             Integer topK
     ) {
+        return resourceSearchMetrics.observe("keyword", "room", () ->
+                searchRoomSharedKeywordsInternal(userId, roomId, keywords, topK));
+    }
+
+    private List<ResourceSearchHit> searchRoomSharedKeywordsInternal(
+            UUID userId,
+            UUID roomId,
+            List<String> keywords,
+            Integer topK
+    ) {
         require(userId, "userId");
         require(roomId, "roomId");
         List<String> normalizedKeywords = normalizeKeywords(keywords);
@@ -166,6 +216,16 @@ public class ResourceSemanticSearchPublicService {
 
     @Transactional(readOnly = true)
     public List<ResourceSearchHit> loadRoomSharedResourceChunks(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            Integer topK
+    ) {
+        return resourceSearchMetrics.observe("representative", "room_resources", () ->
+                loadRoomSharedResourceChunksInternal(userId, roomId, resourceIds, topK));
+    }
+
+    private List<ResourceSearchHit> loadRoomSharedResourceChunksInternal(
             UUID userId,
             UUID roomId,
             List<UUID> resourceIds,

@@ -19,6 +19,7 @@ import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.resource.service.ResourceSearchMetricsPublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceSearchScope;
 import com.bubli.resource.type.ResourceVisibility;
@@ -68,6 +69,7 @@ public class PersonalAgentCommandService {
 	private final ResourcePublicService resourcePublicService;
 	private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 	private final AgentRagProperties agentRagProperties;
+	private final ResourceSearchMetricsPublicService resourceSearchMetrics;
 	private final UserLocalePublicService userLocalePublicService;
 	private final ObjectProvider<ChatModel> chatModelProvider;
 	private final ObjectProvider<AiCallExecutor> aiCallExecutorProvider;
@@ -177,16 +179,23 @@ public class PersonalAgentCommandService {
 			return List.of();
 		}
 		try {
-			return resourceSemanticSearchService.search(
-							userId,
-							ResourceSearchScope.PERSONAL,
-							null,
-							AgentQuerySupport.searchQuery(message),
-							RESOURCE_LIMIT
-					)
-					.stream()
+			List<ResourceSearchHit> candidates = resourceSemanticSearchService.search(
+					userId,
+					ResourceSearchScope.PERSONAL,
+					null,
+					AgentQuerySupport.searchQuery(message),
+					RESOURCE_LIMIT
+			);
+			List<ResourceSearchHit> acceptedHits = candidates.stream()
 					.filter(hit -> hit.similarityScore() >= agentRagProperties.personalMinSimilarity())
 					.toList();
+			resourceSearchMetrics.recordSelection(
+					"semantic",
+					"personal",
+					candidates.size(),
+					acceptedHits.size()
+			);
+			return acceptedHits;
 		} catch (RuntimeException exception) {
 			log.warn("Personal document semantic retrieval failed. userId={}", userId, exception);
 			return List.of();

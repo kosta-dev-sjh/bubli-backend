@@ -21,7 +21,10 @@ public class ProjectRoomAgentCommandController {
 
 	private final ProjectRoomAgentCommandService projectRoomAgentCommandService;
 
-	@PostMapping("/api/project-rooms/{roomId}/agent/commands")
+	@PostMapping({
+			"/api/project-rooms/{roomId}/agent/commands",
+			"/api/project-rooms/{roomId}/agent-command"
+	})
 	public ApiResponse<ProjectRoomAgentCommandResponse> execute(
 			@CurrentUser AuthUser authUser,
 			@PathVariable UUID roomId,
