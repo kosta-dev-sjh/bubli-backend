@@ -1,4 +1,6 @@
-현재 구현은 MVP 수준에서는 꽤 탄탄합니다. 권한 범위 분리, pgvector/HNSW, 문서 청크, 제목 기반 보완 검색, 인용 메타데이터까지 있습니다. 다만 검색 정확도를 측정하거나 검색 결과를 정교하게 재정렬하는 부분이 부족해, 데이터가 많아질수록 품질과 성능 편차가 커질 구조입니다.
+현재 구현은 MVP 수준에서는 꽤 탄탄합니다. 권한 범위 분리, pgvector/HNSW, 문서 청크, 제목 기반 보완 검색, 인용 메타데이터까지 있습니다. 이후 1차 고도화로 semantic/keyword/title/representative 후보에 weighted fusion 계층을 추가했고, 2차 고도화로 keyword 검색에 PostgreSQL FTS와 pg_trgm 인덱스를 추가했습니다.
+
+다만 BM25 수준의 전문 검색, 평가 corpus 기반 튜닝, chunking 개선, 검색 장애/빈 결과 분리, batch embedding 등 production-grade RAG로 가기 위한 작업은 아직 남아 있습니다.
 
 ## 현재 검색 구조
 
@@ -9,9 +11,9 @@
 3. keyword search 실행
 4. 최근 문서 제목 최대 30개에서 제목 매칭
 5. 제목에 매칭된 문서만 대상으로 semantic/keyword search 재실행
-6. 결과를 중복 제거해 병합
-7. threshold를 통과한 청크를 LLM 프롬프트에 추가
-8. 문서명·페이지·줄·offset·유사도 정보를 citation으로 반환
+6. semantic/keyword/title/representative 후보를 weighted fusion으로 재랭킹
+7. 문서별 결과 편중을 제한한 뒤 최종 청크를 LLM 프롬프트에 추가
+8. 문서명·페이지·줄·offset·유사도·fusion score·매칭 이유를 citation/evidence metadata로 반환
 
 실제 메인 경로는 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:63)입니다.
 
@@ -19,21 +21,26 @@
 
 ### 1. Hybrid search가 아니라 단순 결과 병합에 가깝습니다
 
-Semantic 결과와 keyword 결과를 embedding ID 기준으로 합칠 뿐, 두 점수를 통합해서 다시 순위를 계산하지 않습니다.
+상태: **1차 개선 완료**.
+
+기존에는 semantic 결과와 keyword 결과를 embedding ID 기준으로 합칠 뿐, 두 점수를 통합해서 다시 순위를 계산하지 않았습니다.
 
 - Semantic 점수: cosine similarity
 - Keyword 점수: 포함된 키워드 수 ÷ 전체 키워드 수
 - 두 점수의 의미와 분포가 전혀 다른데 그대로 섞입니다.
 - 제목 매칭이 없으면 semantic 결과 다음에 keyword 결과가 붙는 순서가 됩니다.
-- RRF, weighted score, reranker 같은 최종 재정렬 과정이 없습니다.
+- 현재는 `ProjectRoomDocumentFusionService`에서 weighted fusion을 수행합니다.
+- 아직 RRF, cross-encoder reranker, LLM reranker는 없습니다.
 
 관련 병합 코드는 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:441)입니다.
 
-따라서 keyword에서 매우 정확하게 일치한 청크가 semantic의 애매한 결과보다 뒤로 밀릴 수 있습니다.
+따라서 keyword에서 매우 정확하게 일치한 청크가 semantic의 애매한 결과보다 뒤로 밀리는 문제는 상당 부분 개선됐습니다.
 
 ### 2. Keyword search의 정확도와 성능이 모두 제한적입니다
 
-현재 keyword 검색은 다음 형태입니다.
+상태: **2차 개선 완료**.
+
+기존 keyword 검색은 다음 형태였습니다.
 
 ```sql
 lower(chunk_text) LIKE '%keyword%'
@@ -52,11 +59,20 @@ lower(chunk_text) LIKE '%keyword%'
 - 1글자 키워드는 제거되어 약어·제품 코드·한 글자 요구사항을 놓칠 수 있습니다.
 - 단어 빈도, 등장 위치, 키워드 간 거리, 제목 가중치가 없습니다.
 
-PostgreSQL FTS의 `tsvector/tsquery`, `pg_trgm`, 혹은 별도 BM25 검색을 적용할 필요가 있습니다.
+현재는 `V34__resource_embedding_keyword_search_indexes.sql`에서 `pg_trgm` extension과 `to_tsvector('simple', chunk_text)` GIN 인덱스를 추가했고, keyword 쿼리는 FTS 매칭, trigram `word_similarity`, 기존 token coverage를 합산합니다.
+
+남은 한계는 다음과 같습니다.
+
+- PostgreSQL `simple` dictionary라 한국어/일본어 형태소 분석은 하지 않습니다.
+- BM25가 아니라 FTS rank + token coverage + trigram 보정입니다.
+- 키워드는 여전히 최대 5개로 제한됩니다.
+- query expansion, synonym expansion, typo correction은 없습니다.
 
 ### 3. 검색 결과의 출처 유형이 잘못 기록될 수 있습니다
 
-Semantic과 keyword 결과를 병합한 뒤 모든 문서 근거에 다음 값을 넣습니다.
+상태: **개선 완료**.
+
+기존에는 semantic과 keyword 결과를 병합한 뒤 모든 문서 근거에 다음 값을 넣었습니다.
 
 ```java
 metadata.put("retrievalMode", "SEMANTIC");
@@ -64,7 +80,7 @@ metadata.put("retrievalMode", "SEMANTIC");
 
 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:520)
 
-따라서 실제로 keyword fallback으로 찾은 결과도 API citation에서는 `SEMANTIC`으로 표시됩니다. 대표 청크 fallback도 동일하게 semantic 결과처럼 보일 수 있습니다.
+현재는 `SEMANTIC`, `KEYWORD`, `TITLE_SCOPED_SEMANTIC`, `TITLE_SCOPED_KEYWORD`, `REPRESENTATIVE`를 구분해 `retrievalMode`에 기록합니다. 또한 `fusionScore`, `matchedKeywords`, `matchReason`을 evidence metadata에 포함합니다.
 
 이 때문에 운영 중 “어떤 검색 전략으로 찾은 문서인지” 분석하기 어렵고, 검색 품질 지표도 왜곡됩니다.
 
@@ -86,11 +102,13 @@ baseTopK * resourceCount * 3
 
 ### 5. 문서 다양성 제어가 없습니다
 
-검색 단위가 청크이므로 같은 문서의 서로 인접한 청크가 Top-K를 전부 차지할 수 있습니다.
+상태: **기본 개선 완료**.
+
+검색 단위가 청크이므로 같은 문서의 서로 인접한 청크가 Top-K를 전부 차지할 수 있었습니다. 현재는 fusion 결과에서 문서별 최대 청크 수를 제한합니다.
 
 현재 없는 기능은 다음과 같습니다.
 
-- 문서별 최대 청크 개수
+- 문서별 최대 청크 개수: 기본 구현됨
 - 인접·중복 청크 제거
 - MMR 기반 다양성 확보
 - 같은 문서의 연속 청크 병합
@@ -153,7 +171,9 @@ baseTopK * resourceCount * 3
 
 ### 10. 대표 청크 fallback이 문서별 대표성을 보장하지 않습니다
 
-대표 청크 조회는 다음과 같이 정렬합니다.
+상태: **기본 개선 완료**.
+
+기존 대표 청크 조회는 다음과 같이 정렬했습니다.
 
 ```sql
 ORDER BY resource_id ASC, chunk_index ASC
@@ -162,7 +182,7 @@ LIMIT :limit
 
 [ResourceEmbeddingRepository.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/resource/repository/ResourceEmbeddingRepository.java:204)
 
-여러 문서를 조회하면 UUID 정렬상 먼저 오는 문서의 앞부분이 결과를 대부분 차지할 수 있습니다. 문서별 첫 청크 1개를 가져오는 방식이 아니며, 반환 점수도 무조건 `1.0`이라 실제 semantic similarity처럼 오해될 수 있습니다.
+현재는 `row_number() over (partition by resource_id order by chunk_index)`를 사용해 각 문서의 첫 번째 청크가 먼저 섞이도록 정렬합니다. 다만 반환 점수는 아직 `1.0`이라 semantic similarity와 구분하기 위해 `retrievalMode=REPRESENTATIVE`와 fusion metadata를 함께 봐야 합니다.
 
 ### 11. 개인 자료 검색은 semantic search만 있습니다
 
@@ -215,22 +235,24 @@ HNSW 인덱스는 존재하지만 하나의 전역 벡터 인덱스입니다.
 
 ### 15. 검색 품질·성능 관측이 없습니다
 
-현재 테스트는 서비스 호출, 권한 확인, Top-K 제한, threshold 필터링 등 동작 검증 중심입니다.
+상태: **기초 관측 개선 완료, 품질 평가는 미완성**.
+
+기존 테스트는 서비스 호출, 권한 확인, Top-K 제한, threshold 필터링 등 동작 검증 중심이었습니다.
 
 [ResourceSemanticSearchPublicServiceTest.java](D:/kostaEx/bubli-backend/src/test/java/com/bubli/resource/service/ResourceSemanticSearchPublicServiceTest.java:24)
 
 부족한 지표는 다음과 같습니다.
 
 - Recall@K, Hit@K, MRR, NDCG
-- 검색별 p50/p95/p99 latency
-- semantic/keyword/title fallback별 성공률
-- threshold 통과·탈락 비율
-- 문서별 검색 결과 편중
-- 검색 실패율과 실패 원인
+- 검색별 p50/p95/p99 latency: Micrometer timer 추가
+- semantic/keyword/title fallback별 성공률: strategy/scope별 metric 일부 추가
+- threshold 통과·탈락 비율: candidate/accepted/rejected metric 추가
+- 문서별 검색 결과 편중: fusion 단계에서 per-resource cap 추가
+- 검색 실패율과 실패 원인: metric 일부 추가
 - 검색된 근거를 실제 답변에서 사용했는지 여부
 - 사용자 평가와 검색 결과의 연결
 
-고정 평가 문서와 질문·정답 청크 세트가 없으므로 현재 `0.72`, `topK=5`, `1200/200`이 적절한지 객관적으로 판단할 수 없습니다.
+아직 부족한 것은 Recall@K, Hit@K, MRR, NDCG를 측정할 고정 평가 문서와 질문·정답 청크 세트입니다. 따라서 현재 `0.72`, `topK=5`, `1200/200`, fusion weight가 최적인지는 아직 객관적으로 판단할 수 없습니다.
 
 ### 16. RAG prompt injection 방어가 충분하지 않습니다
 
@@ -250,10 +272,12 @@ HNSW 인덱스는 존재하지만 하나의 전역 벡터 인덱스입니다.
 
 가장 먼저 손볼 순서는 다음이 적절합니다.
 
-1. Keyword 검색을 PostgreSQL FTS 또는 `pg_trgm` 기반으로 변경
-2. Semantic·keyword 결과에 RRF 또는 weighted fusion 적용
-3. `retrievalMode`를 검색 결과 DTO에 포함해 출처를 정확히 유지
+1. ~~Keyword 검색을 PostgreSQL FTS 또는 `pg_trgm` 기반으로 변경~~
+2. ~~Semantic·keyword 결과에 RRF 또는 weighted fusion 적용~~
+3. ~~`retrievalMode`를 검색 결과 DTO에 포함해 출처를 정확히 유지~~
 4. 동일 문서·인접 청크 중복 제거와 문서별 결과 개수 제한
+   - 문서별 결과 개수 제한은 기본 구현됨
+   - 인접 청크 중복 제거/MMR은 미구현
 5. 검색 장애와 결과 없음 상태 분리
 6. 한국어·영어·일본어 평가 corpus를 만들고 Recall@K/MRR 측정
 7. 측정 결과로 threshold, Top-K, chunk 크기 조정
