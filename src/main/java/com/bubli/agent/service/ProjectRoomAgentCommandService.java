@@ -224,6 +224,9 @@ public class ProjectRoomAgentCommandService {
 
 	private AnswerResult answer(String message, AgentCommandMode mode, String locale, ProjectRoomGroundingContext groundingContext) {
 		if (!groundingContext.grounded()) {
+			if (groundingContext.retrievalFailed()) {
+				return new AnswerResult(searchFailureAnswer(locale), "GROUNDING_RETRIEVAL_FAILED");
+			}
 			return new AnswerResult(noAnswer(locale), "NO_GROUNDING");
 		}
 		ChatModel chatModel = chatModelProvider.getIfAvailable();
@@ -274,6 +277,14 @@ public class ProjectRoomAgentCommandService {
 			case "en-US" -> "I cannot determine that from the project documents or management data.";
 			case "ja-JP" -> "プロジェクト資料および管理データの範囲では分かりません。";
 			default -> "프로젝트 문서 및 관리 데이터 기준에서는 알 수 없는 내용입니다.";
+		};
+	}
+
+	private String searchFailureAnswer(String locale) {
+		return switch (locale) {
+			case "en-US" -> "A temporary problem occurred while searching the project evidence. Please try again shortly.";
+			case "ja-JP" -> "プロジェクト根拠の検索中に一時的な問題が発生しました。しばらくしてからもう一度お試しください。";
+			default -> "프로젝트 근거 검색 중 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
 		};
 	}
 
@@ -473,6 +484,8 @@ public class ProjectRoomAgentCommandService {
 
 	private void putGroundingMetadata(Map<String, Object> payload, ProjectRoomGroundingContext groundingContext) {
 		payload.put("grounded", groundingContext.grounded());
+		payload.put("retrievalFailed", groundingContext.retrievalFailed());
+		payload.put("retrievalFailureReason", groundingContext.retrievalFailureReason());
 		payload.put("sourceTypes", sourceTypes(groundingContext));
 		payload.put("evidenceItems", groundingContext.evidenceItems().stream()
 				.map(ProjectRoomGroundingEvidence::toPayload)
@@ -511,6 +524,12 @@ public class ProjectRoomAgentCommandService {
 	) {
 		if (FALLBACK_AMBIGUOUS_RESOURCE_INTENT.equals(fallbackReason)) {
 			return List.of("AMBIGUOUS_RESOURCE_INTENT");
+		}
+		if (groundingContext.retrievalFailed()) {
+			if (AgentQuerySupport.isDocumentSourceRequest(request)) {
+				return List.of("DOCUMENT_RETRIEVAL_FAILED");
+			}
+			return List.of("GROUNDING_RETRIEVAL_FAILED");
 		}
 		if (!groundingContext.grounded()) {
 			if (AgentQuerySupport.isDocumentSourceRequest(request)) {

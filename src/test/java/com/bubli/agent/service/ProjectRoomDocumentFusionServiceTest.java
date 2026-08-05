@@ -53,9 +53,9 @@ class ProjectRoomDocumentFusionServiceTest {
 				List.of(
 						ProjectRoomDocumentCandidate.of(hit(dominantResourceId, "project schedule alpha", 0.95D),
 								"SEMANTIC", analysis, false),
-						ProjectRoomDocumentCandidate.of(hit(dominantResourceId, "project schedule beta", 0.94D),
+						ProjectRoomDocumentCandidate.of(hit(dominantResourceId, "project schedule beta", 0.94D, 2),
 								"SEMANTIC", analysis, false),
-						ProjectRoomDocumentCandidate.of(hit(dominantResourceId, "project schedule gamma", 0.93D),
+						ProjectRoomDocumentCandidate.of(hit(dominantResourceId, "project schedule gamma", 0.93D, 4),
 								"SEMANTIC", analysis, false),
 						ProjectRoomDocumentCandidate.of(hit(otherResourceId, "project schedule delta", 0.90D),
 								"SEMANTIC", analysis, false)
@@ -67,6 +67,61 @@ class ProjectRoomDocumentFusionServiceTest {
 		assertThat(result.hits())
 				.extracting(ResourceSearchHit::resourceId)
 				.containsExactly(dominantResourceId, dominantResourceId, otherResourceId);
+	}
+
+	@Test
+	void skipsAdjacentChunksBeforeLowerScoredDiverseEvidence() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze("project schedule summary", "en-US");
+		UUID resourceId = UUID.randomUUID();
+		UUID otherResourceId = UUID.randomUUID();
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(
+						ProjectRoomDocumentCandidate.of(hit(resourceId, "project schedule alpha milestone", 0.95D, 3),
+								"SEMANTIC", analysis, false),
+						ProjectRoomDocumentCandidate.of(hit(resourceId, "project schedule alpha milestone details", 0.94D, 4),
+								"SEMANTIC", analysis, false),
+						ProjectRoomDocumentCandidate.of(hit(otherResourceId, "project budget approval timeline", 0.88D, 0),
+								"SEMANTIC", analysis, false)
+				),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.hits())
+				.extracting(ResourceSearchHit::chunkIndex)
+				.containsExactly(3, 0);
+	}
+
+	@Test
+	void skipsNearDuplicateChunkTextAcrossResources() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze("프로젝트 일정 관리", "ko-KR");
+		UUID firstResourceId = UUID.randomUUID();
+		UUID duplicateResourceId = UUID.randomUUID();
+		UUID diverseResourceId = UUID.randomUUID();
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(
+						ProjectRoomDocumentCandidate.of(hit(firstResourceId, "프로젝트 일정 관리 기능은 달력과 진행률을 제공한다.", 0.95D),
+								"SEMANTIC", analysis, false),
+						ProjectRoomDocumentCandidate.of(hit(duplicateResourceId, "프로젝트 일정 관리 기능은 달력과 진행률을 제공한다.", 0.94D),
+								"SEMANTIC", analysis, false),
+						ProjectRoomDocumentCandidate.of(hit(diverseResourceId, "프로젝트 산출물 검토와 승인 흐름을 관리한다.", 0.88D),
+								"SEMANTIC", analysis, false)
+				),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.hits())
+				.extracting(ResourceSearchHit::resourceId)
+				.containsExactly(firstResourceId, diverseResourceId);
 	}
 
 	@Test
@@ -89,10 +144,14 @@ class ProjectRoomDocumentFusionServiceTest {
 	}
 
 	private ResourceSearchHit hit(UUID resourceId, String chunkText, double score) {
+		return hit(resourceId, chunkText, score, 0);
+	}
+
+	private ResourceSearchHit hit(UUID resourceId, String chunkText, double score, int chunkIndex) {
 		return new ResourceSearchHit(
 				UUID.randomUUID(),
 				resourceId,
-				0,
+				chunkIndex,
 				chunkText,
 				1,
 				1,

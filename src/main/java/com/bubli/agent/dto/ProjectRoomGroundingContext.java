@@ -10,17 +10,36 @@ public record ProjectRoomGroundingContext(
 		List<ResourceSearchHit> ragHits,
 		double ragMaxSimilarity,
 		List<ProjectRoomGroundingEvidence> evidenceItems,
-		String promptBlock
+		String promptBlock,
+		boolean retrievalFailed,
+		String retrievalFailureReason
 ) {
 
 	public ProjectRoomGroundingContext {
 		ragHits = ragHits == null ? List.of() : List.copyOf(ragHits);
 		evidenceItems = evidenceItems == null ? List.of() : List.copyOf(evidenceItems);
 		promptBlock = promptBlock == null ? "" : promptBlock;
+		retrievalFailureReason = retrievalFailureReason == null || retrievalFailureReason.isBlank()
+				? null
+				: retrievalFailureReason;
+	}
+
+	public ProjectRoomGroundingContext(
+			boolean grounded,
+			List<ResourceSearchHit> ragHits,
+			double ragMaxSimilarity,
+			List<ProjectRoomGroundingEvidence> evidenceItems,
+			String promptBlock
+	) {
+		this(grounded, ragHits, ragMaxSimilarity, evidenceItems, promptBlock, false, null);
 	}
 
 	public static ProjectRoomGroundingContext ungrounded() {
 		return new ProjectRoomGroundingContext(false, List.of(), 0.0D, List.of(), "");
+	}
+
+	public static ProjectRoomGroundingContext retrievalFailed(String reason) {
+		return new ProjectRoomGroundingContext(false, List.of(), 0.0D, List.of(), "", true, reason);
 	}
 
 	public List<ProjectRoomGroundingSourceType> sourceTypes() {

@@ -82,6 +82,7 @@ public class ProjectRoomGroundingService {
 					&& AgentQuerySupport.requiresSemanticDocumentEvidence(message);
 			boolean documentOverviewRequest = AgentQuerySupport.isDocumentOverviewRequest(message);
 			AgentQuerySupport.WorkStateIntent workStateIntent = AgentQuerySupport.workStateIntent(message);
+			List<String> retrievalFailures = new ArrayList<>();
 			List<ResourceTitleMatch> titleMatches = retrieveDocumentTitleMatches(
 					userId,
 					roomId,
@@ -96,13 +97,15 @@ public class ProjectRoomGroundingService {
 					queryAnalysis.normalizedQuery(),
 					mode,
 					requestedSources,
-					requireSemanticDocumentEvidence
+					requireSemanticDocumentEvidence,
+					retrievalFailures
 			), "SEMANTIC", queryAnalysis, false));
 			documentCandidates.addAll(toCandidates(retrieveKeywordDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis,
-					requestedSources
+					requestedSources,
+					retrievalFailures
 			), "KEYWORD", queryAnalysis, false));
 			documentCandidates.addAll(toCandidates(retrieveTitleScopedDocumentHits(
 					userId,
@@ -110,14 +113,16 @@ public class ProjectRoomGroundingService {
 					queryAnalysis.normalizedQuery(),
 					mode,
 					requestedSources,
-					titleMatches
+					titleMatches,
+					retrievalFailures
 			), "TITLE_SCOPED_SEMANTIC", queryAnalysis, true));
 			documentCandidates.addAll(toCandidates(retrieveTitleScopedKeywordDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis,
 					requestedSources,
-					titleMatches
+					titleMatches,
+					retrievalFailures
 			), "TITLE_SCOPED_KEYWORD", queryAnalysis, true));
 			documentCandidates = preferTitleMatchedDocumentCandidates(documentCandidates, titleMatches);
 			List<ProjectRoomDocumentCandidate> representativeDocumentCandidates = toCandidates(retrieveRepresentativeDocumentChunks(
@@ -126,7 +131,8 @@ public class ProjectRoomGroundingService {
 					requestedSources,
 					requireSemanticDocumentEvidence,
 					documentOverviewRequest,
-					titleMatches
+					titleMatches,
+					retrievalFailures
 			), "REPRESENTATIVE", queryAnalysis, true);
 			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult fusionResult = documentFusionService.fuse(
 					queryAnalysis,
@@ -175,6 +181,9 @@ public class ProjectRoomGroundingService {
 			appendAgentSuggestionEvidence(userId, roomId, requestedSources, evidenceItems, prompt);
 
 			if (evidenceItems.isEmpty()) {
+				if (hasRetrievalFailureForRequestedSources(requestedSources, retrievalFailures)) {
+					return ProjectRoomGroundingContext.retrievalFailed(String.join(",", retrievalFailures));
+				}
 				return ProjectRoomGroundingContext.ungrounded();
 			}
 			return new ProjectRoomGroundingContext(
@@ -186,8 +195,15 @@ public class ProjectRoomGroundingService {
 			);
 		} catch (RuntimeException exception) {
 			log.warn("Project room grounding retrieval failed. userId={}, roomId={}", userId, roomId, exception);
-			return ProjectRoomGroundingContext.ungrounded();
+			return ProjectRoomGroundingContext.retrievalFailed("GROUNDING_RETRIEVAL_FAILED");
 		}
+	}
+
+	private boolean hasRetrievalFailureForRequestedSources(
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			List<String> retrievalFailures
+	) {
+		return requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) && !retrievalFailures.isEmpty();
 	}
 
 	private EnumSet<ProjectRoomGroundingSourceType> requestedSources(String message, AgentCommandMode mode) {
@@ -226,7 +242,8 @@ public class ProjectRoomGroundingService {
 			String searchQuery,
 			AgentCommandMode mode,
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
-			boolean requireSemanticDocumentEvidence
+			boolean requireSemanticDocumentEvidence,
+			List<String> retrievalFailures
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) || !agentRagProperties.enabled()) {
 			return List.of();
@@ -242,12 +259,14 @@ public class ProjectRoomGroundingService {
 			);
 		} catch (RuntimeException exception) {
 			log.warn("Project room semantic document retrieval failed. userId={}, roomId={}", userId, roomId, exception);
+			retrievalFailures.add("SEMANTIC_DOCUMENT_RETRIEVAL_FAILED");
 			return List.of();
 		}
-		List<ResourceSearchHit> acceptedHits = hits.stream()
+		List<ResourceSearchHit> safeHits = hits == null ? List.of() : hits;
+		List<ResourceSearchHit> acceptedHits = safeHits.stream()
 				.filter(hit -> hit.similarityScore() >= documentMinSimilarity(mode, requireSemanticDocumentEvidence))
 				.toList();
-		resourceSearchMetrics.recordSelection("semantic", "room", hits.size(), acceptedHits.size());
+		resourceSearchMetrics.recordSelection("semantic", "room", safeHits.size(), acceptedHits.size());
 		return acceptedHits;
 	}
 
@@ -257,7 +276,8 @@ public class ProjectRoomGroundingService {
 			String searchQuery,
 			AgentCommandMode mode,
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
-			List<ResourceTitleMatch> titleMatches
+			List<ResourceTitleMatch> titleMatches,
+			List<String> retrievalFailures
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
 				|| !agentRagProperties.enabled()
@@ -276,19 +296,21 @@ public class ProjectRoomGroundingService {
 					searchQuery,
 					titleScopedTopK(resourceIds.size())
 			);
-			List<ResourceSearchHit> acceptedHits = candidates.stream()
+			List<ResourceSearchHit> safeCandidates = candidates == null ? List.of() : candidates;
+			List<ResourceSearchHit> acceptedHits = safeCandidates.stream()
 					.filter(hit -> hit.similarityScore() >= titleScopedMinSimilarity(mode))
 					.toList();
 			resourceSearchMetrics.recordSelection(
 					"semantic",
 					"room_resources",
-					candidates.size(),
+					safeCandidates.size(),
 					acceptedHits.size()
 			);
 			return acceptedHits;
 		} catch (RuntimeException exception) {
 			log.warn("Project room title-scoped semantic document retrieval failed. userId={}, roomId={}",
 					userId, roomId, exception);
+			retrievalFailures.add("TITLE_SCOPED_SEMANTIC_DOCUMENT_RETRIEVAL_FAILED");
 			return List.of();
 		}
 	}
@@ -297,7 +319,8 @@ public class ProjectRoomGroundingService {
 			UUID userId,
 			UUID roomId,
 			AgentSearchQueryAnalysis queryAnalysis,
-			EnumSet<ProjectRoomGroundingSourceType> requestedSources
+			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			List<String> retrievalFailures
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)) {
 			return List.of();
@@ -313,14 +336,16 @@ public class ProjectRoomGroundingService {
 					keywords,
 					agentRagProperties.topK()
 			);
-			List<ResourceSearchHit> acceptedHits = candidates.stream()
+			List<ResourceSearchHit> safeCandidates = candidates == null ? List.of() : candidates;
+			List<ResourceSearchHit> acceptedHits = safeCandidates.stream()
 					.filter(hit -> hit.similarityScore() >= TITLE_SCOPED_KEYWORD_MIN_SCORE)
 					.toList();
-			resourceSearchMetrics.recordSelection("keyword", "room", candidates.size(), acceptedHits.size());
+			resourceSearchMetrics.recordSelection("keyword", "room", safeCandidates.size(), acceptedHits.size());
 			return acceptedHits;
 		} catch (RuntimeException exception) {
 			log.warn("Project room keyword document retrieval failed. userId={}, roomId={}",
 					userId, roomId, exception);
+			retrievalFailures.add("KEYWORD_DOCUMENT_RETRIEVAL_FAILED");
 			return List.of();
 		}
 	}
@@ -330,7 +355,8 @@ public class ProjectRoomGroundingService {
 			UUID roomId,
 			AgentSearchQueryAnalysis queryAnalysis,
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
-			List<ResourceTitleMatch> titleMatches
+			List<ResourceTitleMatch> titleMatches,
+			List<String> retrievalFailures
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) || titleMatches.isEmpty()) {
 			return List.of();
@@ -351,19 +377,21 @@ public class ProjectRoomGroundingService {
 					keywords,
 					titleScopedTopK(resourceIds.size())
 			);
-			List<ResourceSearchHit> acceptedHits = candidates.stream()
+			List<ResourceSearchHit> safeCandidates = candidates == null ? List.of() : candidates;
+			List<ResourceSearchHit> acceptedHits = safeCandidates.stream()
 					.filter(hit -> hit.similarityScore() >= TITLE_SCOPED_KEYWORD_MIN_SCORE)
 					.toList();
 			resourceSearchMetrics.recordSelection(
 					"keyword",
 					"room_resources",
-					candidates.size(),
+					safeCandidates.size(),
 					acceptedHits.size()
 			);
 			return acceptedHits;
 		} catch (RuntimeException exception) {
 			log.warn("Project room title-scoped keyword document retrieval failed. userId={}, roomId={}",
 					userId, roomId, exception);
+			retrievalFailures.add("TITLE_SCOPED_KEYWORD_DOCUMENT_RETRIEVAL_FAILED");
 			return List.of();
 		}
 	}
@@ -374,7 +402,8 @@ public class ProjectRoomGroundingService {
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
 			boolean requireSemanticDocumentEvidence,
 			boolean documentOverviewRequest,
-			List<ResourceTitleMatch> titleMatches
+			List<ResourceTitleMatch> titleMatches,
+			List<String> retrievalFailures
 	) {
 		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
 				|| !requireSemanticDocumentEvidence
@@ -399,6 +428,7 @@ public class ProjectRoomGroundingService {
 		} catch (RuntimeException exception) {
 			log.warn("Project room representative document chunk retrieval failed. userId={}, roomId={}",
 					userId, roomId, exception);
+			retrievalFailures.add("REPRESENTATIVE_DOCUMENT_RETRIEVAL_FAILED");
 			return List.of();
 		}
 	}

@@ -128,6 +128,30 @@ class ProjectRoomGroundingServiceTest {
 	}
 
 	@Test
+	void documentRetrievalFailureIsSeparatedFromEmptySearchResults() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+				.thenThrow(new IllegalStateException("vector store down"));
+		when(searchService.searchRoomSharedKeywords(eq(userId), eq(roomId), any(), eq(5)))
+				.thenReturn(List.of());
+
+		var context = service(searchService).retrieve(
+				userId,
+				roomId,
+				"계약서 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.retrievalFailed()).isTrue();
+		assertThat(context.retrievalFailureReason()).contains("SEMANTIC_DOCUMENT_RETRIEVAL_FAILED");
+	}
+
+	@Test
 	void documentContentQuestionDoesNotFallbackToTitleSummaryWhenSemanticSearchIsEmpty() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
