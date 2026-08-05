@@ -10,6 +10,7 @@ import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.resource.service.ResourceSearchMetricsPublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceSearchScope;
@@ -127,6 +128,30 @@ class ProjectRoomGroundingServiceTest {
 	}
 
 	@Test
+	void documentRetrievalFailureIsSeparatedFromEmptySearchResults() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+				.thenThrow(new IllegalStateException("vector store down"));
+		when(searchService.searchRoomSharedKeywords(eq(userId), eq(roomId), any(), eq(5)))
+				.thenReturn(List.of());
+
+		var context = service(searchService).retrieve(
+				userId,
+				roomId,
+				"계약서 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.retrievalFailed()).isTrue();
+		assertThat(context.retrievalFailureReason()).contains("SEMANTIC_DOCUMENT_RETRIEVAL_FAILED");
+	}
+
+	@Test
 	void documentContentQuestionDoesNotFallbackToTitleSummaryWhenSemanticSearchIsEmpty() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -188,9 +213,9 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "공공도서관 핵심적인";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedResourceKeywords(
 				eq(userId),
@@ -218,7 +243,7 @@ class ProjectRoomGroundingServiceTest {
 
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
-		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("REPRESENTATIVE");
 		assertThat(context.evidenceItems().getFirst().metadata().get("pageNumber")).isEqualTo(2);
 		assertThat(context.evidenceItems().getFirst().metadata().get("startLine")).isEqualTo(10);
 		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
@@ -241,7 +266,7 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "데이터 요구사항 있는가";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
 				eq(userId),
@@ -268,7 +293,7 @@ class ProjectRoomGroundingServiceTest {
 
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
-		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("KEYWORD");
 		assertThat(context.evidenceItems().getFirst().metadata().get("pageNumber")).isEqualTo(2);
 		assertThat(context.evidenceItems().getFirst().metadata().get("startLine")).isEqualTo(10);
 		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
@@ -295,9 +320,9 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 관리";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
 				.thenReturn(List.of());
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
@@ -332,9 +357,9 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(userId, roomId, List.of(resourceId), cleanedQuery, 15))
+		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedResourceKeywords(
 				userId,
@@ -364,7 +389,7 @@ class ProjectRoomGroundingServiceTest {
 
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
-		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("TITLE_SCOPED_KEYWORD");
 		assertThat(context.promptBlock()).contains("프로젝트 일정 및 진행 상황 관리 기능");
 	}
 
@@ -383,7 +408,7 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "req-lb-004 req lb 004";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
 				userId,
@@ -410,7 +435,7 @@ class ProjectRoomGroundingServiceTest {
 
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
-		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("SEMANTIC");
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("KEYWORD");
 		assertThat(context.promptBlock()).contains("REQ-LB-004 프로젝트 일정 및 진행 상황 관리 기능");
 	}
 
@@ -432,10 +457,10 @@ class ProjectRoomGroundingServiceTest {
 				any(String.class), eq(5)))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
-				userId,
-				roomId,
-				List.of("req-lb-007", "req", "lb", "007", "공공도서관"),
-				5
+				eq(userId),
+				eq(roomId),
+				any(),
+				eq(5)
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				resourceId,
 				"REQ-LB-007 좌석 예약 현황 확인 기능을 제공한다.",
@@ -536,7 +561,9 @@ class ProjectRoomGroundingServiceTest {
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		).retrieve(
 				userId,
 				roomId,
@@ -574,14 +601,14 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, cleanedQuery, 5))
+		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
 				.thenReturn(List.of(hit(otherResourceId, "공공도서관 좌석 예약 기능", 0.93D)));
 		when(searchService.searchRoomSharedResources(
-				userId,
-				roomId,
-				List.of(targetResourceId),
-				cleanedQuery,
-				15
+				eq(userId),
+				eq(roomId),
+				eq(List.of(targetResourceId)),
+				any(String.class),
+				eq(15)
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				targetResourceId,
 				"프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
@@ -837,7 +864,9 @@ class ProjectRoomGroundingServiceTest {
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -849,7 +878,9 @@ class ProjectRoomGroundingServiceTest {
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -861,7 +892,9 @@ class ProjectRoomGroundingServiceTest {
 				mock(TaskPublicService.class),
 				wbsItemPublicService,
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -873,7 +906,9 @@ class ProjectRoomGroundingServiceTest {
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -885,7 +920,9 @@ class ProjectRoomGroundingServiceTest {
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				agentSuggestionPublicService
+				agentSuggestionPublicService,
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -900,7 +937,9 @@ class ProjectRoomGroundingServiceTest {
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -915,7 +954,9 @@ class ProjectRoomGroundingServiceTest {
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 
@@ -930,7 +971,9 @@ class ProjectRoomGroundingServiceTest {
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
-				mock(AgentSuggestionPublicService.class)
+				mock(AgentSuggestionPublicService.class),
+				mock(ResourceSearchMetricsPublicService.class),
+				new ProjectRoomDocumentFusionService(mock(ResourceSearchMetricsPublicService.class))
 		);
 	}
 

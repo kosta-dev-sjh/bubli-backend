@@ -1,7 +1,36 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bubli-backend
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-local}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/bubli
+      - SPRING_DATASOURCE_USERNAME=bubli
+      - SPRING_DATASOURCE_PASSWORD=bubli1234
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - STORAGE_TYPE=local
+      - STORAGE_LOCAL_BASE_PATH=/app/local-storage
+      - AGENT_EXECUTION_MODE=${AGENT_EXECUTION_MODE:-local}
+      - AGENT_DISPATCH_ADAPTER=${AGENT_DISPATCH_ADAPTER:-in-memory}
+      - JWT_SECRET=${JWT_SECRET:-local-development-jwt-secret-key-32-bytes-minimum}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./local-storage:/app/local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: bubli-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: bubli
       POSTGRES_USER: bubli
@@ -20,6 +49,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: bubli-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:

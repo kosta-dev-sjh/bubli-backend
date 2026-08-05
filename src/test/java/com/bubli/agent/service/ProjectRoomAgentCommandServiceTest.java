@@ -109,6 +109,41 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
+	void retrievalFailureUsesSeparateFallbackAndMetadata() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(null)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), null));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				ProjectRoomGroundingContext.retrievalFailed("SEMANTIC_DOCUMENT_RETRIEVAL_FAILED"),
+				chatModel
+		).execute(userId, roomId, "/bubli 계약서 내용 알려줘", AgentCommandMode.ANSWER, List.of());
+
+		verify(chatModel, never()).call(any(String.class));
+		assertThat(response.message().body().get("text").asText())
+				.isEqualTo("프로젝트 근거 검색 중 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+		assertThat(response.message().body().get("fallbackReason").asText())
+				.isEqualTo("GROUNDING_RETRIEVAL_FAILED");
+		assertThat(response.message().body().get("missingInfo").get(0).asText())
+				.isEqualTo("DOCUMENT_RETRIEVAL_FAILED");
+		assertThat(response.message().body().get("retrievalFailed").asBoolean()).isTrue();
+		assertThat(response.message().body().get("retrievalFailureReason").asText())
+				.isEqualTo("SEMANTIC_DOCUMENT_RETRIEVAL_FAILED");
+	}
+
+	@Test
 	void returnsLocalizedNoAnswer() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();

@@ -16,6 +16,7 @@ import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.dto.ResourceSummaryResult;
 import com.bubli.resource.service.ResourcePublicService;
+import com.bubli.resource.service.ResourceSearchMetricsPublicService;
 import com.bubli.resource.service.ResourceSemanticSearchPublicService;
 import com.bubli.resource.type.ResourceKind;
 import com.bubli.resource.type.ResourceSearchScope;
@@ -283,6 +284,7 @@ class PersonalAgentCommandServiceTest {
 				resourcePublicService,
 				resourceSemanticSearchService,
 				agentRagProperties,
+				mock(ResourceSearchMetricsPublicService.class),
 				userLocalePublicService,
 				chatModelProvider,
 				aiCallExecutorProvider,

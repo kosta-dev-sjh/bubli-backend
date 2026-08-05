@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.util.List;
 import java.util.UUID;
@@ -219,7 +220,8 @@ class ResourceSemanticSearchPublicServiceTest {
                 mockProvider(embeddingModel),
                 new EmbeddingVectorFormatter(),
                 accessService,
-                new ObjectMapper()
+                new ObjectMapper(),
+                new ResourceSearchMetricsPublicService(new SimpleMeterRegistry())
         );
     }
 

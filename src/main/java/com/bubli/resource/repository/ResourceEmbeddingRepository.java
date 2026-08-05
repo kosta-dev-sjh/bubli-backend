@@ -115,31 +115,59 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
 
     @Query(
             value = """
+                    WITH keyword_query AS (
+                        SELECT plainto_tsquery(
+                            'simple',
+                            concat_ws(
+                                ' ',
+                                NULLIF(:token1, ''),
+                                NULLIF(:token2, ''),
+                                NULLIF(:token3, ''),
+                                NULLIF(:token4, ''),
+                                NULLIF(:token5, '')
+                            )
+                        ) AS tsquery
+                    )
                     SELECT
-                        id,
-                        resource_id AS resourceId,
-                        chunk_index AS chunkIndex,
-                        chunk_text AS chunkText,
-                        chunk_metadata::text AS chunkMetadata,
-                        (
+                        embedding.id,
+                        embedding.resource_id AS resourceId,
+                        embedding.chunk_index AS chunkIndex,
+                        embedding.chunk_text AS chunkText,
+                        embedding.chunk_metadata::text AS chunkMetadata,
+                        LEAST(
+                            1.0,
                             (
-                                CASE WHEN :token1 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token1), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token2 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token2), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token3 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token3), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token4 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token4), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token5 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token5), '%') THEN 1 ELSE 0 END
-                            )::double precision / CAST(:tokenCount AS double precision)
+                                (
+                                    CASE WHEN :token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token3 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token3), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token4 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token4), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token5 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token5), '%') THEN 1 ELSE 0 END
+                                )::double precision / CAST(:tokenCount AS double precision)
+                                + ts_rank_cd(to_tsvector('simple', coalesce(embedding.chunk_text, '')), keyword_query.tsquery)
+                                + (
+                                    GREATEST(
+                                        CASE WHEN :token1 <> '' THEN word_similarity(lower(:token1), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token2 <> '' THEN word_similarity(lower(:token2), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token3 <> '' THEN word_similarity(lower(:token3), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token4 <> '' THEN word_similarity(lower(:token4), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token5 <> '' THEN word_similarity(lower(:token5), lower(embedding.chunk_text)) ELSE 0 END
+                                    ) * 0.25
+                                )
+                            )
                         ) AS similarityScore
-                    FROM resource_embeddings
-                    WHERE room_id = :roomId
-                      AND visibility = 'ROOM_SHARED'
-                      AND resource_id IN (:resourceIds)
+                    FROM resource_embeddings embedding
+                    CROSS JOIN keyword_query
+                    WHERE embedding.room_id = :roomId
+                      AND embedding.visibility = 'ROOM_SHARED'
+                      AND embedding.resource_id IN (:resourceIds)
                       AND (
-                          (:token1 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token1), '%'))
-                          OR (:token2 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token2), '%'))
-                          OR (:token3 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token3), '%'))
-                          OR (:token4 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token4), '%'))
-                          OR (:token5 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token5), '%'))
+                          to_tsvector('simple', coalesce(embedding.chunk_text, '')) @@ keyword_query.tsquery
+                          OR (:token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%'))
+                          OR (:token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%'))
+                          OR (:token3 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token3), '%'))
+                          OR (:token4 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token4), '%'))
+                          OR (:token5 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token5), '%'))
                       )
                     ORDER BY similarityScore DESC, chunk_index ASC
                     LIMIT :limit
@@ -160,30 +188,58 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
 
     @Query(
             value = """
+                    WITH keyword_query AS (
+                        SELECT plainto_tsquery(
+                            'simple',
+                            concat_ws(
+                                ' ',
+                                NULLIF(:token1, ''),
+                                NULLIF(:token2, ''),
+                                NULLIF(:token3, ''),
+                                NULLIF(:token4, ''),
+                                NULLIF(:token5, '')
+                            )
+                        ) AS tsquery
+                    )
                     SELECT
-                        id,
-                        resource_id AS resourceId,
-                        chunk_index AS chunkIndex,
-                        chunk_text AS chunkText,
-                        chunk_metadata::text AS chunkMetadata,
-                        (
+                        embedding.id,
+                        embedding.resource_id AS resourceId,
+                        embedding.chunk_index AS chunkIndex,
+                        embedding.chunk_text AS chunkText,
+                        embedding.chunk_metadata::text AS chunkMetadata,
+                        LEAST(
+                            1.0,
                             (
-                                CASE WHEN :token1 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token1), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token2 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token2), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token3 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token3), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token4 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token4), '%') THEN 1 ELSE 0 END
-                                + CASE WHEN :token5 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token5), '%') THEN 1 ELSE 0 END
-                            )::double precision / CAST(:tokenCount AS double precision)
+                                (
+                                    CASE WHEN :token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token3 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token3), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token4 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token4), '%') THEN 1 ELSE 0 END
+                                    + CASE WHEN :token5 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token5), '%') THEN 1 ELSE 0 END
+                                )::double precision / CAST(:tokenCount AS double precision)
+                                + ts_rank_cd(to_tsvector('simple', coalesce(embedding.chunk_text, '')), keyword_query.tsquery)
+                                + (
+                                    GREATEST(
+                                        CASE WHEN :token1 <> '' THEN word_similarity(lower(:token1), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token2 <> '' THEN word_similarity(lower(:token2), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token3 <> '' THEN word_similarity(lower(:token3), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token4 <> '' THEN word_similarity(lower(:token4), lower(embedding.chunk_text)) ELSE 0 END,
+                                        CASE WHEN :token5 <> '' THEN word_similarity(lower(:token5), lower(embedding.chunk_text)) ELSE 0 END
+                                    ) * 0.25
+                                )
+                            )
                         ) AS similarityScore
-                    FROM resource_embeddings
-                    WHERE room_id = :roomId
-                      AND visibility = 'ROOM_SHARED'
+                    FROM resource_embeddings embedding
+                    CROSS JOIN keyword_query
+                    WHERE embedding.room_id = :roomId
+                      AND embedding.visibility = 'ROOM_SHARED'
                       AND (
-                          (:token1 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token1), '%'))
-                          OR (:token2 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token2), '%'))
-                          OR (:token3 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token3), '%'))
-                          OR (:token4 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token4), '%'))
-                          OR (:token5 <> '' AND lower(chunk_text) LIKE concat('%', lower(:token5), '%'))
+                          to_tsvector('simple', coalesce(embedding.chunk_text, '')) @@ keyword_query.tsquery
+                          OR (:token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%'))
+                          OR (:token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%'))
+                          OR (:token3 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token3), '%'))
+                          OR (:token4 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token4), '%'))
+                          OR (:token5 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token5), '%'))
                       )
                     ORDER BY similarityScore DESC, chunk_index ASC
                     LIMIT :limit
@@ -203,6 +259,22 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
 
     @Query(
             value = """
+                    WITH ranked_chunks AS (
+                        SELECT
+                            id,
+                            resource_id,
+                            chunk_index,
+                            chunk_text,
+                            chunk_metadata,
+                            row_number() OVER (
+                                PARTITION BY resource_id
+                                ORDER BY chunk_index ASC
+                            ) AS resource_chunk_rank
+                        FROM resource_embeddings
+                        WHERE room_id = :roomId
+                          AND visibility = 'ROOM_SHARED'
+                          AND resource_id IN (:resourceIds)
+                    )
                     SELECT
                         id,
                         resource_id AS resourceId,
@@ -210,11 +282,8 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                         chunk_text AS chunkText,
                         chunk_metadata::text AS chunkMetadata,
                         1.0 AS similarityScore
-                    FROM resource_embeddings
-                    WHERE room_id = :roomId
-                      AND visibility = 'ROOM_SHARED'
-                      AND resource_id IN (:resourceIds)
-                    ORDER BY resource_id ASC, chunk_index ASC
+                    FROM ranked_chunks
+                    ORDER BY resource_chunk_rank ASC, resource_id ASC, chunk_index ASC
                     LIMIT :limit
                     """,
             nativeQuery = true

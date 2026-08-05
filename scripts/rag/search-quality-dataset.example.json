@@ -1,0 +1,18 @@
+{
+  "name": "bubli-search-baseline-v1",
+  "topK": 5,
+  "cases": [
+    {
+      "id": "contract-payment-date",
+      "scope": "ROOM_SHARED",
+      "roomId": "00000000-0000-0000-0000-000000000000",
+      "query": "계약서의 대금 지급 기한은 언제인가요?",
+      "relevant": [
+        {
+          "resourceId": "00000000-0000-0000-0000-000000000000",
+          "chunkIndex": 0
+        }
+      ]
+    }
+  ]
+}

@@ -230,7 +230,7 @@ resource "aws_instance" "app" {
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 20
+    volume_size = 30
   }
 
   user_data = <<-EOF
@@ -276,7 +276,7 @@ resource "aws_db_instance" "postgres" {
 
   multi_az                  = false
   publicly_accessible       = false
-  backup_retention_period   = 7
+  backup_retention_period   = 0
   skip_final_snapshot       = false
   final_snapshot_identifier = "bubli-rds-final-snapshot"
   deletion_protection       = true
