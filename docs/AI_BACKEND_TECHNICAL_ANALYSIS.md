@@ -1,6 +1,7 @@
 # Bubli 백엔드 AI 기능 종합 기술 분석서
 
-작성 기준: 2026-07-09  
+작성 기준: 2026-07-09
+
 분석 대상: 현재 백엔드 코드의 AI, RAG, Embedding, Vector DB, 문서 분석, 챗봇, Agent 기능
 
 ## 목차
@@ -1574,31 +1575,31 @@ RAG 검색은 `resource_embeddings` 테이블과 pgvector cosine distance를 사
 
 ### 11.4 예상 질문과 답변
 
-**Q. 이 프로젝트에서 RAG를 왜 사용했나요?**  
+**Q. 이 프로젝트에서 RAG를 왜 사용했나요?**
 A. LLM이 일반 지식으로 추측하지 않고 프로젝트룸에 업로드된 문서와 관리 데이터를 근거로 답변하게 하기 위해 사용했습니다. 질문과 문서 chunk를 같은 embedding 공간에서 비교해 관련 chunk만 prompt에 넣습니다.
 
-**Q. 문서를 왜 chunk로 나누나요?**  
+**Q. 문서를 왜 chunk로 나누나요?**
 A. 문서 전체를 embedding하거나 prompt에 넣으면 비용이 크고 검색 정확도가 낮아집니다. chunk 단위로 저장하면 질문과 직접 관련 있는 부분만 찾을 수 있습니다.
 
-**Q. Chunk size는 어떻게 정했나요?**  
+**Q. Chunk size는 어떻게 정했나요?**
 A. 현재 코드는 1200 characters, overlap 200 characters로 고정되어 있습니다. 문단/문장/공백 경계를 우선해서 자르고, 경계 문맥 손실을 줄이기 위해 overlap을 둡니다. 이 값은 코드상 정책이며, corpus 기반 튜닝 결과는 확인되지 않습니다.
 
-**Q. Embedding은 무엇이고 왜 필요한가요?**  
+**Q. Embedding은 무엇이고 왜 필요한가요?**
 A. 텍스트를 숫자 벡터로 바꾸는 것입니다. 질문과 문서 chunk를 벡터로 바꾸면 단어가 정확히 일치하지 않아도 의미적으로 가까운 문서를 찾을 수 있습니다.
 
-**Q. Vector DB는 어떤 역할을 하나요?**  
+**Q. Vector DB는 어떤 역할을 하나요?**
 A. 문서 chunk embedding을 저장하고, 질문 embedding과 가까운 chunk를 빠르게 검색합니다. 이 프로젝트는 PostgreSQL pgvector와 HNSW index를 사용합니다.
 
-**Q. 단순 챗봇과 RAG 챗봇의 차이는 무엇인가요?**  
+**Q. 단순 챗봇과 RAG 챗봇의 차이는 무엇인가요?**
 A. 단순 챗봇은 질문만 보고 답하지만, RAG 챗봇은 먼저 관련 문서/업무 데이터를 검색하고 그 근거를 prompt에 넣어 답합니다. 그래서 프로젝트 문서에 기반한 답변을 만들 수 있습니다.
 
-**Q. 검색된 문서가 잘못되면 어떻게 하나요?**  
+**Q. 검색된 문서가 잘못되면 어떻게 하나요?**
 A. `similarityScore`, citation, page/line metadata를 응답 body에 포함해 근거를 추적할 수 있게 했습니다. 다만 검색 품질 평가 지표와 사용자 피드백 기반 threshold 튜닝은 추가 개선 과제입니다.
 
-**Q. hallucination을 줄이기 위해 어떤 처리를 했나요?**  
+**Q. hallucination을 줄이기 위해 어떤 처리를 했나요?**
 A. prompt에서 프로젝트 문서와 관리 데이터만 factual evidence로 사용하라고 제한하고, 근거가 없으면 no-answer 문장을 사용하도록 했습니다. JSON job 결과도 schema validation을 통과해야 저장됩니다.
 
-**Q. AI 기능에서 가장 어려웠던 부분은 무엇인가요?**  
+**Q. AI 기능에서 가장 어려웠던 부분은 무엇인가요?**
 A. LLM 호출 자체보다, 문서 권한을 지키면서 관련 chunk를 잘 찾고, 그 결과를 안전하게 업무 데이터로 반영하는 흐름이 어렵습니다. 그래서 권한 기반 search, suggestion review, JSON contract validation을 분리했습니다.
 
 ---

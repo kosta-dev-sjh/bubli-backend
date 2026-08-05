@@ -1,6 +1,6 @@
 # AI/RAG/Embedding/Chatbot 성능 개선 및 검증 보고서
 
-작성 기준: 2026-07-09  
+작성 기준: 2026-07-09
 대상 범위: `agent`, `resource`, `chat`, `memory` 도메인의 AI Agent, RAG, 임베딩 검색, 프로젝트룸 챗봇 기능
 
 ## 1. 개선 개요
@@ -206,4 +206,3 @@ AI 결과는 다음 형태의 업무 초안으로 연결된다.
 - 실제 Bedrock/Titan 연동 smoke test를 별도 profile과 secret 환경에서 주기적으로 실행한다.
 - 한국어/영어/일본어 locale 응답 품질 평가 세트를 추가한다.
 - RAG 답변에 대한 사용자 평가 데이터를 수집해 similarity threshold와 topK를 조정한다.
-
