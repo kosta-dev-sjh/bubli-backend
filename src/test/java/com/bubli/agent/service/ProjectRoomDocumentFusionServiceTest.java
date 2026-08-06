@@ -143,6 +143,52 @@ class ProjectRoomDocumentFusionServiceTest {
 		verify(metrics).recordFusion(eq("room"), eq(1), eq(0), eq(false), eq("NONE"));
 	}
 
+	@Test
+	void genericDocumentKeywordsAloneAreNotAnswerable() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze("show document file material", "en-US");
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(ProjectRoomDocumentCandidate.of(
+						hit(UUID.randomUUID(), "document file material overview", 0.95D),
+						"KEYWORD",
+						analysis,
+						false
+				)),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.grounded()).isFalse();
+		assertThat(result.answerabilityReason()).isEqualTo("LOW_ANSWERABILITY");
+	}
+
+	@Test
+	void informationKeywordCoverageMakesKeywordCandidateAnswerable() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze("payment deadline policy", "en-US");
+		UUID resourceId = UUID.randomUUID();
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(ProjectRoomDocumentCandidate.of(
+						hit(resourceId, "payment deadline policy is defined as 30 days after approval", 0.75D),
+						"KEYWORD",
+						analysis,
+						false
+				)),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.grounded()).isTrue();
+		assertThat(result.hits()).extracting(ResourceSearchHit::resourceId).containsExactly(resourceId);
+		assertThat(result.answerabilityScore()).isGreaterThanOrEqualTo(0.52D);
+	}
+
 	private ResourceSearchHit hit(UUID resourceId, String chunkText, double score) {
 		return hit(resourceId, chunkText, score, 0);
 	}

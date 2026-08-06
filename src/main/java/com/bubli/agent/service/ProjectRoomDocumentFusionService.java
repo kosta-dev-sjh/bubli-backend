@@ -25,6 +25,8 @@ class ProjectRoomDocumentFusionService {
 	private static final double ADJACENT_CHUNK_PENALTY = 0.25D;
 	private static final double ANSWER_MIN_FUSION_SCORE = 0.62D;
 	private static final double SUGGEST_MIN_FUSION_SCORE = 0.45D;
+	private static final double ANSWERABILITY_MIN_SCORE = 0.52D;
+	private static final double STRONG_SEMANTIC_ORIGINAL_SCORE = 0.88D;
 
 	private final ResourceSearchMetricsPublicService resourceSearchMetrics;
 
@@ -36,7 +38,14 @@ class ProjectRoomDocumentFusionService {
 	) {
 		if (candidates == null || candidates.isEmpty()) {
 			resourceSearchMetrics.recordFusion("room", 0, 0, false, "NONE");
-			return new ProjectRoomDocumentFusionResult(List.of(), List.of(), false, "NONE");
+			return new ProjectRoomDocumentFusionResult(
+					List.of(),
+					List.of(),
+					false,
+					"NONE",
+					0.0D,
+					"NO_DOCUMENT_CANDIDATE"
+			);
 		}
 		Map<UUID, ProjectRoomDocumentCandidate> byEmbeddingId = new LinkedHashMap<>();
 		for (ProjectRoomDocumentCandidate candidate : candidates) {
@@ -52,7 +61,11 @@ class ProjectRoomDocumentFusionService {
 						.thenComparing(candidate -> candidate.hit().chunkIndex()))
 				.toList();
 		List<ProjectRoomDocumentCandidate> selected = selectDiverseCandidates(ranked, Math.max(1, limit));
-		boolean grounded = !selected.isEmpty();
+		AnswerabilityDecision answerability = decideAnswerability(analysis, selected, mode);
+		boolean grounded = !selected.isEmpty() && answerability.answerable();
+		if (!grounded) {
+			selected = List.of();
+		}
 		resourceSearchMetrics.recordFusion(
 				"room",
 				candidates.size(),
@@ -62,7 +75,79 @@ class ProjectRoomDocumentFusionService {
 		);
 		return new ProjectRoomDocumentFusionResult(selected, ranked, grounded, selected.isEmpty()
 				? "NONE"
-				: selected.getFirst().retrievalMode());
+				: selected.getFirst().retrievalMode(), answerability.score(), answerability.reason());
+	}
+
+	private AnswerabilityDecision decideAnswerability(
+			AgentSearchQueryAnalysis analysis,
+			List<ProjectRoomDocumentCandidate> selected,
+			AgentCommandModeValue mode
+	) {
+		if (selected.isEmpty()) {
+			return new AnswerabilityDecision(false, 0.0D, "NO_SELECTED_DOCUMENT_CANDIDATE");
+		}
+		if (mode == AgentCommandModeValue.SUGGEST) {
+			return new AnswerabilityDecision(true, 1.0D, "SUGGEST_MODE");
+		}
+		ProjectRoomDocumentCandidate top = selected.getFirst();
+		if (hasHardMatch(top, analysis)) {
+			return new AnswerabilityDecision(true, 1.0D, "HARD_MATCH");
+		}
+		if (isStrongSemanticEvidence(top, selected)) {
+			return new AnswerabilityDecision(true, 0.90D, "STRONG_SEMANTIC_MATCH");
+		}
+		List<String> rankingKeywords = analysis.rankingKeywords();
+		double keywordCoverage = keywordCoverage(rankingKeywords, selected);
+		double normalizedFusionScore = Math.min(1.0D, top.fusionScore() / 1.2D);
+		double semanticSignal = top.retrievalMode().contains("SEMANTIC") && top.originalScore() >= 0.72D ? 0.15D : 0.0D;
+		double evidenceSignal = selected.size() >= 2 ? 0.05D : 0.0D;
+		double score = (normalizedFusionScore * 0.45D)
+				+ (keywordCoverage * 0.35D)
+				+ semanticSignal
+				+ evidenceSignal;
+		boolean answerable = score >= ANSWERABILITY_MIN_SCORE
+				&& (keywordCoverage > 0.0D || semanticSignal > 0.0D);
+		return new AnswerabilityDecision(
+				answerable,
+				Math.round(score * 1000.0D) / 1000.0D,
+				answerable ? "ANSWERABILITY_GATE_PASSED" : "LOW_ANSWERABILITY"
+		);
+	}
+
+	private boolean isStrongSemanticEvidence(
+			ProjectRoomDocumentCandidate top,
+			List<ProjectRoomDocumentCandidate> selected
+	) {
+		return top.retrievalMode().contains("SEMANTIC")
+				&& top.originalScore() >= STRONG_SEMANTIC_ORIGINAL_SCORE
+				&& (selected.size() >= 2 || top.fusionScore() >= STRONG_SEMANTIC_ORIGINAL_SCORE);
+	}
+
+	private double keywordCoverage(
+			List<String> rankingKeywords,
+			List<ProjectRoomDocumentCandidate> selected
+	) {
+		if (rankingKeywords.isEmpty()) {
+			return 0.0D;
+		}
+		Set<String> matched = new HashSet<>();
+		for (ProjectRoomDocumentCandidate candidate : selected) {
+			for (String keyword : candidate.matchedKeywords()) {
+				String compactKeyword = AgentQuerySupport.compactResourceText(keyword);
+				if (!compactKeyword.isBlank()) {
+					matched.add(compactKeyword);
+				}
+			}
+		}
+		long expected = rankingKeywords.stream()
+				.map(AgentQuerySupport::compactResourceText)
+				.filter(keyword -> !keyword.isBlank())
+				.distinct()
+				.count();
+		if (expected == 0L) {
+			return 0.0D;
+		}
+		return (double) matched.size() / expected;
 	}
 
 	private boolean hasHardMatch(ProjectRoomDocumentCandidate candidate, AgentSearchQueryAnalysis analysis) {
@@ -185,7 +270,9 @@ class ProjectRoomDocumentFusionService {
 			List<ProjectRoomDocumentCandidate> selected,
 			List<ProjectRoomDocumentCandidate> ranked,
 			boolean grounded,
-			String primaryRetrievalMode
+			String primaryRetrievalMode,
+			double answerabilityScore,
+			String answerabilityReason
 	) {
 
 		List<ResourceSearchHit> hits() {
@@ -198,5 +285,12 @@ class ProjectRoomDocumentFusionService {
 	enum AgentCommandModeValue {
 		ANSWER,
 		SUGGEST
+	}
+
+	private record AnswerabilityDecision(
+			boolean answerable,
+			double score,
+			String reason
+	) {
 	}
 }

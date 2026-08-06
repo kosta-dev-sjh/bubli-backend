@@ -23,4 +23,10 @@ record AgentSearchQueryAnalysis(
 	boolean hasPreciseIdentifier() {
 		return !requirementIdentifiers.isEmpty();
 	}
+
+	List<String> rankingKeywords() {
+		return keywords.stream()
+				.filter(keyword -> !AgentQuerySupport.isAnswerabilityStopword(keyword))
+				.toList();
+	}
 }

@@ -170,10 +170,25 @@ public class ProjectRoomGroundingService {
 			List<ProjectRoomGroundingEvidence> evidenceItems = new ArrayList<>();
 			StringBuilder prompt = new StringBuilder();
 
-			appendDocumentEvidence(ragHits, selectedCandidatesByEmbeddingId, ragResourceTitles, evidenceItems, prompt);
-			if (!requireSemanticDocumentEvidence) {
+			appendDocumentEvidence(
+					ragHits,
+					selectedCandidatesByEmbeddingId,
+					ragResourceTitles,
+					fusionResult.answerabilityScore(),
+					fusionResult.answerabilityReason(),
+					evidenceItems,
+					prompt
+			);
+			if (!requireSemanticDocumentEvidence && (mode == AgentCommandMode.SUGGEST || documentOverviewRequest)) {
 				appendResourceTitleEvidence(titleMatches, evidenceItems, prompt);
-				appendRecentResourceSummaryEvidence(userId, roomId, requestedSources, evidenceItems, prompt);
+				appendRecentResourceSummaryEvidence(
+						userId,
+						roomId,
+						requestedSources,
+						documentOverviewRequest,
+						evidenceItems,
+						prompt
+				);
 			}
 			appendTaskEvidence(roomId, requestedSources, workStateIntent, evidenceItems, prompt);
 			appendWbsEvidence(roomId, requestedSources, workStateIntent, evidenceItems, prompt);
@@ -635,6 +650,8 @@ public class ProjectRoomGroundingService {
 			List<ResourceSearchHit> ragHits,
 			Map<UUID, ProjectRoomDocumentCandidate> candidatesByEmbeddingId,
 			Map<UUID, String> resourceTitles,
+			double answerabilityScore,
+			String answerabilityReason,
 			List<ProjectRoomGroundingEvidence> evidenceItems,
 			StringBuilder prompt
 	) {
@@ -660,6 +677,8 @@ public class ProjectRoomGroundingService {
 				metadata.put("matchedKeywords", candidate.matchedKeywords());
 				metadata.put("matchReason", candidate.matchReason());
 			}
+			metadata.put("answerabilityScore", answerabilityScore);
+			metadata.put("answerabilityReason", answerabilityReason);
 			metadata.put("quote", quote(hit.chunkText()));
 			evidenceItems.add(new ProjectRoomGroundingEvidence(
 					ProjectRoomGroundingSourceType.DOCUMENT,
@@ -674,6 +693,8 @@ public class ProjectRoomGroundingService {
 					.append("endLine=").append(hit.endLine()).append('\n')
 					.append("similarityScore=").append(hit.similarityScore()).append('\n')
 					.append("fusionScore=").append(candidate == null ? hit.similarityScore() : candidate.fusionScore()).append('\n')
+					.append("answerabilityScore=").append(answerabilityScore).append('\n')
+					.append("answerabilityReason=").append(answerabilityReason).append('\n')
 					.append("matchReason=").append(candidate == null ? "SEMANTIC" : candidate.matchReason()).append('\n')
 					.append("chunkText=\n")
 					.append(hit.chunkText()).append("\n\n");
@@ -714,10 +735,13 @@ public class ProjectRoomGroundingService {
 			UUID userId,
 			UUID roomId,
 			EnumSet<ProjectRoomGroundingSourceType> requestedSources,
+			boolean documentOverviewRequest,
 			List<ProjectRoomGroundingEvidence> evidenceItems,
 			StringBuilder prompt
 	) {
-		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT) || hasDocumentEvidence(evidenceItems)) {
+		if (!requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
+				|| !documentOverviewRequest
+				|| hasDocumentEvidence(evidenceItems)) {
 			return;
 		}
 		for (ResourceSummaryResult summary : resourcePublicService.getRecentRoomSummaries(

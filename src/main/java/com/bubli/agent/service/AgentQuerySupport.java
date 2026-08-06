@@ -30,6 +30,17 @@ final class AgentQuerySupport {
 			"どこ", "ページ", "行", "引用", "出典", "根拠", "探して", "要約して", "説明して"
 	);
 
+	private static final List<String> ANSWERABILITY_STOPWORDS = List.of(
+			"bubli", "pdf", "todo", "task", "wbs",
+			"document", "documents", "file", "files", "resource", "resources", "material", "materials",
+			"source", "evidence", "citation", "quote", "page", "line", "find", "show", "tell", "using",
+			"based", "from", "about", "what", "which", "where", "summary", "summarize", "overview",
+			"\uBB38\uC11C", "\uC790\uB8CC", "\uD30C\uC77C", "\uADFC\uAC70", "\uCD9C\uCC98", "\uC778\uC6A9",
+			"\uC694\uC57D", "\uC815\uB9AC", "\uC124\uBA85", "\uC9C8\uBB38", "\uB0B4\uC6A9", "\uC8FC\uC694",
+			"\u8CC7\u6599", "\u6587\u66F8", "\u30D5\u30A1\u30A4\u30EB", "\u6839\u62E0", "\u51FA\u5178",
+			"\u8981\u7D04", "\u8AAC\u660E", "\u5185\u5BB9"
+	);
+
 	private AgentQuerySupport() {
 	}
 
@@ -184,6 +195,13 @@ final class AgentQuerySupport {
 			return WorkStateIntent.COMPLETED;
 		}
 		return WorkStateIntent.ANY;
+	}
+
+	static boolean isAnswerabilityStopword(String token) {
+		String normalized = normalizeSearchToken(compactResourceText(token));
+		return normalized.isBlank()
+				|| ANSWERABILITY_STOPWORDS.contains(normalized)
+				|| isSearchQueryStopword(normalized);
 	}
 
 	static List<ResourceToken> resourceTokens(String value) {

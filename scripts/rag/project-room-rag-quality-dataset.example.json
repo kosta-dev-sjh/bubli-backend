@@ -1,0 +1,46 @@
+{
+  "name": "bubli-project-room-rag-baseline-v1",
+  "topK": 5,
+  "cases": [
+    {
+      "id": "example-requirement-id-ko",
+      "roomId": "00000000-0000-0000-0000-000000000000",
+      "message": "REQ-MD-003 내용을 알려줘",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "relevant": [
+        {
+          "resourceId": "00000000-0000-0000-0000-000000000000",
+          "chunkIndex": 12
+        }
+      ],
+      "expectedRetrievalModes": [
+        "KEYWORD",
+        "TITLE_SCOPED_KEYWORD"
+      ]
+    },
+    {
+      "id": "example-semantic-en",
+      "roomId": "00000000-0000-0000-0000-000000000000",
+      "message": "How does the document handle double booking?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "relevant": [
+        {
+          "resourceId": "00000000-0000-0000-0000-000000000000"
+        }
+      ]
+    },
+    {
+      "id": "example-no-answer-ja",
+      "roomId": "00000000-0000-0000-0000-000000000000",
+      "message": "返金ポリシーはどこにありますか？",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "relevant": []
+    }
+  ]
+}

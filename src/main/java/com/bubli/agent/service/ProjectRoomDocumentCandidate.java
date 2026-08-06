@@ -86,7 +86,7 @@ record ProjectRoomDocumentCandidate(
 	private static List<String> matchedKeywords(ResourceSearchHit hit, AgentSearchQueryAnalysis analysis) {
 		String compactChunk = AgentQuerySupport.compactResourceText(hit.chunkText());
 		List<String> matches = new ArrayList<>();
-		for (String keyword : analysis.keywords()) {
+		for (String keyword : analysis.rankingKeywords()) {
 			String compactKeyword = AgentQuerySupport.compactResourceText(keyword);
 			if (!compactKeyword.isBlank() && compactChunk.contains(compactKeyword) && !matches.contains(keyword)) {
 				matches.add(keyword);

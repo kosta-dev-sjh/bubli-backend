@@ -1,6 +1,6 @@
 spring:
   config:
-    import: optional:file:C:\edu\project3\bubli-backend\src\main\resources\.env[.properties]
+    import: optional:file:D:\kostaEx\bubli-backend\src\main\resources\.env[.properties]
   application:
     name: bubli-backend
 
@@ -87,6 +87,7 @@ aws:
 
 storage:
   type: ${STORAGE_TYPE:s3}
+  base-path: ./local-storage
 
 livekit:
   api-key: ${LIVEKIT_API_KEY:}
