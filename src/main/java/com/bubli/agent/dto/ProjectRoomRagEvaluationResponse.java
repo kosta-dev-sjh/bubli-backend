@@ -13,9 +13,10 @@ public record ProjectRoomRagEvaluationResponse(
 		int ragHitCount,
 		int evidenceCount,
 		List<String> sourceTypes,
-		List<String> retrievalModes,
-		List<ResourceSearchHit> ragHits,
-		List<Map<String, Object>> evidenceItems
+	List<String> retrievalModes,
+	List<ResourceSearchHit> ragHits,
+	List<Map<String, Object>> evidenceItems,
+	Map<String, Object> retrievalDiagnostics
 ) {
 
 	public static ProjectRoomRagEvaluationResponse from(ProjectRoomGroundingContext context) {
@@ -31,9 +32,10 @@ public record ProjectRoomRagEvaluationResponse(
 						.toList(),
 				context.retrievalModes(),
 				context.ragHits(),
-				context.evidenceItems().stream()
-						.map(ProjectRoomGroundingEvidence::toPayload)
-						.toList()
+			context.evidenceItems().stream()
+					.map(ProjectRoomGroundingEvidence::toPayload)
+					.toList(),
+			context.retrievalDiagnostics()
 		);
 	}
 }

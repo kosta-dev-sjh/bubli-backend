@@ -63,7 +63,7 @@
 - 두 점수의 의미와 분포가 전혀 다른데 그대로 섞입니다.
 - 제목 매칭이 없으면 semantic 결과 다음에 keyword 결과가 붙는 순서가 됩니다.
 - 현재는 `ProjectRoomDocumentFusionService`에서 weighted fusion을 수행합니다.
-- 아직 RRF, cross-encoder reranker, LLM reranker는 없습니다.
+- RRF feature는 production fusion에 보조 점수로 추가됐고, cross-encoder reranker와 LLM reranker는 아직 없습니다.
 
 관련 병합 코드는 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:441)입니다.
 
@@ -378,6 +378,8 @@ Phase 1 합격 기준은 다음과 같이 둡니다.
 
 RRF는 점수 분포가 다른 semantic, FTS, trigram 결과를 직접 더하는 현재 방식보다 튜닝 안정성이 좋습니다. 다만 실제 적용 여부는 기존 weighted fusion과 동일 데이터셋에서 ablation으로 결정합니다. cross-encoder/LLM reranker는 품질 이득이 확인될 때만 latency·비용 예산 안에서 추가합니다.
 
+2026-08-06 1차 구현에서는 production fusion에 RRF feature를 보조 점수로 추가하고 `fusionStrategy=WEIGHTED_PLUS_RRF`, `rrfScore`를 evidence metadata에 기록했습니다. 또한 여러 candidate report를 한 baseline과 비교하는 `compare-project-room-rag-ablation.ps1`을 추가했습니다. 실제 RRF 단독 전환은 아직 하지 않고, 동일 dataset hash의 ablation 결과로 결정합니다.
+
 ### Phase 3. 종단 답변 품질과 운영성
 
 1. 검색 근거를 사용한 최종 답변의 correctness, faithfulness, citation precision/recall, locale 일치 평가 추가
@@ -388,6 +390,8 @@ RRF는 점수 분포가 다른 semantic, FTS, trigram 결과를 직접 더하는
 6. Batch embedding, 증분 인덱싱, embedding 모델 버전 관리 구현
 7. 개인 검색에도 검증된 hybrid 정책 적용
 8. 검색 컨텍스트 토큰 예산과 prompt injection 방어 추가
+
+2026-08-06 1차 구현에서는 evaluator schema v3로 run metadata(application commit/branch, document snapshot, chunking version, embedding model version, search config), warm-up, repeat count, request timeout, concurrency label을 기록하도록 확장했습니다. 또한 failure-injection script를 추가해 evaluator/API 실패가 no-answer와 섞이지 않는지 검증할 수 있게 했습니다. 최종 답변 correctness/faithfulness/citation/locale 평가는 현재 endpoint가 grounding-only라 `metrics.answerQuality.evaluated=false`로 명시하고, 별도 answer-generating 평가 endpoint가 필요한 상태로 남겼습니다.
 
 ## 평가 데이터 운영 원칙
 

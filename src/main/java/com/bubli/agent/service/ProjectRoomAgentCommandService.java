@@ -586,6 +586,9 @@ public class ProjectRoomAgentCommandService {
 			citation.put("quote", evidence.metadata().get("quote"));
 			citation.put("similarityScore", evidence.metadata().get("similarityScore"));
 			citation.put("fusionScore", evidence.metadata().get("fusionScore"));
+			citation.put("rrfScore", evidence.metadata().get("rrfScore"));
+			citation.put("answerabilityScore", evidence.metadata().get("answerabilityScore"));
+			citation.put("answerabilityReason", evidence.metadata().get("answerabilityReason"));
 			citations.add(citation);
 		}
 		return citations;

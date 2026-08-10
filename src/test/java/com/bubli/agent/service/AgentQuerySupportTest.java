@@ -39,7 +39,9 @@ class AgentQuerySupportTest {
 		);
 
 		assertThat(analysis.locale()).isEqualTo("ja-JP");
-		assertThat(analysis.keywords()).contains("要件定義書で座席予約について説明して");
+		assertThat(analysis.keywords()).contains("要件定義書", "座席予約");
+		assertThat(analysis.keywords()).doesNotContain("要件定義書で座席予約について説明して");
+		assertThat(AgentQuerySupport.isJapaneseLocale(analysis.locale())).isTrue();
 		assertThat(AgentQuerySupport.isDocumentSourceRequest("要件定義書で座席予約について説明して")).isTrue();
 		assertThat(AgentQuerySupport.requiresSemanticDocumentEvidence("要件定義書で座席予約について説明して")).isTrue();
 	}

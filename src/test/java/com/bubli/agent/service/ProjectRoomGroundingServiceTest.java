@@ -73,6 +73,10 @@ class ProjectRoomGroundingServiceTest {
 				.contains("startLine=10")
 				.contains("endLine=12")
 				.contains("contract text");
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("initialCandidateCount", 1)
+				.containsKey("initialFusion")
+				.containsKey("finalFusion");
 	}
 
 	@Test
@@ -989,7 +993,7 @@ class ProjectRoomGroundingServiceTest {
 				120,
 				260,
 				"contract.pdf",
-				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260,\"originalName\":\"contract.pdf\"}",
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260,\"originalName\":\"contract.pdf\",\"documentLanguage\":\"ko\"}",
 				similarityScore
 		);
 	}
@@ -1006,7 +1010,7 @@ class ProjectRoomGroundingServiceTest {
 				120,
 				260,
 				null,
-				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260}",
+				"{\"pageNumber\":2,\"startLine\":10,\"endLine\":12,\"startOffset\":120,\"endOffset\":260,\"documentLanguage\":\"ko\"}",
 				similarityScore
 		);
 	}

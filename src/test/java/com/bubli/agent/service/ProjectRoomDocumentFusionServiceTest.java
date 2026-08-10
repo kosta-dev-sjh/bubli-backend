@@ -189,6 +189,53 @@ class ProjectRoomDocumentFusionServiceTest {
 		assertThat(result.answerabilityScore()).isGreaterThanOrEqualTo(0.52D);
 	}
 
+	@Test
+	void acceptsConfidentJapaneseSemanticEvidenceWithoutKeywordCoverage() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze(
+				"安全在庫以下の商品を確認する方法を教えてください",
+				"ja-JP"
+		);
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(ProjectRoomDocumentCandidate.of(
+						hit(UUID.randomUUID(), "inventory threshold behaviour is described here", 0.74D),
+						"SEMANTIC",
+						analysis,
+						false
+				)),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.grounded()).isTrue();
+		assertThat(result.answerabilityReason()).isEqualTo("CONFIDENT_SEMANTIC_ONLY_MATCH");
+	}
+
+	@Test
+	void keepsComplementaryAdjacentChunks() {
+		ResourceSearchMetricsPublicService metrics = mock(ResourceSearchMetricsPublicService.class);
+		ProjectRoomDocumentFusionService fusionService = new ProjectRoomDocumentFusionService(metrics);
+		AgentSearchQueryAnalysis analysis = AgentQuerySupport.analyze("payment approval exception workflow", "en-US");
+		UUID resourceId = UUID.randomUUID();
+
+		var result = fusionService.fuse(
+				analysis,
+				List.of(
+						ProjectRoomDocumentCandidate.of(hit(resourceId,
+								"payment approval begins only after invoice validation", 0.95D, 3), "SEMANTIC", analysis, false),
+						ProjectRoomDocumentCandidate.of(hit(resourceId,
+								"exception workflow sends a finance-owner notification", 0.94D, 4), "SEMANTIC", analysis, false)
+				),
+				5,
+				ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
+		);
+
+		assertThat(result.hits()).extracting(ResourceSearchHit::chunkIndex).containsExactly(3, 4);
+	}
+
 	private ResourceSearchHit hit(UUID resourceId, String chunkText, double score) {
 		return hit(resourceId, chunkText, score, 0);
 	}

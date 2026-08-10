@@ -5,7 +5,17 @@ param(
     [string]$Output,
     [string]$ApiBaseUrl = "http://localhost:8080",
     [Parameter(Mandatory = $true)]
-    [string]$BearerToken
+    [string]$BearerToken,
+    [int]$WarmupCount = 0,
+    [int]$RepeatCount = 1,
+    [int]$ConcurrencyLevel = 1,
+    [string]$RunLabel,
+    [string]$DocumentSnapshot,
+    [string]$ChunkingVersion,
+    [string]$EmbeddingModelVersion,
+    [string]$SearchConfig = "default",
+    [int]$RequestTimeoutSec = 30,
+    [switch]$IncludeEvidenceDetails
 )
 
 $ErrorActionPreference = "Stop"
@@ -120,6 +130,57 @@ function Get-CaseIntent {
     return "UNKNOWN"
 }
 
+function Get-GitValue {
+    param([string[]]$Arguments)
+    try {
+        $value = & git @Arguments 2>$null
+        if ($LASTEXITCODE -ne 0 -or $null -eq $value) {
+            return $null
+        }
+        return [string]$value
+    } catch {
+        return $null
+    }
+}
+
+function Invoke-RagEvaluationCase {
+    param($Case, [object[]]$RelevantItems, [bool]$ExpectedGrounded, [string]$CaseLocale)
+    $body = @{
+        roomId = $Case.roomId
+        message = Get-CaseMessage $Case
+        locale = $CaseLocale
+        mode = if ($null -eq $Case.mode) { "ANSWER" } else { [string]$Case.mode }
+    } | ConvertTo-Json
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $response = Invoke-RestMethod `
+            -Method Post `
+            -Uri "$ApiBaseUrl/api/ai/evaluate-project-room-rag" `
+            -Headers $headers `
+            -ContentType "application/json; charset=utf-8" `
+            -TimeoutSec $RequestTimeoutSec `
+            -Body $body
+        $stopwatch.Stop()
+        if (-not $response.success) {
+            throw "RAG evaluation API returned success=false"
+        }
+        return [pscustomobject]@{
+            ok = $true
+            data = $response.data
+            latencyMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+            error = $null
+        }
+    } catch {
+        $stopwatch.Stop()
+        return [pscustomobject]@{
+            ok = $false
+            data = $null
+            latencyMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+            error = $_.Exception.Message
+        }
+    }
+}
+
 function Get-DocumentEvidenceHits {
     param($EvidenceItems)
     $hits = @()
@@ -211,39 +272,48 @@ $datasetPath = (Resolve-Path -LiteralPath $Dataset).Path
 $datasetDefinition = Get-Content -LiteralPath $datasetPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $topK = if ($null -eq $datasetDefinition.topK) { 5 } else { [int]$datasetDefinition.topK }
 $headers = @{ Authorization = "Bearer $BearerToken" }
+$RepeatCount = [Math]::Max(1, $RepeatCount)
+$WarmupCount = [Math]::Max(0, $WarmupCount)
+$ConcurrencyLevel = [Math]::Max(1, $ConcurrencyLevel)
+$RequestTimeoutSec = [Math]::Max(1, $RequestTimeoutSec)
 $caseReports = @()
 $latencies = @()
 $modeSelectedCounts = @{}
 $modeHitContribution = @{}
+$answerabilityReasonCounts = @{}
+$languagePolicyRejectCounts = @{}
 
+foreach ($case in @($datasetDefinition.cases | Select-Object -First $WarmupCount)) {
+    $relevantItems = @($case.relevant)
+    $expectedGrounded = Get-ExpectedGrounded $case $relevantItems
+    $caseLocale = Get-CaseLocale $case
+    Invoke-RagEvaluationCase $case $relevantItems $expectedGrounded $caseLocale | Out-Null
+}
+
+for ($runIndex = 1; $runIndex -le $RepeatCount; $runIndex++) {
 foreach ($case in $datasetDefinition.cases) {
     $relevantItems = @($case.relevant)
     $expectedGrounded = Get-ExpectedGrounded $case $relevantItems
     $caseLocale = Get-CaseLocale $case
     $caseIntent = Get-CaseIntent $case
     $expectedRetrievalModes = @($case.expectedRetrievalModes)
-    $body = @{
-        roomId = $case.roomId
-        message = Get-CaseMessage $case
-        locale = $caseLocale
-        mode = if ($null -eq $case.mode) { "ANSWER" } else { [string]$case.mode }
-    } | ConvertTo-Json
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    try {
-        $response = Invoke-RestMethod `
-            -Method Post `
-            -Uri "$ApiBaseUrl/api/ai/evaluate-project-room-rag" `
-            -Headers $headers `
-            -ContentType "application/json; charset=utf-8" `
-            -Body $body
-        $stopwatch.Stop()
-        if (-not $response.success) {
-            throw "RAG evaluation API returned success=false"
-        }
-        $data = $response.data
+    $call = Invoke-RagEvaluationCase $case $relevantItems $expectedGrounded $caseLocale
+    if ($call.ok) {
+        $data = $call.data
         $evidenceHits = @(Get-DocumentEvidenceHits $data.evidenceItems | Select-Object -First $topK)
         foreach ($hit in $evidenceHits) {
             Add-Count $modeSelectedCounts $hit.retrievalMode
+        }
+
+        $diagnostics = $data.retrievalDiagnostics
+        $answerabilityReason = $null
+        if ($null -ne $diagnostics -and $null -ne $diagnostics.finalFusion) {
+            $answerabilityReason = [string]$diagnostics.finalFusion.answerabilityReason
+            Add-Count $answerabilityReasonCounts $answerabilityReason
+        }
+        $ungroundedReason = if ($null -eq $diagnostics) { $null } else { $diagnostics.ungroundedReason }
+        if (-not [string]::IsNullOrWhiteSpace([string]$ungroundedReason)) {
+            Add-Count $languagePolicyRejectCounts ([string]$ungroundedReason)
         }
 
         $relevances = @($evidenceHits | ForEach-Object { Test-Relevant $_ $relevantItems })
@@ -275,10 +345,11 @@ foreach ($case in $datasetDefinition.cases) {
         }
         $idcg = Get-Dcg ([bool[]]$ideal)
         $ndcg = if ($idcg -eq 0.0) { 0.0 } else { (Get-Dcg ([bool[]]$relevances)) / $idcg }
-        $latencyMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+        $latencyMs = $call.latencyMs
         $latencies += $latencyMs
         $caseReports += [pscustomobject][ordered]@{
             id = $case.id
+            runIndex = $runIndex
             locale = $caseLocale
             intent = $caseIntent
             status = "success"
@@ -290,6 +361,7 @@ foreach ($case in $datasetDefinition.cases) {
             noAnswerCorrect = if ($expectedGrounded) { $null } else { -not [bool]$data.grounded }
             retrievalFailed = [bool]$data.retrievalFailed
             retrievalFailureReason = $data.retrievalFailureReason
+            ungroundedReason = $ungroundedReason
             hitAtK = if ($relevantCount -eq 0) { $null } elseif ($null -eq $firstRelevantRank) { 0.0 } else { 1.0 }
             recallAtK = if ($relevantCount -eq 0) { $null } else { [Math]::Round($recall, 6) }
             reciprocalRank = if ($relevantCount -eq 0) { $null } else { [Math]::Round($mrr, 6) }
@@ -303,19 +375,23 @@ foreach ($case in $datasetDefinition.cases) {
             expectedRetrievalModes = $expectedRetrievalModes
             expectedRetrievalModeHit = Test-ExpectedRetrievalModeHit $expectedRetrievalModes @($data.retrievalModes)
             firstRelevantRank = $firstRelevantRank
+            answerabilityReason = $answerabilityReason
+            retrievalDiagnostics = $diagnostics
+            evidenceDetails = if ($IncludeEvidenceDetails) { @($data.evidenceItems) } else { $null }
         }
-    } catch {
-        $stopwatch.Stop()
+    } else {
         $caseReports += [pscustomobject][ordered]@{
             id = $case.id
+            runIndex = $runIndex
             locale = $caseLocale
             intent = $caseIntent
             status = "error"
-            latencyMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+            latencyMs = $call.latencyMs
             expectedGrounded = $expectedGrounded
-            error = $_.Exception.Message
+            error = $call.error
         }
     }
+}
 }
 
 $successful = @($caseReports | Where-Object { $_.status -eq "success" })
@@ -325,14 +401,33 @@ $noAnswerCases = @($successful | Where-Object { $_.noAnswerCase })
 $retrievalFailures = @($successful | Where-Object { $_.retrievalFailed })
 $expectedModeCases = @($successful | Where-Object { $null -ne $_.expectedRetrievalModeHit })
 $groundingMetrics = Get-GroundingConfusionMetrics $successful
+$applicationCommit = Get-GitValue @("rev-parse", "HEAD")
+$applicationBranch = Get-GitValue @("rev-parse", "--abbrev-ref", "HEAD")
 
 $report = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     datasetName = $datasetDefinition.name
     datasetSha256 = (Get-FileHash -LiteralPath $datasetPath -Algorithm SHA256).Hash.ToLowerInvariant()
     generatedAt = [DateTimeOffset]::UtcNow.ToString("o")
     apiBaseUrl = $ApiBaseUrl
     topK = $topK
+    runLabel = $RunLabel
+    warmupCount = $WarmupCount
+    repeatCount = $RepeatCount
+    concurrencyLevel = $ConcurrencyLevel
+    requestTimeoutSec = $RequestTimeoutSec
+    includeEvidenceDetails = [bool]$IncludeEvidenceDetails
+    evaluationScope = "GROUNDING_ONLY"
+    runMetadata = [ordered]@{
+        applicationCommit = $applicationCommit
+        applicationBranch = $applicationBranch
+        documentSnapshot = $DocumentSnapshot
+        chunkingVersion = $ChunkingVersion
+        embeddingModelVersion = $EmbeddingModelVersion
+        searchConfig = $SearchConfig
+        powershellVersion = $PSVersionTable.PSVersion.ToString()
+        os = [System.Environment]::OSVersion.VersionString
+    }
     caseCount = $caseReports.Count
     successfulCaseCount = $successful.Count
     failedCaseCount = $failed.Count
@@ -348,6 +443,10 @@ $report = [ordered]@{
         noAnswerAccuracy = Get-AverageMetric $noAnswerCases "noAnswerCorrect"
         grounding = $groundingMetrics
         expectedRetrievalModeAccuracy = Get-AverageMetric $expectedModeCases "expectedRetrievalModeHit"
+        answerQuality = [ordered]@{
+            evaluated = $false
+            reason = "Evaluation endpoint returns grounding context only. Final answer correctness, faithfulness, citation precision/recall, and locale match require an answer-generating endpoint or offline answer payload."
+        }
         errorRate = if ($caseReports.Count -eq 0) { 0.0 } else {
             [Math]::Round($failed.Count / $caseReports.Count, 6)
         }
@@ -357,6 +456,8 @@ $report = [ordered]@{
         documentEvidenceCountAverage = Get-AverageMetric $successful "documentEvidenceCount"
         retrievalModeSelectedCounts = $modeSelectedCounts
         retrievalModeHitContribution = $modeHitContribution
+        answerabilityReasonCounts = $answerabilityReasonCounts
+        languagePolicyRejectCounts = $languagePolicyRejectCounts
         latencyMs = [ordered]@{
             average = if ($latencies.Count -eq 0) { $null } else {
                 [Math]::Round((($latencies | Measure-Object -Average).Average), 3)

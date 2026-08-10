@@ -10,6 +10,7 @@ record ProjectRoomDocumentCandidate(
 		String retrievalMode,
 		double originalScore,
 		double fusionScore,
+		double reciprocalRankScore,
 		List<String> matchedKeywords,
 		String matchReason
 ) {
@@ -44,8 +45,21 @@ record ProjectRoomDocumentCandidate(
 				retrievalMode,
 				hit.similarityScore(),
 				Math.min(2.0D, score),
+				0.0D,
 				matchedKeywords,
 				matchReason(retrievalMode, titleScoped, matchedKeywords, analysis, hit)
+		);
+	}
+
+	ProjectRoomDocumentCandidate withReciprocalRankScore(double score) {
+		return new ProjectRoomDocumentCandidate(
+				hit,
+				retrievalMode,
+				originalScore,
+				Math.min(2.0D, fusionScore + score),
+				score,
+				matchedKeywords,
+				score <= 0.0D ? matchReason : matchReason + ",RRF_FEATURE"
 		);
 	}
 
@@ -68,6 +82,7 @@ record ProjectRoomDocumentCandidate(
 				mergedMode,
 				Math.max(originalScore, other.originalScore),
 				Math.max(fusionScore, other.fusionScore) + 0.05D,
+				Math.max(reciprocalRankScore, other.reciprocalRankScore),
 				mergedKeywords,
 				mergedReason
 		);

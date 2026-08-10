@@ -10,6 +10,8 @@ final class AgentQuerySupport {
 
 	private static final Pattern REQUIREMENT_IDENTIFIER_PATTERN =
 			Pattern.compile("req[-_\\s]*[a-z0-9]+[-_\\s]*\\d{2,}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern RESOURCE_FILE_NAME_PATTERN =
+			Pattern.compile("(?i)\\b[\\p{L}\\p{N}_-]+(?:[ .][\\p{L}\\p{N}_-]+)*\\.(pdf|docx?|xlsx?|pptx?|txt|md)\\b");
 	private static final Pattern QUOTED_PHRASE_PATTERN =
 			Pattern.compile("[\"'“”‘’「」『』](.*?)[\"'“”‘’「」『』]");
 
@@ -204,19 +206,85 @@ final class AgentQuerySupport {
 				|| isSearchQueryStopword(normalized);
 	}
 
+	static boolean isJapaneseLocale(String locale) {
+		return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ja");
+	}
+
+	static QueryLanguage queryLanguage(String value) {
+		String text = nullToEmpty(value);
+		if (text.codePoints().anyMatch(character -> character >= 0xAC00 && character <= 0xD7A3)) {
+			return QueryLanguage.KOREAN;
+		}
+		if (containsJapaneseScript(text)) {
+			return QueryLanguage.JAPANESE;
+		}
+		if (text.codePoints().anyMatch(Character::isLetter)) {
+			return QueryLanguage.ENGLISH;
+		}
+		return QueryLanguage.UNKNOWN;
+	}
+
+	static boolean supportsDocumentSearchLanguage(String message, String documentSearchLanguage) {
+		String normalized = normalize(message);
+		if (hasRequirementIdentifier(message) || normalized.contains("req-")
+				|| RESOURCE_FILE_NAME_PATTERN.matcher(nullToEmpty(message)).find()) {
+			return true;
+		}
+		return switch (documentSearchLanguage == null ? "ko" : documentSearchLanguage.toLowerCase(Locale.ROOT)) {
+			case "ko", "ko-kr" -> queryLanguage(message) == QueryLanguage.KOREAN;
+			case "en", "en-us" -> queryLanguage(message) == QueryLanguage.ENGLISH;
+			case "ja", "ja-jp" -> queryLanguage(message) == QueryLanguage.JAPANESE;
+			default -> false;
+		};
+	}
+
+	static String documentQueryLanguage(String message) {
+		if (hasRequirementIdentifier(message) || normalize(message).contains("req-")
+				|| RESOURCE_FILE_NAME_PATTERN.matcher(nullToEmpty(message)).find()) {
+			return null;
+		}
+		return switch (queryLanguage(message)) {
+			case KOREAN -> "ko";
+			case ENGLISH -> "en";
+			case JAPANESE -> "ja";
+			case UNKNOWN -> "unknown";
+		};
+	}
+
 	static List<ResourceToken> resourceTokens(String value) {
 		String compact = compactResourceText(value);
 		if (compact.isBlank()) {
 			return List.of();
 		}
 		List<ResourceToken> tokens = new ArrayList<>();
-		for (String token : compact.split(" ")) {
+		for (String token : tokenCandidates(compact)) {
 			if (token.length() < 2 || isResourceStopword(token)) {
 				continue;
 			}
 			tokens.add(new ResourceToken(token, Math.min(token.length(), 12)));
 		}
 		return tokens;
+	}
+
+	private static List<String> tokenCandidates(String compact) {
+		if (!containsJapaneseScript(compact)) {
+			return List.of(compact.split(" "));
+		}
+		String segmented = compact
+				.replaceAll("(に基づいて|について|どのように|教えてください|してください|できますか|できるか)", " ")
+				.replaceAll("[のをがはにでとやからまでへも]　?", " ");
+		List<String> tokens = new ArrayList<>();
+		for (String token : segmented.split(" ")) {
+			String normalized = token.trim();
+			if (normalized.length() >= 2) {
+				tokens.add(normalized);
+			}
+		}
+		return tokens;
+	}
+
+	private static boolean containsJapaneseScript(String value) {
+		return value.codePoints().anyMatch(character -> (character >= 0x3040 && character <= 0x30ff));
 	}
 
 	static String compactResourceText(String value) {
@@ -407,5 +475,12 @@ final class AgentQuerySupport {
 		ACTIVE,
 		COMPLETED,
 		ANY
+	}
+
+	enum QueryLanguage {
+		KOREAN,
+		ENGLISH,
+		JAPANESE,
+		UNKNOWN
 	}
 }

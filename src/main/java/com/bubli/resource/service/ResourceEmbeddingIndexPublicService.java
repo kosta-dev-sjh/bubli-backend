@@ -55,11 +55,14 @@ public class ResourceEmbeddingIndexPublicService {
         }
         //청크 페이지 나눈걸로
         List<TextChunker.TextChunk> chunks = textChunker.splitPages(pages);
+		String documentLanguage = ResourceDocumentLanguageDetector.detect(chunks.stream()
+				.map(TextChunker.TextChunk::text)
+				.collect(java.util.stream.Collectors.joining("\n")));
         //기존 임베딩 삭제, 분석시 이전 임베딩 영향 안받기위해
         resourceEmbeddingRepository.deleteAllByResourceId(resource.getId());
 
         List<ResourceEmbedding> embeddings = chunks.stream()
-                .map(chunk -> toEmbedding(resource, resourceFile, chunk, embeddingModel.embed(chunk.text())))
+                .map(chunk -> toEmbedding(resource, resourceFile, chunk, embeddingModel.embed(chunk.text()), documentLanguage))
                 .toList();
         embeddings.forEach(this::insertEmbedding);
         return IndexResult.indexed(embeddings.size());
@@ -76,10 +79,13 @@ public class ResourceEmbeddingIndexPublicService {
             return IndexResult.skipped();
         }
         List<TextChunker.TextChunk> chunks = textChunker.splitPages(pages);
+		String documentLanguage = ResourceDocumentLanguageDetector.detect(chunks.stream()
+				.map(TextChunker.TextChunk::text)
+				.collect(java.util.stream.Collectors.joining("\n")));
         resourceEmbeddingRepository.deleteAllByResourceId(resource.getId());
 
         List<ResourceEmbedding> embeddings = chunks.stream()
-                .map(chunk -> toEmbedding(resource, originalName, mimeType, chunk, embeddingModel.embed(chunk.text())))
+                .map(chunk -> toEmbedding(resource, originalName, mimeType, chunk, embeddingModel.embed(chunk.text()), documentLanguage))
                 .toList();
         embeddings.forEach(this::insertEmbedding);
         return IndexResult.indexed(embeddings.size());
@@ -103,7 +109,8 @@ public class ResourceEmbeddingIndexPublicService {
             Resource resource,
             ResourceFile resourceFile,
             TextChunker.TextChunk chunk,
-            float[] embedding
+            float[] embedding,
+			String documentLanguage
     ) {
         return ResourceEmbedding.create(
                 resource.getId(),
@@ -113,7 +120,7 @@ public class ResourceEmbeddingIndexPublicService {
                 chunk.index(),
                 chunk.text(),
                 embeddingVectorFormatter.toVectorLiteral(embedding),
-                metadata(resourceFile, chunk)
+                metadata(resourceFile, chunk, documentLanguage)
         );
     }
 
@@ -122,7 +129,8 @@ public class ResourceEmbeddingIndexPublicService {
             String originalName,
             String mimeType,
             TextChunker.TextChunk chunk,
-            float[] embedding
+            float[] embedding,
+			String documentLanguage
     ) {
         return ResourceEmbedding.create(
                 resource.getId(),
@@ -132,15 +140,15 @@ public class ResourceEmbeddingIndexPublicService {
                 chunk.index(),
                 chunk.text(),
                 embeddingVectorFormatter.toVectorLiteral(embedding),
-                metadata(originalName, mimeType, chunk)
+                metadata(originalName, mimeType, chunk, documentLanguage)
         );
     }
 
-    private Map<String, Object> metadata(ResourceFile resourceFile, TextChunker.TextChunk chunk) {
-        return metadata(resourceFile.getOriginalName(), resourceFile.getMimeType(), chunk);
+    private Map<String, Object> metadata(ResourceFile resourceFile, TextChunker.TextChunk chunk, String documentLanguage) {
+        return metadata(resourceFile.getOriginalName(), resourceFile.getMimeType(), chunk, documentLanguage);
     }
 
-    private Map<String, Object> metadata(String originalName, String mimeType, TextChunker.TextChunk chunk) {
+    private Map<String, Object> metadata(String originalName, String mimeType, TextChunker.TextChunk chunk, String documentLanguage) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("originalName", originalName);
         metadata.put("mimeType", mimeType);
@@ -150,6 +158,7 @@ public class ResourceEmbeddingIndexPublicService {
         metadata.put("startLine", chunk.startLine());
         metadata.put("endLine", chunk.endLine());
         metadata.put("characterCount", chunk.text().length());
+		metadata.put("documentLanguage", documentLanguage);
         return metadata;
     }
 

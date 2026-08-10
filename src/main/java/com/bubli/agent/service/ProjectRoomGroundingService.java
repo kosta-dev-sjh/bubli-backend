@@ -77,6 +77,7 @@ public class ProjectRoomGroundingService {
 			}
 
 			AgentSearchQueryAnalysis queryAnalysis = AgentQuerySupport.analyze(message, locale);
+			String documentLanguage = AgentQuerySupport.documentQueryLanguage(message);
 			boolean requireSemanticDocumentEvidence = requestedSources.contains(ProjectRoomGroundingSourceType.DOCUMENT)
 					&& mode == AgentCommandMode.ANSWER
 					&& AgentQuerySupport.requiresSemanticDocumentEvidence(message);
@@ -91,7 +92,7 @@ public class ProjectRoomGroundingService {
 					List.of()
 			);
 			List<ProjectRoomDocumentCandidate> documentCandidates = new ArrayList<>();
-			documentCandidates.addAll(toCandidates(retrieveDocumentHits(
+			documentCandidates.addAll(toCandidates(filterDocumentLanguage(retrieveDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis.normalizedQuery(),
@@ -99,15 +100,15 @@ public class ProjectRoomGroundingService {
 					requestedSources,
 					requireSemanticDocumentEvidence,
 					retrievalFailures
-			), "SEMANTIC", queryAnalysis, false));
-			documentCandidates.addAll(toCandidates(retrieveKeywordDocumentHits(
+			), documentLanguage), "SEMANTIC", queryAnalysis, false));
+			documentCandidates.addAll(toCandidates(filterDocumentLanguage(retrieveKeywordDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis,
 					requestedSources,
 					retrievalFailures
-			), "KEYWORD", queryAnalysis, false));
-			documentCandidates.addAll(toCandidates(retrieveTitleScopedDocumentHits(
+			), documentLanguage), "KEYWORD", queryAnalysis, false));
+			documentCandidates.addAll(toCandidates(filterDocumentLanguage(retrieveTitleScopedDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis.normalizedQuery(),
@@ -115,25 +116,29 @@ public class ProjectRoomGroundingService {
 					requestedSources,
 					titleMatches,
 					retrievalFailures
-			), "TITLE_SCOPED_SEMANTIC", queryAnalysis, true));
-			documentCandidates.addAll(toCandidates(retrieveTitleScopedKeywordDocumentHits(
+			), documentLanguage), "TITLE_SCOPED_SEMANTIC", queryAnalysis, true));
+			documentCandidates.addAll(toCandidates(filterDocumentLanguage(retrieveTitleScopedKeywordDocumentHits(
 					userId,
 					roomId,
 					queryAnalysis,
 					requestedSources,
 					titleMatches,
 					retrievalFailures
-			), "TITLE_SCOPED_KEYWORD", queryAnalysis, true));
+			), documentLanguage), "TITLE_SCOPED_KEYWORD", queryAnalysis, true));
 			documentCandidates = preferTitleMatchedDocumentCandidates(documentCandidates, titleMatches);
-			List<ProjectRoomDocumentCandidate> representativeDocumentCandidates = toCandidates(retrieveRepresentativeDocumentChunks(
+			boolean allowTitleMatchedRepresentativeFallback = documentOverviewRequest || hasStrongTitleMatch(titleMatches);
+			String representativeRetrievalMode = documentOverviewRequest
+					? "REPRESENTATIVE"
+					: "TITLE_SCOPED_REPRESENTATIVE";
+			List<ProjectRoomDocumentCandidate> representativeDocumentCandidates = toCandidates(filterDocumentLanguage(retrieveRepresentativeDocumentChunks(
 					userId,
 					roomId,
 					requestedSources,
 					requireSemanticDocumentEvidence,
-					documentOverviewRequest,
+					allowTitleMatchedRepresentativeFallback,
 					titleMatches,
 					retrievalFailures
-			), "REPRESENTATIVE", queryAnalysis, true);
+			), documentLanguage), representativeRetrievalMode, queryAnalysis, true);
 			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult fusionResult = documentFusionService.fuse(
 					queryAnalysis,
 					documentCandidates,
@@ -142,6 +147,7 @@ public class ProjectRoomGroundingService {
 							? ProjectRoomDocumentFusionService.AgentCommandModeValue.SUGGEST
 							: ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
 			);
+			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult initialFusionResult = fusionResult;
 			if (!fusionResult.grounded() && !representativeDocumentCandidates.isEmpty()) {
 				fusionResult = documentFusionService.fuse(
 						queryAnalysis,
@@ -152,6 +158,15 @@ public class ProjectRoomGroundingService {
 								: ProjectRoomDocumentFusionService.AgentCommandModeValue.ANSWER
 				);
 			}
+			Map<String, Object> retrievalDiagnostics = documentRetrievalDiagnostics(
+					queryAnalysis,
+					documentCandidates,
+					representativeDocumentCandidates,
+					initialFusionResult,
+					fusionResult,
+					allowTitleMatchedRepresentativeFallback,
+					documentLanguage
+			);
 			List<ResourceSearchHit> ragHits = fusionResult.hits();
 			Map<UUID, ProjectRoomDocumentCandidate> selectedCandidatesByEmbeddingId =
 					candidatesByEmbeddingId(fusionResult.selected());
@@ -197,21 +212,87 @@ public class ProjectRoomGroundingService {
 
 			if (evidenceItems.isEmpty()) {
 				if (hasRetrievalFailureForRequestedSources(requestedSources, retrievalFailures)) {
-					return ProjectRoomGroundingContext.retrievalFailed(String.join(",", retrievalFailures));
+					return new ProjectRoomGroundingContext(
+							false, List.of(), 0.0D, List.of(), "", true,
+							String.join(",", retrievalFailures), retrievalDiagnostics
+					);
 				}
-				return ProjectRoomGroundingContext.ungrounded();
+				return new ProjectRoomGroundingContext(false, List.of(), 0.0D, List.of(), "", false, null, retrievalDiagnostics);
 			}
 			return new ProjectRoomGroundingContext(
 					true,
 					ragHits,
 					maxSimilarity(ragHits),
 					evidenceItems,
-					prompt.toString().trim()
+					prompt.toString().trim(),
+					false,
+					null,
+					retrievalDiagnostics
 			);
 		} catch (RuntimeException exception) {
 			log.warn("Project room grounding retrieval failed. userId={}, roomId={}", userId, roomId, exception);
 			return ProjectRoomGroundingContext.retrievalFailed("GROUNDING_RETRIEVAL_FAILED");
 		}
+	}
+
+	private Map<String, Object> documentRetrievalDiagnostics(
+			AgentSearchQueryAnalysis analysis,
+			List<ProjectRoomDocumentCandidate> documentCandidates,
+			List<ProjectRoomDocumentCandidate> representativeCandidates,
+			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult initialFusion,
+			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult finalFusion,
+			boolean representativeFallbackEligible,
+			String documentLanguage
+	) {
+		Map<String, Object> diagnostics = new LinkedHashMap<>();
+		diagnostics.put("locale", analysis.locale());
+		diagnostics.put("queryLanguage", AgentQuerySupport.queryLanguage(analysis.normalizedQuery()).name());
+		diagnostics.put("documentSearchLanguage", documentLanguage);
+		diagnostics.put("crossLanguageEnabled", false);
+		diagnostics.put("documentSearchSkippedForLanguage", false);
+		diagnostics.put("normalizedQuery", analysis.normalizedQuery());
+		diagnostics.put("keywords", analysis.keywords());
+		diagnostics.put("rankingKeywords", analysis.rankingKeywords());
+		diagnostics.put("requirementIdentifiers", analysis.requirementIdentifiers());
+		diagnostics.put("titleTokens", analysis.titleTokens());
+		diagnostics.put("initialCandidateCount", documentCandidates.size());
+		diagnostics.put("representativeCandidateCount", representativeCandidates.size());
+		diagnostics.put("representativeFallbackEligible", representativeFallbackEligible);
+		diagnostics.put("initialFusion", fusionDiagnostic(initialFusion));
+		diagnostics.put("finalFusion", fusionDiagnostic(finalFusion));
+		return diagnostics;
+	}
+
+	private Map<String, Object> fusionDiagnostic(
+			ProjectRoomDocumentFusionService.ProjectRoomDocumentFusionResult fusion
+	) {
+		Map<String, Object> diagnostic = new LinkedHashMap<>();
+		diagnostic.put("grounded", fusion.grounded());
+		diagnostic.put("primaryRetrievalMode", fusion.primaryRetrievalMode());
+		diagnostic.put("answerabilityScore", fusion.answerabilityScore());
+		diagnostic.put("answerabilityReason", fusion.answerabilityReason());
+		diagnostic.put("rankedCandidateCount", fusion.ranked().size());
+		diagnostic.put("selectedCandidateCountBeforeGate", fusion.selectedCandidateCountBeforeGate());
+		diagnostic.put("selectedCandidateCount", fusion.selected().size());
+		diagnostic.put("topCandidates", fusion.ranked().stream()
+				.limit(10)
+				.map(this::candidateDiagnostic)
+				.toList());
+		return diagnostic;
+	}
+
+	private Map<String, Object> candidateDiagnostic(ProjectRoomDocumentCandidate candidate) {
+		Map<String, Object> diagnostic = new LinkedHashMap<>();
+		diagnostic.put("resourceId", candidate.hit().resourceId());
+		diagnostic.put("embeddingId", candidate.hit().embeddingId());
+		diagnostic.put("chunkIndex", candidate.hit().chunkIndex());
+		diagnostic.put("retrievalMode", candidate.retrievalMode());
+		diagnostic.put("originalScore", candidate.originalScore());
+		diagnostic.put("fusionScore", candidate.fusionScore());
+		diagnostic.put("rrfScore", candidate.reciprocalRankScore());
+		diagnostic.put("matchedKeywords", candidate.matchedKeywords());
+		diagnostic.put("matchReason", candidate.matchReason());
+		return diagnostic;
 	}
 
 	private boolean hasRetrievalFailureForRequestedSources(
@@ -462,6 +543,21 @@ public class ProjectRoomGroundingService {
 				.toList();
 	}
 
+	private List<ResourceSearchHit> filterDocumentLanguage(
+			List<ResourceSearchHit> hits,
+			String documentLanguage
+	) {
+		if (hits == null || hits.isEmpty() || documentLanguage == null) {
+			return hits == null ? List.of() : hits;
+		}
+		String marker = "\"documentLanguage\":\"" + documentLanguage + "\"";
+		return hits.stream()
+				.filter(hit -> hit.chunkMetadata() == null
+						|| !hit.chunkMetadata().replaceAll("\\s", "").contains("\"documentLanguage\"")
+						|| hit.chunkMetadata().replaceAll("\\s", "").contains(marker))
+				.toList();
+	}
+
 	private List<ProjectRoomDocumentCandidate> preferTitleMatchedDocumentCandidates(
 			List<ProjectRoomDocumentCandidate> candidates,
 			List<ResourceTitleMatch> titleMatches
@@ -674,8 +770,11 @@ public class ProjectRoomGroundingService {
 			metadata.put("similarityScore", hit.similarityScore());
 			if (candidate != null) {
 				metadata.put("fusionScore", candidate.fusionScore());
+				metadata.put("rrfScore", candidate.reciprocalRankScore());
+				metadata.put("fusionStrategy", "WEIGHTED_PLUS_RRF");
 				metadata.put("matchedKeywords", candidate.matchedKeywords());
 				metadata.put("matchReason", candidate.matchReason());
+				metadata.put("partialEvidence", candidate.retrievalMode().contains("TITLE_SCOPED_REPRESENTATIVE"));
 			}
 			metadata.put("answerabilityScore", answerabilityScore);
 			metadata.put("answerabilityReason", answerabilityReason);
@@ -693,8 +792,12 @@ public class ProjectRoomGroundingService {
 					.append("endLine=").append(hit.endLine()).append('\n')
 					.append("similarityScore=").append(hit.similarityScore()).append('\n')
 					.append("fusionScore=").append(candidate == null ? hit.similarityScore() : candidate.fusionScore()).append('\n')
+					.append("rrfScore=").append(candidate == null ? 0.0D : candidate.reciprocalRankScore()).append('\n')
+					.append("fusionStrategy=WEIGHTED_PLUS_RRF\n")
 					.append("answerabilityScore=").append(answerabilityScore).append('\n')
 					.append("answerabilityReason=").append(answerabilityReason).append('\n')
+					.append("partialEvidence=").append(candidate != null
+							&& candidate.retrievalMode().contains("TITLE_SCOPED_REPRESENTATIVE")).append('\n')
 					.append("matchReason=").append(candidate == null ? "SEMANTIC" : candidate.matchReason()).append('\n')
 					.append("chunkText=\n")
 					.append(hit.chunkText()).append("\n\n");

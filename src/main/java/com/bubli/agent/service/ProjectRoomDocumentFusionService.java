@@ -27,6 +27,11 @@ class ProjectRoomDocumentFusionService {
 	private static final double SUGGEST_MIN_FUSION_SCORE = 0.45D;
 	private static final double ANSWERABILITY_MIN_SCORE = 0.52D;
 	private static final double STRONG_SEMANTIC_ORIGINAL_SCORE = 0.88D;
+	private static final double SEMANTIC_ONLY_ORIGINAL_SCORE = 0.78D;
+	private static final double JAPANESE_SEMANTIC_ONLY_ORIGINAL_SCORE = 0.72D;
+	private static final double ADJACENT_CHUNK_DUPLICATE_SIMILARITY = 0.55D;
+	private static final int RRF_K = 60;
+	private static final double RRF_WEIGHT = 1.8D;
 
 	private final ResourceSearchMetricsPublicService resourceSearchMetrics;
 
@@ -41,6 +46,7 @@ class ProjectRoomDocumentFusionService {
 			return new ProjectRoomDocumentFusionResult(
 					List.of(),
 					List.of(),
+					0,
 					false,
 					"NONE",
 					0.0D,
@@ -48,7 +54,7 @@ class ProjectRoomDocumentFusionService {
 			);
 		}
 		Map<UUID, ProjectRoomDocumentCandidate> byEmbeddingId = new LinkedHashMap<>();
-		for (ProjectRoomDocumentCandidate candidate : candidates) {
+		for (ProjectRoomDocumentCandidate candidate : applyReciprocalRankFeature(candidates)) {
 			if (candidate == null || candidate.hit() == null || candidate.hit().embeddingId() == null) {
 				continue;
 			}
@@ -61,6 +67,7 @@ class ProjectRoomDocumentFusionService {
 						.thenComparing(candidate -> candidate.hit().chunkIndex()))
 				.toList();
 		List<ProjectRoomDocumentCandidate> selected = selectDiverseCandidates(ranked, Math.max(1, limit));
+		int selectedCandidateCountBeforeGate = selected.size();
 		AnswerabilityDecision answerability = decideAnswerability(analysis, selected, mode);
 		boolean grounded = !selected.isEmpty() && answerability.answerable();
 		if (!grounded) {
@@ -73,7 +80,7 @@ class ProjectRoomDocumentFusionService {
 				grounded,
 				selected.isEmpty() ? "NONE" : selected.getFirst().retrievalMode()
 		);
-		return new ProjectRoomDocumentFusionResult(selected, ranked, grounded, selected.isEmpty()
+		return new ProjectRoomDocumentFusionResult(selected, ranked, selectedCandidateCountBeforeGate, grounded, selected.isEmpty()
 				? "NONE"
 				: selected.getFirst().retrievalMode(), answerability.score(), answerability.reason());
 	}
@@ -96,10 +103,16 @@ class ProjectRoomDocumentFusionService {
 		if (isStrongSemanticEvidence(top, selected)) {
 			return new AnswerabilityDecision(true, 0.90D, "STRONG_SEMANTIC_MATCH");
 		}
+		if (isStrongScopedEvidence(top, selected)) {
+			return new AnswerabilityDecision(true, 0.82D, "STRONG_SCOPED_RETRIEVAL_MATCH");
+		}
+		if (isConfidentSemanticOnlyEvidence(analysis, top)) {
+			return new AnswerabilityDecision(true, 0.74D, "CONFIDENT_SEMANTIC_ONLY_MATCH");
+		}
 		List<String> rankingKeywords = analysis.rankingKeywords();
 		double keywordCoverage = keywordCoverage(rankingKeywords, selected);
 		double normalizedFusionScore = Math.min(1.0D, top.fusionScore() / 1.2D);
-		double semanticSignal = top.retrievalMode().contains("SEMANTIC") && top.originalScore() >= 0.72D ? 0.15D : 0.0D;
+		double semanticSignal = top.retrievalMode().contains("SEMANTIC") && top.originalScore() >= 0.68D ? 0.15D : 0.0D;
 		double evidenceSignal = selected.size() >= 2 ? 0.05D : 0.0D;
 		double score = (normalizedFusionScore * 0.45D)
 				+ (keywordCoverage * 0.35D)
@@ -114,6 +127,20 @@ class ProjectRoomDocumentFusionService {
 		);
 	}
 
+	private boolean isConfidentSemanticOnlyEvidence(
+			AgentSearchQueryAnalysis analysis,
+			ProjectRoomDocumentCandidate top
+	) {
+		if (!top.retrievalMode().contains("SEMANTIC")) {
+			return false;
+		}
+		double requiredOriginalScore = AgentQuerySupport.isJapaneseLocale(analysis.locale())
+				? JAPANESE_SEMANTIC_ONLY_ORIGINAL_SCORE
+				: SEMANTIC_ONLY_ORIGINAL_SCORE;
+		return top.originalScore() >= requiredOriginalScore
+				&& top.fusionScore() >= ANSWER_MIN_FUSION_SCORE;
+	}
+
 	private boolean isStrongSemanticEvidence(
 			ProjectRoomDocumentCandidate top,
 			List<ProjectRoomDocumentCandidate> selected
@@ -121,6 +148,51 @@ class ProjectRoomDocumentFusionService {
 		return top.retrievalMode().contains("SEMANTIC")
 				&& top.originalScore() >= STRONG_SEMANTIC_ORIGINAL_SCORE
 				&& (selected.size() >= 2 || top.fusionScore() >= STRONG_SEMANTIC_ORIGINAL_SCORE);
+	}
+
+	private boolean isStrongScopedEvidence(
+			ProjectRoomDocumentCandidate top,
+			List<ProjectRoomDocumentCandidate> selected
+	) {
+		return top.retrievalMode().contains("TITLE_SCOPED")
+				&& top.originalScore() >= 0.58D
+				&& (top.matchedKeywords().size() >= 2 || selected.size() >= 2 || top.retrievalMode().contains("SEMANTIC")
+						|| (top.retrievalMode().contains("REPRESENTATIVE") && top.originalScore() >= 0.90D));
+	}
+
+	private List<ProjectRoomDocumentCandidate> applyReciprocalRankFeature(
+			List<ProjectRoomDocumentCandidate> candidates
+	) {
+		Map<UUID, Double> rrfByEmbeddingId = new LinkedHashMap<>();
+		Map<String, List<ProjectRoomDocumentCandidate>> byMode = new LinkedHashMap<>();
+		for (ProjectRoomDocumentCandidate candidate : candidates) {
+			if (candidate == null || candidate.hit() == null || candidate.hit().embeddingId() == null) {
+				continue;
+			}
+			byMode.computeIfAbsent(candidate.retrievalMode(), ignored -> new ArrayList<>()).add(candidate);
+		}
+		for (List<ProjectRoomDocumentCandidate> modeCandidates : byMode.values()) {
+			List<ProjectRoomDocumentCandidate> ranked = modeCandidates.stream()
+					.sorted(Comparator.comparingDouble(ProjectRoomDocumentCandidate::originalScore).reversed()
+							.thenComparing(candidate -> candidate.hit().chunkIndex()))
+					.toList();
+			for (int index = 0; index < ranked.size(); index++) {
+				UUID embeddingId = ranked.get(index).hit().embeddingId();
+				double contribution = RRF_WEIGHT / (RRF_K + index + 1);
+				rrfByEmbeddingId.merge(embeddingId, contribution, Double::sum);
+			}
+		}
+		return candidates.stream()
+				.map(candidate -> {
+					if (candidate == null || candidate.hit() == null || candidate.hit().embeddingId() == null) {
+						return candidate;
+					}
+					return candidate.withReciprocalRankScore(
+							Math.round(rrfByEmbeddingId.getOrDefault(candidate.hit().embeddingId(), 0.0D) * 1000.0D)
+									/ 1000.0D
+					);
+				})
+				.toList();
 	}
 
 	private double keywordCoverage(
@@ -172,7 +244,7 @@ class ProjectRoomDocumentFusionService {
 				if (countByResource.getOrDefault(resourceId, 0) >= PER_RESOURCE_LIMIT) {
 					continue;
 				}
-				if (isNearDuplicate(candidate, selected) || isAdjacentChunk(candidate, selected)) {
+				if (isNearDuplicate(candidate, selected) || isRedundantAdjacentChunk(candidate, selected)) {
 					continue;
 				}
 				double mmrScore = candidate.fusionScore() - redundancyPenalty(candidate, selected);
@@ -200,7 +272,7 @@ class ProjectRoomDocumentFusionService {
 			return 0.0D;
 		}
 		return (maxTextSimilarity(candidate, selected) * TEXT_REDUNDANCY_PENALTY)
-				+ (isAdjacentChunk(candidate, selected) ? ADJACENT_CHUNK_PENALTY : 0.0D);
+				+ (isRedundantAdjacentChunk(candidate, selected) ? ADJACENT_CHUNK_PENALTY : 0.0D);
 	}
 
 	private boolean isAdjacentChunk(
@@ -211,6 +283,14 @@ class ProjectRoomDocumentFusionService {
 				.anyMatch(selectedCandidate -> selectedCandidate.hit().resourceId().equals(candidate.hit().resourceId())
 						&& Math.abs(selectedCandidate.hit().chunkIndex() - candidate.hit().chunkIndex())
 						<= ADJACENT_CHUNK_WINDOW);
+	}
+
+	private boolean isRedundantAdjacentChunk(
+			ProjectRoomDocumentCandidate candidate,
+			List<ProjectRoomDocumentCandidate> selected
+	) {
+		return isAdjacentChunk(candidate, selected)
+				&& maxTextSimilarity(candidate, selected) >= ADJACENT_CHUNK_DUPLICATE_SIMILARITY;
 	}
 
 	private boolean isNearDuplicate(
@@ -269,6 +349,7 @@ class ProjectRoomDocumentFusionService {
 	record ProjectRoomDocumentFusionResult(
 			List<ProjectRoomDocumentCandidate> selected,
 			List<ProjectRoomDocumentCandidate> ranked,
+			int selectedCandidateCountBeforeGate,
 			boolean grounded,
 			String primaryRetrievalMode,
 			double answerabilityScore,
