@@ -6,6 +6,7 @@ import com.bubli.agent.dto.ProjectRoomGroundingSourceType;
 import com.bubli.agent.type.AgentCommandMode;
 import com.bubli.agent.type.AgentSuggestionStatus;
 import com.bubli.agent.type.AgentSuggestionType;
+import com.bubli.global.ai.AiModelGateway;
 import com.bubli.resource.dto.ResourceResult;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.dto.ResourceSummaryResult;
@@ -37,9 +38,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +58,7 @@ class ProjectRoomGroundingServiceTest {
 		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
 		ResourceSearchHit hit = hit(resourceId, "contract text", 0.9D);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 40, null))
 				.thenReturn(List.of(hit));
 
 		var context = service(searchService).retrieve(
@@ -64,7 +69,8 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		verify(searchService).search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("계약서"), eq(5));
+		verify(searchService).search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("계약서"), eq(40), isNull());
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.sourceTypes()).containsExactly(ProjectRoomGroundingSourceType.DOCUMENT);
 		assertThat(context.resourceIds()).containsExactly(resourceId);
@@ -75,8 +81,604 @@ class ProjectRoomGroundingServiceTest {
 				.contains("contract text");
 		assertThat(context.retrievalDiagnostics())
 				.containsEntry("initialCandidateCount", 1)
+				.containsEntry("semanticDocumentSearchLanguage", "any")
+				.containsEntry("crossLanguageEnabled", true)
 				.containsKey("initialFusion")
 				.containsKey("finalFusion");
+	}
+
+	@Test
+	void englishDocumentQuestionCanRetrieveKoreanChunksSemantically() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				isNull()
+		)).thenReturn(List.of(hit(resourceId, "승인된 업무 후보는 작업판에 반영된다.", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "업무관리-요구사항.pdf"));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"Based on the uploaded project documents, explain how task candidates are approved.",
+				"en-US",
+				AgentCommandMode.ANSWER
+		);
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("documentSearchLanguage", "en")
+				.containsEntry("semanticDocumentSearchLanguage", "any")
+				.containsEntry("crossLanguageEnabled", true);
+	}
+
+	@Test
+	void translatesSemanticQueryWhenRoomHasOnlyAnotherDocumentLanguage() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		String translatedQuery = "승인된 업무 후보가 실제 작업에 반영되는 절차";
+
+		when(searchService.findRoomSharedDocumentLanguages(userId, roomId, List.of()))
+				.thenReturn(List.of("ko"));
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Korean")
+		)).thenReturn(translatedQuery);
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				eq(translatedQuery),
+				eq(40),
+				eq("ko")
+		)).thenReturn(List.of(hit(resourceId, "승인된 업무 후보는 작업판에 반영된다.", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "업무관리-요구사항.pdf"));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"Based on the uploaded project documents, explain how task candidates are approved.",
+				"en-US",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("semanticDocumentSearchLanguage", "ko")
+				.containsEntry("semanticQueryTranslated", true)
+				.containsEntry("semanticQueryTargetLanguage", "ko")
+				.containsEntry("availableDocumentLanguages", List.of("ko"))
+				.containsEntry("semanticQueryTranslationFailure", "none");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void fansOutCrossLanguageQueryAcrossAllDocumentLanguagesAndCachesTranslations() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID koreanResourceId = UUID.randomUUID();
+		UUID japaneseResourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		String koreanQuery = "승인된 업무 후보가 실제 작업에 반영되는 절차";
+		String japaneseQuery = "承認された業務候補が実際のタスクに反映される手順";
+
+		when(searchService.findRoomSharedDocumentLanguages(userId, roomId, List.of()))
+				.thenReturn(List.of("ja", "ko"));
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Korean")
+		)).thenReturn(koreanQuery);
+		when(aiModelGateway.callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Japanese")
+		)).thenReturn(japaneseQuery);
+		when(searchService.search(
+				userId, ResourceSearchScope.ROOM_SHARED, roomId, koreanQuery, 40, "ko"
+		)).thenReturn(List.of(hit(koreanResourceId, "승인된 업무 후보는 작업판에 반영된다.", 0.90D)));
+		when(searchService.search(
+				userId, ResourceSearchScope.ROOM_SHARED, roomId, japaneseQuery, 40, "ja"
+		)).thenReturn(List.of(hit(japaneseResourceId, "承認された業務候補はタスクボードに反映される。", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, koreanResourceId))
+				.thenReturn(resource(koreanResourceId, userId, roomId, "업무관리-요구사항.pdf"));
+		when(resourcePublicService.getReadableResource(userId, japaneseResourceId))
+				.thenReturn(resource(japaneseResourceId, userId, roomId, "業務管理-要求仕様書.pdf"));
+		ProjectRoomGroundingService groundingService = service(
+				searchService,
+				resourcePublicService,
+				aiModelGateway
+		);
+
+		var first = groundingService.retrieve(
+				userId,
+				roomId,
+				"Based on the uploaded project documents, explain how task candidates are approved.",
+				"en-US",
+				AgentCommandMode.ANSWER
+		);
+		var second = groundingService.retrieve(
+				userId,
+				roomId,
+				"Based on the uploaded project documents, explain how task candidates are approved.",
+				"en-US",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(first.grounded()).isTrue();
+		assertThat(first.resourceIds()).containsExactlyInAnyOrder(koreanResourceId, japaneseResourceId);
+		assertThat(first.retrievalDiagnostics())
+				.containsEntry("semanticDocumentSearchLanguage", "multiple")
+				.containsEntry("semanticQueryTargetLanguage", "multiple")
+				.containsEntry("semanticQueryVariantCount", 2)
+				.containsEntry("availableDocumentLanguages", List.of("ko", "ja"));
+		List<Map<String, Object>> firstVariants =
+				(List<Map<String, Object>>) first.retrievalDiagnostics().get("semanticQueryVariants");
+		assertThat(firstVariants).allSatisfy(variant ->
+				assertThat(variant).containsEntry("translationCacheHit", false));
+		List<Map<String, Object>> secondVariants =
+				(List<Map<String, Object>>) second.retrievalDiagnostics().get("semanticQueryVariants");
+		assertThat(secondVariants).allSatisfy(variant ->
+				assertThat(variant).containsEntry("translationCacheHit", true));
+		verify(aiModelGateway, times(1)).callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Korean")
+		);
+		verify(aiModelGateway, times(1)).callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Japanese")
+		);
+	}
+
+	@Test
+	void oneFailedTranslationDoesNotDiscardAnotherLanguageResult() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		String koreanQuery = "승인된 업무 후보가 실제 작업에 반영되는 절차";
+
+		when(searchService.findRoomSharedDocumentLanguages(userId, roomId, List.of()))
+				.thenReturn(List.of("ko", "ja"));
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Korean")
+		)).thenReturn(koreanQuery);
+		when(aiModelGateway.callChat(
+				eq("project-room-rag-query-translation"),
+				contains("natural Japanese")
+		)).thenReturn("still an English query");
+		when(searchService.search(
+				userId, ResourceSearchScope.ROOM_SHARED, roomId, koreanQuery, 40, "ko"
+		)).thenReturn(List.of(hit(resourceId, "승인된 업무 후보는 작업판에 반영된다.", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "업무관리-요구사항.pdf"));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"Based on the uploaded project documents, explain how task candidates are approved.",
+				"en-US",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("semanticQueryVariantCount", 1)
+				.containsEntry("semanticQueryTargetLanguage", "ko")
+				.containsEntry("semanticQueryTranslationFailure", "ja:INVALID_TRANSLATION_OUTPUT");
+	}
+
+	@Test
+	void sameLanguageQueryAvoidsUnnecessaryTranslationFanOut() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+
+		when(searchService.findRoomSharedDocumentLanguages(userId, roomId, List.of()))
+				.thenReturn(List.of("ko", "ja"));
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				eq("ko")
+		)).thenReturn(List.of(hit(resourceId, "승인된 업무 후보는 작업판에 반영된다.", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "업무관리-요구사항.pdf"));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"업로드한 프로젝트 문서에서 승인 업무 후보 절차를 설명해줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("semanticQueryVariantCount", 1)
+				.containsEntry("semanticDocumentSearchLanguage", "ko");
+		verify(aiModelGateway, never()).callChat(any(), any());
+	}
+
+	@Test
+	void answerModeFallsBackToProjectDocumentsWhenQuestionHasNoExplicitSourceCue() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+
+		when(searchService.findRoomSharedDocumentLanguages(userId, roomId, List.of()))
+				.thenReturn(List.of("ja"));
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				eq("ja")
+		)).thenReturn(List.of(hit(
+				resourceId,
+				"指定された入室時間を10分過ぎても入室しない場合、座席予約を自動キャンセルする。",
+				0.90D
+		)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "公共図書館_要求仕様書.pdf"));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"利用者が指定された入室時間を過ぎても入室しない場合、座席予約はどうなりますか。",
+				"ja-JP",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics()).containsEntry("semanticDocumentSearchLanguage", "ja");
+		verify(searchService).search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				eq("ja")
+		);
+	}
+
+	@Test
+	void weakGenericTitleMatchDoesNotDiscardBetterCandidatesFromOtherDocuments() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID genericTitleResourceId = UUID.randomUUID();
+		UUID relevantResourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				isNull()
+		)).thenReturn(List.of(hit(relevantResourceId, "주문 취소 승인 시 차감한 재고를 복원한다.", 0.90D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of(
+				resource(genericTitleResourceId, userId, roomId, "프로젝트룸 업무관리 요구명세서.pdf")
+		));
+		when(resourcePublicService.findResourceSummary(userId, genericTitleResourceId)).thenReturn(Optional.empty());
+		when(resourcePublicService.getReadableResource(userId, relevantResourceId))
+				.thenReturn(resource(relevantResourceId, userId, roomId, "이커머스 주문 요구명세서.pdf"));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"프로젝트 문서에서 주문 취소 시 차감 재고 처리 방법을 찾아줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(relevantResourceId);
+	}
+
+	@Test
+	void evaluationTopKUsesOverfetchCandidatesAndKeepsRequestedFinalLimit() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		when(searchService.search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				any()
+		)).thenReturn(List.of(hit(resourceId, "REQ-EVAL-001 평가 검색 범위", 0.9D)));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "evaluation.pdf"));
+
+		var context = service(searchService, resourcePublicService).retrieveForEvaluation(
+				userId,
+				roomId,
+				"REQ-EVAL-001 내용을 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER,
+				9
+		);
+
+		verify(searchService).search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				any(String.class),
+				eq(40),
+				any()
+		);
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("candidateTopK", 40)
+				.containsEntry("finalTopK", 9);
+	}
+
+	@Test
+	void selectedResourcesUseOnlyResourceScopedRetrieval() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceSearchHit hit = hit(resourceId, "selected contract text", 0.9D);
+
+		when(resourcePublicService.getReadableResource(userId, resourceId))
+				.thenReturn(resource(resourceId, userId, roomId, "selected-contract.pdf"));
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId),
+				eq(roomId),
+				eq(List.of(resourceId)),
+				any(String.class),
+				anyInt(),
+				any()
+		)).thenReturn(List.of(hit));
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"선택한 계약서 내용 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER,
+				List.of(resourceId)
+		);
+
+		verify(searchService, never()).search(any(), any(), any(), any(), anyInt(), any());
+		verify(searchService, never()).searchRoomSharedKeywords(any(), any(), any(), anyInt(), any());
+		verify(searchService, times(1)).searchRoomSharedResources(
+				eq(userId),
+				eq(roomId),
+				eq(List.of(resourceId)),
+				any(String.class),
+				anyInt(),
+				any()
+		);
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsOnly(resourceId);
+	}
+
+	@Test
+	void semanticRouterHandlesUnregisteredReviewParaphraseWithoutKeywordActivation() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		ResourceResult resource = resource(resourceId, userId, roomId, "업무관리_프로젝트룸.pdf");
+		ResourceSearchHit representative = hit(resourceId,
+				"승인된 업무는 작업판과 오늘 할 일 목록에 반영하며 비참여자의 접근을 차단한다.", 1.0D);
+
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_QUERY_INTENT"), any(String.class)))
+				.thenReturn("REVIEW_CHECKLIST");
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResourceKeywords(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), anyList(), eq(40), any()))
+				.thenReturn(List.of());
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 40, null))
+				.thenReturn(List.of(representative));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"이걸 실제로 만들기 전에 내가 챙겨갈 포인트를 뽑아줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER,
+				List.of(resourceId)
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("heuristicQueryIntent", "GENERAL_DOCUMENT_QA")
+				.containsEntry("queryIntent", "REVIEW_CHECKLIST")
+				.containsEntry("queryIntentSource", "SEMANTIC_MODEL");
+	}
+
+	@Test
+	void semanticRouterKeepsMissingSpecificFactOutOfBroadSynthesisPath() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		ResourceResult resource = resource(resourceId, userId, roomId, "업무관리_프로젝트룸.pdf");
+
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_QUERY_INTENT"), any(String.class)))
+				.thenReturn("FACT_QA");
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResourceKeywords(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), anyList(), eq(40), any()))
+				.thenReturn(List.of());
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"중요한 내용 중 정산 수수료 계산식은 정확히 얼마야?",
+				"ko-KR",
+				AgentCommandMode.ANSWER,
+				List.of(resourceId)
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("heuristicQueryIntent", "DOCUMENT_OVERVIEW")
+				.containsEntry("queryIntent", "FACT_QA")
+				.containsEntry("queryIntentSource", "SEMANTIC_MODEL");
+		verify(searchService, never()).loadRoomSharedResourceChunks(any(), any(), anyList(), anyInt(), any());
+	}
+
+	@Test
+	void semanticRouterUsesModelRewriteAsRetrievalQuery() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		ResourceResult resource = resource(resourceId, userId, roomId, "교육_LMS_과제수강.pdf");
+		String rewrittenQuery = "과제 제출 마감 후 제출물 수정 제한";
+
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_QUERY_INTENT"), any(String.class)))
+				.thenReturn("{\"intent\":\"FACT_QA\",\"searchQuery\":\"" + rewrittenQuery + "\"}");
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), contains("과제 제출 마감"), eq(40), any()))
+				.thenReturn(List.of(hit(resourceId, "마감 후에는 제출 수정이 제한된다.", 0.90D)));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId,
+				roomId,
+				"학생이 기한을 넘긴 다음에도 올린 파일을 다시 바꿀 수 있어?",
+				"ko-KR",
+				AgentCommandMode.ANSWER,
+				List.of(resourceId)
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("queryIntent", "FACT_QA")
+				.containsEntry("queryRewritten", true)
+				.containsEntry("semanticSearchQuery", rewrittenQuery);
+	}
+
+	@Test
+	void semanticVerifierRejectsTopicallyRelatedEvidenceWithoutRequestedFact() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		ResourceResult resource = resource(resourceId, userId, roomId, "교육_LMS.pdf");
+
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_QUERY_INTENT"), any(String.class)))
+				.thenReturn("{\"intent\":\"FACT_QA\",\"searchQuery\":\"화상 강의 녹화 파일 보관 기간\"}");
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_FACT_ANSWERABILITY"), any(String.class)))
+				.thenReturn("{\"status\":\"NO_EVIDENCE\",\"supportingIndexes\":[]}");
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
+				.thenReturn(List.of(hit(resourceId, "강사는 강의 자료와 과제를 등록할 수 있다.", 0.91D)));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId, roomId, "화상 강의 녹화 파일은 며칠 보관해?", "ko-KR",
+				AgentCommandMode.ANSWER, List.of(resourceId));
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(((Map<?, ?>) context.retrievalDiagnostics().get("finalFusion")).get("answerabilityReason"))
+				.isEqualTo("SEMANTIC_EVIDENCE_REJECTED");
+	}
+
+	@Test
+	void semanticVerifierCanAcceptDirectEvidenceWithoutKeywordCoverage() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		AiModelGateway aiModelGateway = mock(AiModelGateway.class);
+		ResourceResult resource = resource(resourceId, userId, roomId, "교육_LMS.pdf");
+
+		when(aiModelGateway.isChatAvailable()).thenReturn(true);
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_QUERY_INTENT"), any(String.class)))
+				.thenReturn("{\"intent\":\"FACT_QA\",\"searchQuery\":\"과제 제출 마감 후 수정 정책\"}");
+		when(aiModelGateway.callChat(eq("PROJECT_ROOM_FACT_ANSWERABILITY"), any(String.class)))
+				.thenReturn("{\"status\":\"ANSWERABLE\",\"supportingIndexes\":[1]}");
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+		when(resourcePublicService.findResourceSummary(userId, resourceId)).thenReturn(Optional.empty());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
+				.thenReturn(List.of(hit(resourceId, "마감 후에는 제출 수정이 제한된다.", 0.75D)));
+
+		var context = service(searchService, resourcePublicService, aiModelGateway).retrieve(
+				userId, roomId, "기한을 넘긴 뒤 올린 걸 다시 바꿀 수 있어?", "ko-KR",
+				AgentCommandMode.ANSWER, List.of(resourceId));
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(((Map<?, ?>) context.retrievalDiagnostics().get("finalFusion")).get("answerabilityReason"))
+				.isEqualTo("SEMANTIC_EVIDENCE_VERIFIED");
 	}
 
 	@Test
@@ -87,7 +689,7 @@ class ProjectRoomGroundingServiceTest {
 		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
 		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 40, null))
 				.thenReturn(List.of(hitWithoutOriginalName(resourceId, "contract text", 0.9D)));
 		when(resourcePublicService.getReadableResource(userId, resourceId))
 				.thenReturn(resource(resourceId, userId, roomId, "01_UI디자이너_김서연.pdf"));
@@ -113,7 +715,7 @@ class ProjectRoomGroundingServiceTest {
 		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
 
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30)).thenReturn(List.of());
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 40, null))
 				.thenReturn(List.of(hitWithoutOriginalName(resourceId, "contract text", 0.9D)));
 		when(resourcePublicService.getReadableResource(userId, resourceId))
 				.thenThrow(new IllegalArgumentException("missing title"));
@@ -137,9 +739,9 @@ class ProjectRoomGroundingServiceTest {
 		UUID roomId = UUID.randomUUID();
 		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "계약서", 40, null))
 				.thenThrow(new IllegalStateException("vector store down"));
-		when(searchService.searchRoomSharedKeywords(eq(userId), eq(roomId), any(), eq(5)))
+		when(searchService.searchRoomSharedKeywords(eq(userId), eq(roomId), any(), eq(40), any()))
 				.thenReturn(List.of());
 
 		var context = service(searchService).retrieve(
@@ -156,7 +758,7 @@ class ProjectRoomGroundingServiceTest {
 	}
 
 	@Test
-	void documentContentQuestionDoesNotFallbackToTitleSummaryWhenSemanticSearchIsEmpty() {
+	void documentOverviewUsesAnalyzedTitleSummaryWhenChunkSearchIsEmpty() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
@@ -174,9 +776,9 @@ class ProjectRoomGroundingServiceTest {
 		);
 
 		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId,
-				"02 design outsourcing", 5))
+				"02 design outsourcing", 40, null))
 				.thenReturn(List.of());
-		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 15))
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 40, null))
 				.thenReturn(List.of());
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
@@ -191,10 +793,13 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		assertThat(context.grounded()).isFalse();
+		assertThat(context.grounded()).isTrue();
 		assertThat(context.ragHits()).isEmpty();
-		assertThat(context.evidenceItems()).isEmpty();
-		assertThat(context.promptBlock()).isBlank();
+		assertThat(context.evidenceItems()).hasSize(1);
+		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("TITLE_MATCH");
+		assertThat(context.promptBlock()).contains("브랜드 가이드", "화면 시안", "검수 일정");
+		assertThat(((Map<?, ?>) context.retrievalDiagnostics().get("finalFusion")).get("answerabilityStatus"))
+				.isEqualTo("PARTIALLY_ANSWERABLE");
 	}
 
 	@Test
@@ -217,18 +822,21 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "공공도서관 핵심적인";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), isNull()))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedResourceKeywords(
 				eq(userId),
 				eq(roomId),
 				eq(List.of(resourceId)),
 				any(),
-				eq(15)
+				eq(40),
+				any()
 		)).thenReturn(List.of());
-		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 15))
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 40, null))
 				.thenReturn(List.of(representativeHit));
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
@@ -244,7 +852,6 @@ class ProjectRoomGroundingServiceTest {
 				"ko-KR",
 				AgentCommandMode.ANSWER
 		);
-
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
 		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("REPRESENTATIVE");
@@ -253,6 +860,91 @@ class ProjectRoomGroundingServiceTest {
 		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
 		assertThat(context.evidenceItems().getFirst().metadata().get("quote").toString())
 				.contains("공공도서관 좌석 예약");
+	}
+
+	@Test
+	void broadQuestionWithAmbiguousTitlesRequestsClarificationInsteadOfGuessing() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult korean = resource(UUID.randomUUID(), userId, roomId, "03_의료예약_진료문진_한국어.pdf");
+		ResourceResult draft = resource(UUID.randomUUID(), userId, roomId, "03_의료예약_진료문진_초안.pdf");
+
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(korean, draft));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"의료예약 진료문진 문서의 중요한 내용을 알려줘",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isFalse();
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("queryIntent", "DOCUMENT_OVERVIEW")
+				.containsEntry("documentScopeConfidence", "AMBIGUOUS");
+		assertThat((List<?>) context.retrievalDiagnostics().get("candidateDocuments")).hasSize(2);
+		assertThat(((Map<?, ?>) context.retrievalDiagnostics().get("finalFusion")).get("answerabilityStatus"))
+				.isEqualTo("NEEDS_CLARIFICATION");
+	}
+
+	@Test
+	void roleBasedQuestionUsesStrongTitleAndRepresentativeDocumentEvidence() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ResourceSemanticSearchPublicService searchService = mock(ResourceSemanticSearchPublicService.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ResourceResult resource = resource(
+				resourceId,
+				userId,
+				roomId,
+				"04_교육_LMS_과제수강_요구명세서.pdf"
+		);
+		ResourceSearchHit representativeHit = hitWithoutOriginalName(
+				resourceId,
+				"학생은 과제 파일을 제출하고 강사는 점수와 피드백을 입력한다.",
+				1.0D
+		);
+
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), isNull()))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
+				.thenReturn(List.of());
+		when(searchService.searchRoomSharedResourceKeywords(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(), eq(40), any()))
+				.thenReturn(List.of());
+		when(searchService.loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 40, null))
+				.thenReturn(List.of(representativeHit));
+		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
+				.thenReturn(List.of(resource));
+		when(resourcePublicService.findResourceSummary(eq(userId), any(UUID.class)))
+				.thenReturn(Optional.empty());
+		when(resourcePublicService.getReadableResource(userId, resourceId)).thenReturn(resource);
+
+		var context = service(searchService, resourcePublicService).retrieve(
+				userId,
+				roomId,
+				"/bubli 교육*LMS*과제수강을 바탕으로 백엔드 개발자로써 어떤 부분을 중점적으로 봐야해?",
+				"ko-KR",
+				AgentCommandMode.ANSWER
+		);
+
+		assertThat(context.grounded()).isTrue();
+		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics())
+				.containsEntry("queryIntent", "ROLE_BASED_ANALYSIS")
+				.containsEntry("documentScopeConfidence", "STRONG_TITLE")
+				.containsEntry("perspective", "BACKEND_DEVELOPER");
+		assertThat(((Map<?, ?>) context.retrievalDiagnostics().get("finalFusion")).get("answerabilityStatus"))
+				.isEqualTo("PARTIALLY_ANSWERABLE");
 	}
 
 	@Test
@@ -270,13 +962,15 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "데이터 요구사항 있는가";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
 				eq(userId),
 				eq(roomId),
 				any(),
-				eq(5)
+				eq(40),
+				eq("ko")
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				resourceId,
 				"주요 데이터 요구사항에는 사용자 정보, 도서 정보, 대출 정보, 좌석 예약 정보가 포함된다.",
@@ -303,6 +997,7 @@ class ProjectRoomGroundingServiceTest {
 		assertThat(context.evidenceItems().getFirst().metadata().get("endLine")).isEqualTo(12);
 		assertThat(context.evidenceItems().getFirst().metadata().get("quote").toString())
 				.contains("주요 데이터 요구사항");
+		assertThat(context.retrievalDiagnostics()).containsEntry("documentSearchLanguage", "ko");
 	}
 
 	@Test
@@ -324,9 +1019,11 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 관리";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
@@ -361,16 +1058,19 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
-		when(searchService.searchRoomSharedResources(eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(15)))
+		when(searchService.searchRoomSharedResources(
+				eq(userId), eq(roomId), eq(List.of(resourceId)), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedResourceKeywords(
-				userId,
-				roomId,
-				List.of(resourceId),
-				List.of("업무관리", "프로젝트", "일정", "진행", "상황"),
-				15
+				eq(userId),
+				eq(roomId),
+				eq(List.of(resourceId)),
+				anyList(),
+				eq(40),
+				eq("ko")
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				resourceId,
 				"프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
@@ -412,13 +1112,15 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "req-lb-004 req lb 004";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
 				userId,
 				roomId,
 				List.of("req-lb-004", "req", "lb", "004"),
-				5
+				40,
+				(String) null
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				resourceId,
 				"REQ-LB-004 프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
@@ -439,6 +1141,7 @@ class ProjectRoomGroundingServiceTest {
 
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.resourceIds()).containsExactly(resourceId);
+		assertThat(context.retrievalDiagnostics()).containsEntry("documentSearchLanguage", "any");
 		assertThat(context.evidenceItems().getFirst().metadata().get("retrievalMode")).isEqualTo("KEYWORD");
 		assertThat(context.promptBlock()).contains("REQ-LB-004 프로젝트 일정 및 진행 상황 관리 기능");
 	}
@@ -458,13 +1161,14 @@ class ProjectRoomGroundingServiceTest {
 		);
 
 		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId),
-				any(String.class), eq(5)))
+					any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(searchService.searchRoomSharedKeywords(
 				eq(userId),
 				eq(roomId),
 				any(),
-				eq(5)
+				eq(40),
+				any()
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				resourceId,
 				"REQ-LB-007 좌석 예약 현황 확인 기능을 제공한다.",
@@ -504,7 +1208,7 @@ class ProjectRoomGroundingServiceTest {
 		);
 
 		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId),
-				any(String.class), eq(5)))
+					any(String.class), eq(40), any()))
 				.thenReturn(List.of());
 		when(resourcePublicService.getRecentRoomResources(userId, roomId, 30))
 				.thenReturn(List.of(resource));
@@ -547,7 +1251,8 @@ class ProjectRoomGroundingServiceTest {
 				"02_프론트엔드개발자_이준호.pdf"
 		);
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of(
 						hit(otherResourceId, "이준호 프론트엔드 개발 계약서", 0.94D),
 						hit(targetResourceId, "김서연 UI/UX 디자인 계약서", 0.91D)
@@ -561,7 +1266,8 @@ class ProjectRoomGroundingServiceTest {
 		var context = new ProjectRoomGroundingService(
 				searchService,
 				resourcePublicService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -605,14 +1311,16 @@ class ProjectRoomGroundingServiceTest {
 		);
 		String cleanedQuery = "업무관리 프로젝트 일정 진행 상황 관리";
 
-		when(searchService.search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(5)))
+		when(searchService.search(
+				eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), any(String.class), eq(40), any()))
 				.thenReturn(List.of(hit(otherResourceId, "공공도서관 좌석 예약 기능", 0.93D)));
 		when(searchService.searchRoomSharedResources(
 				eq(userId),
 				eq(roomId),
 				eq(List.of(targetResourceId)),
 				any(String.class),
-				eq(15)
+				eq(40),
+				any()
 		)).thenReturn(List.of(hitWithoutOriginalName(
 				targetResourceId,
 				"프로젝트 일정 및 진행 상황 관리 기능을 제공한다.",
@@ -855,7 +1563,7 @@ class ProjectRoomGroundingServiceTest {
 				AgentCommandMode.ANSWER
 		);
 
-		verify(searchService, never()).search(any(), any(), any(), any(), anyInt());
+		verify(searchService, never()).search(any(), any(), any(), any(), anyInt(), any());
 		verify(taskPublicService, never()).getRecentRoomTasks(any(), anyInt());
 		assertThat(context.grounded()).isFalse();
 	}
@@ -864,7 +1572,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				searchService,
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -878,7 +1587,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -892,7 +1602,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				mock(TaskPublicService.class),
 				wbsItemPublicService,
 				mock(SchedulePublicService.class),
@@ -906,7 +1617,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
@@ -920,7 +1632,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -937,7 +1650,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				mock(ResourceSemanticSearchPublicService.class),
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				schedulePublicService,
@@ -954,7 +1668,8 @@ class ProjectRoomGroundingServiceTest {
 		return new ProjectRoomGroundingService(
 				searchService,
 				mock(ResourcePublicService.class),
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				mock(AiModelGateway.class),
 				taskPublicService,
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),
@@ -968,10 +1683,19 @@ class ProjectRoomGroundingServiceTest {
 			ResourceSemanticSearchPublicService searchService,
 			ResourcePublicService resourcePublicService
 	) {
+		return service(searchService, resourcePublicService, mock(AiModelGateway.class));
+	}
+
+	private ProjectRoomGroundingService service(
+			ResourceSemanticSearchPublicService searchService,
+			ResourcePublicService resourcePublicService,
+			AiModelGateway aiModelGateway
+	) {
 		return new ProjectRoomGroundingService(
 				searchService,
 				resourcePublicService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D),
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D),
+				aiModelGateway,
 				mock(TaskPublicService.class),
 				mock(WbsItemPublicService.class),
 				mock(SchedulePublicService.class),

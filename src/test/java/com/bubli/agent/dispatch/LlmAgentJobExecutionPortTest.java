@@ -1,7 +1,8 @@
 package com.bubli.agent.dispatch;
 
 import com.bubli.agent.model.AgentAnalysisResultJsonParser;
-import com.bubli.agent.model.AiCallExecutor;
+import com.bubli.global.ai.AiCallExecutor;
+import com.bubli.global.ai.AiModelGateway;
 import com.bubli.agent.dto.AgentJobContext;
 import com.bubli.agent.service.AgentJobContextCollector;
 import com.bubli.agent.service.AgentModelUsageGuard;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -65,8 +68,7 @@ class LlmAgentJobExecutionPortTest {
 				.willReturn(new AgentJobContext("[Room tasks]\n- existing task", 28));
 		executionPort = new LlmAgentJobExecutionPort(
 				resourceAnalysisService,
-				chatModel,
-				new AiCallExecutor(1, Duration.ZERO),
+				modelGateway(chatModel),
 				new AgentAnalysisResultJsonParser(
 						new ObjectMapper(),
 						new AgentAnalysisResultValidator(validator)
@@ -75,6 +77,18 @@ class LlmAgentJobExecutionPortTest {
 				contextCollector,
 				modelUsageGuard,
 				resourceAnalysisCompletionRecorder
+		);
+	}
+
+	@SuppressWarnings("unchecked")
+	private AiModelGateway modelGateway(ChatModel model) {
+		ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
+		ObjectProvider<EmbeddingModel> embeddingModelProvider = mock(ObjectProvider.class);
+		given(chatModelProvider.getIfAvailable()).willReturn(model);
+		return new AiModelGateway(
+				chatModelProvider,
+				embeddingModelProvider,
+				new AiCallExecutor(1, Duration.ZERO)
 		);
 	}
 

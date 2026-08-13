@@ -45,7 +45,8 @@ public class ProjectRoomRagGroundingService {
 					ResourceSearchScope.ROOM_SHARED,
 					roomId,
 					query,
-					agentRagProperties.topK()
+					agentRagProperties.topK(),
+					AgentQuerySupport.documentQueryLanguage(query)
 			);
 			double minSimilarity = minSimilarity(mode);
 			List<ResourceSearchHit> groundedHits = hits.stream()

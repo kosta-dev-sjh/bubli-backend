@@ -20,10 +20,14 @@ public class AgentJobDispatchOutboxRecorder {
 
 	@Transactional
 	public void recordPending(AgentJobDispatchCommand command) {
-		agentDispatchOutboxRepository.save(AgentDispatchOutbox.pending(
-				command.jobId(),
-				payloadJson(command)
-		));
+		String payloadJson = payloadJson(command);
+		AgentDispatchOutbox outbox = agentDispatchOutboxRepository.findByJobId(command.jobId())
+				.map(existing -> {
+					existing.requeue(payloadJson);
+					return existing;
+				})
+				.orElseGet(() -> AgentDispatchOutbox.pending(command.jobId(), payloadJson));
+		agentDispatchOutboxRepository.save(outbox);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -24,9 +24,9 @@ public class AgentJobRetryScheduler {
 	@Scheduled(fixedDelayString = "${agent.dispatch.retry.scheduler.fixed-delay-ms:60000}")
 	public void dispatchRetryableFailedJobs() {
 		try {
-			int dispatchedCount = retryDispatcher.dispatchRetryableFailedJobs(maxRetryCount, batchSize);
-			if (dispatchedCount > 0) {
-				log.info("Dispatched retryable failed agent jobs. count={}", dispatchedCount);
+			int queuedCount = retryDispatcher.dispatchRetryableFailedJobs(maxRetryCount, batchSize);
+			if (queuedCount > 0) {
+				log.info("Queued retryable failed agent jobs through outbox. count={}", queuedCount);
 			}
 		} catch (RuntimeException exception) {
 			log.warn("Failed to dispatch retryable failed agent jobs.", exception);

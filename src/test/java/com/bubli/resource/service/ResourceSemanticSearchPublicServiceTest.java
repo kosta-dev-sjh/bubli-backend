@@ -1,5 +1,7 @@
 package com.bubli.resource.service;
 
+import com.bubli.global.ai.AiCallExecutor;
+import com.bubli.global.ai.AiModelGateway;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.resource.dto.ResourceSearchHit;
 import com.bubli.resource.entity.ResourceEmbeddingSearchRow;
@@ -11,6 +13,7 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,11 +21,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ResourceSemanticSearchPublicServiceTest {
+
+    @Test
+    void discoversDocumentLanguagesWithinAuthorizedResourceScope() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(repository.findRoomSharedDocumentLanguagesByResourceIds(roomId, List.of(resourceId)))
+                .thenReturn(List.of("ko-KR", "en", "ko"));
+
+        List<String> languages = service(repository, accessService, null)
+                .findRoomSharedDocumentLanguages(userId, roomId, List.of(resourceId, resourceId));
+
+        assertThat(languages).containsExactly("ko", "en");
+        verify(accessService).requireRoomMember(roomId, userId);
+        verify(repository).findRoomSharedDocumentLanguagesByResourceIds(roomId, List.of(resourceId));
+    }
 
     @Test
     void searchesRoomSharedEmbeddingsAfterAccessCheck() {
@@ -35,7 +58,7 @@ class ResourceSemanticSearchPublicServiceTest {
         UUID resourceId = UUID.randomUUID();
 
         when(embeddingModel.embed("contract payment")).thenReturn(vector(0.1f));
-        when(repository.searchRoomShared(eq(roomId), anyString(), eq(3)))
+        when(repository.searchRoomShared(eq(roomId), anyString(), isNull(), eq(3)))
                 .thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":2}")));
 
         List<ResourceSearchHit> hits = service(repository, accessService, embeddingModel)
@@ -46,7 +69,12 @@ class ResourceSemanticSearchPublicServiceTest {
         assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
         assertThat(hits.get(0).pageNumber()).isEqualTo(2);
         verify(accessService).requireRoomMember(roomId, userId);
-        verify(repository).searchRoomShared(eq(roomId), org.mockito.ArgumentMatchers.startsWith("[0.1,0.1"), eq(3));
+        verify(repository).searchRoomShared(
+                eq(roomId),
+                org.mockito.ArgumentMatchers.startsWith("[0.1,0.1"),
+                isNull(),
+                eq(3)
+        );
     }
 
     @Test
@@ -60,18 +88,24 @@ class ResourceSemanticSearchPublicServiceTest {
         UUID resourceId = UUID.randomUUID();
 
         when(embeddingModel.embed("project schedule")).thenReturn(vector(0.2f));
-        when(repository.searchRoomSharedByResourceIds(eq(roomId), eq(List.of(resourceId)), anyString(), eq(4)))
+        when(repository.searchRoomSharedByResourceIds(
+                eq(roomId),
+                eq(List.of(resourceId)),
+                anyString(),
+                eq("ko"),
+                eq(4)
+        ))
                 .thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":3}")));
 
         List<ResourceSearchHit> hits = service(repository, accessService, embeddingModel)
-                .searchRoomSharedResources(userId, roomId, List.of(resourceId), "project schedule", 4);
+                .searchRoomSharedResources(userId, roomId, List.of(resourceId), "project schedule", 4, "ko-KR");
 
         assertThat(hits).hasSize(1);
         assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
         assertThat(hits.get(0).pageNumber()).isEqualTo(3);
         verify(accessService).requireRoomMember(roomId, userId);
         verify(repository).searchRoomSharedByResourceIds(eq(roomId), eq(List.of(resourceId)),
-                org.mockito.ArgumentMatchers.startsWith("[0.2,0.2"), eq(4));
+                org.mockito.ArgumentMatchers.startsWith("[0.2,0.2"), eq("ko"), eq(4));
     }
 
     @Test
@@ -92,6 +126,7 @@ class ResourceSemanticSearchPublicServiceTest {
                 eq(""),
                 eq(""),
                 eq(3),
+                eq("ko"),
                 eq(6)
         )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":4}")));
 
@@ -101,7 +136,8 @@ class ResourceSemanticSearchPublicServiceTest {
                         roomId,
                         List.of(resourceId),
                         List.of("프로젝트", "일정", "진행"),
-                        6
+                        6,
+                        "ko"
                 );
 
         assertThat(hits).hasSize(1);
@@ -127,11 +163,12 @@ class ResourceSemanticSearchPublicServiceTest {
                 eq(""),
                 eq(""),
                 eq(3),
+                eq("en"),
                 eq(5)
         )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":6}")));
 
         List<ResourceSearchHit> hits = service(repository, accessService, null)
-                .searchRoomSharedKeywords(userId, roomId, List.of("req", "lb", "004"), 5);
+                .searchRoomSharedKeywords(userId, roomId, List.of("req", "lb", "004"), 5, "en-US");
 
         assertThat(hits).hasSize(1);
         assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
@@ -151,17 +188,18 @@ class ResourceSemanticSearchPublicServiceTest {
         when(repository.findRoomSharedRepresentativeChunks(
                 eq(roomId),
                 eq(List.of(resourceId)),
+                eq("ja"),
                 eq(4)
         )).thenReturn(List.of(row(embeddingId, resourceId, "{\"pageNumber\":7}")));
 
         List<ResourceSearchHit> hits = service(repository, accessService, null)
-                .loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 4);
+                .loadRoomSharedResourceChunks(userId, roomId, List.of(resourceId), 4, "ja-JP");
 
         assertThat(hits).hasSize(1);
         assertThat(hits.get(0).resourceId()).isEqualTo(resourceId);
         assertThat(hits.get(0).pageNumber()).isEqualTo(7);
         verify(accessService).requireRoomMember(roomId, userId);
-        verify(repository).findRoomSharedRepresentativeChunks(roomId, List.of(resourceId), 4);
+        verify(repository).findRoomSharedRepresentativeChunks(roomId, List.of(resourceId), "ja", 4);
     }
 
     @Test
@@ -172,12 +210,12 @@ class ResourceSemanticSearchPublicServiceTest {
         UUID userId = UUID.randomUUID();
 
         when(embeddingModel.embed(anyString())).thenReturn(vector(0.1f));
-        when(repository.searchPersonal(eq(userId), anyString(), eq(5))).thenReturn(List.of());
+        when(repository.searchPersonal(eq(userId), anyString(), isNull(), eq(5))).thenReturn(List.of());
 
         service(repository, accessService, embeddingModel)
                 .search(userId, ResourceSearchScope.PERSONAL, null, "query", 5);
 
-        verify(repository).searchPersonal(eq(userId), anyString(), eq(5));
+        verify(repository).searchPersonal(eq(userId), anyString(), isNull(), eq(5));
     }
 
     @Test
@@ -189,12 +227,68 @@ class ResourceSemanticSearchPublicServiceTest {
         UUID roomId = UUID.randomUUID();
 
         when(embeddingModel.embed(anyString())).thenReturn(vector(0.1f));
-        when(repository.searchRoomShared(eq(roomId), anyString(), eq(20))).thenReturn(List.of());
+        when(repository.searchRoomShared(eq(roomId), anyString(), isNull(), eq(20))).thenReturn(List.of());
 
         service(repository, accessService, embeddingModel)
                 .search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "query", 100);
 
-        verify(repository).searchRoomShared(eq(roomId), anyString(), eq(20));
+        verify(repository).searchRoomShared(eq(roomId), anyString(), isNull(), eq(20));
+    }
+
+    @Test
+    void forwardsLanguageAwareCandidateTopKAbovePublicLimit() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+
+        when(embeddingModel.embed(anyString())).thenReturn(vector(0.1f));
+        when(repository.searchRoomShared(eq(roomId), anyString(), eq("ko"), eq(40))).thenReturn(List.of());
+
+        service(repository, accessService, embeddingModel)
+                .search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "query", 40, "ko-KR");
+
+        verify(repository).searchRoomShared(eq(roomId), anyString(), eq("ko"), eq(40));
+    }
+
+    @Test
+    void capsLanguageAwareCandidateTopKAtHundred() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+
+        when(embeddingModel.embed(anyString())).thenReturn(vector(0.1f));
+        when(repository.searchRoomShared(eq(roomId), anyString(), eq("en"), eq(100))).thenReturn(List.of());
+
+        service(repository, accessService, embeddingModel)
+                .search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "query", 200, "en-US");
+
+        verify(repository).searchRoomShared(eq(roomId), anyString(), eq("en"), eq(100));
+    }
+
+    @Test
+    void forwardsScopedCandidateTopKAbovePublicLimit() {
+        ResourceEmbeddingRepository repository = mock(ResourceEmbeddingRepository.class);
+        ProjectRoomAccessPublicService accessService = mock(ProjectRoomAccessPublicService.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+
+        when(embeddingModel.embed(anyString())).thenReturn(vector(0.1f));
+        when(repository.searchRoomSharedByResourceIds(
+                eq(roomId), eq(List.of(resourceId)), anyString(), eq("ko"), eq(40)
+        )).thenReturn(List.of());
+
+        service(repository, accessService, embeddingModel)
+                .searchRoomSharedResources(userId, roomId, List.of(resourceId), "query", 40, "ko");
+
+        verify(repository).searchRoomSharedByResourceIds(
+                eq(roomId), eq(List.of(resourceId)), anyString(), eq("ko"), eq(40)
+        );
     }
 
     @Test
@@ -217,7 +311,11 @@ class ResourceSemanticSearchPublicServiceTest {
     ) {
         return new ResourceSemanticSearchPublicService(
                 repository,
-                mockProvider(embeddingModel),
+                new AiModelGateway(
+                        mock(ObjectProvider.class),
+                        mockProvider(embeddingModel),
+                        new AiCallExecutor(1, Duration.ZERO)
+                ),
                 new EmbeddingVectorFormatter(),
                 accessService,
                 new ObjectMapper(),

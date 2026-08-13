@@ -37,6 +37,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -64,18 +65,31 @@ public class AgentJobContextCollector {
 	@Transactional(readOnly = true)
 	public AgentJobContext collect(AgentJobQueueMessage message) {
 		StringBuilder context = new StringBuilder();
-		if (message.roomId() != null) {
+		EnumSet<ContextSection> allowedSections = allowedContextSections(message);
+		if (allowedSections.contains(ContextSection.ROOM)) {
 			appendRoomContext(context, message);
 		}
-		if (message.jobType() == AgentJobType.DAILY_SUMMARY) {
+		if (allowedSections.contains(ContextSection.DAILY_SUMMARY)) {
 			appendDailySummaryContext(context, message);
 		}
-		appendPersonalContext(context, message);
+		if (allowedSections.contains(ContextSection.PERSONAL)) {
+			appendPersonalContext(context, message);
+		}
 		if (context.isEmpty()) {
 			return AgentJobContext.empty();
 		}
 		String promptBlock = truncate(context.toString().trim(), MAX_CONTEXT_CHARS);
 		return new AgentJobContext(promptBlock, promptBlock.length());
+	}
+
+	private EnumSet<ContextSection> allowedContextSections(AgentJobQueueMessage message) {
+		if (message.jobType() == AgentJobType.DAILY_SUMMARY) {
+			return EnumSet.of(ContextSection.DAILY_SUMMARY, ContextSection.PERSONAL);
+		}
+		if (message.roomId() != null) {
+			return EnumSet.of(ContextSection.ROOM);
+		}
+		return EnumSet.of(ContextSection.PERSONAL);
 	}
 
 	private void appendRoomContext(StringBuilder context, AgentJobQueueMessage message) {
@@ -313,5 +327,11 @@ public class AgentJobContextCollector {
 			return text;
 		}
 		return text.substring(0, limit);
+	}
+
+	private enum ContextSection {
+		ROOM,
+		DAILY_SUMMARY,
+		PERSONAL
 	}
 }

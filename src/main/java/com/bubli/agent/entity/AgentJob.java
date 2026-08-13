@@ -229,6 +229,21 @@ public class AgentJob extends BaseTimeEntity {
         errorMessage = null;
     }
 
+    /**
+     * Reopens a RUNNING attempt whose queue claim expired. The retry budget is
+     * consumed here because the previous execution may have started remotely.
+     */
+    public void restartStaleExecution() {
+        if (status != AgentJobStatus.RUNNING) {
+            throw new IllegalStateException("Only RUNNING jobs can restart a stale execution.");
+        }
+        retryCount++;
+        startedAt = Instant.now();
+        finishedAt = null;
+        errorCode = null;
+        errorMessage = null;
+    }
+
     public void cancel() {
         if (status == AgentJobStatus.SUCCEEDED || status == AgentJobStatus.FAILED) {
             throw new IllegalStateException("이미 종료된 작업은 취소할 수 없습니다.");

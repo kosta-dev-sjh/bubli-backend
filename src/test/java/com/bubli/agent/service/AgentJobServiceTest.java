@@ -7,16 +7,22 @@ import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentJobStatus;
+import com.bubli.global.error.BusinessException;
+import com.bubli.global.error.ErrorCode;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import org.junit.jupiter.api.Test;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -47,7 +53,7 @@ class AgentJobServiceTest {
 				userLocalePublicService
 		);
 		when(userLocalePublicService.resolveLocaleCode(eq(userId), isNull())).thenReturn("ja-JP");
-		when(agentJobRepository.save(any(AgentJob.class))).thenAnswer(invocation -> {
+		when(agentJobRepository.saveAndFlush(any(AgentJob.class))).thenAnswer(invocation -> {
 			AgentJob job = invocation.getArgument(0);
 			ReflectionTestUtils.setField(job, "id", UUID.randomUUID());
 			return job;
@@ -60,7 +66,7 @@ class AgentJobServiceTest {
 				Map.of("source", "public-service")
 		));
 
-		verify(agentJobRepository).save(org.mockito.ArgumentMatchers.assertArg(job ->
+		verify(agentJobRepository).saveAndFlush(org.mockito.ArgumentMatchers.assertArg(job ->
 				assertThat(job.getRequestPayload())
 						.containsEntry("source", "public-service")
 						.containsEntry("locale", "ja-JP")
@@ -84,7 +90,7 @@ class AgentJobServiceTest {
 				mock(ProjectMembershipPublicService.class),
 				mock(UserLocalePublicService.class)
 		);
-		when(agentJobRepository.save(any(AgentJob.class))).thenAnswer(invocation -> {
+		when(agentJobRepository.saveAndFlush(any(AgentJob.class))).thenAnswer(invocation -> {
 			AgentJob job = invocation.getArgument(0);
 			ReflectionTestUtils.setField(job, "id", UUID.randomUUID());
 			return job;
@@ -97,7 +103,7 @@ class AgentJobServiceTest {
 				Map.of("locale", "ja")
 		));
 
-		verify(agentJobRepository).save(org.mockito.ArgumentMatchers.assertArg(job ->
+		verify(agentJobRepository).saveAndFlush(org.mockito.ArgumentMatchers.assertArg(job ->
 				assertThat(job.getRequestPayload()).containsEntry("locale", "ja-JP")
 		));
 	}
@@ -118,6 +124,7 @@ class AgentJobServiceTest {
 				mock(ProjectMembershipPublicService.class),
 				userLocalePublicService
 		);
+		when(userLocalePublicService.resolveLocaleCode(userId, null)).thenReturn("ko-KR");
 		AgentJob existingJob = AgentJob.create(
 				userId,
 				null,
@@ -142,7 +149,157 @@ class AgentJobServiceTest {
 
 		assertThat(result.id()).isEqualTo(existingJob.getId());
 		assertThat(result.status()).isEqualTo(AgentJobStatus.PENDING);
-		verify(agentJobRepository, never()).save(any());
+		verify(agentJobRepository).acquireIdempotencyScopeLock(
+				userId + ":ANALYZE_RESOURCE:LOCAL_FILE_ANALYSIS:abc"
+		);
+		verify(agentJobRepository, never()).saveAndFlush(any());
+		verify(dispatchOutboxRecorder, never()).recordPending(any());
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void createTreatsWhitespaceVariantOfSameIdempotencyKeyAsSameRequest() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+		AgentJobDispatchOutboxRecorder dispatchOutboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
+		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+		AgentJobService service = new AgentJobService(
+				agentJobRepository,
+				mock(AgentJobEventRepository.class),
+				eventPublisher,
+				dispatchOutboxRecorder,
+				mock(ProjectMembershipPublicService.class),
+				userLocalePublicService
+		);
+		String normalizedKey = "LOCAL_FILE_ANALYSIS:trimmed";
+		AgentJob existingJob = AgentJob.create(
+				userId,
+				null,
+				resourceId,
+				AgentJobType.ANALYZE_RESOURCE,
+				Map.of("idempotencyKey", normalizedKey, "locale", "ko-KR"),
+				normalizedKey
+		);
+		ReflectionTestUtils.setField(existingJob, "id", UUID.randomUUID());
+		when(userLocalePublicService.resolveLocaleCode(userId, null)).thenReturn("ko-KR");
+		when(agentJobRepository.findByRequestedByUserIdAndJobTypeAndIdempotencyKey(
+				userId,
+				AgentJobType.ANALYZE_RESOURCE,
+				normalizedKey
+		)).thenReturn(java.util.Optional.of(existingJob));
+
+		var result = service.create(userId, new CreateAgentJobCommand(
+				null,
+				resourceId,
+				AgentJobType.ANALYZE_RESOURCE,
+				Map.of("idempotencyKey", "  " + normalizedKey + "  ")
+		));
+
+		assertThat(result.id()).isEqualTo(existingJob.getId());
+		verify(agentJobRepository).acquireIdempotencyScopeLock(
+				userId + ":ANALYZE_RESOURCE:" + normalizedKey
+		);
+		verify(agentJobRepository, never()).saveAndFlush(any());
+		verify(dispatchOutboxRecorder, never()).recordPending(any());
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void createRejectsReusedIdempotencyKeyWhenPayloadDiffers() {
+		UUID userId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+		AgentJobDispatchOutboxRecorder dispatchOutboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
+		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+		AgentJobService service = new AgentJobService(
+				agentJobRepository,
+				mock(AgentJobEventRepository.class),
+				eventPublisher,
+				dispatchOutboxRecorder,
+				mock(ProjectMembershipPublicService.class),
+				userLocalePublicService
+		);
+		String idempotencyKey = "LOCAL_FILE_ANALYSIS:conflict";
+		AgentJob existingJob = AgentJob.create(
+				userId,
+				null,
+				resourceId,
+				AgentJobType.ANALYZE_RESOURCE,
+				Map.of(
+						"idempotencyKey", idempotencyKey,
+						"source", "first-request",
+						"locale", "ko-KR"
+				),
+				idempotencyKey
+		);
+		when(userLocalePublicService.resolveLocaleCode(userId, null)).thenReturn("ko-KR");
+		when(agentJobRepository.findByRequestedByUserIdAndJobTypeAndIdempotencyKey(
+				userId,
+				AgentJobType.ANALYZE_RESOURCE,
+				idempotencyKey
+		)).thenReturn(java.util.Optional.of(existingJob));
+
+		assertThatThrownBy(() -> service.create(userId, new CreateAgentJobCommand(
+				null,
+				resourceId,
+				AgentJobType.ANALYZE_RESOURCE,
+				Map.of("idempotencyKey", idempotencyKey, "source", "different-request")
+		)))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.AGENT_409_001);
+
+		verify(agentJobRepository, never()).saveAndFlush(any());
+		verify(dispatchOutboxRecorder, never()).recordPending(any());
+		verify(eventPublisher, never()).publishEvent(any());
+	}
+
+	@Test
+	void createMapsFlushedIdempotencyConstraintViolationToConflict() {
+		UUID userId = UUID.randomUUID();
+		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
+		AgentJobDispatchOutboxRecorder dispatchOutboxRecorder = mock(AgentJobDispatchOutboxRecorder.class);
+		ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+		UserLocalePublicService userLocalePublicService = mock(UserLocalePublicService.class);
+		AgentJobService service = new AgentJobService(
+				agentJobRepository,
+				mock(AgentJobEventRepository.class),
+				eventPublisher,
+				dispatchOutboxRecorder,
+				mock(ProjectMembershipPublicService.class),
+				userLocalePublicService
+		);
+		String idempotencyKey = "duplicate-key";
+		when(userLocalePublicService.resolveLocaleCode(userId, null)).thenReturn("ko-KR");
+		when(agentJobRepository.findByRequestedByUserIdAndJobTypeAndIdempotencyKey(
+				userId,
+				AgentJobType.GENERATE_TASKS,
+				idempotencyKey
+		)).thenReturn(java.util.Optional.empty());
+		DataIntegrityViolationException duplicateKeyException = new DataIntegrityViolationException(
+				"duplicate idempotency key",
+				new ConstraintViolationException(
+						"duplicate idempotency key",
+						new SQLException("duplicate key", "23505"),
+						"insert into agent_jobs",
+						"uk_agent_jobs_idempotency_key"
+				)
+		);
+		when(agentJobRepository.saveAndFlush(any(AgentJob.class))).thenThrow(duplicateKeyException);
+
+		assertThatThrownBy(() -> service.create(userId, new CreateAgentJobCommand(
+				null,
+				null,
+				AgentJobType.GENERATE_TASKS,
+				Map.of("idempotencyKey", idempotencyKey)
+		)))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.AGENT_409_001);
+
 		verify(dispatchOutboxRecorder, never()).recordPending(any());
 		verify(eventPublisher, never()).publishEvent(any());
 	}

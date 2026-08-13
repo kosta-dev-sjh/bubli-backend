@@ -132,8 +132,9 @@ function Get-CaseIntent {
 
 function Get-GitValue {
     param([string[]]$Arguments)
+    $ErrorActionPreference = "Continue"
     try {
-        $value = & git @Arguments 2>$null
+        $value = & git -C $repositoryRoot @Arguments 2>$null
         if ($LASTEXITCODE -ne 0 -or $null -eq $value) {
             return $null
         }
@@ -143,14 +144,111 @@ function Get-GitValue {
     }
 }
 
-function Invoke-RagEvaluationCase {
-    param($Case, [object[]]$RelevantItems, [bool]$ExpectedGrounded, [string]$CaseLocale)
-    $body = @{
+function Get-Sha256Text {
+    param([string]$Value)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($(if ($null -eq $Value) { "" } else { $Value }))
+        return (($sha256.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
+function Get-GitWorkingTreeMetadata {
+    $ErrorActionPreference = "Continue"
+    try {
+        $statusLines = @(& git -C $repositoryRoot -c core.quotePath=false status --porcelain=v1 --untracked-files=all 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            return [ordered]@{
+                available = $false
+                dirty = $null
+                fingerprintSha256 = $null
+                status = @()
+                error = "git status failed"
+            }
+        }
+        $trackedDiff = (& git -C $repositoryRoot diff --binary HEAD -- . 2>$null | Out-String)
+        $untrackedFiles = @(& git -C $repositoryRoot -c core.quotePath=false ls-files --others --exclude-standard 2>$null)
+        $untrackedHashes = @()
+        foreach ($relativePath in $untrackedFiles) {
+            $absolutePath = Join-Path $repositoryRoot $relativePath
+            if (Test-Path -LiteralPath $absolutePath -PathType Leaf -ErrorAction SilentlyContinue) {
+                $untrackedHashes += "{0}:{1}" -f $relativePath, (
+                    Get-FileHash -LiteralPath $absolutePath -Algorithm SHA256 -ErrorAction Stop
+                ).Hash
+            }
+        }
+        $fingerprintInput = @(
+            ($statusLines -join "`n"),
+            $trackedDiff,
+            ($untrackedHashes -join "`n")
+        ) -join "`n---`n"
+        return [ordered]@{
+            available = $true
+            dirty = $statusLines.Count -gt 0
+            fingerprintSha256 = Get-Sha256Text $fingerprintInput
+            status = $statusLines
+            error = $null
+        }
+    } catch {
+        return [ordered]@{
+            available = $false
+            dirty = $null
+            fingerprintSha256 = $null
+            status = @()
+            error = $_.Exception.Message
+        }
+    }
+}
+
+function Get-RagEvaluationRequestBody {
+    param($Case, [string]$CaseLocale)
+    $request = @{
         roomId = $Case.roomId
         message = Get-CaseMessage $Case
         locale = $CaseLocale
         mode = if ($null -eq $Case.mode) { "ANSWER" } else { [string]$Case.mode }
-    } | ConvertTo-Json
+        topK = $topK
+    }
+    if ($null -ne $Case.resourceIds) {
+        $request.resourceIds = @($Case.resourceIds)
+    }
+    return $request | ConvertTo-Json -Depth 5
+}
+
+function Get-ExpectedOutcome {
+    param($Case, [bool]$ExpectedGrounded)
+    if ($null -ne $Case.expectedOutcome -and -not [string]::IsNullOrWhiteSpace([string]$Case.expectedOutcome)) {
+        return ([string]$Case.expectedOutcome).ToUpperInvariant()
+    }
+    if ($ExpectedGrounded) {
+        return "ANSWER"
+    }
+    return "NO_EVIDENCE"
+}
+
+function Get-ActualOutcome {
+    param($Data, $Diagnostics)
+    if ([bool]$Data.retrievalFailed) {
+        return "RETRIEVAL_FAILED"
+    }
+    if ([bool]$Data.grounded) {
+        return "ANSWER"
+    }
+    $status = $null
+    if ($null -ne $Diagnostics -and $null -ne $Diagnostics.finalFusion) {
+        $status = [string]$Diagnostics.finalFusion.answerabilityStatus
+    }
+    if ($status -eq "NEEDS_CLARIFICATION") {
+        return "CLARIFY"
+    }
+    return "NO_EVIDENCE"
+}
+
+function Invoke-RagEvaluationCase {
+    param($Case, [object[]]$RelevantItems, [bool]$ExpectedGrounded, [string]$CaseLocale)
+    $body = Get-RagEvaluationRequestBody $Case $CaseLocale
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $response = Invoke-RestMethod `
@@ -179,6 +277,112 @@ function Invoke-RagEvaluationCase {
             error = $_.Exception.Message
         }
     }
+}
+
+function Receive-NextRagEvaluation {
+    param([System.Collections.ArrayList]$Pending)
+    $tasks = [System.Threading.Tasks.Task[]]@($Pending | ForEach-Object { $_.task })
+    $completedTask = [System.Threading.Tasks.Task]::WhenAny($tasks).GetAwaiter().GetResult()
+    $entry = $Pending | Where-Object {
+        [object]::ReferenceEquals($_.task, $completedTask)
+    } | Select-Object -First 1
+    if ($null -eq $entry) {
+        throw "Completed RAG evaluation request could not be matched to its case."
+    }
+    [void]$Pending.Remove($entry)
+    $entry.stopwatch.Stop()
+    $response = $null
+    try {
+        $response = $entry.task.GetAwaiter().GetResult()
+        $responseText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "RAG evaluation API returned HTTP $([int]$response.StatusCode): $responseText"
+        }
+        $parsedResponse = $responseText | ConvertFrom-Json
+        if (-not $parsedResponse.success) {
+            throw "RAG evaluation API returned success=false"
+        }
+        $call = [pscustomobject]@{
+            ok = $true
+            data = $parsedResponse.data
+            latencyMs = [Math]::Round($entry.stopwatch.Elapsed.TotalMilliseconds, 3)
+            error = $null
+        }
+    } catch {
+        $call = [pscustomobject]@{
+            ok = $false
+            data = $null
+            latencyMs = [Math]::Round($entry.stopwatch.Elapsed.TotalMilliseconds, 3)
+            error = $_.Exception.Message
+        }
+    } finally {
+        if ($null -ne $response) {
+            $response.Dispose()
+        }
+        $entry.request.Dispose()
+    }
+    return [pscustomobject]@{
+        item = $entry.item
+        call = $call
+    }
+}
+
+function Invoke-RagEvaluationBatch {
+    param([object[]]$Items)
+    if ($Items.Count -eq 0) {
+        return @()
+    }
+    if ($ConcurrencyLevel -le 1) {
+        return @($Items | ForEach-Object {
+            [pscustomobject]@{
+                item = $_
+                call = Invoke-RagEvaluationCase $_.case $_.relevantItems $_.expectedGrounded $_.locale
+            }
+        })
+    }
+
+    Add-Type -AssemblyName System.Net.Http
+    $client = [System.Net.Http.HttpClient]::new()
+    $client.Timeout = [TimeSpan]::FromSeconds($RequestTimeoutSec)
+    $client.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new(
+        "Bearer",
+        $BearerToken
+    )
+    $pending = [System.Collections.ArrayList]::new()
+    $results = @()
+    try {
+        foreach ($item in $Items) {
+            while ($pending.Count -ge $ConcurrencyLevel) {
+                $results += Receive-NextRagEvaluation $pending
+            }
+            $request = [System.Net.Http.HttpRequestMessage]::new(
+                [System.Net.Http.HttpMethod]::Post,
+                [Uri]::new("$ApiBaseUrl/api/ai/evaluate-project-room-rag")
+            )
+            $request.Content = [System.Net.Http.StringContent]::new(
+                (Get-RagEvaluationRequestBody $item.case $item.locale),
+                [System.Text.Encoding]::UTF8,
+                "application/json"
+            )
+            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $task = $client.SendAsync($request)
+            [void]$pending.Add([pscustomobject]@{
+                item = $item
+                request = $request
+                task = $task
+                stopwatch = $stopwatch
+            })
+        }
+        while ($pending.Count -gt 0) {
+            $results += Receive-NextRagEvaluation $pending
+        }
+    } finally {
+        foreach ($entry in @($pending)) {
+            $entry.request.Dispose()
+        }
+        $client.Dispose()
+    }
+    return @($results | Sort-Object { $_.item.ordinal })
 }
 
 function Get-DocumentEvidenceHits {
@@ -268,6 +472,7 @@ function Get-GroupBreakdown {
     return $breakdown
 }
 
+$repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 $datasetPath = (Resolve-Path -LiteralPath $Dataset).Path
 $datasetDefinition = Get-Content -LiteralPath $datasetPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $topK = if ($null -eq $datasetDefinition.topK) { 5 } else { [int]$datasetDefinition.topK }
@@ -290,14 +495,37 @@ foreach ($case in @($datasetDefinition.cases | Select-Object -First $WarmupCount
     Invoke-RagEvaluationCase $case $relevantItems $expectedGrounded $caseLocale | Out-Null
 }
 
+$evaluationItems = @()
+$ordinal = 0
 for ($runIndex = 1; $runIndex -le $RepeatCount; $runIndex++) {
-foreach ($case in $datasetDefinition.cases) {
-    $relevantItems = @($case.relevant)
-    $expectedGrounded = Get-ExpectedGrounded $case $relevantItems
-    $caseLocale = Get-CaseLocale $case
-    $caseIntent = Get-CaseIntent $case
-    $expectedRetrievalModes = @($case.expectedRetrievalModes)
-    $call = Invoke-RagEvaluationCase $case $relevantItems $expectedGrounded $caseLocale
+    foreach ($case in $datasetDefinition.cases) {
+        $relevantItems = @($case.relevant)
+        $evaluationItems += [pscustomobject]@{
+            ordinal = $ordinal
+            runIndex = $runIndex
+            case = $case
+            relevantItems = $relevantItems
+            expectedGrounded = Get-ExpectedGrounded $case $relevantItems
+            locale = Get-CaseLocale $case
+            intent = Get-CaseIntent $case
+            expectedOutcome = Get-ExpectedOutcome $case (Get-ExpectedGrounded $case $relevantItems)
+            expectedRetrievalModes = @($case.expectedRetrievalModes)
+        }
+        $ordinal++
+    }
+}
+
+foreach ($evaluationResult in @(Invoke-RagEvaluationBatch $evaluationItems)) {
+    $item = $evaluationResult.item
+    $case = $item.case
+    $runIndex = $item.runIndex
+    $relevantItems = @($item.relevantItems)
+    $expectedGrounded = [bool]$item.expectedGrounded
+    $caseLocale = [string]$item.locale
+    $caseIntent = [string]$item.intent
+    $expectedOutcome = [string]$item.expectedOutcome
+    $expectedRetrievalModes = @($item.expectedRetrievalModes)
+    $call = $evaluationResult.call
     if ($call.ok) {
         $data = $call.data
         $evidenceHits = @(Get-DocumentEvidenceHits $data.evidenceItems | Select-Object -First $topK)
@@ -312,6 +540,9 @@ foreach ($case in $datasetDefinition.cases) {
             Add-Count $answerabilityReasonCounts $answerabilityReason
         }
         $ungroundedReason = if ($null -eq $diagnostics) { $null } else { $diagnostics.ungroundedReason }
+        $actualIntent = if ($null -eq $diagnostics) { $null } else { [string]$diagnostics.queryIntent }
+        $actualScopeConfidence = if ($null -eq $diagnostics) { $null } else { [string]$diagnostics.documentScopeConfidence }
+        $actualOutcome = Get-ActualOutcome $data $diagnostics
         if (-not [string]::IsNullOrWhiteSpace([string]$ungroundedReason)) {
             Add-Count $languagePolicyRejectCounts ([string]$ungroundedReason)
         }
@@ -319,9 +550,13 @@ foreach ($case in $datasetDefinition.cases) {
         $relevances = @($evidenceHits | ForEach-Object { Test-Relevant $_ $relevantItems })
         $relevantEvidenceCount = @($relevances | Where-Object { $_ }).Count
         $matchedRelevant = @{}
+        $rankingMatchedRelevant = @{}
+        $novelRelevances = @()
         $firstRelevantRank = $null
         for ($index = 0; $index -lt $evidenceHits.Count; $index++) {
+            $novelRelevantAtRank = $false
             if (-not $relevances[$index]) {
+                $novelRelevances += $false
                 continue
             }
             if ($null -eq $firstRelevantRank) {
@@ -330,9 +565,15 @@ foreach ($case in $datasetDefinition.cases) {
             Add-Count $modeHitContribution $evidenceHits[$index].retrievalMode
             foreach ($relevant in $relevantItems) {
                 if (Test-Relevant $evidenceHits[$index] @($relevant)) {
-                    $matchedRelevant[(Get-RelevanceKey $relevant)] = $true
+                    $relevanceKey = Get-RelevanceKey $relevant
+                    $matchedRelevant[$relevanceKey] = $true
+                    if (-not $rankingMatchedRelevant.ContainsKey($relevanceKey)) {
+                        $rankingMatchedRelevant[$relevanceKey] = $true
+                        $novelRelevantAtRank = $true
+                    }
                 }
             }
+            $novelRelevances += $novelRelevantAtRank
         }
 
         $relevantCount = $relevantItems.Count
@@ -344,7 +585,11 @@ foreach ($case in $datasetDefinition.cases) {
             $ideal += ($index -lt $idealCount)
         }
         $idcg = Get-Dcg ([bool[]]$ideal)
-        $ndcg = if ($idcg -eq 0.0) { 0.0 } else { (Get-Dcg ([bool[]]$relevances)) / $idcg }
+        $ndcg = if ($idcg -eq 0.0) {
+            0.0
+        } else {
+            [Math]::Min(1.0, (Get-Dcg ([bool[]]$novelRelevances)) / $idcg)
+        }
         $latencyMs = $call.latencyMs
         $latencies += $latencyMs
         $caseReports += [pscustomobject][ordered]@{
@@ -352,11 +597,17 @@ foreach ($case in $datasetDefinition.cases) {
             runIndex = $runIndex
             locale = $caseLocale
             intent = $caseIntent
+            actualIntent = $actualIntent
+            intentCorrect = if ($caseIntent -eq "UNKNOWN") { $null } else { $actualIntent -eq $caseIntent }
             status = "success"
             latencyMs = $latencyMs
             expectedGrounded = $expectedGrounded
             actualGrounded = [bool]$data.grounded
             groundedCorrect = ([bool]$data.grounded) -eq $expectedGrounded
+            expectedOutcome = $expectedOutcome
+            actualOutcome = $actualOutcome
+            outcomeCorrect = $actualOutcome -eq $expectedOutcome
+            documentScopeConfidence = $actualScopeConfidence
             noAnswerCase = -not $expectedGrounded
             noAnswerCorrect = if ($expectedGrounded) { $null } else { -not [bool]$data.grounded }
             retrievalFailed = [bool]$data.retrievalFailed
@@ -385,13 +636,13 @@ foreach ($case in $datasetDefinition.cases) {
             runIndex = $runIndex
             locale = $caseLocale
             intent = $caseIntent
+            expectedOutcome = $expectedOutcome
             status = "error"
             latencyMs = $call.latencyMs
             expectedGrounded = $expectedGrounded
             error = $call.error
         }
     }
-}
 }
 
 $successful = @($caseReports | Where-Object { $_.status -eq "success" })
@@ -400,12 +651,14 @@ $qualityCases = @($successful | Where-Object { $null -ne $_.hitAtK })
 $noAnswerCases = @($successful | Where-Object { $_.noAnswerCase })
 $retrievalFailures = @($successful | Where-Object { $_.retrievalFailed })
 $expectedModeCases = @($successful | Where-Object { $null -ne $_.expectedRetrievalModeHit })
+$intentCases = @($successful | Where-Object { $null -ne $_.intentCorrect })
 $groundingMetrics = Get-GroundingConfusionMetrics $successful
 $applicationCommit = Get-GitValue @("rev-parse", "HEAD")
 $applicationBranch = Get-GitValue @("rev-parse", "--abbrev-ref", "HEAD")
+$workingTree = Get-GitWorkingTreeMetadata
 
 $report = [ordered]@{
-    schemaVersion = 3
+    schemaVersion = 4
     datasetName = $datasetDefinition.name
     datasetSha256 = (Get-FileHash -LiteralPath $datasetPath -Algorithm SHA256).Hash.ToLowerInvariant()
     generatedAt = [DateTimeOffset]::UtcNow.ToString("o")
@@ -421,6 +674,11 @@ $report = [ordered]@{
     runMetadata = [ordered]@{
         applicationCommit = $applicationCommit
         applicationBranch = $applicationBranch
+        applicationGitMetadataAvailable = $workingTree.available
+        applicationDirty = $workingTree.dirty
+        applicationWorkingTreeSha256 = $workingTree.fingerprintSha256
+        applicationWorkingTreeStatus = @($workingTree.status)
+        applicationGitMetadataError = $workingTree.error
         documentSnapshot = $DocumentSnapshot
         chunkingVersion = $ChunkingVersion
         embeddingModelVersion = $EmbeddingModelVersion
@@ -440,6 +698,10 @@ $report = [ordered]@{
         ndcgAtK = Get-AverageMetric $qualityCases "ndcgAtK"
         contextPrecisionAtK = Get-AverageMetric $successful "contextPrecisionAtK"
         groundedAccuracy = Get-AverageMetric $successful "groundedCorrect"
+        outcomeAccuracy = Get-AverageMetric $successful "outcomeCorrect"
+        intentRoutingAccuracy = if ($intentCases.Count -eq 0) { $null } else {
+            Get-AverageMetric $intentCases "intentCorrect"
+        }
         noAnswerAccuracy = Get-AverageMetric $noAnswerCases "noAnswerCorrect"
         grounding = $groundingMetrics
         expectedRetrievalModeAccuracy = Get-AverageMetric $expectedModeCases "expectedRetrievalModeHit"

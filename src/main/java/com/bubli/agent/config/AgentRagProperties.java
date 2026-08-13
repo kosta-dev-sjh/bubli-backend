@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AgentRagProperties(
 		Boolean enabled,
 		Integer topK,
+		Integer candidateTopK,
 		Double minSimilarity,
 		Double suggestMinSimilarity,
 		Double personalMinSimilarity
@@ -17,6 +18,9 @@ public record AgentRagProperties(
 		}
 		if (topK == null) {
 			topK = 5;
+		}
+		if (candidateTopK == null) {
+			candidateTopK = 40;
 		}
 		if (minSimilarity == null) {
 			minSimilarity = 0.72D;

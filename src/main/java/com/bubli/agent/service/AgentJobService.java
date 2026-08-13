@@ -17,6 +17,7 @@ import com.bubli.global.response.PageResponse;
 import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.user.service.UserLocalePublicService;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -35,6 +37,7 @@ import java.util.UUID;
 public class AgentJobService {
 
 	private static final String IDEMPOTENCY_KEY_PAYLOAD_FIELD = "idempotencyKey";
+	private static final String IDEMPOTENCY_UNIQUE_INDEX = "uk_agent_jobs_idempotency_key";
 
 	private final AgentJobRepository agentJobRepository;
 	private final AgentJobEventRepository agentJobEventRepository;
@@ -48,7 +51,18 @@ public class AgentJobService {
 		Map<String, Object> requestPayload = withResolvedLocale(requestedByUserId, command.requestPayload());
 		String idempotencyKey = idempotencyKey(requestPayload);
 		if (idempotencyKey != null) {
-			var existingJob = findByIdempotencyKey(requestedByUserId, command.jobType(), idempotencyKey);
+			requestPayload.put(IDEMPOTENCY_KEY_PAYLOAD_FIELD, idempotencyKey);
+			agentJobRepository.acquireIdempotencyScopeLock(idempotencyScopeKey(
+					requestedByUserId,
+					command.jobType(),
+					idempotencyKey
+			));
+			var existingJob = findMatchingJobByIdempotencyKey(
+					requestedByUserId,
+					command,
+					requestPayload,
+					idempotencyKey
+			);
 			if (existingJob != null) {
 				return existingJob;
 			}
@@ -63,12 +77,12 @@ public class AgentJobService {
 		);
 		AgentJob savedAgentJob;
 		try {
-			savedAgentJob = agentJobRepository.save(agentJob);
+			savedAgentJob = agentJobRepository.saveAndFlush(agentJob);
 		} catch (DataIntegrityViolationException exception) {
-			if (idempotencyKey == null) {
+			if (idempotencyKey == null || !isIdempotencyConstraintViolation(exception)) {
 				throw exception;
 			}
-			return findRequiredByIdempotencyKey(requestedByUserId, command.jobType(), idempotencyKey);
+			throw new BusinessException(ErrorCode.AGENT_409_001);
 		}
 		AgentJobDispatchEvent dispatchEvent = AgentJobDispatchEvent.from(savedAgentJob);
 		dispatchOutboxRecorder.recordPending(dispatchEvent.command());
@@ -157,12 +171,54 @@ public class AgentJobService {
 				.orElse(null);
 	}
 
-	private AgentJobResult findRequiredByIdempotencyKey(UUID requestedByUserId, AgentJobType jobType, String idempotencyKey) {
-		AgentJobResult result = findByIdempotencyKey(requestedByUserId, jobType, idempotencyKey);
-		if (result == null) {
-			throw new BusinessException(ErrorCode.AGENT_404_001);
+	private AgentJobResult findMatchingJobByIdempotencyKey(
+			UUID requestedByUserId,
+			CreateAgentJobCommand command,
+			Map<String, Object> requestPayload,
+			String idempotencyKey
+	) {
+		return agentJobRepository
+				.findByRequestedByUserIdAndJobTypeAndIdempotencyKey(
+						requestedByUserId,
+						command.jobType(),
+						idempotencyKey
+				)
+				.map(existingJob -> {
+					if (!sameRequest(existingJob, command, requestPayload)) {
+						throw new BusinessException(ErrorCode.AGENT_409_001);
+					}
+					return AgentJobResult.from(existingJob);
+				})
+				.orElse(null);
+	}
+
+	private boolean sameRequest(
+			AgentJob existingJob,
+			CreateAgentJobCommand command,
+			Map<String, Object> requestPayload
+	) {
+		return Objects.equals(existingJob.getRoomId(), command.roomId())
+				&& Objects.equals(existingJob.getResourceId(), command.resourceId())
+				&& Objects.equals(existingJob.getRequestPayload(), requestPayload);
+	}
+
+	private String idempotencyScopeKey(
+			UUID requestedByUserId,
+			AgentJobType jobType,
+			String idempotencyKey
+	) {
+		return requestedByUserId + ":" + jobType.name() + ":" + idempotencyKey;
+	}
+
+	private boolean isIdempotencyConstraintViolation(Throwable throwable) {
+		Throwable current = throwable;
+		while (current != null) {
+			if (current instanceof ConstraintViolationException constraintViolation) {
+				return IDEMPOTENCY_UNIQUE_INDEX.equals(constraintViolation.getConstraintName());
+			}
+			current = current.getCause();
 		}
-		return result;
+		return false;
 	}
 
 	private PageResponse<AgentJobEventResult> toEventPageResponse(Page<AgentJobEventResult> page) {

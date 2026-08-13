@@ -48,7 +48,7 @@ bubli:
       initial-delay: ${AI_RETRY_INITIAL_DELAY:1s}
   rag:
     smoke:
-      enabled: ${RAG_SMOKE_ENABLED:true}
+      enabled: ${RAG_SMOKE_ENABLED:false}
 
 agent:
   model-usage:

@@ -3,6 +3,7 @@ package com.bubli.agent.dispatch;
 import com.bubli.agent.entity.AgentJobEvent;
 import com.bubli.agent.repository.AgentJobEventRepository;
 import com.bubli.agent.repository.AgentJobRepository;
+import com.bubli.agent.type.AgentJobStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,11 +21,23 @@ public class AgentJobDispatchFailureRecorder {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void recordEnqueueFailure(AgentJobDispatchCommand command, RuntimeException exception) {
+		recordFailure(command, ENQUEUE_FAILURE_ERROR_CODE, errorMessage(exception));
+	}
+
+	@Transactional
+	public void recordDeadLetterFailure(AgentJobDispatchCommand command, String errorCode, String errorMessage) {
+		recordFailure(command, errorCode, errorMessage);
+	}
+
+	private void recordFailure(AgentJobDispatchCommand command, String errorCode, String errorMessage) {
 		agentJobRepository.findById(command.jobId())
 				.ifPresent(agentJob -> {
-					String message = errorMessage(exception);
-					agentJob.markDispatchFailed(ENQUEUE_FAILURE_ERROR_CODE, message);
-					agentJobEventRepository.save(AgentJobEvent.create(command.jobId(), FAILED_EVENT_TYPE, message));
+					if (agentJob.getStatus() != AgentJobStatus.PENDING) {
+						return;
+					}
+					agentJob.markDispatchFailed(errorCode, errorMessage);
+					agentJobEventRepository.save(AgentJobEvent.create(
+							command.jobId(), FAILED_EVENT_TYPE, errorMessage));
 				});
 	}
 

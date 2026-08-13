@@ -18,6 +18,7 @@ class AgentRagPropertiesTest {
 				.withPropertyValues(
 						"agent.rag.enabled=true",
 						"agent.rag.top-k=7",
+						"agent.rag.candidate-top-k=48",
 						"agent.rag.min-similarity=0.73",
 						"agent.rag.suggest-min-similarity=0.69",
 						"agent.rag.personal-min-similarity=0.81"
@@ -27,6 +28,7 @@ class AgentRagPropertiesTest {
 					AgentRagProperties properties = context.getBean(AgentRagProperties.class);
 					assertThat(properties.enabled()).isTrue();
 					assertThat(properties.topK()).isEqualTo(7);
+					assertThat(properties.candidateTopK()).isEqualTo(48);
 					assertThat(properties.minSimilarity()).isEqualTo(0.73D);
 					assertThat(properties.suggestMinSimilarity()).isEqualTo(0.69D);
 					assertThat(properties.personalMinSimilarity()).isEqualTo(0.81D);
@@ -39,6 +41,7 @@ class AgentRagPropertiesTest {
 			AgentRagProperties properties = context.getBean(AgentRagProperties.class);
 			assertThat(properties.enabled()).isTrue();
 			assertThat(properties.topK()).isEqualTo(5);
+			assertThat(properties.candidateTopK()).isEqualTo(40);
 			assertThat(properties.minSimilarity()).isEqualTo(0.72D);
 			assertThat(properties.suggestMinSimilarity()).isEqualTo(0.0D);
 			assertThat(properties.personalMinSimilarity()).isEqualTo(0.72D);

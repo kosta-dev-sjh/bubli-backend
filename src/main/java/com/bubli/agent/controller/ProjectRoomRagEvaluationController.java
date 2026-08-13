@@ -26,12 +26,14 @@ public class ProjectRoomRagEvaluationController {
 			@Valid @RequestBody ProjectRoomRagEvaluationRequest request
 	) {
 		projectMembershipPublicService.assertActiveMember(authUser.userId(), request.roomId());
-		return ApiResponse.success(ProjectRoomRagEvaluationResponse.from(groundingService.retrieve(
+		return ApiResponse.success(ProjectRoomRagEvaluationResponse.from(groundingService.retrieveForEvaluation(
 				authUser.userId(),
 				request.roomId(),
 				request.message(),
 				request.locale(),
-				request.mode()
+				request.mode(),
+				request.topK(),
+				request.resourceIds()
 		)));
 	}
 }

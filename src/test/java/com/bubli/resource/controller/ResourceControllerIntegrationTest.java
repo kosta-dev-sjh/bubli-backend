@@ -15,9 +15,11 @@ import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.UUID;
@@ -109,6 +111,39 @@ class ResourceControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 		assertThat(resourceFileRepository.findByResourceId(resource.getId())).hasSize(1);
 		assertThat(resourceVersionRepository.findMaxVersionNo(resource.getId())).isEqualTo(1);
+	}
+
+	@Test
+	void downloadResourceFileUsesAsciiSafeContentDispositionForJapaneseFilename() throws Exception {
+		User user = createUser("google-sub-resource-japanese-download", "유키");
+		String originalName = "05_公共図書館_座席貸出_要求仕様書_日本語版.pdf";
+		byte[] content = "日本語PDF本文".getBytes();
+		MockMultipartFile file = new MockMultipartFile(
+				"file", originalName, MediaType.APPLICATION_PDF_VALUE, content
+		);
+
+		mockMvc.perform(multipart("/api/resources")
+						.file(file)
+						.param("title", originalName)
+						.param("kind", "FILE")
+						.param("visibility", "PERSONAL")
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isOk());
+		UUID resourceId = resourceRepository.findAll().getFirst().getId();
+
+		MvcResult result = mockMvc.perform(get("/api/resources/{resourceId}/file", resourceId)
+						.header(AUTHORIZATION, bearerToken(user.getId())))
+				.andExpect(status().isOk())
+				.andReturn();
+
+		String disposition = result.getResponse().getHeader(HttpHeaders.CONTENT_DISPOSITION);
+		assertThat(disposition)
+				.isNotNull()
+				.startsWith("attachment;")
+				.contains("filename*=")
+				.doesNotContain(originalName);
+		assertThat(disposition.chars().allMatch(character -> character <= 0x7f)).isTrue();
+		assertThat(result.getResponse().getContentAsByteArray()).isEqualTo(content);
 	}
 
 	@Test

@@ -14,5 +14,7 @@ class ResourceDocumentLanguageDetectorTest {
                 .isEqualTo("en");
         assertThat(ResourceDocumentLanguageDetector.detect("予約要件を確認してください。"))
                 .isEqualTo("ja");
+        assertThat(ResourceDocumentLanguageDetector.detect("契約期間"))
+                .isEqualTo("ja");
     }
 }

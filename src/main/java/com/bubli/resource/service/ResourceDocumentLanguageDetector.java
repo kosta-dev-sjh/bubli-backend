@@ -16,7 +16,7 @@ public final class ResourceDocumentLanguageDetector {
             char character = text.charAt(index);
             if (character >= 0xAC00 && character <= 0xD7A3) {
                 korean++;
-            } else if ((character >= 0x3040 && character <= 0x30FF)) {
+            } else if (isJapaneseScript(character)) {
                 japanese++;
             } else if (Character.isLetter(character) && character <= 0x024F) {
                 latin++;
@@ -32,5 +32,12 @@ public final class ResourceDocumentLanguageDetector {
             return "ja";
         }
         return "en";
+    }
+
+    private static boolean isJapaneseScript(char character) {
+        return (character >= 0x3040 && character <= 0x30FF)
+                || (character >= 0x3400 && character <= 0x4DBF)
+                || (character >= 0x4E00 && character <= 0x9FFF)
+                || (character >= 0xF900 && character <= 0xFAFF);
     }
 }

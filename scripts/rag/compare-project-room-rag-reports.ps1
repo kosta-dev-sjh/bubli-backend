@@ -48,12 +48,48 @@ function New-ModeDelta {
 }
 
 $comparison = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     baselineDataset = $baselineReport.datasetName
     candidateDataset = $candidateReport.datasetName
     sameDataset = $baselineReport.datasetName -eq $candidateReport.datasetName
     sameDatasetHash = $baselineReport.datasetSha256 -eq $candidateReport.datasetSha256
     sameTopK = $baselineReport.topK -eq $candidateReport.topK
+    sameRepeatCount = $baselineReport.repeatCount -eq $candidateReport.repeatCount
+    sameConcurrencyLevel = $baselineReport.concurrencyLevel -eq $candidateReport.concurrencyLevel
+    comparableQuality = (
+        $baselineReport.datasetName -eq $candidateReport.datasetName -and
+        $baselineReport.datasetSha256 -eq $candidateReport.datasetSha256 -and
+        $baselineReport.topK -eq $candidateReport.topK
+    )
+    comparableLatency = (
+        $baselineReport.datasetName -eq $candidateReport.datasetName -and
+        $baselineReport.datasetSha256 -eq $candidateReport.datasetSha256 -and
+        $baselineReport.topK -eq $candidateReport.topK -and
+        $baselineReport.repeatCount -eq $candidateReport.repeatCount -and
+        $baselineReport.concurrencyLevel -eq $candidateReport.concurrencyLevel
+    )
+    provenance = [ordered]@{
+        baseline = [ordered]@{
+            commit = $baselineReport.runMetadata.applicationCommit
+            branch = $baselineReport.runMetadata.applicationBranch
+            dirty = $baselineReport.runMetadata.applicationDirty
+            workingTreeSha256 = $baselineReport.runMetadata.applicationWorkingTreeSha256
+            documentSnapshot = $baselineReport.runMetadata.documentSnapshot
+            chunkingVersion = $baselineReport.runMetadata.chunkingVersion
+            embeddingModelVersion = $baselineReport.runMetadata.embeddingModelVersion
+            searchConfig = $baselineReport.runMetadata.searchConfig
+        }
+        candidate = [ordered]@{
+            commit = $candidateReport.runMetadata.applicationCommit
+            branch = $candidateReport.runMetadata.applicationBranch
+            dirty = $candidateReport.runMetadata.applicationDirty
+            workingTreeSha256 = $candidateReport.runMetadata.applicationWorkingTreeSha256
+            documentSnapshot = $candidateReport.runMetadata.documentSnapshot
+            chunkingVersion = $candidateReport.runMetadata.chunkingVersion
+            embeddingModelVersion = $candidateReport.runMetadata.embeddingModelVersion
+            searchConfig = $candidateReport.runMetadata.searchConfig
+        }
+    }
     caseCounts = [ordered]@{
         caseCount = New-Delta $baselineReport.caseCount $candidateReport.caseCount
         qualityCaseCount = New-Delta $baselineReport.qualityCaseCount $candidateReport.qualityCaseCount
@@ -115,6 +151,12 @@ $comparison = [ordered]@{
 
 if (-not $comparison.sameDataset -or -not $comparison.sameDatasetHash -or -not $comparison.sameTopK) {
     Write-Warning "Dataset name, dataset hash, and topK must match for a valid before/after comparison."
+}
+if (-not $comparison.sameRepeatCount -or -not $comparison.sameConcurrencyLevel) {
+    Write-Warning "Repeat count and concurrency level must match before comparing latency."
+}
+if ($baselineReport.runMetadata.applicationDirty -eq $true) {
+    Write-Warning "Baseline was generated from a dirty working tree; use its working-tree SHA-256, not the commit alone."
 }
 
 $json = $comparison | ConvertTo-Json -Depth 12

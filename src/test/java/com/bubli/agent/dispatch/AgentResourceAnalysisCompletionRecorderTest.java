@@ -6,6 +6,7 @@ import com.bubli.agent.type.AgentJobType;
 import com.bubli.agent.type.AgentSuggestionType;
 import com.bubli.resource.dto.ResourceAnalysisPage;
 import com.bubli.resource.dto.ResourceAnalysisSource;
+import com.bubli.resource.dto.PreparedResourceEmbeddingIndex;
 import com.bubli.resource.service.ResourceAnalysisPublicService;
 import com.bubli.resource.type.DocumentType;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AgentResourceAnalysisCompletionRecorderTest {
 
@@ -26,8 +28,10 @@ class AgentResourceAnalysisCompletionRecorderTest {
 	void completeStoresResourceAnalysisAndSuggestionsTogether() {
 		ResourceAnalysisPublicService resourceAnalysisService = mock(ResourceAnalysisPublicService.class);
 		AgentSuggestionService agentSuggestionService = mock(AgentSuggestionService.class);
+		AgentResourceAnalysisCompletionWriter completionWriter =
+				new AgentResourceAnalysisCompletionWriter(resourceAnalysisService, agentSuggestionService);
 		AgentResourceAnalysisCompletionRecorder recorder =
-				new AgentResourceAnalysisCompletionRecorder(resourceAnalysisService, agentSuggestionService);
+				new AgentResourceAnalysisCompletionRecorder(resourceAnalysisService, completionWriter);
 		UUID jobId = UUID.randomUUID();
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
@@ -57,11 +61,20 @@ class AgentResourceAnalysisCompletionRecorderTest {
 				"{\"title\":\"검수 조건 확인\"}",
 				"{\"source\":\"contract.txt\"}"
 		);
+		PreparedResourceEmbeddingIndex preparedIndex =
+				new PreparedResourceEmbeddingIndex(resourceId, false, List.of());
+		when(resourceAnalysisService.prepareEmbeddingIndex(source)).thenReturn(preparedIndex);
 
 		int count = recorder.complete(message, source, analysisJson, List.of(draft));
 
 		assertThat(count).isEqualTo(1);
-		verify(resourceAnalysisService).completeAnalysisForJob(source, jobId, analysisJson);
+		verify(resourceAnalysisService).prepareEmbeddingIndex(source);
+		verify(resourceAnalysisService).completePreparedAnalysisForJob(
+				source,
+				jobId,
+				analysisJson,
+				preparedIndex
+		);
 		ArgumentCaptor<CreateAgentSuggestionCommand> commandCaptor =
 				ArgumentCaptor.forClass(CreateAgentSuggestionCommand.class);
 		verify(agentSuggestionService).createDraft(commandCaptor.capture());

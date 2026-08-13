@@ -152,6 +152,28 @@ class ArchitectureTest {
 	}
 
 	@Test
+	void ai_models_should_only_be_accessed_through_global_gateway() {
+		List<String> violations = new ArrayList<>();
+		Set<String> modelTypes = Set.of(
+				"org.springframework.ai.chat.model.ChatModel",
+				"org.springframework.ai.embedding.EmbeddingModel"
+		);
+
+		for (JavaClass sourceClass : classes) {
+			if (sourceClass.getPackageName().startsWith(BASE_PACKAGE + ".global.ai")) {
+				continue;
+			}
+			for (Dependency dependency : sourceClass.getDirectDependenciesFromSelf()) {
+				if (modelTypes.contains(dependency.getTargetClass().getName())) {
+					violations.add(message(sourceClass, dependency.getTargetClass(), dependency));
+				}
+			}
+		}
+
+		assertThat(violations).isEmpty();
+	}
+
+	@Test
 	void agent_should_not_access_confirmed_data_owners_directly() {
 		List<String> violations = new ArrayList<>();
 

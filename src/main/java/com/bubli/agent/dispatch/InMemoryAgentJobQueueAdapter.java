@@ -19,8 +19,8 @@ public class InMemoryAgentJobQueueAdapter implements AgentJobDispatchPort, Agent
 		queue.add(AgentJobQueueMessage.from(command, Instant.now()));
 	}
 
-	public Optional<AgentJobQueueMessage> poll() {
-		return Optional.ofNullable(queue.poll());
+	public Optional<AgentJobQueueDelivery> claim() {
+		return Optional.ofNullable(queue.poll()).map(AgentJobQueueDelivery::inMemory);
 	}
 
 	public int size() {

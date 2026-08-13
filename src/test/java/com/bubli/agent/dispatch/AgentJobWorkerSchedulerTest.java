@@ -23,6 +23,7 @@ class AgentJobWorkerSchedulerTest {
 
 		scheduler.processQueuedJobs();
 
+		verify(dispatchWorker).recoverStaleQueueDeliveries();
 		verify(dispatchWorker, times(3)).processNextQueuedJob();
 	}
 

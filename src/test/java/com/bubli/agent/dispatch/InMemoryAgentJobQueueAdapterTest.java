@@ -48,11 +48,12 @@ class InMemoryAgentJobQueueAdapterTest {
 		adapter.dispatch(command);
 
 		assertThat(adapter.size()).isEqualTo(1);
-		assertThat(adapter.poll())
-				.hasValueSatisfying(message -> {
-					assertThat(message.jobId()).isEqualTo(command.jobId());
-					assertThat(message.jobType()).isEqualTo(AgentJobType.GENERATE_TASKS);
-					assertThat(message.enqueuedAt()).isNotNull();
+		assertThat(adapter.claim())
+				.hasValueSatisfying(delivery -> {
+					assertThat(delivery.message().jobId()).isEqualTo(command.jobId());
+					assertThat(delivery.message().jobType()).isEqualTo(AgentJobType.GENERATE_TASKS);
+					assertThat(delivery.message().enqueuedAt()).isNotNull();
+					assertThat(delivery.deliveryAttempt()).isEqualTo(1);
 				});
 		assertThat(adapter.size()).isZero();
 	}

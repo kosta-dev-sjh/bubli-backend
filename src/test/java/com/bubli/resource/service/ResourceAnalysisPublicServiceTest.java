@@ -3,6 +3,7 @@ package com.bubli.resource.service;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
 import com.bubli.resource.dto.ResourceAnalysisSource;
+import com.bubli.resource.dto.PreparedResourceEmbeddingIndex;
 import com.bubli.resource.entity.AiDocument;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceFile;
@@ -115,7 +116,8 @@ class ResourceAnalysisPublicServiceTest {
                 mock(ResourceSummaryRepository.class),
                 mock(AiDocumentRepository.class),
                 mock(ResourceEmbeddingIndexPublicService.class),
-                mock(ResourceRelationIndexPublicService.class),
+                mock(ResourceAnalysisCompletionWriter.class),
+                mock(ResourceAnalysisStateWriter.class),
                 mock(StoragePublicService.class)
         );
 
@@ -135,12 +137,24 @@ class ResourceAnalysisPublicServiceTest {
         AiDocumentRepository aiDocumentRepository = mock(AiDocumentRepository.class);
         ResourceEmbeddingIndexPublicService embeddingIndexService = mock(ResourceEmbeddingIndexPublicService.class);
         ResourceRelationIndexPublicService relationIndexService = mock(ResourceRelationIndexPublicService.class);
+        PreparedResourceEmbeddingIndex preparedIndex =
+                new PreparedResourceEmbeddingIndex(resourceId, false, List.of());
 
         when(resourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
+        when(resourceRepository.lockById(resourceId)).thenReturn(Optional.of(resource));
         when(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resourceId)).thenReturn(Optional.empty());
         when(aiDocumentRepository.findByResourceId(resourceId)).thenReturn(Optional.of(aiDocument));
-        when(embeddingIndexService.indexExtractedText(any(), any(), any(), any()))
+        when(embeddingIndexService.prepareExtractedText(any(), any(), any(), any()))
+                .thenReturn(preparedIndex);
+        when(embeddingIndexService.replace(preparedIndex))
                 .thenReturn(new ResourceEmbeddingIndexPublicService.IndexResult(false, 0));
+        ResourceAnalysisCompletionWriter completionWriter = new ResourceAnalysisCompletionWriter(
+                resourceRepository,
+                resourceSummaryRepository,
+                aiDocumentRepository,
+                embeddingIndexService,
+                relationIndexService
+        );
 
         ResourceAnalysisPublicService service = new ResourceAnalysisPublicService(
                 resourceRepository,
@@ -149,7 +163,8 @@ class ResourceAnalysisPublicServiceTest {
                 resourceSummaryRepository,
                 aiDocumentRepository,
                 embeddingIndexService,
-                relationIndexService,
+                completionWriter,
+                mock(ResourceAnalysisStateWriter.class),
                 mock(StoragePublicService.class)
         );
         ResourceAnalysisSource source = new ResourceAnalysisSource(
@@ -180,6 +195,7 @@ class ResourceAnalysisPublicServiceTest {
         StoragePublicService storageService = mock(StoragePublicService.class);
 
         when(resourceRepository.findById(resource.getId())).thenReturn(Optional.of(resource));
+        when(resourceRepository.lockById(resource.getId())).thenReturn(Optional.of(resource));
         when(resourceExtractedTextRepository.findFirstByResourceIdOrderByUpdatedAtDescIdDesc(resource.getId()))
                 .thenReturn(Optional.empty());
         when(resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId()))
@@ -193,7 +209,8 @@ class ResourceAnalysisPublicServiceTest {
                 mock(ResourceSummaryRepository.class),
                 mock(AiDocumentRepository.class),
                 mock(ResourceEmbeddingIndexPublicService.class),
-                mock(ResourceRelationIndexPublicService.class),
+                mock(ResourceAnalysisCompletionWriter.class),
+                new ResourceAnalysisStateWriter(resourceRepository),
                 storageService
         );
     }
