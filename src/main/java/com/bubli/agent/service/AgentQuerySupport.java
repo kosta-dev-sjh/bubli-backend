@@ -10,15 +10,26 @@ final class AgentQuerySupport {
 
 	private static final Pattern REQUIREMENT_IDENTIFIER_PATTERN =
 			Pattern.compile("req[-_\\s]*[a-z0-9]+[-_\\s]*\\d{2,}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern RESOURCE_FILE_NAME_PATTERN =
+			Pattern.compile("(?i)\\b[\\p{L}\\p{N}_-]+(?:[ .][\\p{L}\\p{N}_-]+)*\\.(pdf|docx?|xlsx?|pptx?|txt|md)\\b");
 	private static final Pattern QUOTED_PHRASE_PATTERN =
 			Pattern.compile("[\"'“”‘’「」『』](.*?)[\"'“”‘’「」『』]");
+	private static final Pattern JAPANESE_CONTENT_TOKEN_PATTERN = Pattern.compile(
+			"[\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff]{2,}"
+					+ "|[\\u30a0-\\u30ff\\u31f0-\\u31ffー]{2,}"
+					+ "|[a-z0-9]{2,}",
+			Pattern.CASE_INSENSITIVE
+	);
 
 	private static final List<String> COMMAND_STOPWORDS = List.of(
 			"bubli", "질문", "알려줘", "알려", "보여줘", "보여", "정리해줘", "정리", "추천해줘", "추천",
 			"만들어줘", "만들어", "생성해줘", "생성", "기반", "바탕", "근거", "기준", "현재", "기존",
 			"해당", "파일", "문서", "자료", "내용", "기능", "주요", "무엇", "어떤", "에서", "으로", "pdf",
 			"todo", "to", "do", "task", "wbs", "what", "which", "tell", "show", "make", "create",
-			"based", "from", "using", "document", "file", "resource", "material",
+			"based", "from", "using", "document", "documents", "file", "files", "resource", "resources",
+			"material", "materials", "upload", "uploaded", "a", "an", "the", "on", "in", "at", "by",
+			"if", "do", "does", "did", "is", "are", "was", "were", "be", "been", "of", "for", "with",
+			"as", "it", "happen", "happens", "please",
 			"教えて", "見せて", "表示", "作って", "作成", "生成", "整理", "要約", "提案", "基づいて",
 			"資料", "文書", "ファイル", "内容", "機能", "主要", "何", "どの", "どれ", "現在"
 	);
@@ -30,6 +41,31 @@ final class AgentQuerySupport {
 			"どこ", "ページ", "行", "引用", "出典", "根拠", "探して", "要約して", "説明して"
 	);
 
+	private static final List<String> ANSWERABILITY_STOPWORDS = List.of(
+			"bubli", "pdf", "todo", "task", "wbs",
+			"project", "projects", "uploaded",
+			"document", "documents", "file", "files", "resource", "resources", "material", "materials",
+			"source", "evidence", "citation", "quote", "page", "line", "find", "show", "tell", "using",
+			"based", "from", "about", "what", "which", "where", "summary", "summarize", "overview",
+			"\uBB38\uC11C", "\uC790\uB8CC", "\uD30C\uC77C", "\uADFC\uAC70", "\uCD9C\uCC98", "\uC778\uC6A9",
+			"\uD504\uB85C\uC81D\uD2B8", "\uC5C5\uB85C\uB4DC", "\uC5C5\uB85C\uB4DC\uB41C",
+			"\uB300\uD574", "\uB300\uD55C",
+			"\uC694\uC57D", "\uC815\uB9AC", "\uC124\uBA85", "\uC9C8\uBB38", "\uB0B4\uC6A9", "\uC8FC\uC694",
+			"\u8CC7\u6599", "\u6587\u66F8", "\u30D5\u30A1\u30A4\u30EB", "\u6839\u62E0", "\u51FA\u5178",
+			"\u8981\u7D04", "\u8AAC\u660E", "\u5185\u5BB9"
+	);
+	private static final List<String> TITLE_ROUTING_STOPWORDS = List.of(
+			"project", "projects", "uploaded", "upload",
+			"\uD504\uB85C\uC81D\uD2B8", "\uC5C5\uB85C\uB4DC", "\uC5C5\uB85C\uB4DC\uB41C",
+			"\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8", "\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9"
+	);
+	private static final List<String> GENERIC_ANSWERABILITY_KEYWORDS = List.of(
+			"user", "users", "time", "date", "schedule", "period", "system", "version", "os", "upload", "uploaded",
+			"사용자", "이용자", "시간", "일정", "기간", "시스템", "버전", "운영체제", "업로드",
+			"利用者", "ユーザー", "時間", "日時", "予定", "スケジュール", "期間", "システム", "バージョン",
+			"アップロード"
+	);
+
 	private AgentQuerySupport() {
 	}
 
@@ -38,23 +74,99 @@ final class AgentQuerySupport {
 	}
 
 	static AgentSearchQueryAnalysis analyze(String message, String locale) {
+		return analyze(message, locale, queryIntent(message));
+	}
+
+	static AgentSearchQueryAnalysis analyze(
+			String message,
+			String locale,
+			ProjectRoomQueryIntent intent
+	) {
 		String normalizedSearchQuery = searchQuery(message);
 		List<String> requirementIdentifiers = requirementIdentifiers(message);
 		List<String> quotedPhrases = quotedPhrases(message);
-		List<String> keywords = keywordTokens(message, requirementIdentifiers, quotedPhrases, 5);
+		List<String> keywords = keywordTokens(message, requirementIdentifiers, quotedPhrases, 8);
 		List<String> titleTokens = resourceTokens(message).stream()
 				.map(ResourceToken::value)
 				.distinct()
 				.limit(10)
 				.toList();
 		return new AgentSearchQueryAnalysis(
-				normalizedSearchQuery,
+				intent.allowsDocumentSynthesis() ? synthesisSearchQuery(intent, message) : normalizedSearchQuery,
 				locale == null || locale.isBlank() ? "ko-KR" : locale,
 				keywords,
 				requirementIdentifiers,
 				quotedPhrases,
-				titleTokens
+				titleTokens,
+				keywords.isEmpty() ? List.of() : List.of(keywords),
+				intent,
+				DocumentScopeConfidence.NONE,
+				perspective(message)
 		);
+	}
+
+	static ProjectRoomQueryIntent queryIntent(String value) {
+		String normalized = normalize(value);
+		if (containsAny(normalized,
+				"백엔드 개발자", "프론트엔드 개발자", "개발자 관점", "기획자 관점", "디자이너 관점",
+				"관점에서", "관점으로", "중점 사항", "backend developer", "frontend developer",
+				"from a backend", "from a frontend", "developer perspective", "の観点", "重点的")) {
+			return ProjectRoomQueryIntent.ROLE_BASED_ANALYSIS;
+		}
+		if (containsAny(normalized,
+				"비교", "차이", "공통점", "compare", "difference", "versus", " vs ", "比較", "違い")) {
+			return ProjectRoomQueryIntent.DOCUMENT_COMPARISON;
+		}
+		if (containsAny(normalized,
+				"확인해야", "확인할", "검토해야", "검토할", "주의사항", "주의 사항", "주의할 사항", "검토할 항목", "체크리스트",
+				"중심적으로", "중점적으로", "중심적으로 봐야", "중점적으로 봐야", "봐야할 내용", "봐야 할 내용",
+				"review checklist", "what should i check", "items to review", "確認すべき", "確認事項", "チェックリスト")) {
+			return ProjectRoomQueryIntent.REVIEW_CHECKLIST;
+		}
+		if (isDocumentOverviewRequest(normalized)) {
+			return ProjectRoomQueryIntent.DOCUMENT_OVERVIEW;
+		}
+		return ProjectRoomQueryIntent.GENERAL_DOCUMENT_QA;
+	}
+
+	static String synthesisSearchQuery(ProjectRoomQueryIntent intent, String message) {
+		String base = stripDocumentSelectorFraming(semanticSearchQuery(message)
+				.replaceFirst("(?i)^\\s*/?bubli\\s+", "")
+				.trim());
+		String expansion = switch (intent) {
+			case GENERAL_DOCUMENT_QA, FACT_QA -> "";
+			case DOCUMENT_OVERVIEW -> "주요 기능 요구사항 사용자 역할 업무 흐름 예외 조건";
+			case REVIEW_CHECKLIST -> "필수 요구사항 검증 권한 상태 전이 예외 제약 미정 사항";
+			case ROLE_BASED_ANALYSIS -> "기능 데이터 권한 상태 전이 검증 예외 API 연동 비기능 요구사항";
+			case DOCUMENT_COMPARISON -> "주요 기능 요구사항 차이 공통점 제약 예외";
+		};
+		return (base + " " + expansion).replaceAll("\\s+", " ").trim();
+	}
+
+	private static String stripDocumentSelectorFraming(String value) {
+		return nullToEmpty(value)
+				.replaceFirst("^.*?(?:해당\\s*파일(?:에|에서)?|선택한\\s*(?:문서|파일)(?:에서|의)?|"
+						+ "(?:문서|파일)(?:에서|의)\\s*|[을를]\\s*바탕으로)\\s*", "")
+				.replaceFirst("(?i)^.*?(?:based\\s+on|from|using)\\s+(?:this|the|selected)?\\s*(?:document|file)\\s*", "")
+				.replaceFirst("^.*?(?:この|選択した)?(?:文書|ファイル)(?:に基づいて|から|で|の)\\s*", "")
+				.trim();
+	}
+
+	private static String perspective(String value) {
+		String normalized = normalize(value);
+		if (containsAny(normalized, "백엔드", "backend")) {
+			return "BACKEND_DEVELOPER";
+		}
+		if (containsAny(normalized, "프론트엔드", "frontend")) {
+			return "FRONTEND_DEVELOPER";
+		}
+		if (containsAny(normalized, "디자이너", "designer", "デザイナー")) {
+			return "DESIGNER";
+		}
+		if (containsAny(normalized, "기획자", "planner", "product manager", "企画")) {
+			return "PRODUCT_PLANNER";
+		}
+		return "";
 	}
 
 	static String searchQuery(String value) {
@@ -78,6 +190,19 @@ final class AgentQuerySupport {
 			return normalized.isBlank() ? nullToEmpty(value).trim() : normalized;
 		}
 		return String.join(" ", mergedTokens);
+	}
+
+	static String semanticSearchQuery(String value) {
+		String query = nullToEmpty(value).trim();
+		if (query.isBlank()) {
+			return query;
+		}
+		return query
+				.replaceFirst("(?i)^\\s*based\\s+on\\s+(?:the\\s+)?uploaded\\s+(?:documents?|files?)\\s*[,：:]?\\s*", "")
+				.replaceFirst("(?i)^\\s*(?:from|using)\\s+(?:the\\s+)?uploaded\\s+(?:documents?|files?)\\s*[,：:]?\\s*", "")
+				.replaceFirst("^\\s*업로드(?:된|한)?\\s*(?:프로젝트\\s*)?(?:문서|자료|파일)(?:에서|를|에|을)?\\s*(?:기반으로|바탕으로|근거로)?\\s*[,：:]?\\s*", "")
+				.replaceFirst("^\\s*アップロード(?:済み|された|した)?(?:の)?(?:資料|文書|ファイル)(?:に基づいて|から)?\\s*[,、：:]?\\s*", "")
+				.trim();
 	}
 
 	static boolean isDocumentSourceRequest(String value) {
@@ -130,6 +255,14 @@ final class AgentQuerySupport {
 				"ai候補", "候補", "提案", "下書き");
 	}
 
+	static boolean isUserAccountQuestion(String value) {
+		String normalized = normalize(value);
+		return containsAny(normalized,
+				"내 id", "내 아이디", "내 계정", "내 이메일", "내 프로필", "나는 누구",
+				"my id", "my account", "my email", "my profile", "who am i",
+				"私のid", "私のアカウント", "私のメール", "私のプロフィール", "私は誰");
+	}
+
 	static boolean hasSourceIntent(String value) {
 		String normalized = normalize(value);
 		return containsAny(normalized,
@@ -162,9 +295,11 @@ final class AgentQuerySupport {
 	static boolean isDocumentOverviewRequest(String value) {
 		String normalized = normalize(value);
 		return containsAny(normalized,
-				"뜻", "요약", "주요 내용", "주요내용", "전체 내용", "전체내용", "어떤 내용", "무슨 내용",
+				"뜻", "요약", "주요 내용", "주요내용", "중요한 내용", "핵심 내용", "핵심내용",
+				"전체 내용", "전체내용", "어떤 내용", "무슨 내용",
+				"해결하려는 문제", "주요 사용자",
 				"개요", "정리", "핵심", "summary", "summarize", "summarise", "overview", "key point", "main point",
-				"意味", "要約", "概要", "主な内容", "全体内容", "整理");
+				"意味", "要約", "概要", "主な内容", "重要な内容", "全体内容", "整理");
 	}
 
 	static WorkStateIntent workStateIntent(String value) {
@@ -186,19 +321,125 @@ final class AgentQuerySupport {
 		return WorkStateIntent.ANY;
 	}
 
+	static boolean isAnswerabilityStopword(String token) {
+		String normalized = normalizeSearchToken(compactResourceText(token));
+		return normalized.isBlank()
+				|| ANSWERABILITY_STOPWORDS.contains(normalized)
+				|| isSearchQueryStopword(normalized);
+	}
+
+	static boolean isGenericAnswerabilityKeyword(String token) {
+		String normalized = normalizeSearchToken(compactResourceText(token));
+		return normalized.isBlank()
+				|| isAnswerabilityStopword(normalized)
+				|| GENERIC_ANSWERABILITY_KEYWORDS.contains(normalized);
+	}
+
+	static boolean isTitleRoutingStopword(String token) {
+		String normalized = normalizeSearchToken(compactResourceText(token));
+		return normalized.isBlank() || TITLE_ROUTING_STOPWORDS.contains(normalized);
+	}
+
+	static boolean isJapaneseLocale(String locale) {
+		return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ja");
+	}
+
+	static QueryLanguage queryLanguage(String value) {
+		String text = nullToEmpty(value);
+		if (text.codePoints().anyMatch(character -> character >= 0xAC00 && character <= 0xD7A3)) {
+			return QueryLanguage.KOREAN;
+		}
+		if (containsJapaneseScript(text)) {
+			return QueryLanguage.JAPANESE;
+		}
+		if (text.codePoints().anyMatch(Character::isLetter)) {
+			return QueryLanguage.ENGLISH;
+		}
+		return QueryLanguage.UNKNOWN;
+	}
+
+	static boolean supportsDocumentSearchLanguage(String message, String documentSearchLanguage) {
+		String normalized = normalize(message);
+		if (hasRequirementIdentifier(message) || normalized.contains("req-")
+				|| RESOURCE_FILE_NAME_PATTERN.matcher(nullToEmpty(message)).find()) {
+			return true;
+		}
+		return switch (documentSearchLanguage == null ? "ko" : documentSearchLanguage.toLowerCase(Locale.ROOT)) {
+			case "ko", "ko-kr" -> queryLanguage(message) == QueryLanguage.KOREAN;
+			case "en", "en-us" -> queryLanguage(message) == QueryLanguage.ENGLISH;
+			case "ja", "ja-jp" -> queryLanguage(message) == QueryLanguage.JAPANESE;
+			default -> false;
+		};
+	}
+
+	static String documentQueryLanguage(String message) {
+		if (hasRequirementIdentifier(message) || normalize(message).contains("req-")
+				|| RESOURCE_FILE_NAME_PATTERN.matcher(nullToEmpty(message)).find()) {
+			return null;
+		}
+		return switch (queryLanguage(message)) {
+			case KOREAN -> "ko";
+			case ENGLISH -> "en";
+			case JAPANESE -> "ja";
+			case UNKNOWN -> "unknown";
+		};
+	}
+
 	static List<ResourceToken> resourceTokens(String value) {
 		String compact = compactResourceText(value);
 		if (compact.isBlank()) {
 			return List.of();
 		}
 		List<ResourceToken> tokens = new ArrayList<>();
-		for (String token : compact.split(" ")) {
+		for (String token : tokenCandidates(compact)) {
 			if (token.length() < 2 || isResourceStopword(token)) {
 				continue;
 			}
 			tokens.add(new ResourceToken(token, Math.min(token.length(), 12)));
 		}
 		return tokens;
+	}
+
+	private static List<String> tokenCandidates(String compact) {
+		if (!containsJapaneseScript(compact)) {
+			return List.of(compact.split(" "));
+		}
+		String segmented = compact
+				.replaceAll("(に基づいて|について|どのように|教えてください|してください|できますか|できるか)", " ")
+				.replaceAll("(から|まで)", " ")
+				.replaceAll("[のをがはにでとやへも]　?", " ");
+		List<String> tokens = new ArrayList<>();
+		for (String token : segmented.split(" ")) {
+			String normalized = token.trim();
+			if (normalized.length() < 2) {
+				continue;
+			}
+			Matcher contentMatcher = JAPANESE_CONTENT_TOKEN_PATTERN.matcher(normalized);
+			boolean extracted = false;
+			while (contentMatcher.find()) {
+				String contentToken = contentMatcher.group();
+				if (!tokens.contains(contentToken)) {
+					tokens.add(contentToken);
+				}
+				extracted = true;
+			}
+			if (!extracted && !tokens.contains(normalized)) {
+				tokens.add(normalized);
+			}
+		}
+		return tokens;
+	}
+
+	private static boolean containsJapaneseScript(String value) {
+		return value.codePoints().anyMatch(AgentQuerySupport::isJapaneseScript);
+	}
+
+	private static boolean isJapaneseScript(int character) {
+		return (character >= 0x3040 && character <= 0x30ff)
+				|| (character >= 0x3400 && character <= 0x4dbf)
+				|| (character >= 0x4e00 && character <= 0x9fff)
+				|| (character >= 0xf900 && character <= 0xfaff)
+				|| (character >= 0x20000 && character <= 0x2fa1f);
 	}
 
 	static String compactResourceText(String value) {
@@ -389,5 +630,12 @@ final class AgentQuerySupport {
 		ACTIVE,
 		COMPLETED,
 		ANY
+	}
+
+	enum QueryLanguage {
+		KOREAN,
+		ENGLISH,
+		JAPANESE,
+		UNKNOWN
 	}
 }

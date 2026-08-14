@@ -1,28 +1,29 @@
 spring:
   config:
+    import: optional:file:D:\kostaEx\bubli-backend\src\main\resources\.env[.properties]
     activate:
       on-profile: local
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/bubli
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bubli}
     driver-class-name: org.postgresql.Driver
-    username: ${DATASOURCE_USERNAME:bubli}
-    password: ${DATASOURCE_PASSWORD:bubli1234}
+    username: ${SPRING_DATASOURCE_USERNAME:${DATASOURCE_USERNAME:bubli}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DATASOURCE_PASSWORD:bubli1234}}
 
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
 storage:
   type: local
   local:
-    base-path: ./local-storage
+    base-path: ${STORAGE_LOCAL_BASE_PATH:./local-storage}
 
 livekit:
   api-key: ${LIVEKIT_API_KEY:local-development-livekit-api-key}

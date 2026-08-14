@@ -1,5 +1,6 @@
 package com.bubli.resource.service;
 
+import com.bubli.global.ai.AiModelGateway;
 import com.bubli.project.service.ProjectRoomAccessPublicService;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
@@ -11,12 +12,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,15 +25,39 @@ public class ResourceSemanticSearchPublicService {
 
     private static final int DEFAULT_TOP_K = 5;
     private static final int MAX_TOP_K = 20;
+    private static final int MAX_CANDIDATE_TOP_K = 100;
 
     private final ResourceEmbeddingRepository resourceEmbeddingRepository;
-    private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
+    private final AiModelGateway aiModelGateway;
     private final EmbeddingVectorFormatter embeddingVectorFormatter;
     private final ProjectRoomAccessPublicService projectRoomAccessService;
     private final ObjectMapper objectMapper;
     private final ResourceSearchMetricsPublicService resourceSearchMetrics;
 
-    @Transactional(readOnly = true)
+    public List<String> findRoomSharedDocumentLanguages(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds
+    ) {
+        require(userId, "userId");
+        require(roomId, "roomId");
+        projectRoomAccessService.requireRoomMember(roomId, userId);
+        List<String> languages = resourceIds == null || resourceIds.isEmpty()
+                ? resourceEmbeddingRepository.findRoomSharedDocumentLanguages(roomId)
+                : resourceEmbeddingRepository.findRoomSharedDocumentLanguagesByResourceIds(
+                        roomId,
+                        resourceIds.stream().distinct().toList()
+                );
+        if (languages == null || languages.isEmpty()) {
+            return List.of();
+        }
+        return languages.stream()
+                .map(this::normalizeDocumentLanguage)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
     public List<ResourceSearchHit> search(
             UUID userId,
             ResourceSearchScope scope,
@@ -48,7 +71,29 @@ public class ResourceSemanticSearchPublicService {
                 scope,
                 roomId,
                 query,
-                topK
+                topK,
+                null,
+                false
+        ));
+    }
+
+    public List<ResourceSearchHit> search(
+            UUID userId,
+            ResourceSearchScope scope,
+            UUID roomId,
+            String query,
+            Integer topK,
+            String documentLanguage
+    ) {
+        String metricScope = scope == ResourceSearchScope.PERSONAL ? "personal" : "room";
+        return resourceSearchMetrics.observe("semantic", metricScope, () -> searchSemantic(
+                userId,
+                scope,
+                roomId,
+                query,
+                topK,
+                documentLanguage,
+                true
         ));
     }
 
@@ -57,24 +102,30 @@ public class ResourceSemanticSearchPublicService {
             ResourceSearchScope scope,
             UUID roomId,
             String query,
-            Integer topK
+            Integer topK,
+            String documentLanguage,
+            boolean allowCandidateTopK
     ) {
         //입력 정규화
         ResourceSearchScope normalizedScope = scope == null ? ResourceSearchScope.ROOM_SHARED : scope;
         require(userId, "userId");
         String normalizedQuery = requireText(query, "query");
-        //가용모델 확인
-        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
-        if (embeddingModel == null) {
-            throw new IllegalStateException("EmbeddingModel is not available. Enable the ai profile to search resources.");
-        }
         //임베딩 모델로 사용자의 쿼리 임베딩
-        String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(embeddingModel.embed(normalizedQuery));
-        int limit = normalizeTopK(topK);
+        String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(aiModelGateway.embed(
+                "resource-query-embedding",
+                normalizedQuery
+        ));
+        int limit = allowCandidateTopK ? normalizeCandidateTopK(topK) : normalizeTopK(topK);
+        String normalizedDocumentLanguage = normalizeDocumentLanguage(documentLanguage);
 
         //개인 자료일경우
         if (normalizedScope == ResourceSearchScope.PERSONAL) {
-            return resourceEmbeddingRepository.searchPersonal(userId, queryEmbedding, limit)
+            return resourceEmbeddingRepository.searchPersonal(
+                            userId,
+                            queryEmbedding,
+                            normalizedDocumentLanguage,
+                            limit
+                    )
                     .stream()
                     .map(this::toHit)
                     .toList();
@@ -82,13 +133,17 @@ public class ResourceSemanticSearchPublicService {
         //프로젝트 룸 멤버인지 확인+ 권한 확인 및 룸 자료일경우
         require(roomId, "roomId");
         projectRoomAccessService.requireRoomMember(roomId, userId);
-        return resourceEmbeddingRepository.searchRoomShared(roomId, queryEmbedding, limit)
+        return resourceEmbeddingRepository.searchRoomShared(
+                        roomId,
+                        queryEmbedding,
+                        normalizedDocumentLanguage,
+                        limit
+                )
                 .stream()
                 .map(this::toHit)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<ResourceSearchHit> searchRoomSharedResources(
             UUID userId,
             UUID roomId,
@@ -96,8 +151,26 @@ public class ResourceSemanticSearchPublicService {
             String query,
             Integer topK
     ) {
+        return searchRoomSharedResources(userId, roomId, resourceIds, query, topK, null);
+    }
+
+    public List<ResourceSearchHit> searchRoomSharedResources(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            String query,
+            Integer topK,
+            String documentLanguage
+    ) {
         return resourceSearchMetrics.observe("semantic", "room_resources", () ->
-                searchRoomSharedResourcesInternal(userId, roomId, resourceIds, query, topK));
+                searchRoomSharedResourcesInternal(
+                        userId,
+                        roomId,
+                        resourceIds,
+                        query,
+                        topK,
+                        documentLanguage
+                ));
     }
 
     private List<ResourceSearchHit> searchRoomSharedResourcesInternal(
@@ -105,7 +178,8 @@ public class ResourceSemanticSearchPublicService {
             UUID roomId,
             List<UUID> resourceIds,
             String query,
-            Integer topK
+            Integer topK,
+            String documentLanguage
     ) {
         require(userId, "userId");
         require(roomId, "roomId");
@@ -113,24 +187,23 @@ public class ResourceSemanticSearchPublicService {
             return List.of();
         }
         String normalizedQuery = requireText(query, "query");
-        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
-        if (embeddingModel == null) {
-            throw new IllegalStateException("EmbeddingModel is not available. Enable the ai profile to search resources.");
-        }
         projectRoomAccessService.requireRoomMember(roomId, userId);
-        String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(embeddingModel.embed(normalizedQuery));
+        String queryEmbedding = embeddingVectorFormatter.toVectorLiteral(aiModelGateway.embed(
+                "resource-query-embedding",
+                normalizedQuery
+        ));
         return resourceEmbeddingRepository.searchRoomSharedByResourceIds(
                         roomId,
                         resourceIds.stream().distinct().toList(),
                         queryEmbedding,
-                        normalizeTopK(topK)
+                        normalizeDocumentLanguage(documentLanguage),
+                        normalizeCandidateTopK(topK)
                 )
                 .stream()
                 .map(this::toHit)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<ResourceSearchHit> searchRoomSharedResourceKeywords(
             UUID userId,
             UUID roomId,
@@ -138,8 +211,26 @@ public class ResourceSemanticSearchPublicService {
             List<String> keywords,
             Integer topK
     ) {
+        return searchRoomSharedResourceKeywords(userId, roomId, resourceIds, keywords, topK, null);
+    }
+
+    public List<ResourceSearchHit> searchRoomSharedResourceKeywords(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            List<String> keywords,
+            Integer topK,
+            String documentLanguage
+    ) {
         return resourceSearchMetrics.observe("keyword", "room_resources", () ->
-                searchRoomSharedResourceKeywordsInternal(userId, roomId, resourceIds, keywords, topK));
+                searchRoomSharedResourceKeywordsInternal(
+                        userId,
+                        roomId,
+                        resourceIds,
+                        keywords,
+                        topK,
+                        documentLanguage
+                ));
     }
 
     private List<ResourceSearchHit> searchRoomSharedResourceKeywordsInternal(
@@ -147,7 +238,8 @@ public class ResourceSemanticSearchPublicService {
             UUID roomId,
             List<UUID> resourceIds,
             List<String> keywords,
-            Integer topK
+            Integer topK,
+            String documentLanguage
     ) {
         require(userId, "userId");
         require(roomId, "roomId");
@@ -168,29 +260,40 @@ public class ResourceSemanticSearchPublicService {
                         keyword(normalizedKeywords, 3),
                         keyword(normalizedKeywords, 4),
                         normalizedKeywords.size(),
-                        normalizeTopK(topK)
+                        normalizeDocumentLanguage(documentLanguage),
+                        normalizeCandidateTopK(topK)
                 )
                 .stream()
                 .map(this::toHit)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<ResourceSearchHit> searchRoomSharedKeywords(
             UUID userId,
             UUID roomId,
             List<String> keywords,
             Integer topK
     ) {
+        return searchRoomSharedKeywords(userId, roomId, keywords, topK, null);
+    }
+
+    public List<ResourceSearchHit> searchRoomSharedKeywords(
+            UUID userId,
+            UUID roomId,
+            List<String> keywords,
+            Integer topK,
+            String documentLanguage
+    ) {
         return resourceSearchMetrics.observe("keyword", "room", () ->
-                searchRoomSharedKeywordsInternal(userId, roomId, keywords, topK));
+                searchRoomSharedKeywordsInternal(userId, roomId, keywords, topK, documentLanguage));
     }
 
     private List<ResourceSearchHit> searchRoomSharedKeywordsInternal(
             UUID userId,
             UUID roomId,
             List<String> keywords,
-            Integer topK
+            Integer topK,
+            String documentLanguage
     ) {
         require(userId, "userId");
         require(roomId, "roomId");
@@ -207,29 +310,40 @@ public class ResourceSemanticSearchPublicService {
                         keyword(normalizedKeywords, 3),
                         keyword(normalizedKeywords, 4),
                         normalizedKeywords.size(),
-                        normalizeTopK(topK)
+                        normalizeDocumentLanguage(documentLanguage),
+                        normalizeCandidateTopK(topK)
                 )
                 .stream()
                 .map(this::toHit)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<ResourceSearchHit> loadRoomSharedResourceChunks(
             UUID userId,
             UUID roomId,
             List<UUID> resourceIds,
             Integer topK
     ) {
+        return loadRoomSharedResourceChunks(userId, roomId, resourceIds, topK, null);
+    }
+
+    public List<ResourceSearchHit> loadRoomSharedResourceChunks(
+            UUID userId,
+            UUID roomId,
+            List<UUID> resourceIds,
+            Integer topK,
+            String documentLanguage
+    ) {
         return resourceSearchMetrics.observe("representative", "room_resources", () ->
-                loadRoomSharedResourceChunksInternal(userId, roomId, resourceIds, topK));
+                loadRoomSharedResourceChunksInternal(userId, roomId, resourceIds, topK, documentLanguage));
     }
 
     private List<ResourceSearchHit> loadRoomSharedResourceChunksInternal(
             UUID userId,
             UUID roomId,
             List<UUID> resourceIds,
-            Integer topK
+            Integer topK,
+            String documentLanguage
     ) {
         require(userId, "userId");
         require(roomId, "roomId");
@@ -240,7 +354,8 @@ public class ResourceSemanticSearchPublicService {
         return resourceEmbeddingRepository.findRoomSharedRepresentativeChunks(
                         roomId,
                         resourceIds.stream().distinct().toList(),
-                        normalizeTopK(topK)
+                        normalizeDocumentLanguage(documentLanguage),
+                        normalizeCandidateTopK(topK)
                 )
                 .stream()
                 .map(this::toHit)
@@ -303,6 +418,16 @@ public class ResourceSemanticSearchPublicService {
         return Math.min(topK, MAX_TOP_K);
     }
 
+    private int normalizeCandidateTopK(Integer topK) {
+        if (topK == null) {
+            return DEFAULT_TOP_K;
+        }
+        if (topK < 1) {
+            return 1;
+        }
+        return Math.min(topK, MAX_CANDIDATE_TOP_K);
+    }
+
     private List<String> normalizeKeywords(List<String> keywords) {
         if (keywords == null) {
             return List.of();
@@ -319,6 +444,19 @@ public class ResourceSemanticSearchPublicService {
 
     private String keyword(List<String> keywords, int index) {
         return index < keywords.size() ? keywords.get(index) : "";
+    }
+
+    private String normalizeDocumentLanguage(String documentLanguage) {
+        if (documentLanguage == null || documentLanguage.isBlank()) {
+            return null;
+        }
+        String normalized = documentLanguage.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "ko-kr" -> "ko";
+            case "en-us" -> "en";
+            case "ja-jp" -> "ja";
+            default -> normalized;
+        };
     }
 
     private static <T> T require(T value, String field) {

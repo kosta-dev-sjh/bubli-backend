@@ -3,6 +3,7 @@ package com.bubli.agent.dto;
 import com.bubli.resource.dto.ResourceSearchHit;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record ProjectRoomGroundingContext(
@@ -12,7 +13,8 @@ public record ProjectRoomGroundingContext(
 		List<ProjectRoomGroundingEvidence> evidenceItems,
 		String promptBlock,
 		boolean retrievalFailed,
-		String retrievalFailureReason
+		String retrievalFailureReason,
+		Map<String, Object> retrievalDiagnostics
 ) {
 
 	public ProjectRoomGroundingContext {
@@ -22,6 +24,7 @@ public record ProjectRoomGroundingContext(
 		retrievalFailureReason = retrievalFailureReason == null || retrievalFailureReason.isBlank()
 				? null
 				: retrievalFailureReason;
+		retrievalDiagnostics = retrievalDiagnostics == null ? Map.of() : Map.copyOf(retrievalDiagnostics);
 	}
 
 	public ProjectRoomGroundingContext(
@@ -31,7 +34,19 @@ public record ProjectRoomGroundingContext(
 			List<ProjectRoomGroundingEvidence> evidenceItems,
 			String promptBlock
 	) {
-		this(grounded, ragHits, ragMaxSimilarity, evidenceItems, promptBlock, false, null);
+		this(grounded, ragHits, ragMaxSimilarity, evidenceItems, promptBlock, false, null, Map.of());
+	}
+
+	public ProjectRoomGroundingContext(
+			boolean grounded,
+			List<ResourceSearchHit> ragHits,
+			double ragMaxSimilarity,
+			List<ProjectRoomGroundingEvidence> evidenceItems,
+			String promptBlock,
+			boolean retrievalFailed,
+			String retrievalFailureReason
+	) {
+		this(grounded, ragHits, ragMaxSimilarity, evidenceItems, promptBlock, retrievalFailed, retrievalFailureReason, Map.of());
 	}
 
 	public static ProjectRoomGroundingContext ungrounded() {
@@ -39,7 +54,7 @@ public record ProjectRoomGroundingContext(
 	}
 
 	public static ProjectRoomGroundingContext retrievalFailed(String reason) {
-		return new ProjectRoomGroundingContext(false, List.of(), 0.0D, List.of(), "", true, reason);
+		return new ProjectRoomGroundingContext(false, List.of(), 0.0D, List.of(), "", true, reason, Map.of());
 	}
 
 	public List<ProjectRoomGroundingSourceType> sourceTypes() {

@@ -34,8 +34,11 @@ public class AgentJobController {
     private final ResourceSemanticSearchPublicService resourceSemanticSearchService;
 
     @GetMapping("/api/agent-jobs/{jobId}")
-    public ResponseEntity<ApiResponse<AgentJobResponse>> getJob(@PathVariable UUID jobId) {
-        return ResponseEntity.ok(ApiResponse.success(agentJobQueryService.getJob(jobId)));
+    public ResponseEntity<ApiResponse<AgentJobResponse>> getJob(
+            @PathVariable UUID jobId,
+            @CurrentUser AuthUser currentUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(agentJobQueryService.getJob(currentUser.userId(), jobId)));
     }
 
     @GetMapping("/api/agent-jobs/{jobId}/events")

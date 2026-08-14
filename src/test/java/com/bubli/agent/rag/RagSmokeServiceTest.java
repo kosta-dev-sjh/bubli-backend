@@ -1,12 +1,14 @@
 package com.bubli.agent.rag;
 
-import com.bubli.agent.model.AiCallExecutor;
+import com.bubli.global.ai.AiCallExecutor;
+import com.bubli.global.ai.AiModelGateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Duration;
 import java.util.List;
@@ -30,8 +32,7 @@ class RagSmokeServiceTest {
                 .thenReturn(List.of(new Document("matched contract text")));
 
         RagSmokeResult result = new RagSmokeService(
-                chatModel,
-                embeddingModel,
+                modelGateway(chatModel, embeddingModel),
                 vectorStore,
                 new AiCallExecutor(1, Duration.ZERO)
         ).run();
@@ -46,5 +47,18 @@ class RagSmokeServiceTest {
                 "00000000-0000-0000-0000-000000000101",
                 "00000000-0000-0000-0000-000000000102"
         ));
+    }
+
+    @SuppressWarnings("unchecked")
+    private AiModelGateway modelGateway(ChatModel chatModel, EmbeddingModel embeddingModel) {
+        ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
+        ObjectProvider<EmbeddingModel> embeddingModelProvider = mock(ObjectProvider.class);
+        when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
+        when(embeddingModelProvider.getIfAvailable()).thenReturn(embeddingModel);
+        return new AiModelGateway(
+                chatModelProvider,
+                embeddingModelProvider,
+                new AiCallExecutor(1, Duration.ZERO)
+        );
     }
 }

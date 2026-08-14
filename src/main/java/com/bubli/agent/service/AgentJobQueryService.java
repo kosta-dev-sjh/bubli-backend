@@ -6,6 +6,7 @@ import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.repository.AgentSuggestionRepository;
 import com.bubli.global.error.BusinessException;
 import com.bubli.global.error.ErrorCode;
+import com.bubli.project.service.ProjectMembershipPublicService;
 import com.bubli.resource.dto.ResourceAnalysisArtifacts;
 import com.bubli.resource.service.ResourceAnalysisPublicService;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +23,13 @@ public class AgentJobQueryService {
     private final AgentJobRepository agentJobRepository;
     private final AgentSuggestionRepository agentSuggestionRepository;
     private final ResourceAnalysisPublicService resourceAnalysisService;
+    private final ProjectMembershipPublicService projectMembershipPublicService;
 
     @Transactional(readOnly = true)
-    public AgentJobResponse getJob(UUID jobId) {
+    public AgentJobResponse getJob(UUID userId, UUID jobId) {
         AgentJob job = agentJobRepository.findById(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_404_001));
+        validateAccess(userId, job);
 
         ResourceAnalysisArtifacts artifacts = job.getResourceId() == null
                 ? new ResourceAnalysisArtifacts(null, null)
@@ -38,5 +41,15 @@ public class AgentJobQueryService {
                 .toList();
 
         return AgentJobResponse.of(job, suggestionIds, artifacts.resourceSummaryId(), artifacts.aiDocumentId());
+    }
+
+    private void validateAccess(UUID userId, AgentJob job) {
+        if (job.getRequestedByUserId().equals(userId)) {
+            return;
+        }
+        if (job.getRoomId() == null) {
+            throw new BusinessException(ErrorCode.AGENT_404_001);
+        }
+        projectMembershipPublicService.assertActiveMember(userId, job.getRoomId());
     }
 }

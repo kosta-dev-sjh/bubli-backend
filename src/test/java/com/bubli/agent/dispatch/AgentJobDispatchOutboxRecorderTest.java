@@ -79,6 +79,43 @@ class AgentJobDispatchOutboxRecorderTest {
 		assertThat(outbox.getDispatchedAt()).isNull();
 	}
 
+	@Test
+	void recordPendingResetsExistingOutboxForAJobRetry() {
+		AgentDispatchOutboxRepository repository = mock(AgentDispatchOutboxRepository.class);
+		AgentJobDispatchOutboxRecorder recorder = new AgentJobDispatchOutboxRecorder(
+				repository, new ObjectMapper());
+		UUID jobId = UUID.randomUUID();
+		AgentDispatchOutbox outbox = AgentDispatchOutbox.pending(jobId, "{}");
+		outbox.markFailed("QUEUE_DOWN", "queue unavailable");
+		when(repository.findByJobId(jobId)).thenReturn(Optional.of(outbox));
+
+		recorder.recordPending(command(jobId));
+
+		assertThat(outbox.getStatus()).isEqualTo(AgentDispatchOutboxStatus.PENDING);
+		assertThat(outbox.getRetryCount()).isZero();
+		assertThat(outbox.getErrorCode()).isNull();
+		assertThat(outbox.getErrorMessage()).isNull();
+		assertThat(outbox.getPayloadJson()).contains(jobId.toString());
+		verify(repository).save(outbox);
+	}
+
+	@Test
+	void lateDispatchFailureDoesNotDowngradeAlreadyDispatchedOutbox() {
+		AgentDispatchOutboxRepository repository = mock(AgentDispatchOutboxRepository.class);
+		AgentJobDispatchOutboxRecorder recorder = new AgentJobDispatchOutboxRecorder(
+				repository, new ObjectMapper());
+		UUID jobId = UUID.randomUUID();
+		AgentDispatchOutbox outbox = AgentDispatchOutbox.pending(jobId, "{}");
+		outbox.markDispatched();
+		when(repository.findByJobId(jobId)).thenReturn(Optional.of(outbox));
+
+		recorder.recordFailure(jobId, "QUEUE_DOWN", "late failure");
+
+		assertThat(outbox.getStatus()).isEqualTo(AgentDispatchOutboxStatus.DISPATCHED);
+		assertThat(outbox.getRetryCount()).isZero();
+		assertThat(outbox.getErrorCode()).isNull();
+	}
+
 	private AgentJobDispatchCommand command(UUID jobId) {
 		return new AgentJobDispatchCommand(
 				jobId,

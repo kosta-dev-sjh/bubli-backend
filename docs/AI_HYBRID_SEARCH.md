@@ -1,6 +1,6 @@
-현재 구현은 MVP 수준에서는 꽤 탄탄합니다. 권한 범위 분리, pgvector/HNSW, 문서 청크, 제목 기반 보완 검색, 인용 메타데이터까지 있습니다. 이후 1차 고도화로 semantic/keyword/title/representative 후보에 weighted fusion 계층을 추가했고, 2차 고도화로 keyword 검색에 PostgreSQL FTS와 pg_trgm 인덱스를 추가했습니다.
+현재 구현은 MVP 수준에서는 꽤 탄탄합니다. 권한 범위 분리, pgvector/HNSW, 문서 청크, 제목 기반 보완 검색, 인용 메타데이터까지 있습니다. 이후 1차 고도화로 semantic/keyword/title/representative 후보에 weighted fusion 계층을 추가했고, 2차 고도화로 keyword 검색에 PostgreSQL FTS와 pg_trgm 인덱스를 추가했습니다. 인접·유사 청크 제거와 MMR 형태의 다양성 제어, 검색 장애와 결과 없음의 분리, 프로젝트룸 RAG 전용 평가 경로도 구현됐습니다.
 
-다만 BM25 수준의 전문 검색, 평가 corpus 기반 튜닝, chunking 개선, 검색 장애/빈 결과 분리, batch embedding 등 production-grade RAG로 가기 위한 작업은 아직 남아 있습니다.
+현재 가장 큰 품질 문제는 후보 검색 자체보다 **근거가 질문에 답할 만큼 충분한지 판단하는 answerability 계층**입니다. 2026-08-06 기준선에서 검색 품질은 Hit@5 0.7727이지만 no-answer 정확도는 0이었습니다. 따라서 BM25, chunking, batch embedding을 바로 진행하기 전에 오답을 근거 있음으로 판정하는 false positive를 먼저 줄여야 합니다.
 
 ## 현재 검색 구조
 
@@ -17,6 +17,39 @@
 
 실제 메인 경로는 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:63)입니다.
 
+## 현재 RAG 전용 기준선
+
+프로젝트룸 사이드채팅 경로를 직접 호출하는 전용 평가 API와 스크립트를 사용해 현재 구현을 측정했습니다.
+
+- Dataset: `scripts/rag/bubli-project-room-rag-baseline-v1.json`
+- Report: `build/reports/rag/project-room-rag-baseline-v1.json`
+- Dataset SHA-256: `3c131228e17d85a420084937bae4e975c693c8fb897426dbb632fc5fe5351966`
+- Top-K: 5
+- 전체 49건: grounded 44건, no-answer 5건
+- 언어 분포: 한국어 35건, 영어 7건, 일본어 7건
+
+| 지표 | 기준선 |
+| --- | ---: |
+| Hit@5 | 0.772727 |
+| Recall@5 | 0.737500 |
+| MRR@5 | 0.703409 |
+| NDCG@5 | 0.911414 |
+| Grounded accuracy | 0.857143 |
+| No-answer accuracy | 0.000000 |
+| Retrieval failure rate | 0.000000 |
+| 평균 문서 근거 수 | 3.000000 |
+| Latency p50 | 173.121 ms |
+| Latency p95 | 316.120 ms |
+| Latency p99 | 351.471 ms |
+
+이 수치의 핵심 해석은 다음과 같습니다.
+
+- 관련 문서를 찾는 능력은 이미 일정 수준에 도달했지만 아직 약 22.7%의 질문은 Top-5에 정답 청크가 없습니다.
+- 5개의 no-answer 질문을 모두 grounded로 판정했습니다. 현재 `groundedAccuracy`가 높아 보이는 이유는 positive 44건에 비해 negative가 5건뿐인 클래스 불균형 때문입니다.
+- `KEYWORD`, `TITLE_SCOPED_KEYWORD`, `RECENT_SUMMARY`가 약한 관련성만으로도 answerable 판정을 만드는 경향이 있습니다.
+- 이 기준선은 현재 고도화가 일부 적용된 상태의 기준선입니다. 최초 semantic-only 기준선과 이름은 비슷하지만 같은 경로의 성능 비교 자료가 아닙니다.
+- 49건을 한 번씩 순차 호출한 latency이므로 부하 성능이나 안정적인 백분위로 해석하면 안 됩니다.
+
 ## 주요 한계점
 
 ### 1. Hybrid search가 아니라 단순 결과 병합에 가깝습니다
@@ -30,7 +63,7 @@
 - 두 점수의 의미와 분포가 전혀 다른데 그대로 섞입니다.
 - 제목 매칭이 없으면 semantic 결과 다음에 keyword 결과가 붙는 순서가 됩니다.
 - 현재는 `ProjectRoomDocumentFusionService`에서 weighted fusion을 수행합니다.
-- 아직 RRF, cross-encoder reranker, LLM reranker는 없습니다.
+- RRF feature는 production fusion에 보조 점수로 추가됐고, cross-encoder reranker와 LLM reranker는 아직 없습니다.
 
 관련 병합 코드는 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:441)입니다.
 
@@ -100,19 +133,19 @@ baseTopK * resourceCount * 3
 
 예를 들어 제목 매칭 문서가 3개라서 45개를 요청해도 실제로는 20개만 검색됩니다. 문서별 최소 결과 수도 보장하지 않아 한 문서의 청크가 결과를 대부분 차지할 수 있습니다.
 
-### 5. 문서 다양성 제어가 없습니다
+### 5. 문서 다양성 제어는 구현됐지만 문맥 연결은 부족합니다
 
-상태: **기본 개선 완료**.
+상태: **인접·유사 청크 제거와 MMR 형태 선택 완료**.
 
-검색 단위가 청크이므로 같은 문서의 서로 인접한 청크가 Top-K를 전부 차지할 수 있었습니다. 현재는 fusion 결과에서 문서별 최대 청크 수를 제한합니다.
+검색 단위가 청크이므로 같은 문서의 서로 인접한 청크가 Top-K를 전부 차지할 수 있었습니다. 현재 `ProjectRoomDocumentFusionService`는 문서별 최대 2개 제한, 같은 문서의 인접 청크 제외, 5-gram Jaccard 기반 유사 청크 제외, 중복 페널티를 적용한 선택을 수행합니다.
 
-현재 없는 기능은 다음과 같습니다.
+남은 기능은 다음과 같습니다.
 
-- 문서별 최대 청크 개수: 기본 구현됨
-- 인접·중복 청크 제거
-- MMR 기반 다양성 확보
-- 같은 문서의 연속 청크 병합
+- 질문 유형과 문서 수에 따른 동적 문서별 청크 제한
+- 정답이 청크 경계에 걸린 경우의 parent/neighbor context 확장
+- 같은 문서의 연속 청크를 근거 표시 단계에서 안전하게 병합
 - 문서 단위 점수와 청크 단위 점수의 조합
+- MMR 상수와 중복 임계값의 평가 corpus 기반 튜닝
 
 1200자 청크에 200자 overlap이 있어 인접 청크의 내용이 중복되기 때문에 이 문제가 더 쉽게 발생합니다.
 
@@ -192,13 +225,15 @@ LIMIT :limit
 
 따라서 embedding 모델이 비활성화되거나 장애가 발생하면 개인 문서 검색은 바로 빈 결과가 됩니다. 문서 코드, 고유명사, 파일명 검색에서도 프로젝트룸 검색보다 약합니다.
 
-### 12. 검색 실패와 “검색 결과 없음”을 구분하지 않습니다
+### 12. 검색 실패와 “검색 결과 없음”은 분리됐습니다
 
-Semantic/keyword 검색에서 예외가 발생하면 로그를 남기고 빈 목록 또는 `ungrounded`로 변환합니다.
+상태: **기본 개선 완료**.
+
+Semantic/keyword 검색에서 발생한 예외를 `retrievalFailed`, `retrievalFailureReason`으로 전달하고, 사용자 응답도 locale별 검색 장애 메시지와 `GROUNDING_RETRIEVAL_FAILED` fallback reason으로 분리합니다.
 
 [ProjectRoomGroundingService.java](D:/kostaEx/bubli-backend/src/main/java/com/bubli/agent/service/ProjectRoomGroundingService.java:167)
 
-따라서 다음 상황이 사용자에게 동일하게 보일 수 있습니다.
+현재 구분 가능한 대표 상황은 다음과 같습니다.
 
 - 관련 문서가 실제로 없음
 - Bedrock embedding 호출 실패
@@ -207,7 +242,7 @@ Semantic/keyword 검색에서 예외가 발생하면 로그를 남기고 빈 목
 - 쿼리 타임아웃
 - 문서 인덱싱 누락
 
-장애인데도 “근거가 없다”는 답변이 나올 수 있어 운영 진단과 사용자 경험 모두 좋지 않습니다.
+남은 작업은 실패 원인을 안정적인 코드로 구조화하고, 부분 장애 시 어떤 retrieval 전략까지 성공했는지 기록하며, timeout·DB 장애·embedding 장애를 주입하는 통합 테스트를 추가하는 것입니다.
 
 ### 13. 인덱싱 호출이 청크별 순차 처리입니다
 
@@ -233,9 +268,9 @@ HNSW 인덱스는 존재하지만 하나의 전역 벡터 인덱스입니다.
 
 룸별 데이터가 커지면 실제 운영 데이터로 `EXPLAIN ANALYZE`, recall@K를 확인하고 partial index 또는 검색 파라미터 튜닝을 검토해야 합니다.
 
-### 15. 검색 품질·성능 관측이 없습니다
+### 15. 검색 품질·성능 관측은 시작됐지만 평가 설계가 충분하지 않습니다
 
-상태: **기초 관측 개선 완료, 품질 평가는 미완성**.
+상태: **RAG 전용 기준선 생성 완료, 운영·종단 평가 미완성**.
 
 기존 테스트는 서비스 호출, 권한 확인, Top-K 제한, threshold 필터링 등 동작 검증 중심이었습니다.
 
@@ -252,9 +287,40 @@ HNSW 인덱스는 존재하지만 하나의 전역 벡터 인덱스입니다.
 - 검색된 근거를 실제 답변에서 사용했는지 여부
 - 사용자 평가와 검색 결과의 연결
 
-아직 부족한 것은 Recall@K, Hit@K, MRR, NDCG를 측정할 고정 평가 문서와 질문·정답 청크 세트입니다. 따라서 현재 `0.72`, `topK=5`, `1200/200`, fusion weight가 최적인지는 아직 객관적으로 판단할 수 없습니다.
+현재 `evaluate-project-room-rag.ps1`이 프로젝트룸 grounding 경로의 Hit@K, Recall@K, MRR, NDCG, grounded/no-answer 판정, 검색 실패율, retrieval mode, latency를 측정하고 고정 데이터셋 v1과 기준선 보고서를 생성합니다.
 
-### 16. RAG prompt injection 방어가 충분하지 않습니다
+다만 현재 평가에는 다음 한계가 있습니다.
+
+- negative가 5/49에 불과하고 모두 실패했으므로 no-answer 개선 여부를 안정적으로 비교하기 어렵습니다.
+- 한국어 35건, 영어 7건, 일본어 7건이라 전체 평균이 한국어 성능에 치우칩니다.
+- 같은 의미의 다국어 변형이 많아 질문 유형의 다양성이 작습니다.
+- exact chunk index를 정답으로 사용하므로 정답을 충분히 포함한 인접 청크를 오답 처리할 수 있습니다.
+- `expectedRetrievalModes`를 데이터셋에 기록하지만 현재 평가 점수에는 반영하지 않습니다.
+- grounded boolean만 기록해 threshold calibration, AUROC/AUPRC, Brier score를 계산할 confidence가 없습니다.
+- 답변 LLM을 호출하지 않으므로 answer correctness, faithfulness, citation precision, 언어 일치 여부는 측정하지 않습니다.
+- warm-up, 반복 실행, 동시성 단계가 없어 latency 비교의 재현성이 낮습니다.
+
+따라서 threshold와 fusion weight를 조정하기 전에 데이터셋과 평가기를 먼저 확장해야 합니다.
+
+### 16. Answerability 판정이 후보 존재 여부에 너무 가깝습니다
+
+상태: **최우선 개선 대상**.
+
+현재 fusion threshold를 통과하거나 requirement ID·따옴표 문구 hard match가 있으면 후보가 선택되고, 최종적으로 선택된 후보가 하나라도 있으면 `grounded=true`가 됩니다. 이 구조는 “질문과 관련된 문서”와 “질문에 답을 제공하는 문서”를 구분하지 못합니다.
+
+기준선의 모든 no-answer 실패가 이 문제를 보여 줍니다. 다음 보강이 필요합니다.
+
+- 문서 검색 의도를 나타내는 일반 단어(`문서`, `자료`, `project`, `documents`, `資料` 등)를 ranking keyword에서 제거
+- 전체 키워드 수가 아니라 정보성 키워드의 coverage와 rare-token match를 사용
+- `RECENT_SUMMARY` 단독 근거는 개요 질문에만 허용하고, 날짜·정책·수치·조건 질문의 answerability 근거로 사용하지 않음
+- title match는 검색 범위 축소 신호로 사용하되, 본문이 질문 핵심을 포함하지 않으면 grounded로 판정하지 않음
+- semantic/keyword 점수, rank, query coverage, exact phrase, title match, top-1/top-2 margin을 모은 별도 `answerabilityScore` 도입
+- 최소 근거 수를 고정값으로 강제하지 않고, 한 개의 강한 exact evidence 또는 복수 전략의 합의 같은 규칙으로 판정
+- grounded 여부와 함께 confidence 및 rejection reason을 평가 응답과 metrics에 기록
+
+초기에는 설명 가능한 규칙 기반 gate로 시작하고, 충분한 labeled corpus가 쌓인 뒤 logistic regression 또는 경량 reranker로 교체하는 편이 안전합니다. 49건으로 학습형 모델을 도입하면 과적합 가능성이 큽니다.
+
+### 17. RAG prompt injection 방어가 충분하지 않습니다
 
 검색한 `chunkText`를 그대로 LLM 프롬프트에 삽입합니다.
 
@@ -270,19 +336,71 @@ HNSW 인덱스는 존재하지만 하나의 전역 벡터 인덱스입니다.
 
 ## 개선 우선순위
 
-가장 먼저 손볼 순서는 다음이 적절합니다.
+기존 계획은 검색 후보를 늘리는 데 초점이 강했습니다. 현재 기준선에서는 후보 확장보다 false positive 억제가 먼저이므로 다음 순서로 변경합니다.
 
-1. ~~Keyword 검색을 PostgreSQL FTS 또는 `pg_trgm` 기반으로 변경~~
-2. ~~Semantic·keyword 결과에 RRF 또는 weighted fusion 적용~~
-3. ~~`retrievalMode`를 검색 결과 DTO에 포함해 출처를 정확히 유지~~
-4. 동일 문서·인접 청크 중복 제거와 문서별 결과 개수 제한
-   - 문서별 결과 개수 제한은 기본 구현됨
-   - 인접 청크 중복 제거/MMR은 미구현
-5. 검색 장애와 결과 없음 상태 분리
-6. 한국어·영어·일본어 평가 corpus를 만들고 Recall@K/MRR 측정
-7. 측정 결과로 threshold, Top-K, chunk 크기 조정
-8. Batch embedding과 embedding 모델 버전 관리 추가
-9. 개인 검색에도 keyword/title fallback 추가
-10. 검색 컨텍스트에 토큰 예산과 prompt injection 방어 추가
+### Phase 0. 완료된 기반 작업
 
-정리하면, 현재 구현의 가장 큰 문제는 **“검색 기능이 없는 것”이 아니라 “여러 검색 결과를 얼마나 잘 평가하고 합칠지에 대한 계층이 부족한 것”**입니다. 지금은 후보를 찾는 단계까지는 구현되어 있지만, production 수준의 hybrid ranking, 품질 평가, 장애 구분, 검색 관측성이 아직 부족합니다.
+1. ~~Keyword 검색을 PostgreSQL FTS와 `pg_trgm` 기반으로 변경~~
+2. ~~Semantic·keyword·title·representative 후보에 weighted fusion 적용~~
+3. ~~`retrievalMode`, `fusionScore`, `matchedKeywords`, `matchReason` 기록~~
+4. ~~문서별 결과 제한, 인접·유사 청크 제거, MMR 형태 다양성 선택~~
+5. ~~검색 장애와 결과 없음 상태 분리~~
+6. ~~한국어·영어·일본어 RAG 전용 데이터셋과 기준선 생성~~
+
+### Phase 1. 평가 신뢰도와 no-answer 정밀도
+
+1. 데이터셋을 최소 150건으로 확장하고 positive/negative를 약 2:1로 구성
+2. 한국어·영어·일본어별 최소 30건을 확보하고 locale macro average 추가
+3. 문서에 없는 날짜·금액·정책·인물·버전 질문, 비슷하지만 다른 문서, 부분적으로만 답할 수 있는 질문을 hard negative로 추가
+4. 질문 유형을 requirement ID, 제목, exact phrase, 설명형, 요약형, 후속 질문, 오타/표기 변형으로 태깅
+5. `answerabilityScore`, confidence, rejection reason을 추가하고 no-answer gate 구현
+6. evaluator에 grounded precision/recall/F1, no-answer recall, balanced accuracy, context precision@K, locale·intent별 지표 추가
+
+Phase 1 합격 기준은 다음과 같이 둡니다.
+
+- No-answer accuracy 0.80 이상
+- Grounded recall 0.90 이상
+- Balanced accuracy 0.85 이상
+- Hit@5와 Recall@5는 현재 기준선 대비 0.03 초과 하락 금지
+- 한국어·영어·일본어 각각 전체 기준보다 0.10 이상 낮아지지 않음
+- 검색 장애를 no-answer로 집계하는 케이스 0건
+
+2026-08-06 1차 구현에서는 `answerabilityScore`/`answerabilityReason`, generic source keyword 제외, `RECENT_SUMMARY`/`TITLE_MATCH`의 개요 질문 제한, evaluator schema v2의 precision/recall/F1/balanced accuracy/context precision/locale·intent breakdown을 추가했습니다. 다음 확인은 동일 데이터셋으로 candidate report를 생성해 no-answer recall과 grounded recall의 trade-off를 비교하는 것입니다.
+
+### Phase 2. 검색 순위 개선
+
+1. 현재 절대 점수 가중 합산과 hard-coded bonus를 RRF 기반 1차 fusion으로 교체하거나 ablation 비교
+2. 정보성 token coverage, exact phrase, requirement ID, title, semantic rank를 feature로 한 설명 가능한 2차 reranker 적용
+3. 현재 데이터셋에서는 학습형 reranker를 사용하지 않고, dev/test split을 만든 뒤 충분한 사례가 쌓였을 때 도입
+4. `RECENT_SUMMARY`와 `REPRESENTATIVE`는 질문 유형에 따라 제한적으로 사용
+5. title 검색의 최근 30개 제한과 N+1 조회 제거
+6. parent/neighbor chunk 확장과 heading/table-aware chunking 실험
+
+RRF는 점수 분포가 다른 semantic, FTS, trigram 결과를 직접 더하는 현재 방식보다 튜닝 안정성이 좋습니다. 다만 실제 적용 여부는 기존 weighted fusion과 동일 데이터셋에서 ablation으로 결정합니다. cross-encoder/LLM reranker는 품질 이득이 확인될 때만 latency·비용 예산 안에서 추가합니다.
+
+2026-08-06 1차 구현에서는 production fusion에 RRF feature를 보조 점수로 추가하고 `fusionStrategy=WEIGHTED_PLUS_RRF`, `rrfScore`를 evidence metadata에 기록했습니다. 또한 여러 candidate report를 한 baseline과 비교하는 `compare-project-room-rag-ablation.ps1`을 추가했습니다. 실제 RRF 단독 전환은 아직 하지 않고, 동일 dataset hash의 ablation 결과로 결정합니다.
+
+### Phase 3. 종단 답변 품질과 운영성
+
+1. 검색 근거를 사용한 최종 답변의 correctness, faithfulness, citation precision/recall, locale 일치 평가 추가
+2. 사람 검수 gold answer를 우선하고 LLM-as-judge는 보조 지표로만 사용
+3. warm-up 후 반복 실행과 동시성 1/5/20 부하 시나리오로 p50/p95/p99 재측정
+4. dataset hash 외에 문서 snapshot, chunking version, embedding model/version, 검색 설정, application commit을 보고서에 기록
+5. retrieval 전략별 ablation과 장애 주입 테스트 추가
+6. Batch embedding, 증분 인덱싱, embedding 모델 버전 관리 구현
+7. 개인 검색에도 검증된 hybrid 정책 적용
+8. 검색 컨텍스트 토큰 예산과 prompt injection 방어 추가
+
+2026-08-06 1차 구현에서는 evaluator schema v3로 run metadata(application commit/branch, document snapshot, chunking version, embedding model version, search config), warm-up, repeat count, request timeout, concurrency label을 기록하도록 확장했습니다. 또한 failure-injection script를 추가해 evaluator/API 실패가 no-answer와 섞이지 않는지 검증할 수 있게 했습니다. 최종 답변 correctness/faithfulness/citation/locale 평가는 현재 endpoint가 grounding-only라 `metrics.answerQuality.evaluated=false`로 명시하고, 별도 answer-generating 평가 endpoint가 필요한 상태로 남겼습니다.
+
+## 평가 데이터 운영 원칙
+
+- 튜닝용 dev set과 최종 판정용 holdout test set을 분리합니다.
+- 같은 원문 질문의 단순 번역은 동일 group으로 묶어 dev/test 양쪽에 갈라지지 않게 합니다.
+- 정답은 가능하면 resource ID 하나가 아니라 허용 가능한 chunk 범위와 근거 구절을 함께 저장합니다.
+- 문서가 바뀌거나 rechunking되면 기존 chunk index 정답을 조용히 재사용하지 않고 dataset version을 올립니다.
+- 전체 평균만 보지 않고 locale, intent, 난이도, retrieval mode별 결과를 함께 비교합니다.
+- 후보 변경은 한 번에 하나씩 ablation하고, quality gate를 통과한 설정만 새 기준선으로 승격합니다.
+- 현재 `project-room-rag-baseline-v1`은 변경하지 않는 기준선으로 보존하고 후속 실행은 candidate 보고서로 생성합니다.
+
+정리하면, 이 문서를 바탕으로 계속 고도화하는 방향은 맞습니다. 다만 다음 개발의 시작점은 BM25나 더 큰 모델이 아니라 **평가 데이터 확장 → answerability/no-answer gate → fusion ablation**이어야 합니다. 현재 병목은 문서를 못 찾는 문제만이 아니라, 찾은 문서가 실제 답을 포함하는지 검증하지 않고 채택하는 문제입니다.

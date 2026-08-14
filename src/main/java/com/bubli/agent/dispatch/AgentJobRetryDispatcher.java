@@ -5,6 +5,7 @@ import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,10 +19,14 @@ import java.util.List;
 public class AgentJobRetryDispatcher {
 
 	private final AgentJobRepository agentJobRepository;
-	private final AgentJobDispatchPort agentJobDispatchPort;
-	private final AgentJobDispatchFailureRecorder failureRecorder;
-	private final AgentJobDispatchSuccessRecorder successRecorder;
+	private final AgentJobDispatchOutboxRecorder outboxRecorder;
+	private final ApplicationEventPublisher eventPublisher;
 
+	/**
+	 * Persists FAILED -> PENDING and the outbox reset in one transaction. The queue
+	 * fast-path runs only AFTER_COMMIT, so a worker can never observe the retry
+	 * message while the database still says FAILED.
+	 */
 	@Transactional
 	public int dispatchRetryableFailedJobs(int maxRetryCount, int batchSize) {
 		Pageable pageable = PageRequest.of(0, Math.max(1, batchSize));
@@ -29,56 +34,16 @@ public class AgentJobRetryDispatcher {
 				.findByStatusAndRetryCountLessThan(AgentJobStatus.FAILED, maxRetryCount, pageable)
 				.getContent();
 
-		int dispatchedCount = 0;
+		int queuedCount = 0;
 		for (AgentJob agentJob : retryableJobs) {
 			AgentJobDispatchCommand command = AgentJobDispatchCommand.from(agentJob);
-			log.info(
-					"Dispatching retryable agent job. jobId={}, jobType={}, roomId={}, resourceId={}, retryCount={}, maxRetryCount={}, errorCode={}, errorMessage={}",
-					agentJob.getId(),
-					agentJob.getJobType(),
-					agentJob.getRoomId(),
-					agentJob.getResourceId(),
-					agentJob.getRetryCount(),
-					maxRetryCount,
-					agentJob.getErrorCode(),
-					truncate(agentJob.getErrorMessage())
-			);
-			try {
-				agentJobDispatchPort.dispatch(command);
-			} catch (RuntimeException exception) {
-				log.warn(
-						"Failed to dispatch retryable agent job. jobId={}, jobType={}, retryCount={}, maxRetryCount={}",
-						agentJob.getId(),
-						agentJob.getJobType(),
-						agentJob.getRetryCount(),
-						maxRetryCount,
-						exception
-				);
-				failureRecorder.recordEnqueueFailure(command, exception);
-				continue;
-			}
 			agentJob.markRetryQueued();
-			log.info(
-					"Retryable agent job queued. jobId={}, jobType={}, retryCount={}, status={}",
-					agentJob.getId(),
-					agentJob.getJobType(),
-					agentJob.getRetryCount(),
-					agentJob.getStatus()
-			);
-			try {
-				successRecorder.recordQueued(command);
-			} catch (RuntimeException exception) {
-				log.warn("Failed to record retried agent job event. jobId={}", command.jobId(), exception);
-			}
-			dispatchedCount++;
+			outboxRecorder.recordPending(command);
+			eventPublisher.publishEvent(new AgentJobDispatchEvent(command));
+			queuedCount++;
+			log.info("Retryable agent job transactionally queued. jobId={}, retryCount={}",
+					agentJob.getId(), agentJob.getRetryCount());
 		}
-		return dispatchedCount;
-	}
-
-	private String truncate(String value) {
-		if (value == null || value.length() <= 300) {
-			return value;
-		}
-		return value.substring(0, 300) + "...";
+		return queuedCount;
 	}
 }

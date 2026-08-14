@@ -10,7 +10,7 @@ import java.util.Optional;
 public class NoopAgentJobQueueConsumerPort implements AgentJobQueueConsumerPort {
 
 	@Override
-	public Optional<AgentJobQueueMessage> poll() {
+	public Optional<AgentJobQueueDelivery> claim() {
 		return Optional.empty();
 	}
 }

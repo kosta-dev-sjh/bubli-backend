@@ -6,6 +6,7 @@ import com.bubli.resource.dto.ResourceAnalysisArtifacts;
 import com.bubli.resource.dto.ResourceAnalysisPage;
 import com.bubli.resource.dto.ResourceAnalysisSource;
 import com.bubli.resource.dto.ResourceAnalysisTarget;
+import com.bubli.resource.dto.PreparedResourceEmbeddingIndex;
 import com.bubli.resource.entity.AiDocument;
 import com.bubli.resource.entity.Resource;
 import com.bubli.resource.entity.ResourceExtractedText;
@@ -33,7 +34,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -55,16 +55,12 @@ public class ResourceAnalysisPublicService {
     private final ResourceSummaryRepository resourceSummaryRepository;
     private final AiDocumentRepository aiDocumentRepository;
     private final ResourceEmbeddingIndexPublicService resourceEmbeddingIndexService;
-    private final ResourceRelationIndexPublicService resourceRelationIndexService;
+    private final ResourceAnalysisCompletionWriter resourceAnalysisCompletionWriter;
+    private final ResourceAnalysisStateWriter resourceAnalysisStateWriter;
     private final StoragePublicService storageService;
 
-    @Transactional
     public ResourceAnalysisTarget startAnalysis(UUID resourceId) {
-        Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
-
-        resource.startAnalysis();
-        return new ResourceAnalysisTarget(resource.getId(), resource.getRoomId());
+        return resourceAnalysisStateWriter.start(resourceId);
     }
 
     @Transactional(readOnly = true)
@@ -103,19 +99,17 @@ public class ResourceAnalysisPublicService {
                 .findFirst();
     }
 
-    @Transactional
     public void analyzeResourceForJob(UUID resourceId, UUID jobId) {
         ResourceAnalysisSource source = loadAnalysisSourceForJob(resourceId);
         completeAnalysisForJob(source, jobId, null);
     }
 
-    @Transactional
     public ResourceAnalysisSource loadAnalysisSourceForJob(UUID resourceId) {
         Resource resource = null;
         try {
             resource = resourceRepository.findById(resourceId)
                     .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
-            resource.startAnalysis();
+            resourceAnalysisStateWriter.start(resourceId);
 
             Optional<ResourceAnalysisSource> extractedTextSource = loadExtractedTextSource(resource);
             if (extractedTextSource.isPresent()) {
@@ -145,69 +139,62 @@ public class ResourceAnalysisPublicService {
             );
         } catch (RuntimeException e) {
             if (resource != null) {
-                resource.markAnalysisFailed();
+                try {
+                    resourceAnalysisStateWriter.markFailed(resource.getId());
+                } catch (RuntimeException failure) {
+                    e.addSuppressed(failure);
+                }
             }
             throw e;
         }
     }
 
-    @Transactional
     public void completeAnalysisForJob(ResourceAnalysisSource source, UUID jobId, Map<String, Object> aiAnalysisJson) {
-        Resource resource = null;
-        try {
-            resource = resourceRepository.findById(source.resourceId())
-                    .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
-            Optional<ResourceFile> resourceFile = resourceFileRepository.findTopByResourceIdOrderByCreatedAtDesc(resource.getId());
-            List<TextChunker.TextPage> pages = source.pages().stream()
-                    .map(page -> new TextChunker.TextPage(page.pageNumber(), page.text()))
-                    .toList();
-            ExtractedDocument extracted = new ExtractedDocument(pages);
-
-            resourceSummaryRepository.save(ResourceSummary.analyzed(
-                    resource.getId(),
-                    jobId,
-                    summaryJson(source.originalName(), source.mimeType(), extracted, source.documentType(), aiAnalysisJson)
-            ));
-
-            UUID analyzedResourceId = resource.getId();
-            UUID roomId = resource.getRoomId();
-            BigDecimal detectedConfidence = aiAnalysisJson == null ? new BigDecimal("0.5000") : new BigDecimal("0.8000");
-            aiDocumentRepository.findByResourceId(analyzedResourceId)
-                    .ifPresentOrElse(
-                            aiDocument -> aiDocument.markAnalyzed(source.documentType(), detectedConfidence),
-                            () -> aiDocumentRepository.save(AiDocument.analyzed(
-                            analyzedResourceId,
-                            roomId,
-                            source.documentType(),
-                            detectedConfidence
-                    )));
-
-            ResourceEmbeddingIndexPublicService.IndexResult indexResult;
-            if (resourceFile.isPresent()) {
-                indexResult = resourceEmbeddingIndexService.index(resource, resourceFile.get(), pages);
-            } else {
-                indexResult = resourceEmbeddingIndexService.indexExtractedText(
-                        resource,
-                        source.originalName(),
-                        source.mimeType(),
-                        pages
-                );
-            }
-            if (indexResult.indexed()) {
-                resourceRelationIndexService.rebuildRelations(resource);
-            }
-            resource.markAnalyzed();
-        } catch (RuntimeException e) {
-            if (resource != null) {
-                resource.markAnalysisFailed();
-            }
-            throw e;
-        }
+        PreparedResourceEmbeddingIndex preparedIndex = prepareEmbeddingIndex(source);
+        completePreparedAnalysisForJob(source, jobId, aiAnalysisJson, preparedIndex);
     }
 
-    @Transactional
+    public PreparedResourceEmbeddingIndex prepareEmbeddingIndex(ResourceAnalysisSource source) {
+        Resource resource = resourceRepository.findById(source.resourceId())
+                .orElseThrow(() -> new IllegalArgumentException("Resource not found."));
+        Optional<ResourceFile> resourceFile = resourceFileRepository
+                .findTopByResourceIdOrderByCreatedAtDesc(resource.getId());
+        List<TextChunker.TextPage> pages = pages(source);
+        if (resourceFile.isPresent()) {
+            return resourceEmbeddingIndexService.prepare(resource, resourceFile.get(), pages);
+        }
+        return resourceEmbeddingIndexService.prepareExtractedText(
+                resource,
+                source.originalName(),
+                source.mimeType(),
+                pages
+        );
+    }
+
+    public void completePreparedAnalysisForJob(
+            ResourceAnalysisSource source,
+            UUID jobId,
+            Map<String, Object> aiAnalysisJson,
+            PreparedResourceEmbeddingIndex preparedIndex
+    ) {
+        ExtractedDocument extracted = new ExtractedDocument(pages(source));
+        resourceAnalysisCompletionWriter.complete(
+                source,
+                jobId,
+                summaryJson(source.originalName(), source.mimeType(), extracted, source.documentType(), aiAnalysisJson),
+                aiAnalysisJson != null,
+                preparedIndex
+        );
+    }
+
     public void markAnalysisFailed(UUID resourceId) {
-        resourceRepository.findById(resourceId).ifPresent(Resource::markAnalysisFailed);
+        resourceAnalysisStateWriter.markFailed(resourceId);
+    }
+
+    private List<TextChunker.TextPage> pages(ResourceAnalysisSource source) {
+        return source.pages().stream()
+                .map(page -> new TextChunker.TextPage(page.pageNumber(), page.text()))
+                .toList();
     }
 
     private ExtractedDocument extract(ResourceFile resourceFile) {

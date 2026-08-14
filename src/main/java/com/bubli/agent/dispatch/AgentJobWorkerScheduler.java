@@ -20,6 +20,14 @@ public class AgentJobWorkerScheduler {
 
 	@Scheduled(fixedDelayString = "${agent.dispatch.worker.scheduler.fixed-delay-ms:1000}")
 	public void processQueuedJobs() {
+		try {
+			int recoveredCount = dispatchWorker.recoverStaleQueueDeliveries();
+			if (recoveredCount > 0) {
+				log.warn("Recovered stale agent job queue deliveries. count={}", recoveredCount);
+			}
+		} catch (RuntimeException exception) {
+			log.warn("Failed to recover stale agent job queue deliveries.", exception);
+		}
 		int processedCount = 0;
 		for (int index = 0; index < maxJobsPerTick; index++) {
 			try {

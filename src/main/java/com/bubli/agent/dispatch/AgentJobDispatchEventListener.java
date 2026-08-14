@@ -12,7 +12,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AgentJobDispatchEventListener {
 
 	private final AgentJobDispatchPort agentJobDispatchPort;
-	private final AgentJobDispatchFailureRecorder failureRecorder;
 	private final AgentJobDispatchSuccessRecorder successRecorder;
 	private final AgentJobDispatchOutboxRecorder outboxRecorder;
 
@@ -22,7 +21,6 @@ public class AgentJobDispatchEventListener {
 			agentJobDispatchPort.dispatch(event.command());
 		} catch (RuntimeException exception) {
 			log.warn("Failed to dispatch agent job. jobId={}", event.command().jobId(), exception);
-			failureRecorder.recordEnqueueFailure(event.command(), exception);
 			recordOutboxFailure(event, exception);
 			return;
 		}

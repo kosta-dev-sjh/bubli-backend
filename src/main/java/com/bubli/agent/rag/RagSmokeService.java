@@ -1,10 +1,9 @@
 package com.bubli.agent.rag;
 
-import com.bubli.agent.model.AiCallExecutor;
+import com.bubli.global.ai.AiCallExecutor;
+import com.bubli.global.ai.AiModelGateway;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Profile;
@@ -22,19 +21,18 @@ public class RagSmokeService {
     private static final String CONTRACT_DOCUMENT_ID = "00000000-0000-0000-0000-000000000101";
     private static final String MEETING_DOCUMENT_ID = "00000000-0000-0000-0000-000000000102";
 
-    private final ChatModel chatModel;
-    private final EmbeddingModel embeddingModel;
+    private final AiModelGateway aiModelGateway;
     private final VectorStore vectorStore;
     private final AiCallExecutor aiCallExecutor;
 
     public RagSmokeResult run() {
-        String chatResponse = aiCallExecutor.execute(
+        String chatResponse = aiModelGateway.callChat(
                 "bedrock-chat-smoke",
-                () -> chatModel.call("반드시 OK 한 단어로만 답하세요.")
+                "반드시 OK 한 단어로만 답하세요."
         );
-        float[] embedding = aiCallExecutor.execute(
+        float[] embedding = aiModelGateway.embed(
                 "bedrock-embedding-smoke",
-                () -> embeddingModel.embed("Bubli RAG 연결 확인")
+                "Bubli RAG 연결 확인"
         );
 
         List<Document> documents = createDocuments();

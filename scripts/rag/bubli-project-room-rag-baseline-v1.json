@@ -1,0 +1,571 @@
+{
+  "name": "bubli-project-room-rag-baseline-v1",
+  "topK": 5,
+  "description": "Project-room side-chat RAG evaluation dataset. Cases use natural document-grounded messages instead of semantic-search-only queries.",
+  "cases": [
+    {
+      "id": "wm-document-title-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서 기준으로 프리랜서 프로젝트룸 업무관리 서비스 요구명세서의 핵심 내용을 알려줘.",
+      "query": "프리랜서 프로젝트룸 업무관리 서비스 요구명세서",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["TITLE_SCOPED_KEYWORD", "KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-requirement-id",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 REQ-WM-007 요구사항을 찾아 설명해줘.",
+      "query": "REQ-WM-007",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "TITLE_SCOPED_KEYWORD"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-approved-todo-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "자료에서 생성된 업무 후보를 사용자가 승인하면 어디에 반영되는지 문서 근거로 알려줘.",
+      "query": "자료에서 생성된 업무 후보를 사용자가 승인하면 어디에 반영되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-resource-processing-status-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드한 자료의 처리 상태 값에는 무엇이 있는지 문서 기준으로 알려줘.",
+      "query": "업로드한 자료의 처리 상태에는 어떤 값들이 있나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-widget-offline-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "네트워크 오류가 발생해도 위젯이 보여줘야 하는 정보가 무엇인지 프로젝트 문서에서 찾아줘.",
+      "query": "네트워크 오류가 발생해도 위젯이 보여줘야 하는 정보는 무엇인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-semantic-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, how are AI-generated task suggestions reviewed before becoming actual tasks?",
+      "query": "How are AI-generated task suggestions reviewed before becoming actual tasks?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-semantic-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、資料から生成されたTODO候補がどのように実際の作業へ反映されるか教えてください。",
+      "query": "資料から生成されたTODO候補は、どのように実際の作業へ反映されますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-short-query",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 후보 승인과 관련된 요구사항을 찾아줘.",
+      "query": "후보 승인",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+
+    {
+      "id": "ec-document-title-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서 기준으로 온라인 쇼핑몰 주문 및 재고 관리 서비스 요구명세서의 핵심 내용을 알려줘.",
+      "query": "온라인 쇼핑몰 주문 및 재고 관리 서비스 요구명세서",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["TITLE_SCOPED_KEYWORD", "KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-requirement-id",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 REQ-EC-009 요구사항을 찾아 설명해줘.",
+      "query": "REQ-EC-009",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "TITLE_SCOPED_KEYWORD"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-stock-deduction-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "결제가 완료된 주문의 상품 재고가 언제 차감되는지 문서 근거로 알려줘.",
+      "query": "결제가 완료된 주문의 상품 재고는 언제 차감되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-cancel-restock-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "주문 취소가 승인되면 이미 차감한 재고를 어떻게 처리하는지 프로젝트 문서에서 찾아줘.",
+      "query": "주문 취소가 승인되면 이미 차감한 재고는 어떻게 처리하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-concurrency-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "동시에 여러 주문이 들어올 때 재고가 음수가 되는 것을 막아야 하는지 문서 기준으로 알려줘.",
+      "query": "동시에 여러 주문이 들어올 때 재고가 음수가 되는 것을 막아야 하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-semantic-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, what happens to inventory when an approved order is cancelled?",
+      "query": "What happens to inventory when an approved order is cancelled?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-semantic-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、安全在庫以下の商品を管理画面でどのように確認できるか教えてください。",
+      "query": "安全在庫以下の商品は管理画面でどのように確認できますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-short-query",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 재고 복구와 관련된 요구사항을 찾아줘.",
+      "query": "재고 복구",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+
+    {
+      "id": "md-document-title-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서 기준으로 병원 진료 예약 및 사전 문진 서비스 요구명세서의 핵심 내용을 알려줘.",
+      "query": "병원 진료 예약 및 사전 문진 서비스 요구명세서",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["TITLE_SCOPED_KEYWORD", "KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-requirement-id",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 REQ-MD-003 요구사항을 찾아 설명해줘.",
+      "query": "REQ-MD-003",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "TITLE_SCOPED_KEYWORD"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-questionnaire-required-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "사전 문진을 작성하지 않은 환자가 예약을 확정할 수 있는지 문서 근거로 알려줘.",
+      "query": "사전 문진을 작성하지 않은 환자가 예약을 확정할 수 있나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-double-booking-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "두 환자가 같은 시간에 동시에 예약하면 어떻게 처리해야 하는지 프로젝트 문서에서 찾아줘.",
+      "query": "두 환자가 같은 시간에 동시에 예약하면 어떻게 처리해야 하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-access-control-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "환자가 다른 환자의 문진 내용을 조회할 수 있는지 문서 기준으로 알려줘.",
+      "query": "환자는 다른 환자의 문진 내용을 조회할 수 있나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-semantic-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, can a patient confirm an appointment without completing the required questionnaire?",
+      "query": "Can a patient confirm an appointment without completing the required questionnaire?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-semantic-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、同じ診療時間帯の二重予約をどのように防止するか教えてください。",
+      "query": "同じ診療時間帯の二重予約はどのように防止しますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-short-query",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 필수 문진과 관련된 요구사항을 찾아줘.",
+      "query": "필수 문진",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+
+    {
+      "id": "ed-document-title-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서 기준으로 온라인 학습관리 시스템 과제 및 수강 관리 요구명세서의 핵심 내용을 알려줘.",
+      "query": "온라인 학습관리 시스템 과제 및 수강 관리 요구명세서",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["TITLE_SCOPED_KEYWORD", "KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-requirement-id",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 REQ-ED-007 요구사항을 찾아 설명해줘.",
+      "query": "REQ-ED-007",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "TITLE_SCOPED_KEYWORD"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-deadline-edit-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "학습자가 과제 마감 후에도 제출물을 수정할 수 있는지 문서 근거로 알려줘.",
+      "query": "학습자는 과제 마감 후에도 제출물을 수정할 수 있나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-dashboard-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "학습자 대시보드에 이번 주 어떤 정보가 표시되는지 프로젝트 문서에서 찾아줘.",
+      "query": "학습자 대시보드에는 이번 주 어떤 정보가 표시되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-statistics-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "운영자가 강좌별로 확인할 수 있는 통계 항목이 무엇인지 문서 기준으로 알려줘.",
+      "query": "운영자가 강좌별로 확인할 수 있는 통계 항목은 무엇인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-semantic-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, what information can an instructor provide when grading an assignment submission?",
+      "query": "What information can an instructor provide when grading an assignment submission?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-semantic-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、課題の締切後に学習者が提出物を修正できるか教えてください。",
+      "query": "課題の締切後、学習者は提出物を修正できますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-short-query",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 마감 후 수정과 관련된 요구사항을 찾아줘.",
+      "query": "마감 후 수정",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+
+    {
+      "id": "lb-document-title-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서 기준으로 지역 도서관 좌석 예약 및 도서 대출 서비스 요구명세서의 핵심 내용을 알려줘.",
+      "query": "지역 도서관 좌석 예약 및 도서 대출 서비스 요구명세서",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["TITLE_SCOPED_KEYWORD", "KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-requirement-id",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 REQ-LB-010 요구사항을 찾아 설명해줘.",
+      "query": "REQ-LB-010",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "TITLE_SCOPED_KEYWORD"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-no-check-in-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "좌석을 예약하고 정해진 시간 안에 입실하지 않으면 어떻게 되는지 문서 근거로 알려줘.",
+      "query": "좌석을 예약하고 정해진 시간 안에 입실하지 않으면 어떻게 되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-book-detail-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "도서 상세 화면에서 소장 위치 외에 어떤 대출 정보를 보여주는지 프로젝트 문서에서 찾아줘.",
+      "query": "도서 상세 화면에서 소장 위치 외에 어떤 대출 정보를 보여주나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-overdue-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "반납 예정일을 넘긴 도서가 시스템에서 어떻게 표시되는지 문서 기준으로 알려줘.",
+      "query": "반납 예정일을 넘긴 도서는 시스템에서 어떻게 표시하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-semantic-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, what happens when a user reserves a library seat but does not check in on time?",
+      "query": "What happens when a user reserves a library seat but does not check in on time?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-semantic-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、返却予定日を過ぎた貸出がシステム上どのように表示されるか教えてください。",
+      "query": "返却予定日を過ぎた貸出は、システム上どのように表示されますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-short-query",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 미입실 자동 취소와 관련된 요구사항을 찾아줘.",
+      "query": "미입실 자동 취소",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+
+    {
+      "id": "cross-concurrency-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서들 중 동시 요청이 발생해도 같은 자원이 중복으로 배정되지 않아야 하는 요구사항이 있는 문서들을 찾아줘.",
+      "query": "동시 요청이 발생해도 같은 자원이 중복으로 배정되지 않아야 하는 요구사항은 어느 문서들에 있나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" },
+        { "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" },
+        { "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }
+      ]
+    },
+    {
+      "id": "cross-response-time-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서들 중 일반적인 조회 결과를 2초 안에 보여줘야 하는 서비스 문서들을 찾아줘.",
+      "query": "일반적인 조회 결과를 2초 안에 보여줘야 하는 서비스는 무엇인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" },
+        { "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" },
+        { "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" },
+        { "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }
+      ]
+    },
+    {
+      "id": "cross-access-control-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, which documents require users to access only their own or authorized data?",
+      "query": "Which documents require users to access only their own or authorized data?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [
+        { "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" },
+        { "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" },
+        { "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" },
+        { "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" },
+        { "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }
+      ]
+    },
+    {
+      "id": "cross-history-tracking-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、変更履歴や処理履歴を追跡・保存する必要がある文書を探してください。",
+      "query": "変更履歴や処理履歴を追跡・保存する必要がある文書はどれですか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["SEMANTIC", "KEYWORD"],
+      "relevant": [
+        { "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" },
+        { "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" },
+        { "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }
+      ]
+    },
+
+    {
+      "id": "no-answer-payment-date",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 프로젝트 문서 기준으로 계약서의 대금 지급 기한이 언제인지 알려줘.",
+      "query": "계약서의 대금 지급 기한은 언제인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-password-policy",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 프로젝트 문서 기준으로 비밀번호는 최소 몇 자로 설정해야 하는지 알려줘.",
+      "query": "비밀번호는 최소 몇 자로 설정해야 하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-refund-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded project documents, what is the refund processing deadline?",
+      "query": "What is the refund processing deadline?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-mobile-os-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、対応しているモバイルOSのバージョンを教えてください。",
+      "query": "対応しているモバイルOSのバージョンは何ですか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-backup-policy",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 프로젝트 문서 기준으로 데이터 백업 주기와 보관 기간이 어떻게 되는지 알려줘.",
+      "query": "데이터 백업 주기와 보관 기간은 어떻게 되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    }
+  ]
+}

@@ -106,7 +106,7 @@ class AgentStorageServiceTest {
 		UUID roomId = UUID.randomUUID();
 		UUID resourceId = UUID.randomUUID();
 		UUID jobId = UUID.randomUUID();
-		given(agentJobRepository.save(any(AgentJob.class))).willAnswer(invocation -> {
+		given(agentJobRepository.saveAndFlush(any(AgentJob.class))).willAnswer(invocation -> {
 			AgentJob agentJob = invocation.getArgument(0);
 			ReflectionTestUtils.setField(agentJob, "id", jobId);
 			return agentJob;
@@ -124,7 +124,7 @@ class AgentStorageServiceTest {
 		assertThat(result.retryCount()).isZero();
 
 		ArgumentCaptor<AgentJob> jobCaptor = ArgumentCaptor.forClass(AgentJob.class);
-		verify(agentJobRepository).save(jobCaptor.capture());
+		verify(agentJobRepository).saveAndFlush(jobCaptor.capture());
 		assertThat(jobCaptor.getValue().getResourceId()).isEqualTo(resourceId);
 		assertThat(jobCaptor.getValue().getRoomId()).isEqualTo(roomId);
 

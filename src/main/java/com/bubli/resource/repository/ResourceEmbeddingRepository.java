@@ -21,6 +21,36 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
 
     List<ResourceEmbedding> findAllByRoomIdAndVisibility(UUID roomId, ResourceVisibility visibility);
 
+    @Query(
+            value = """
+                    SELECT DISTINCT chunk_metadata ->> 'documentLanguage'
+                    FROM resource_embeddings
+                    WHERE room_id = :roomId
+                      AND visibility = 'ROOM_SHARED'
+                      AND chunk_metadata ->> 'documentLanguage' IS NOT NULL
+                    ORDER BY chunk_metadata ->> 'documentLanguage'
+                    """,
+            nativeQuery = true
+    )
+    List<String> findRoomSharedDocumentLanguages(@Param("roomId") UUID roomId);
+
+    @Query(
+            value = """
+                    SELECT DISTINCT chunk_metadata ->> 'documentLanguage'
+                    FROM resource_embeddings
+                    WHERE room_id = :roomId
+                      AND visibility = 'ROOM_SHARED'
+                      AND resource_id IN (:resourceIds)
+                      AND chunk_metadata ->> 'documentLanguage' IS NOT NULL
+                    ORDER BY chunk_metadata ->> 'documentLanguage'
+                    """,
+            nativeQuery = true
+    )
+    List<String> findRoomSharedDocumentLanguagesByResourceIds(
+            @Param("roomId") UUID roomId,
+            @Param("resourceIds") List<UUID> resourceIds
+    );
+
     @Modifying
     @Query(
             value = """
@@ -77,6 +107,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                     FROM resource_embeddings
                     WHERE room_id = :roomId
                       AND visibility = 'ROOM_SHARED'
+                      AND (
+                          CAST(:documentLanguage AS text) IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                      )
                     ORDER BY embedding <=> CAST(:queryEmbedding AS vector)
                     LIMIT :limit
                     """,
@@ -85,8 +120,17 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
     List<ResourceEmbeddingSearchRow> searchRoomShared(
             @Param("roomId") UUID roomId,
             @Param("queryEmbedding") String queryEmbedding,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> searchRoomShared(
+            UUID roomId,
+            String queryEmbedding,
+            int limit
+    ) {
+        return searchRoomShared(roomId, queryEmbedding, null, limit);
+    }
 
     @Query(
             value = """
@@ -101,6 +145,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                     WHERE room_id = :roomId
                       AND visibility = 'ROOM_SHARED'
                       AND resource_id IN (:resourceIds)
+                      AND (
+                          CAST(:documentLanguage AS text) IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                      )
                     ORDER BY embedding <=> CAST(:queryEmbedding AS vector)
                     LIMIT :limit
                     """,
@@ -110,8 +159,18 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
             @Param("roomId") UUID roomId,
             @Param("resourceIds") List<UUID> resourceIds,
             @Param("queryEmbedding") String queryEmbedding,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> searchRoomSharedByResourceIds(
+            UUID roomId,
+            List<UUID> resourceIds,
+            String queryEmbedding,
+            int limit
+    ) {
+        return searchRoomSharedByResourceIds(roomId, resourceIds, queryEmbedding, null, limit);
+    }
 
     @Query(
             value = """
@@ -162,6 +221,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                       AND embedding.visibility = 'ROOM_SHARED'
                       AND embedding.resource_id IN (:resourceIds)
                       AND (
+                          CAST(:documentLanguage AS text) IS NULL
+                          OR embedding.chunk_metadata ->> 'documentLanguage' IS NULL
+                          OR embedding.chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                      )
+                      AND (
                           to_tsvector('simple', coalesce(embedding.chunk_text, '')) @@ keyword_query.tsquery
                           OR (:token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%'))
                           OR (:token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%'))
@@ -183,8 +247,34 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
             @Param("token4") String token4,
             @Param("token5") String token5,
             @Param("tokenCount") int tokenCount,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> searchRoomSharedByResourceIdsAndKeywords(
+            UUID roomId,
+            List<UUID> resourceIds,
+            String token1,
+            String token2,
+            String token3,
+            String token4,
+            String token5,
+            int tokenCount,
+            int limit
+    ) {
+        return searchRoomSharedByResourceIdsAndKeywords(
+                roomId,
+                resourceIds,
+                token1,
+                token2,
+                token3,
+                token4,
+                token5,
+                tokenCount,
+                null,
+                limit
+        );
+    }
 
     @Query(
             value = """
@@ -234,6 +324,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                     WHERE embedding.room_id = :roomId
                       AND embedding.visibility = 'ROOM_SHARED'
                       AND (
+                          CAST(:documentLanguage AS text) IS NULL
+                          OR embedding.chunk_metadata ->> 'documentLanguage' IS NULL
+                          OR embedding.chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                      )
+                      AND (
                           to_tsvector('simple', coalesce(embedding.chunk_text, '')) @@ keyword_query.tsquery
                           OR (:token1 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token1), '%'))
                           OR (:token2 <> '' AND lower(embedding.chunk_text) LIKE concat('%', lower(:token2), '%'))
@@ -254,8 +349,32 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
             @Param("token4") String token4,
             @Param("token5") String token5,
             @Param("tokenCount") int tokenCount,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> searchRoomSharedByKeywords(
+            UUID roomId,
+            String token1,
+            String token2,
+            String token3,
+            String token4,
+            String token5,
+            int tokenCount,
+            int limit
+    ) {
+        return searchRoomSharedByKeywords(
+                roomId,
+                token1,
+                token2,
+                token3,
+                token4,
+                token5,
+                tokenCount,
+                null,
+                limit
+        );
+    }
 
     @Query(
             value = """
@@ -274,6 +393,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                         WHERE room_id = :roomId
                           AND visibility = 'ROOM_SHARED'
                           AND resource_id IN (:resourceIds)
+                          AND (
+                              CAST(:documentLanguage AS text) IS NULL
+                              OR chunk_metadata ->> 'documentLanguage' IS NULL
+                              OR chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                          )
                     )
                     SELECT
                         id,
@@ -291,8 +415,17 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
     List<ResourceEmbeddingSearchRow> findRoomSharedRepresentativeChunks(
             @Param("roomId") UUID roomId,
             @Param("resourceIds") List<UUID> resourceIds,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> findRoomSharedRepresentativeChunks(
+            UUID roomId,
+            List<UUID> resourceIds,
+            int limit
+    ) {
+        return findRoomSharedRepresentativeChunks(roomId, resourceIds, null, limit);
+    }
 
     @Query(
             value = """
@@ -306,6 +439,11 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
                     FROM resource_embeddings
                     WHERE owner_id = :ownerId
                       AND visibility = 'PERSONAL'
+                      AND (
+                          CAST(:documentLanguage AS text) IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' IS NULL
+                          OR chunk_metadata ->> 'documentLanguage' = CAST(:documentLanguage AS text)
+                      )
                     ORDER BY embedding <=> CAST(:queryEmbedding AS vector)
                     LIMIT :limit
                     """,
@@ -314,6 +452,15 @@ public interface ResourceEmbeddingRepository extends JpaRepository<ResourceEmbed
     List<ResourceEmbeddingSearchRow> searchPersonal(
             @Param("ownerId") UUID ownerId,
             @Param("queryEmbedding") String queryEmbedding,
+            @Param("documentLanguage") String documentLanguage,
             @Param("limit") int limit
     );
+
+    default List<ResourceEmbeddingSearchRow> searchPersonal(
+            UUID ownerId,
+            String queryEmbedding,
+            int limit
+    ) {
+        return searchPersonal(ownerId, queryEmbedding, null, limit);
+    }
 }

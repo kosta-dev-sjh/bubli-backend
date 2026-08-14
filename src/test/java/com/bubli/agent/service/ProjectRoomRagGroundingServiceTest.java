@@ -27,15 +27,22 @@ class ProjectRoomRagGroundingServiceTest {
 		ResourceSearchHit low = hit(resourceId, "low similarity", 0.71D);
 		ResourceSearchHit high = hit(resourceId, "payment is due in seven days", 0.9D);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "payment", 3))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "payment", 3, "en"))
 				.thenReturn(List.of(low, high));
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 3, 0.72D, 0.0D, 0.72D)
+				new AgentRagProperties(true, 3, 40, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "payment", "en-US");
 
-		verify(searchService).search(eq(userId), eq(ResourceSearchScope.ROOM_SHARED), eq(roomId), eq("payment"), eq(3));
+		verify(searchService).search(
+				eq(userId),
+				eq(ResourceSearchScope.ROOM_SHARED),
+				eq(roomId),
+				eq("payment"),
+				eq(3),
+				eq("en")
+		);
 		assertThat(context.grounded()).isTrue();
 		assertThat(context.hits()).containsExactly(high);
 		assertThat(context.maxSimilarity()).isEqualTo(0.9D);
@@ -51,12 +58,12 @@ class ProjectRoomRagGroundingServiceTest {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "query", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "query", 5, "en"))
 				.thenThrow(new IllegalStateException("EmbeddingModel is not available"));
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "query", "ko-KR");
 
 		assertThat(context.grounded()).isFalse();
@@ -72,12 +79,12 @@ class ProjectRoomRagGroundingServiceTest {
 		UUID resourceId = UUID.randomUUID();
 		ResourceSearchHit low = hit(resourceId, "contract text that can be converted into TODO", 0.31D);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "make todo", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "make todo", 5, "en"))
 				.thenReturn(List.of(low));
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "make todo", "en-US", AgentCommandMode.SUGGEST);
 
 		assertThat(context.grounded()).isTrue();
@@ -92,12 +99,12 @@ class ProjectRoomRagGroundingServiceTest {
 		UUID roomId = UUID.randomUUID();
 		ResourceSearchHit low = hit(UUID.randomUUID(), "weak hit", 0.31D);
 
-		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "question", 5))
+		when(searchService.search(userId, ResourceSearchScope.ROOM_SHARED, roomId, "question", 5, "en"))
 				.thenReturn(List.of(low));
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(true, 5, 0.72D, 0.0D, 0.72D)
+				new AgentRagProperties(true, 5, 40, 0.72D, 0.0D, 0.72D)
 		).retrieve(userId, roomId, "question", "en-US", AgentCommandMode.ANSWER);
 
 		assertThat(context.grounded()).isFalse();
@@ -110,7 +117,7 @@ class ProjectRoomRagGroundingServiceTest {
 
 		var context = new ProjectRoomRagGroundingService(
 				searchService,
-				new AgentRagProperties(false, 5, 0.72D, 0.0D, 0.72D)
+				new AgentRagProperties(false, 5, 40, 0.72D, 0.0D, 0.72D)
 		).retrieve(UUID.randomUUID(), UUID.randomUUID(), "query", "ko-KR");
 
 		assertThat(context.grounded()).isFalse();

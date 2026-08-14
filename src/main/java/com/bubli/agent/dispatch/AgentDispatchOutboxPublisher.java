@@ -6,12 +6,14 @@ import com.bubli.agent.type.AgentDispatchOutboxStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AgentDispatchOutboxPublisher {
 
@@ -22,6 +24,8 @@ public class AgentDispatchOutboxPublisher {
 	private final AgentDispatchOutboxRepository agentDispatchOutboxRepository;
 	private final AgentJobDispatchPort agentJobDispatchPort;
 	private final ObjectMapper objectMapper;
+	private final AgentJobDispatchFailureRecorder failureRecorder;
+	private final AgentJobDispatchSuccessRecorder successRecorder;
 
 	@Transactional
 	public int publishPending(int batchSize) {
@@ -39,10 +43,10 @@ public class AgentDispatchOutboxPublisher {
 		}
 		int dispatchedCount = 0;
 		for (AgentDispatchOutbox outbox : agentDispatchOutboxRepository
-				.findByStatus(status, PageRequest.of(0, batchSize, Sort.by("createdAt").ascending()))
-				.getContent()) {
+				.findByStatus(status, PageRequest.of(0, batchSize, Sort.by("createdAt").ascending()))) {
 			if (outbox.getRetryCount() >= maxRetryCount) {
 				outbox.markDeadLetter(DEAD_LETTER_ERROR_CODE, DEAD_LETTER_MESSAGE);
+				recordDeadLetter(outbox);
 				continue;
 			}
 			if (dispatch(outbox)) {
@@ -54,12 +58,33 @@ public class AgentDispatchOutboxPublisher {
 
 	private boolean dispatch(AgentDispatchOutbox outbox) {
 		try {
-			agentJobDispatchPort.dispatch(toCommand(outbox));
+			AgentJobDispatchCommand command = toCommand(outbox);
+			agentJobDispatchPort.dispatch(command);
 			outbox.markDispatched();
+			recordQueued(command);
 			return true;
 		} catch (RuntimeException exception) {
 			outbox.markFailed(RETRY_FAILURE_ERROR_CODE, errorMessage(exception));
 			return false;
+		}
+	}
+
+	private void recordDeadLetter(AgentDispatchOutbox outbox) {
+		try {
+			failureRecorder.recordDeadLetterFailure(
+					toCommand(outbox), DEAD_LETTER_ERROR_CODE, DEAD_LETTER_MESSAGE);
+		} catch (RuntimeException exception) {
+			throw new IllegalStateException(
+					"Failed to mark dead-lettered agent job as FAILED. jobId=" + outbox.getJobId(), exception);
+		}
+	}
+
+	private void recordQueued(AgentJobDispatchCommand command) {
+		try {
+			successRecorder.recordQueued(command);
+		} catch (RuntimeException exception) {
+			// Queue delivery is already durable; event logging must not trigger another dispatch.
+			log.warn("Failed to record queued event for outbox dispatch. jobId={}", command.jobId(), exception);
 		}
 	}
 

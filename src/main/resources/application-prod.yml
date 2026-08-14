@@ -1,6 +1,6 @@
 spring:
   config:
-    import: optional:file:C:\edu\project3\bubli-backend\src\main\resources\.env[.properties]
+    import: optional:file:D:\kostaEx\bubli-backend\src\main\resources\.env[.properties]
   application:
     name: bubli-backend
 
@@ -87,6 +87,7 @@ aws:
 
 storage:
   type: ${STORAGE_TYPE:s3}
+  base-path: ./local-storage
 
 livekit:
   api-key: ${LIVEKIT_API_KEY:}
@@ -136,7 +137,7 @@ bubli:
       initial-delay: ${AI_RETRY_INITIAL_DELAY:1s}
   rag:
     smoke:
-      enabled: ${RAG_SMOKE_ENABLED:true}
+      enabled: ${RAG_SMOKE_ENABLED:false}
 
 agent:
   model-usage:
@@ -166,6 +167,7 @@ agent:
   rag:
     enabled: ${AGENT_RAG_ENABLED:true}
     top-k: ${AGENT_RAG_TOP_K:5}
+    candidate-top-k: ${AGENT_RAG_CANDIDATE_TOP_K:40}
     min-similarity: ${AGENT_RAG_MIN_SIMILARITY:0.72}
     suggest-min-similarity: ${AGENT_RAG_SUGGEST_MIN_SIMILARITY:0.68}
     personal-min-similarity: ${AGENT_RAG_PERSONAL_MIN_SIMILARITY:0.72}

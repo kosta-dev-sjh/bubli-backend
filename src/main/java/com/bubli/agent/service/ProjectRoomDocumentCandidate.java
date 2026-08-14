@@ -10,6 +10,7 @@ record ProjectRoomDocumentCandidate(
 		String retrievalMode,
 		double originalScore,
 		double fusionScore,
+		double reciprocalRankScore,
 		List<String> matchedKeywords,
 		String matchReason
 ) {
@@ -27,9 +28,6 @@ record ProjectRoomDocumentCandidate(
 	) {
 		List<String> matchedKeywords = matchedKeywords(hit, analysis);
 		double score = baseStrategyScore(retrievalMode, hit.similarityScore());
-		if (titleScoped) {
-			score += 0.20D;
-		}
 		if (!matchedKeywords.isEmpty()) {
 			score += Math.min(0.30D, matchedKeywords.size() * 0.08D);
 		}
@@ -44,8 +42,21 @@ record ProjectRoomDocumentCandidate(
 				retrievalMode,
 				hit.similarityScore(),
 				Math.min(2.0D, score),
+				0.0D,
 				matchedKeywords,
 				matchReason(retrievalMode, titleScoped, matchedKeywords, analysis, hit)
+		);
+	}
+
+	ProjectRoomDocumentCandidate withReciprocalRankScore(double score) {
+		return new ProjectRoomDocumentCandidate(
+				hit,
+				retrievalMode,
+				originalScore,
+				Math.min(2.0D, fusionScore + score),
+				score,
+				matchedKeywords,
+				score <= 0.0D ? matchReason : matchReason + ",RRF_FEATURE"
 		);
 	}
 
@@ -68,6 +79,7 @@ record ProjectRoomDocumentCandidate(
 				mergedMode,
 				Math.max(originalScore, other.originalScore),
 				Math.max(fusionScore, other.fusionScore) + 0.05D,
+				Math.max(reciprocalRankScore, other.reciprocalRankScore),
 				mergedKeywords,
 				mergedReason
 		);
@@ -75,10 +87,9 @@ record ProjectRoomDocumentCandidate(
 
 	private static double baseStrategyScore(String retrievalMode, double originalScore) {
 		return switch (retrievalMode) {
-			case "TITLE_SCOPED_SEMANTIC" -> originalScore + 0.18D;
-			case "TITLE_SCOPED_KEYWORD" -> 0.72D + originalScore * 0.35D;
-			case "KEYWORD" -> 0.62D + originalScore * 0.35D;
-			case "REPRESENTATIVE" -> 0.58D + originalScore * 0.10D;
+			case "TITLE_SCOPED_SEMANTIC" -> originalScore;
+			case "TITLE_SCOPED_KEYWORD", "KEYWORD" -> 0.62D + originalScore * 0.35D;
+			case "TITLE_SCOPED_REPRESENTATIVE", "REPRESENTATIVE" -> 0.58D + originalScore * 0.10D;
 			default -> originalScore;
 		};
 	}
@@ -86,7 +97,7 @@ record ProjectRoomDocumentCandidate(
 	private static List<String> matchedKeywords(ResourceSearchHit hit, AgentSearchQueryAnalysis analysis) {
 		String compactChunk = AgentQuerySupport.compactResourceText(hit.chunkText());
 		List<String> matches = new ArrayList<>();
-		for (String keyword : analysis.keywords()) {
+		for (String keyword : analysis.rankingKeywords()) {
 			String compactKeyword = AgentQuerySupport.compactResourceText(keyword);
 			if (!compactKeyword.isBlank() && compactChunk.contains(compactKeyword) && !matches.contains(keyword)) {
 				matches.add(keyword);

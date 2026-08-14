@@ -1,0 +1,253 @@
+{
+  "name": "bubli-project-room-rag-multilingual-v2",
+  "topK": 5,
+  "description": "Bilingual Korean/Japanese project-room RAG evaluation with English cross-language fan-out cases and explicit no-answer cases.",
+  "cases": [
+    {
+      "id": "wm-approved-task-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 AI가 생성한 업무 후보를 사용자가 승인하면 어디에 반영되는지 알려줘.",
+      "query": "AI가 생성한 업무 후보를 사용자가 승인하면 어디에 반영되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" }]
+    },
+    {
+      "id": "wm-approved-task-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、生成された業務候補を承認するとどこに反映されるか教えてください。",
+      "query": "生成された業務候補を承認するとどこに反映されますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "52dae53e-a74d-4990-b59e-24f5e7e56c8c" }]
+    },
+    {
+      "id": "wm-approved-task-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded documents, where are approved AI-generated task candidates reflected?",
+      "query": "Where are approved AI-generated task candidates reflected?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "156beea5-77dd-4ee3-92f6-545ce6ae5d4f" },
+        { "resourceId": "52dae53e-a74d-4990-b59e-24f5e7e56c8c" }
+      ]
+    },
+    {
+      "id": "ec-cancel-inventory-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "프로젝트 문서에서 주문 취소가 승인되면 이미 차감된 재고를 어떻게 처리하는지 알려줘.",
+      "query": "주문 취소 승인 시 차감된 재고는 어떻게 처리되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" }]
+    },
+    {
+      "id": "ec-cancel-inventory-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "注文キャンセルが承認された場合、減算済みの在庫をどのように処理するか資料から教えてください。",
+      "query": "注文キャンセル承認時、減算済みの在庫はどうなりますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "0a817216-6f6e-493f-8f86-30d8a9500b56" }]
+    },
+    {
+      "id": "ec-cancel-inventory-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "According to the uploaded documents, what happens to deducted inventory after an order cancellation is approved?",
+      "query": "What happens to deducted inventory after an order cancellation is approved?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "84be35df-e64d-4b25-8290-5753957a943a" },
+        { "resourceId": "0a817216-6f6e-493f-8f86-30d8a9500b56" }
+      ]
+    },
+    {
+      "id": "md-questionnaire-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "문서 기준으로 환자가 예약을 확정하기 전에 반드시 입력해야 하는 내용을 알려줘.",
+      "query": "환자는 예약 확정 전에 무엇을 반드시 입력해야 하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" }]
+    },
+    {
+      "id": "md-questionnaire-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "患者が予約を確定する前に必ず入力しなければならない内容を資料から教えてください。",
+      "query": "患者は予約確定前に何を必ず入力する必要がありますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "5adb0027-46ef-4925-bf78-85e253c862fd" }]
+    },
+    {
+      "id": "md-questionnaire-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded documents, what must a patient enter before confirming an appointment?",
+      "query": "What must a patient enter before confirming an appointment?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "8ca6ba39-7a58-4916-a83e-89544a303ce1" },
+        { "resourceId": "5adb0027-46ef-4925-bf78-85e253c862fd" }
+      ]
+    },
+    {
+      "id": "ed-grading-feedback-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 강사가 제출물을 확인한 뒤 어떤 정보를 입력하는지 알려줘.",
+      "query": "강사는 제출물을 확인한 뒤 무엇을 입력하나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" }]
+    },
+    {
+      "id": "ed-grading-feedback-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "講師が提出物を確認した後に入力する情報を資料から教えてください。",
+      "query": "講師は提出物を確認した後、何を入力しますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "83f2255f-d6c2-40ef-aaae-2b1e00bd04fa" }]
+    },
+    {
+      "id": "ed-grading-feedback-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "According to the uploaded documents, what does an instructor enter after reviewing a submission?",
+      "query": "What does an instructor enter after reviewing a submission?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "343a0705-8425-466d-9ed1-b44e13d8e6b0" },
+        { "resourceId": "83f2255f-d6c2-40ef-aaae-2b1e00bd04fa" }
+      ]
+    },
+    {
+      "id": "lb-no-show-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "문서에서 이용자가 지정된 입실 시간을 넘겨도 입실하지 않으면 좌석 예약이 어떻게 되는지 알려줘.",
+      "query": "입실 시간을 넘겨도 입실하지 않으면 좌석 예약은 어떻게 되나요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" }]
+    },
+    {
+      "id": "lb-no-show-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "利用者が指定された入室時間を過ぎても入室しない場合、座席予約がどうなるか教えてください。",
+      "query": "指定された入室時間を過ぎても入室しない場合、座席予約はどうなりますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [{ "resourceId": "f73120a7-1896-4693-a19b-331b6ce02f8d" }]
+    },
+    {
+      "id": "lb-no-show-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded documents, what happens if a user does not check in by the assigned entry time?",
+      "query": "What happens if a user does not check in by the assigned entry time?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": true,
+      "expectedRetrievalModes": ["KEYWORD", "SEMANTIC"],
+      "relevant": [
+        { "resourceId": "f0e9061f-5664-40be-be28-ec1ac48794f8" },
+        { "resourceId": "f73120a7-1896-4693-a19b-331b6ce02f8d" }
+      ]
+    },
+    {
+      "id": "no-answer-refund-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서 기준으로 환불 처리 마감일을 알려줘.",
+      "query": "환불 처리 마감일은 언제인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-mobile-os-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "アップロード済み資料に基づいて、対応しているモバイルOSのバージョンを教えてください。",
+      "query": "対応しているモバイルOSのバージョンは何ですか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-backup-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "Based on the uploaded documents, what is the backup schedule and retention period?",
+      "query": "What is the backup schedule and retention period?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-plagiarism-ja",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "資料に基づいて、盗用チェックがどのように自動化されるか教えてください。",
+      "query": "盗用チェックはどのように自動化されますか。",
+      "locale": "ja-JP",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-video-consultation-en",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "According to the uploaded documents, which video codec is used for online medical consultations?",
+      "query": "Which video codec is used for online medical consultations?",
+      "locale": "en-US",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    },
+    {
+      "id": "no-answer-ebook-ko",
+      "roomId": "de6c351b-33d4-418b-8e32-68b7e49891d9",
+      "message": "업로드된 문서에서 전자책 뷰어가 지원하는 파일 형식을 알려줘.",
+      "query": "전자책 뷰어가 지원하는 파일 형식은 무엇인가요?",
+      "locale": "ko-KR",
+      "mode": "ANSWER",
+      "expectedGrounded": false,
+      "expectedRetrievalModes": [],
+      "relevant": []
+    }
+  ]
+}

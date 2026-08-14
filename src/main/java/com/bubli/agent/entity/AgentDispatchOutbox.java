@@ -69,6 +69,10 @@ public class AgentDispatchOutbox {
 	}
 
 	public void markFailed(String errorCode, String errorMessage) {
+		if (this.status == AgentDispatchOutboxStatus.DISPATCHED
+				|| this.status == AgentDispatchOutboxStatus.DEAD_LETTER) {
+			return;
+		}
 		this.status = AgentDispatchOutboxStatus.FAILED;
 		this.retryCount++;
 		this.errorCode = errorCode;
@@ -80,6 +84,15 @@ public class AgentDispatchOutbox {
 		this.status = AgentDispatchOutboxStatus.DEAD_LETTER;
 		this.errorCode = errorCode;
 		this.errorMessage = errorMessage;
+		this.dispatchedAt = null;
+	}
+
+	public void requeue(String payloadJson) {
+		this.payloadJson = payloadJson;
+		this.status = AgentDispatchOutboxStatus.PENDING;
+		this.retryCount = 0;
+		this.errorCode = null;
+		this.errorMessage = null;
 		this.dispatchedAt = null;
 	}
 

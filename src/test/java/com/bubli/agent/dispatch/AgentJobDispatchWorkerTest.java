@@ -47,7 +47,7 @@ class AgentJobDispatchWorkerTest {
 				suggestionRecorder,
 				modelCallLogRecorder
 		);
-		when(queueConsumer.poll()).thenReturn(Optional.empty());
+		when(queueConsumer.claim()).thenReturn(Optional.empty());
 
 		boolean processed = worker.processNextQueuedJob();
 
@@ -63,7 +63,7 @@ class AgentJobDispatchWorkerTest {
 	}
 
 	@Test
-	void processNextQueuedJobMarksPendingJobRunningAndStoresStartedEvent() {
+	void processNextQueuedJobFailsJobWhenExecutionReturnsNoOutcome() {
 		AgentJobQueueConsumerPort queueConsumer = mock(AgentJobQueueConsumerPort.class);
 		AgentJobRepository agentJobRepository = mock(AgentJobRepository.class);
 		AgentJobEventRepository agentJobEventRepository = mock(AgentJobEventRepository.class);
@@ -90,7 +90,7 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message)).thenReturn(Optional.empty());
 
@@ -106,7 +106,12 @@ class AgentJobDispatchWorkerTest {
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_TYPE);
 		assertThat(eventCaptor.getValue().getMessage())
 				.isEqualTo(AgentJobDispatchWorker.STARTED_EVENT_MESSAGE);
-		verifyNoInteractions(executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
+		verify(executionResultRecorder).recordFailed(
+				jobId,
+				AgentJobDispatchWorker.NO_OUTCOME_ERROR_CODE,
+				AgentJobDispatchWorker.NO_OUTCOME_ERROR_MESSAGE
+		);
+		verifyNoInteractions(suggestionRecorder, modelCallLogRecorder);
 	}
 
 	@Test
@@ -137,7 +142,7 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message)).thenReturn(Optional.of(AgentJobExecutionOutcome.succeeded()));
 
@@ -182,7 +187,7 @@ class AgentJobDispatchWorkerTest {
 				"{\"title\":\"시안 정리\"}",
 				"{\"source\":\"agent\"}"
 		);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message))
 				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithSuggestions(List.of(draft))));
@@ -228,7 +233,7 @@ class AgentJobDispatchWorkerTest {
 				"{\"title\":\"시안 정리\"}",
 				"{\"source\":\"agent\"}"
 		);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message))
 				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithSuggestions(List.of(draft))));
@@ -277,7 +282,7 @@ class AgentJobDispatchWorkerTest {
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
 		AgentJobExecutionModelCallLog modelCallLog = modelCallLog();
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message))
 				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithModelCallLogs(List.of(modelCallLog))));
@@ -319,7 +324,7 @@ class AgentJobDispatchWorkerTest {
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
 		AgentJobExecutionModelCallLog modelCallLog = modelCallLog();
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message))
 				.thenReturn(Optional.of(AgentJobExecutionOutcome.succeededWithModelCallLogs(List.of(modelCallLog))));
@@ -361,7 +366,7 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message))
 				.thenReturn(Optional.of(AgentJobExecutionOutcome.failed("MODEL_TIMEOUT", "모델 응답 시간이 초과되었습니다.")));
@@ -402,7 +407,7 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
-		when(queueConsumer.poll()).thenReturn(Optional.of(message));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message)));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 		when(executionPort.execute(message)).thenThrow(new IllegalStateException("execution failed"));
 
@@ -439,12 +444,12 @@ class AgentJobDispatchWorkerTest {
 				modelCallLogRecorder
 		);
 		UUID jobId = UUID.randomUUID();
-		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message(jobId))));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.empty());
 
 		boolean processed = worker.processNextQueuedJob();
 
-		assertThat(processed).isFalse();
+		assertThat(processed).isTrue();
 		verify(agentJobRepository).findById(jobId);
 		verify(agentJobEventRepository, never()).save(any());
 		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
@@ -478,12 +483,12 @@ class AgentJobDispatchWorkerTest {
 		);
 		ReflectionTestUtils.setField(agentJob, "id", jobId);
 		agentJob.markRunning();
-		when(queueConsumer.poll()).thenReturn(Optional.of(message(jobId)));
+		when(queueConsumer.claim()).thenReturn(Optional.of(delivery(message(jobId))));
 		when(agentJobRepository.findById(jobId)).thenReturn(Optional.of(agentJob));
 
 		boolean processed = worker.processNextQueuedJob();
 
-		assertThat(processed).isFalse();
+		assertThat(processed).isTrue();
 		verify(agentJobEventRepository, never()).save(any());
 		verifyNoInteractions(executionPort, executionResultRecorder, suggestionRecorder, modelCallLogRecorder);
 	}
@@ -497,6 +502,10 @@ class AgentJobDispatchWorkerTest {
 				AgentJobType.ANALYZE_RESOURCE,
 				Instant.now()
 		);
+	}
+
+	private AgentJobQueueDelivery delivery(AgentJobQueueMessage message) {
+		return AgentJobQueueDelivery.inMemory(message);
 	}
 
 	private AgentJobExecutionModelCallLog modelCallLog() {

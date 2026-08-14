@@ -7,6 +7,10 @@ import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobType;
 import com.bubli.global.security.AuthUser;
 import com.bubli.global.security.JwtTokenProvider;
+import com.bubli.project.entity.ProjectRoom;
+import com.bubli.project.entity.RoomMember;
+import com.bubli.project.repository.ProjectRoomRepository;
+import com.bubli.project.repository.RoomMemberRepository;
 import com.bubli.support.PostgresIntegrationTestSupport;
 import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
@@ -44,11 +48,86 @@ class AgentJobControllerIntegrationTest extends PostgresIntegrationTestSupport {
     @Autowired
     AgentJobEventRepository agentJobEventRepository;
 
+    @Autowired
+    ProjectRoomRepository projectRoomRepository;
+
+    @Autowired
+    RoomMemberRepository roomMemberRepository;
+
     @BeforeEach
     void setUp() {
         agentJobEventRepository.deleteAll();
         agentJobRepository.deleteAll();
+        roomMemberRepository.deleteAll();
+        projectRoomRepository.deleteAll();
         userRepository.deleteAll();
+    }
+
+    @Test
+    void getJobReturnsRequestedUsersJob() throws Exception {
+        User user = createUser("google-sub-agent-job-get-owner", "작업 요청자");
+        AgentJob job = agentJobRepository.save(AgentJob.create(
+                user.getId(),
+                null,
+                null,
+                AgentJobType.GENERATE_TASKS
+        ));
+
+        mockMvc.perform(get("/api/agent-jobs/{jobId}", job.getId())
+                        .header(AUTHORIZATION, bearerToken(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.jobId").value(job.getId().toString()))
+                .andExpect(jsonPath("$.data.jobType").value("GENERATE_TASKS"));
+    }
+
+    @Test
+    void getJobHidesOtherUsersPersonalJob() throws Exception {
+        User owner = createUser("google-sub-agent-job-get-personal-owner", "개인 작업 소유자");
+        User other = createUser("google-sub-agent-job-get-personal-other", "다른 사용자");
+        AgentJob job = agentJobRepository.save(AgentJob.create(
+                owner.getId(),
+                null,
+                null,
+                AgentJobType.DAILY_SUMMARY
+        ));
+
+        mockMvc.perform(get("/api/agent-jobs/{jobId}", job.getId())
+                        .header(AUTHORIZATION, bearerToken(other.getId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("AGENT_404_001"));
+    }
+
+    @Test
+    void getJobAllowsActiveRoomMember() throws Exception {
+        User requester = createUser("google-sub-agent-job-get-room-owner", "룸 작업 요청자");
+        User member = createUser("google-sub-agent-job-get-room-member", "룸 멤버");
+        ProjectRoom room = projectRoomRepository.save(ProjectRoom.create(
+                requester.getId(),
+                "에이전트 작업 룸",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+        roomMemberRepository.save(RoomMember.createLeader(room.getId(), requester.getId()));
+        roomMemberRepository.save(RoomMember.createMember(room.getId(), member.getId()));
+        AgentJob job = agentJobRepository.save(AgentJob.create(
+                requester.getId(),
+                room.getId(),
+                null,
+                AgentJobType.GENERATE_WBS
+        ));
+
+        mockMvc.perform(get("/api/agent-jobs/{jobId}", job.getId())
+                        .header(AUTHORIZATION, bearerToken(member.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.jobId").value(job.getId().toString()))
+                .andExpect(jsonPath("$.data.roomId").value(room.getId().toString()));
     }
 
     @Test

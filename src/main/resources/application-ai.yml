@@ -1,5 +1,6 @@
 spring:
   config:
+    import: optional:file:D:\kostaEx\bubli-backend\src\main\resources\.env[.properties]
     activate:
       on-profile: ai
 
@@ -47,7 +48,7 @@ bubli:
       initial-delay: ${AI_RETRY_INITIAL_DELAY:1s}
   rag:
     smoke:
-      enabled: ${RAG_SMOKE_ENABLED:true}
+      enabled: ${RAG_SMOKE_ENABLED:false}
 
 agent:
   model-usage:

@@ -40,12 +40,69 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AgentJobContextCollectorTest {
+
+    @Test
+    void roomScopedJobIncludesRoomContextButNeverPersonalContext() {
+        UUID userId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        TaskPublicService taskPublicService = mock(TaskPublicService.class);
+        SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        when(taskPublicService.getRecentRoomTasks(roomId, 8)).thenReturn(List.of(
+                task("ROOM_CONTEXT_CANARY", TaskStatus.TODO)
+        ));
+        when(taskPublicService.getPersonalContextTasks(userId, 8)).thenReturn(List.of(
+                task("PERSONAL_CONTEXT_LEAKAGE_CANARY", TaskStatus.TODO)
+        ));
+
+        AgentJobContextCollector collector = collector(taskPublicService, schedulePublicService);
+        var context = collector.collect(new AgentJobQueueMessage(
+                UUID.randomUUID(),
+                userId,
+                roomId,
+                null,
+                AgentJobType.GENERATE_TASKS,
+                Instant.now()
+        ));
+
+        assertThat(context.promptBlock())
+                .contains("[Room tasks]", "ROOM_CONTEXT_CANARY")
+                .doesNotContain("[Requester personal tasks]", "PERSONAL_CONTEXT_LEAKAGE_CANARY");
+        verify(taskPublicService, never()).getPersonalContextTasks(userId, 8);
+        verify(schedulePublicService, never()).getSchedulesBetween(eq(userId), any(), any());
+    }
+
+    @Test
+    void jobWithoutRoomIncludesPersonalContextOnly() {
+        UUID userId = UUID.randomUUID();
+        TaskPublicService taskPublicService = mock(TaskPublicService.class);
+        SchedulePublicService schedulePublicService = mock(SchedulePublicService.class);
+        when(taskPublicService.getPersonalContextTasks(userId, 8)).thenReturn(List.of(
+                task("PERSONAL_CONTEXT_CANARY", TaskStatus.TODO)
+        ));
+
+        AgentJobContextCollector collector = collector(taskPublicService, schedulePublicService);
+        var context = collector.collect(new AgentJobQueueMessage(
+                UUID.randomUUID(),
+                userId,
+                null,
+                null,
+                AgentJobType.GENERATE_TASKS,
+                Instant.now()
+        ));
+
+        assertThat(context.promptBlock())
+                .contains("[Requester personal tasks]", "PERSONAL_CONTEXT_CANARY")
+                .doesNotContain("[Room tasks]");
+        verify(taskPublicService, never()).getRecentRoomTasks(any(), anyInt());
+    }
 
     @Test
     void dailySummaryContextUsesRequestedTimezoneAndSplitsDoneAndRemainingTasks() {
@@ -76,6 +133,9 @@ class AgentJobContextCollectorTest {
         when(taskPublicService.getDueBetweenTasks(eq(userId), any(), any())).thenReturn(List.of(
                 task("완료 작업", TaskStatus.DONE),
                 task("잔여 작업", TaskStatus.IN_PROGRESS)
+        ));
+        when(taskPublicService.getPersonalContextTasks(userId, 8)).thenReturn(List.of(
+                task("개인 컨텍스트 작업", TaskStatus.TODO)
         ));
         when(schedulePublicService.getSchedulesBetween(eq(userId), any(), any())).thenReturn(List.of(
                 schedule("오늘 회의")
@@ -126,13 +186,36 @@ class AgentJobContextCollectorTest {
                 "[Daily summary widget usage]",
                 "visibleSeconds=900",
                 "[Daily summary pending agent suggestions]",
-                "DOCUMENT_DRAFT: 회의록 초안"
+                "DOCUMENT_DRAFT: 회의록 초안",
+                "[Requester personal tasks]",
+                "개인 컨텍스트 작업"
         );
         ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(taskPublicService).getDueBetweenTasks(eq(userId), fromCaptor.capture(), toCaptor.capture());
         assertThat(fromCaptor.getValue()).isEqualTo(Instant.parse("2026-06-30T15:00:00Z"));
         assertThat(toCaptor.getValue()).isEqualTo(Instant.parse("2026-07-01T15:00:00Z"));
+    }
+
+    private AgentJobContextCollector collector(
+            TaskPublicService taskPublicService,
+            SchedulePublicService schedulePublicService
+    ) {
+        return new AgentJobContextCollector(
+                mock(ProjectMembershipPublicService.class),
+                mock(ResourcePublicService.class),
+                taskPublicService,
+                mock(WbsItemPublicService.class),
+                schedulePublicService,
+                mock(ChatMessagePublicService.class),
+                mock(RoomMemoryPublicService.class),
+                mock(MemoPublicService.class),
+                mock(ActivityPublicService.class),
+                mock(NotificationPublicService.class),
+                mock(TimeLogPublicService.class),
+                mock(WidgetPublicService.class),
+                mock(AgentSuggestionPublicService.class)
+        );
     }
 
     private TaskResult task(String title, TaskStatus status) {

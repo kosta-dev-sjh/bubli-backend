@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -47,7 +48,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -210,8 +210,10 @@ public class ResourceController {
 		if (!StringUtils.hasText(originalName)) {
 			return "attachment";
 		}
-		String encoded = URLEncoder.encode(originalName, StandardCharsets.UTF_8).replace("+", "%20");
-		return "attachment; filename=\"" + originalName + "\"; filename*=UTF-8''" + encoded;
+		return ContentDisposition.attachment()
+				.filename(originalName, StandardCharsets.UTF_8)
+				.build()
+				.toString();
 	}
 
 	@PostMapping(value = "/api/resources/{resourceId}/versions", consumes = MediaType.APPLICATION_JSON_VALUE)
