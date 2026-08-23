@@ -5,6 +5,17 @@ on:
     workflows: ["CI"]
     branches: [develop]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        default: naver
+        type: choice
+        options:
+          - aws
+          - naver
+          - both
 
 permissions:
   contents: read
@@ -12,13 +23,15 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -36,25 +49,62 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/bubli-backend:latest
-            ${{ secrets.DOCKER_USERNAME }}/bubli-backend:${{ github.event.workflow_run.head_sha }}
+            ${{ secrets.DOCKER_USERNAME }}/bubli-backend:${{ github.event.workflow_run.head_sha || github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  deploy-aws:
     runs-on: ubuntu-latest
     needs: build-and-push
+    if: >-
+      needs.build-and-push.result == 'success' &&
+      (
+        (github.event_name == 'workflow_dispatch' && (inputs.target == 'aws' || inputs.target == 'both')) ||
+        (github.event_name == 'workflow_run' && (vars.DEPLOY_TARGET == '' || vars.DEPLOY_TARGET == 'aws' || vars.DEPLOY_TARGET == 'both'))
+      )
 
     steps:
-      - name: Rolling update backend on EC2
+      - name: Deploy backend to AWS EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 20m
           script: |
+            set -e
             cd ~/bubli-backend
-            git fetch origin
-            git reset --hard origin/develop
-            docker compose -f docker-compose.prod.yml pull backend
-            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build --force-recreate backend
+            git fetch origin ${{ github.event.workflow_run.head_sha || github.sha }}
+            git checkout --detach ${{ github.event.workflow_run.head_sha || github.sha }}
+            export IMAGE_TAG=${{ github.event.workflow_run.head_sha || github.sha }}
+            docker compose --env-file .env.aws -f docker-compose.prod.yml -f docker-compose.aws.yml pull backend
+            docker compose --env-file .env.aws -f docker-compose.prod.yml -f docker-compose.aws.yml --profile observability up -d --no-build --force-recreate backend
+            docker image prune -f
+
+  deploy-naver:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: >-
+      needs.build-and-push.result == 'success' &&
+      (
+        (github.event_name == 'workflow_dispatch' && (inputs.target == 'naver' || inputs.target == 'both')) ||
+        (github.event_name == 'workflow_run' && (vars.DEPLOY_TARGET == 'naver' || vars.DEPLOY_TARGET == 'both'))
+      )
+
+    steps:
+      - name: Deploy stack to Naver Cloud
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.NAVER_HOST || '101.79.29.236' }}
+          username: root
+          key: ${{ secrets.NAVER_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd ${{ vars.NAVER_DEPLOY_PATH || '/root/bubli-backend' }}
+            git fetch origin ${{ github.event.workflow_run.head_sha || github.sha }}
+            git checkout --detach ${{ github.event.workflow_run.head_sha || github.sha }}
+            export IMAGE_TAG=${{ github.event.workflow_run.head_sha || github.sha }}
+            docker compose --env-file .env.naver -f docker-compose.prod.yml -f docker-compose.naver.yml pull
+            docker compose --env-file .env.naver -f docker-compose.prod.yml -f docker-compose.naver.yml up -d --no-build --remove-orphans
             docker image prune -f

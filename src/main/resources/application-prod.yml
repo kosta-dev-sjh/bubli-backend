@@ -1,6 +1,4 @@
 spring:
-  config:
-    import: optional:file:D:\kostaEx\bubli-backend\src\main\resources\.env[.properties]
   application:
     name: bubli-backend
 
@@ -12,13 +10,13 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   ai:
     model:
-      chat: bedrock-converse
-      embedding: bedrock-titan
+      chat: ${AI_CHAT_PROVIDER:bedrock-converse}
+      embedding: ${AI_EMBEDDING_PROVIDER:bedrock-titan}
     bedrock:
       aws:
         region: ${AWS_REGION:ap-northeast-2}
@@ -36,13 +34,26 @@ spring:
         embedding:
           model: ${BEDROCK_EMBEDDING_MODEL_ID:amazon.titan-embed-text-v2:0}
           input-type: TEXT
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: never
+      embedding:
+        options:
+          model: ${OLLAMA_EMBEDDING_MODEL:qwen3-embedding:0.6b}
+          keep-alive: ${OLLAMA_KEEP_ALIVE:0}
+          truncate: true
+          num-ctx: ${OLLAMA_NUM_CTX:1024}
+          num-batch: ${OLLAMA_NUM_BATCH:32}
+          num-gpu: ${OLLAMA_NUM_GPU:0}
+          num-thread: ${OLLAMA_NUM_THREAD:2}
     vectorstore:
       type: pgvector
       pgvector:
         initialize-schema: true
         index-type: HNSW
         distance-type: COSINE_DISTANCE
-        dimensions: ${BEDROCK_EMBEDDING_DIMENSIONS:1024}
+        dimensions: ${AI_EMBEDDING_DIMENSIONS:1024}
         schema-name: public
         table-name: vector_store
         schema-validation: false
@@ -87,7 +98,8 @@ aws:
 
 storage:
   type: ${STORAGE_TYPE:s3}
-  base-path: ./local-storage
+  local:
+    base-path: ${STORAGE_LOCAL_BASE_PATH:./local-storage}
 
 livekit:
   api-key: ${LIVEKIT_API_KEY:}

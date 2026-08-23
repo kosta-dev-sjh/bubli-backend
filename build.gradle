@@ -78,6 +78,7 @@ dependencies {
 	// Spring AI / RAG
 	implementation 'org.springframework.ai:spring-ai-starter-model-bedrock'
 	implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
+	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
 	implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 
 	// 문서 처리
