@@ -1,39 +1,52 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   backend:
-    image: ${DOCKER_USERNAME}/bubli-backend:latest
+    image: ${DOCKER_USERNAME}/bubli-backend:${IMAGE_TAG:-latest}
     container_name: bubli-backend
     restart: always
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_HOSTNAME}:${RDS_PORT}/${RDS_DB_NAME}
-      - SPRING_DATASOURCE_USERNAME=${RDS_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${RDS_PASSWORD}
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_DATA_REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
-      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
-      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
-      - GOOGLE_CALENDAR_CLIENT_ID=${GOOGLE_CALENDAR_CLIENT_ID}
-      - GOOGLE_CALENDAR_CLIENT_SECRET=${GOOGLE_CALENDAR_CLIENT_SECRET}
-      - GOOGLE_CALENDAR_REDIRECT_URI=${GOOGLE_CALENDAR_REDIRECT_URI}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_SERVER_URL=${LIVEKIT_SERVER_URL}
-      - JWT_ACCESS_TOKEN_EXPIRE_MS=3600000
-      - JWT_REFRESH_TOKEN_EXPIRE_MS=1209600000
-      - CORS_ALLOWED_ORIGIN_PATTERNS=https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420
-      - AGENT_EXECUTION_MODE=${AGENT_EXECUTION_MODE:-llm}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - STORAGE_TYPE=s3
-      - AWS_S3_BUCKET=${S3_BUCKET_NAME}
-      - BEDROCK_CHAT_MODEL_ID=${BEDROCK_CHAT_MODEL_ID:-apac.anthropic.claude-3-haiku-20240307-v1:0}
-      - BEDROCK_EMBEDDING_MODEL_ID=${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRE_MS: ${JWT_ACCESS_TOKEN_EXPIRE_MS:-3600000}
+      JWT_REFRESH_TOKEN_EXPIRE_MS: ${JWT_REFRESH_TOKEN_EXPIRE_MS:-1209600000}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI}
+      GOOGLE_CALENDAR_CLIENT_ID: ${GOOGLE_CALENDAR_CLIENT_ID}
+      GOOGLE_CALENDAR_CLIENT_SECRET: ${GOOGLE_CALENDAR_CLIENT_SECRET}
+      GOOGLE_CALENDAR_REDIRECT_URI: ${GOOGLE_CALENDAR_REDIRECT_URI}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_SERVER_URL: ${LIVEKIT_SERVER_URL}
+      CORS_ALLOWED_ORIGIN_PATTERNS: ${CORS_ALLOWED_ORIGIN_PATTERNS:-https://bubli.n-e.kr,tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173,http://localhost:1420}
+      AGENT_EXECUTION_MODE: ${AGENT_EXECUTION_MODE:-llm}
+      AGENT_DISPATCH_ADAPTER: ${AGENT_DISPATCH_ADAPTER:-redis}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-bedrock-converse}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-bedrock-titan}
+      AI_EMBEDDING_DIMENSIONS: ${AI_EMBEDDING_DIMENSIONS:-1024}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      BEDROCK_CHAT_MODEL_ID: ${BEDROCK_CHAT_MODEL_ID:-apac.anthropic.claude-3-haiku-20240307-v1:0}
+      BEDROCK_EMBEDDING_MODEL_ID: ${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-0}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-1024}
+      OLLAMA_NUM_BATCH: ${OLLAMA_NUM_BATCH:-32}
+      OLLAMA_NUM_GPU: ${OLLAMA_NUM_GPU:-0}
+      OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-2}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     expose:
       - "8080"
     networks:
@@ -41,9 +54,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 640m
         reservations:
-          memory: 256m
+          memory: 384m
+    logging: *default-logging
 
   redis:
     image: redis:7-alpine
@@ -61,12 +75,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768m
-        reservations:
           memory: 384m
+        reservations:
+          memory: 192m
+    logging: *default-logging
 
   frontend:
-    image: ${DOCKER_USERNAME}/bubli-frontend:latest
+    image: ${DOCKER_USERNAME}/bubli-frontend:${FRONTEND_IMAGE_TAG:-latest}
     container_name: bubli-frontend
     restart: always
     expose:
@@ -79,6 +94,7 @@ services:
           memory: 256m
         reservations:
           memory: 128m
+    logging: *default-logging
 
   nginx:
     image: nginx:alpine
@@ -88,7 +104,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${NGINX_CONFIG_PATH:-./infra/nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
       - certbot-etc:/etc/letsencrypt:ro
       - certbot-var:/var/lib/letsencrypt:ro
       - webroot:/var/www/certbot:ro
@@ -103,6 +119,7 @@ services:
           memory: 64m
         reservations:
           memory: 32m
+    logging: *default-logging
 
   certbot:
     image: certbot/certbot
@@ -117,13 +134,15 @@ services:
       resources:
         limits:
           memory: 64m
+    logging: *default-logging
 
   prometheus:
     image: prom/prometheus:latest
     container_name: bubli-prometheus
     restart: always
+    profiles: ["observability"]
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -142,18 +161,20 @@ services:
           memory: 256m
         reservations:
           memory: 128m
+    logging: *default-logging
 
   grafana:
     image: grafana/grafana:latest
     container_name: bubli-grafana
     restart: always
+    profiles: ["observability"]
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
-      - GF_SERVER_HTTP_PORT=3001
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SERVER_HTTP_PORT: 3001
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -168,11 +189,13 @@ services:
           memory: 256m
         reservations:
           memory: 128m
+    logging: *default-logging
 
   loki:
     image: grafana/loki:latest
     container_name: bubli-loki
     restart: always
+    profiles: ["observability"]
     expose:
       - "3100"
     volumes:
@@ -187,11 +210,13 @@ services:
           memory: 256m
         reservations:
           memory: 128m
+    logging: *default-logging
 
   promtail:
     image: grafana/promtail:latest
     container_name: bubli-promtail
     restart: always
+    profiles: ["observability"]
     volumes:
       - ./infra/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -208,6 +233,7 @@ services:
           memory: 128m
         reservations:
           memory: 64m
+    logging: *default-logging
 
 volumes:
   redis-data:

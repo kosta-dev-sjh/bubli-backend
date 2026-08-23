@@ -1,0 +1,105 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  backend:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bubli}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-bubli}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      STORAGE_LOCAL_BASE_PATH: /app/local-storage
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-bedrock-converse}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-ollama}
+      AI_EMBEDDING_DIMENSIONS: ${AI_EMBEDDING_DIMENSIONS:-1024}
+    volumes:
+      - naver-storage-data:/app/local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama-model-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 640m
+        reservations:
+          memory: 384m
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: bubli-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bubli}
+      POSTGRES_USER: ${POSTGRES_USER:-bubli}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - naver-pg-data:/var/lib/postgresql/data
+      - ./infra/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - bubli-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
+    logging: *default-logging
+
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.11.10}
+    container_name: bubli-ollama
+    restart: always
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-0}
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_LOADED_MODELS: 1
+    expose:
+      - "11434"
+    volumes:
+      - naver-ollama-data:/root/.ollama
+    networks:
+      - bubli-network
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          memory: 1280m
+        reservations:
+          memory: 768m
+    logging: *default-logging
+
+  ollama-model-init:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.11.10}
+    container_name: bubli-ollama-model-init
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$${OLLAMA_EMBEDDING_MODEL}\""]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - bubli-network
+    logging: *default-logging
+
+volumes:
+  naver-pg-data:
+  naver-storage-data:
+  naver-ollama-data:
