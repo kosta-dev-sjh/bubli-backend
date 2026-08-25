@@ -645,7 +645,7 @@ class ProjectRoomAgentCommandServiceTest {
 	}
 
 	@Test
-	void ambiguousResourceRequestAsksClarificationWithoutGroundingOrLlm() {
+	void ambiguousResourceRequestAsksClarificationAfterGroundingCannotResolveIt() {
 		UUID userId = UUID.randomUUID();
 		UUID roomId = UUID.randomUUID();
 		ChatModel chatModel = mock(ChatModel.class);
@@ -673,11 +673,57 @@ class ProjectRoomAgentCommandServiceTest {
 
 		verify(chatModel, never()).call(any(String.class));
 		verify(resourcePublicService, never()).getRecentRoomResources(any(), any(), anyInt());
-		verify(groundingService, never()).retrieve(any(), any(), any(), any(), any(), any());
+		verify(groundingService).retrieve(
+				eq(userId), eq(roomId), eq("/bubli 자료 알려줘"), eq("ko-KR"),
+				eq(AgentCommandMode.ANSWER), eq(List.of())
+		);
 		assertThat(response.message().body().get("text").asText())
 				.isEqualTo("업로드된 파일 목록을 원하시나요, 아니면 특정 파일의 내용을 요약할까요?");
 		assertThat(response.message().body().get("missingInfo").get(0).asText())
 				.isEqualTo("AMBIGUOUS_RESOURCE_INTENT");
+	}
+
+	@Test
+	void filenameReviewQuestionReachesGroundingWithoutSummaryKeyword() {
+		UUID userId = UUID.randomUUID();
+		UUID roomId = UUID.randomUUID();
+		UUID resourceId = UUID.randomUUID();
+		ChatModel chatModel = mock(ChatModel.class);
+		ResourcePublicService resourcePublicService = mock(ResourcePublicService.class);
+		ProjectRoomGroundingService groundingService = mock(ProjectRoomGroundingService.class);
+		ChatMessagePublicService chatMessagePublicService = mock(ChatMessagePublicService.class);
+		RoomMemoryPublicService memoryPublicService = mock(RoomMemoryPublicService.class);
+		ProjectRoomGroundingContext context = documentContext(
+				resourceId,
+				"예약 후 입실하지 않으면 설정된 시간이 지난 뒤 예약이 취소된다."
+		);
+		String message = "/bubli 공공도서관_좌석대출 파일을 바탕으로 놓치기 쉬운 것을 알려줘";
+
+		when(chatModel.call(any(String.class))).thenReturn("예약 자동 취소 조건을 놓치기 쉽습니다.");
+		when(chatMessagePublicService.createRoomAgentResponse(eq(userId), eq(roomId), any(), eq(resourceId)))
+				.thenAnswer(invocation -> chatMessage(invocation.getArgument(2), resourceId));
+		when(memoryPublicService.createDraft(eq(userId), eq(roomId), eq(10L), eq(10L), any()))
+				.thenReturn(memory());
+
+		var response = service(
+				chatMessagePublicService,
+				memoryPublicService,
+				mock(AgentSuggestionCommandService.class),
+				mock(ProjectRoomEventPublicService.class),
+				"ko-KR",
+				context,
+				chatModel,
+				resourcePublicService,
+				groundingService
+		).execute(userId, roomId, message, AgentCommandMode.ANSWER, List.of());
+
+		verify(groundingService).retrieve(
+				eq(userId), eq(roomId), eq(message), eq("ko-KR"),
+				eq(AgentCommandMode.ANSWER), eq(List.of())
+		);
+		assertThat(response.message().body().get("text").asText())
+				.isEqualTo("예약 자동 취소 조건을 놓치기 쉽습니다.");
+		assertThat(response.message().body().get("fallbackReason").isNull()).isTrue();
 	}
 
 	@Test

@@ -66,11 +66,6 @@ public class ProjectRoomAgentCommandService {
 		List<UUID> requestedResourceIds = requestedResources.stream().map(ResourceResult::id).toList();
 		AgentCommandMode commandMode = mode == null ? AgentCommandMode.ANSWER : mode;
 		String locale = SupportedLocale.normalize(userLocalePublicService.resolveLocaleCode(userId, null));
-		String clarificationAnswer = requestedResourceIds.isEmpty() ? ambiguousResourceAnswer(message, locale) : null;
-		if (clarificationAnswer != null) {
-			return persistResponse(userId, roomId, message, commandMode, clarificationAnswer,
-					FALLBACK_AMBIGUOUS_RESOURCE_INTENT, List.of(), ProjectRoomGroundingContext.ungrounded(), List.of());
-		}
 		ResourceInventoryAnswer inventoryAnswer = resourceInventoryAnswer(
 				userId,
 				roomId,
@@ -258,6 +253,10 @@ public class ProjectRoomAgentCommandService {
 			if (answerabilityStatus(groundingContext) == ProjectRoomAnswerabilityStatus.NEEDS_CLARIFICATION) {
 				return new AnswerResult(documentClarificationAnswer(locale, groundingContext), "AMBIGUOUS_DOCUMENT_SCOPE");
 			}
+			String clarificationAnswer = postGroundingClarificationAnswer(message, locale, groundingContext);
+			if (clarificationAnswer != null) {
+				return new AnswerResult(clarificationAnswer, FALLBACK_AMBIGUOUS_RESOURCE_INTENT);
+			}
 			return new AnswerResult(noAnswer(locale), "NO_GROUNDING");
 		}
 		if (!aiModelGateway.isChatAvailable()) {
@@ -274,6 +273,30 @@ public class ProjectRoomAgentCommandService {
 			log.warn("Project room RAG LLM answer failed.", exception);
 			return new AnswerResult(noAnswer(locale), "LLM_FAILED");
 		}
+	}
+
+	private String postGroundingClarificationAnswer(
+			String message,
+			String locale,
+			ProjectRoomGroundingContext groundingContext
+	) {
+		if (!isAmbiguousResourceRequest(message)) {
+			return null;
+		}
+		Map<String, Object> diagnostics = groundingContext.retrievalDiagnostics();
+		String scopeConfidence = Objects.toString(
+				diagnostics.getOrDefault("documentScopeConfidence", DocumentScopeConfidence.NONE.name())
+		);
+		if (!DocumentScopeConfidence.NONE.name().equals(scopeConfidence)) {
+			return null;
+		}
+		String queryIntent = Objects.toString(
+				diagnostics.getOrDefault("queryIntent", ProjectRoomQueryIntent.GENERAL_DOCUMENT_QA.name())
+		);
+		if (!ProjectRoomQueryIntent.GENERAL_DOCUMENT_QA.name().equals(queryIntent)) {
+			return null;
+		}
+		return ambiguousResourceAnswer(message, locale);
 	}
 
 	private ProjectRoomAnswerabilityStatus answerabilityStatus(ProjectRoomGroundingContext groundingContext) {
