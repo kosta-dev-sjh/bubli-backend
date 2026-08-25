@@ -96,12 +96,12 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.NAVER_HOST || '101.79.29.236' }}
-          username: root
+          username: ${{ vars.NAVER_SSH_USERNAME || 'deploy' }}
           key: ${{ secrets.NAVER_SSH_KEY }}
           command_timeout: 30m
           script: |
             set -e
-            cd ${{ vars.NAVER_DEPLOY_PATH || '/root/bubli-backend' }}
+            cd ${{ vars.NAVER_DEPLOY_PATH || '/home/deploy/bubli-backend' }}
             git fetch origin ${{ github.event.workflow_run.head_sha || github.sha }}
             git checkout --detach ${{ github.event.workflow_run.head_sha || github.sha }}
             export IMAGE_TAG=${{ github.event.workflow_run.head_sha || github.sha }}

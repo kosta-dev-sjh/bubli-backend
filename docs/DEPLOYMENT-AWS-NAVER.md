@@ -25,7 +25,7 @@ GitHub Actions의 Repository variable `DEPLOY_TARGET`을 사용한다.
 - AWS: `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY`
 - Naver: `NAVER_SSH_KEY` (PEM 개인키 전체 내용)
 
-Naver 호스트 기본값은 `101.79.29.236`, SSH 사용자는 `root`, 저장소 경로는 `/root/bubli-backend`이다. 필요하면 Repository variable `NAVER_HOST`, `NAVER_DEPLOY_PATH`로 변경한다.
+Naver 호스트 기본값은 `101.79.29.236`, SSH 사용자는 `deploy`, 저장소 경로는 `/home/deploy/bubli-backend`이다. 필요하면 Repository variable `NAVER_HOST`, `NAVER_SSH_USERNAME`, `NAVER_DEPLOY_PATH`로 변경한다.
 
 ## 2. 서버별 환경 파일
 
@@ -48,11 +48,12 @@ dnf -y install dnf-plugins-core git
 dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
-git clone https://github.com/kosta-dev-sjh/bubli-backend.git /root/bubli-backend
-cd /root/bubli-backend
-cp config/deploy/naver.env.example .env.naver
-chmod 600 .env.naver
+usermod -aG docker deploy
+sudo -u deploy git clone https://github.com/kosta-dev-sjh/bubli-backend.git /home/deploy/bubli-backend
+sudo -u deploy sh -c 'cd /home/deploy/bubli-backend && cp config/deploy/naver.env.example .env.naver && chmod 600 .env.naver'
 ```
+
+`deploy` 계정은 Docker 그룹 적용을 위해 다시 로그인한 뒤 배포해야 한다.
 
 Naver Cloud 방화벽/ACG는 80과 443을 전체 공개하고, 22는 관리자 IP만 허용한다. 3000은 Nginx가 내부 프론트엔드로 전달하므로 외부 공개가 필요하지 않다.
 
