@@ -15,7 +15,7 @@ spring:
 
   ai:
     model:
-      chat: ${AI_CHAT_PROVIDER:bedrock-converse}
+      chat: ${AI_CHAT_PROVIDER:ollama}
       embedding: ${AI_EMBEDDING_PROVIDER:bedrock-titan}
     bedrock:
       aws:
@@ -38,13 +38,14 @@ spring:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       init:
         pull-model-strategy: never
-      options:
-        model: ${OLLAMA_CHAT_MODEL:qwen3.5:4b-q4_K_M}
-        keep-alive: ${OLLAMA_KEEP_ALIVE:0}
-        num-ctx: ${OLLAMA_CHAT_NUM_CTX:1024}
-        num-batch: ${OLLAMA_CHAT_NUM_BATCH:16}
-        num-thread: ${OLLAMA_NUM_THREAD:2}
-        temperature: ${OLLAMA_CHAT_TEMPERATURE:0.2}
+      chat:
+        options:
+          model: ${OLLAMA_CHAT_MODEL:qwen3.5:4b-q4_K_M}
+          keep-alive: ${OLLAMA_KEEP_ALIVE:0}
+          num-ctx: ${OLLAMA_CHAT_NUM_CTX:1024}
+          num-batch: ${OLLAMA_CHAT_NUM_BATCH:16}
+          num-thread: ${OLLAMA_NUM_THREAD:2}
+          temperature: ${OLLAMA_CHAT_TEMPERATURE:0.2}
       embedding:
         options:
           model: ${OLLAMA_EMBEDDING_MODEL:qwen3-embedding:0.6b}
