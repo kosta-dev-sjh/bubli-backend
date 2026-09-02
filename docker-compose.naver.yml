@@ -78,9 +78,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1280m
+          memory: 5g
         reservations:
-          memory: 768m
+          memory: 3g
     logging: *default-logging
 
   ollama-model-init:
