@@ -75,12 +75,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    mem_limit: 5g
+    mem_reservation: 3g
     deploy:
       resources:
         limits:
-          memory: 5g
+          memory: 10g
         reservations:
-          memory: 3g
+          memory: 5g
     logging: *default-logging
 
   ollama-model-init:
@@ -90,7 +92,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
-      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3.5:4b-q4_K_M}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3.5:2b-q4_K_M}
     entrypoint: ["/bin/sh", "-c"]
     command: [ "ollama pull \"$${OLLAMA_EMBEDDING_MODEL}\" &&
      if [ \"$${AI_CHAT_PROVIDER}\" = \"ollama\" ]; then

@@ -40,7 +40,7 @@ spring:
         pull-model-strategy: never
       chat:
         options:
-          model: ${OLLAMA_CHAT_MODEL:qwen3.5:4b-q4_K_M}
+          model: ${OLLAMA_CHAT_MODEL:qwen3.5:2b-q4_K_M}
           keep-alive: ${OLLAMA_KEEP_ALIVE:0}
           num-ctx: ${OLLAMA_CHAT_NUM_CTX:1024}
           num-batch: ${OLLAMA_CHAT_NUM_BATCH:16}
