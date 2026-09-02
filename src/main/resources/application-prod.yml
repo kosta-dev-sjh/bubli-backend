@@ -39,6 +39,7 @@ spring:
       init:
         pull-model-strategy: never
       chat:
+        think: ${OLLAMA_THINK:false}
         options:
           model: ${OLLAMA_CHAT_MODEL:qwen3.5:2b-q4_K_M}
           keep-alive: ${OLLAMA_KEEP_ALIVE:0}

@@ -35,7 +35,7 @@ repositories {
 
 ext {
 	queryDslVersion = '5.1.0'
-	springAiVersion = '1.0.9'
+	springAiVersion = '1.1.8'
 	lombokVersion = '1.18.38'
 }
 
