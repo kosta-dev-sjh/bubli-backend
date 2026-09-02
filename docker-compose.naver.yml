@@ -75,8 +75,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-    mem_limit: 5g
-    mem_reservation: 3g
     deploy:
       resources:
         limits:
