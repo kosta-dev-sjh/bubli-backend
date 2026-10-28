@@ -367,4 +367,3 @@ class LocalFileSyncPayloadContractHttpTest extends PostgresIntegrationTestSuppor
         assertEquals(2, count("resources"));
     }
 }
-
