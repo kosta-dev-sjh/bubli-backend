@@ -443,7 +443,7 @@ public class ResourceService {
 
 	@Transactional
 	public ResourceResult updateResource(UUID userId, UUID resourceId, String title) {
-		Resource resource = getReadableResource(userId, resourceId);
+		Resource resource = getWritableResource(userId, resourceId);
 		if (!StringUtils.hasText(title)) {
 			throw new BusinessException(ErrorCode.RESOURCE_400_001);
 		}
@@ -488,9 +488,28 @@ public class ResourceService {
 
 	@Transactional
 	public ResourceResult startAnalysis(UUID userId, UUID resourceId) {
-		Resource resource = getReadableResource(userId, resourceId);
+		Resource resource = getWritableResource(userId, resourceId);
 		resource.startAnalysis();
 		return ResourceResult.from(resource);
+	}
+
+	@Transactional
+	public boolean updatePersonalLocalFileResourceIfNewer(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType, String deviceId, long sequence) {
+		if (!StringUtils.hasText(deviceId) || deviceId.length() > 120 || sequence <= 0 || sequence > 9007199254740991L) {
+			throw new IllegalArgumentException("A sync device and a positive safe sequence are required");
+		}
+		Resource resource = resourceRepository.lockPersonalByIdAndOwnerId(resourceId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+		if (resource.getDeletedAt() != null) throw new BusinessException(ErrorCode.RESOURCE_404_001);
+		validateReadable(userId, resource);
+		if (resource.getVisibility() != ResourceVisibility.PERSONAL) throw new BusinessException(ErrorCode.RESOURCE_403_001);
+		if (resource.getLocalSyncDeviceId() != null && !deviceId.equals(resource.getLocalSyncDeviceId())) {
+			throw new BusinessException(ErrorCode.LOCALSYNC_409_001);
+		}
+		if (sequence <= resource.getLocalSyncSequence()) return false;
+		updatePersonalLocalFileResource(userId, resourceId, title, sizeBytes, mimeType);
+		resource.recordLocalSyncSequence(deviceId, sequence);
+		return true;
 	}
 
 	@Transactional
@@ -545,7 +564,22 @@ public class ResourceService {
 
 	@Transactional
 	public void deleteResource(UUID userId, UUID resourceId) {
-		Resource resource = getReadableResource(userId, resourceId);
+		Resource resource = resourceRepository.lockReadableByIdAndUserId(resourceId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+		validateReadable(userId, resource);
+		deleteLockedResource(resource);
+	}
+
+	@Transactional
+	public void deletePersonalResource(UUID userId, UUID resourceId) {
+		Resource resource = resourceRepository.lockPersonalByIdAndOwnerId(resourceId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+		deleteLockedResource(resource);
+	}
+
+	private void deleteLockedResource(Resource resource) {
+		if (resource.getDeletedAt() != null) return;
+		UUID resourceId = resource.getId();
 		List<ResourceFile> files = resourceFileRepository.findByResourceId(resourceId);
 		long usedBytes = files.stream()
 				.mapToLong(ResourceFile::getSizeBytes)
@@ -993,6 +1027,14 @@ public class ResourceService {
 		Resource resource = resourceRepository.findByIdAndDeletedAtIsNull(resourceId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
 		validateReadable(userId, resource);
+		return resource;
+	}
+
+	private Resource getWritableResource(UUID userId, UUID resourceId) {
+		Resource resource = resourceRepository.lockReadableByIdAndUserId(resourceId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_404_001));
+		validateReadable(userId, resource);
+		if (resource.getDeletedAt() != null) throw new BusinessException(ErrorCode.RESOURCE_404_001);
 		return resource;
 	}
 

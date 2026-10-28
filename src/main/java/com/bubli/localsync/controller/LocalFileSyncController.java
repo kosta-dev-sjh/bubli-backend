@@ -19,12 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocalFileSyncController {
 
     private final LocalFileSyncService localFileSyncService;
+    private final LocalFileSyncAdmission admission;
 
     @PostMapping("/sync")
     public ApiResponse<LocalFileSyncResponse> sync(
             @CurrentUser AuthUser authUser,
             @RequestBody @Valid LocalFileSyncRequest request
     ) {
-        return ApiResponse.success(localFileSyncService.sync(authUser.userId(), request.events()));
+        return admission.execute(authUser.userId(), () -> ApiResponse.success(localFileSyncService.sync(authUser.userId(), request.events())));
     }
 }

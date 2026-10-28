@@ -77,6 +77,7 @@ public enum ErrorCode {
     RESOURCE_501_002(HttpStatus.NOT_IMPLEMENTED, "RESOURCE_501_002", "자료 저장소 저장/삭제가 아직 연결되지 않았습니다."),
 
     RESOURCE_409_001(HttpStatus.CONFLICT, "RESOURCE_409_001", "Resource already exists."),
+    RESOURCE_409_002(HttpStatus.CONFLICT, "RESOURCE_409_002", "Resource changed while this request was running."),
     RESOURCE_413_001(HttpStatus.PAYLOAD_TOO_LARGE, "RESOURCE_413_001", "Resource file is too large."),
     RESOURCE_415_001(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "RESOURCE_415_001", "Unsupported resource file type."),
     RESOURCE_500_001(HttpStatus.INTERNAL_SERVER_ERROR, "RESOURCE_500_001", "Resource processing failed."),
@@ -114,6 +115,8 @@ public enum ErrorCode {
 
     // LOCAL SYNC
     LOCALSYNC_403_001(HttpStatus.FORBIDDEN, "LOCALSYNC_403_001", "관리 폴더 동의가 필요합니다."),
+    LOCALSYNC_429_001(HttpStatus.TOO_MANY_REQUESTS, "LOCALSYNC_429_001", "Sync concurrency limit reached."),
+    LOCALSYNC_409_001(HttpStatus.CONFLICT, "LOCALSYNC_409_001", "The resource belongs to another sync device."),
 
     // VOICE
     VOICE_404_001(HttpStatus.NOT_FOUND, "VOICE_404_001", "보이스챗 방을 찾을 수 없습니다."),

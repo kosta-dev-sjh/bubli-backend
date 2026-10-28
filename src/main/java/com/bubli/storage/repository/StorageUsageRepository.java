@@ -5,14 +5,27 @@ import com.bubli.storage.type.StorageScope;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface StorageUsageRepository extends JpaRepository<StorageUsage, UUID> {
+
+	@Transactional
+	@Modifying
+	@Query(value = """
+			INSERT INTO storage_usage (id,user_id,room_id,storage_scope,used_bytes,limit_bytes,created_at,updated_at)
+			VALUES (:id,:userId,NULL,'PERSONAL',0,:limitBytes,:now,:now)
+			ON CONFLICT (user_id) WHERE storage_scope = 'PERSONAL' AND user_id IS NOT NULL DO NOTHING
+			""", nativeQuery = true)
+	int insertPersonalIfAbsent(@Param("id") UUID id, @Param("userId") UUID userId,
+			@Param("limitBytes") long limitBytes, @Param("now") Instant now);
 
 	Optional<StorageUsage> findByUserIdAndStorageScope(UUID userId, StorageScope storageScope);
 
