@@ -34,12 +34,6 @@ public class GlobalExceptionHandler {
                 errorResponseFactory.of(ErrorCode.RESOURCE_409_002, TraceIdHolder.get(), request)));
     }
 
-    @ExceptionHandler(com.bubli.localsync.controller.LocalFileSyncAdmission.LimitExceeded.class)
-    public ResponseEntity<ApiResponse<Void>> handleSyncAdmissionException(com.bubli.localsync.controller.LocalFileSyncAdmission.LimitExceeded e, HttpServletRequest request) {
-        ErrorResponse response = errorResponseFactory.of(ErrorCode.LOCALSYNC_429_001, TraceIdHolder.get(), request);
-        return ResponseEntity.status(e.getStatusCode()).headers(e.getHeaders()).body(ApiResponse.fail(response));
-    }
-
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
         ErrorCode errorCode = e.getErrorCode();

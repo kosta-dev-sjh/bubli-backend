@@ -20,6 +20,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LocalFileSyncBoundaryTest {
+    @Test void controllerKeepsAdmissionStatusHeaderAndErrorCode() {
+        var admission = new LocalFileSyncAdmission(1, 1);
+        UUID user = UUID.randomUUID();
+        var exception = admission.execute(user, () -> assertThrows(LocalFileSyncAdmission.LimitExceeded.class,
+                () -> admission.execute(user, () -> true)));
+        var factory = org.mockito.Mockito.mock(com.bubli.global.error.ErrorResponseFactory.class);
+        var request = new MockHttpServletRequest();
+        var error = com.bubli.global.error.ErrorResponse.of(com.bubli.global.error.ErrorCode.LOCALSYNC_429_001, null);
+        org.mockito.Mockito.when(factory.of(org.mockito.ArgumentMatchers.eq(com.bubli.global.error.ErrorCode.LOCALSYNC_429_001),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.same(request))).thenReturn(error);
+        var controller = new com.bubli.localsync.controller.LocalFileSyncController(
+                org.mockito.Mockito.mock(LocalFileSyncService.class), admission, factory);
+        var response = controller.handleAdmissionLimit(exception, request);
+        assertEquals(429, response.getStatusCode().value());
+        assertEquals("1", response.getHeaders().getFirst("Retry-After"));
+        assertFalse(response.getBody().isSuccess());
+        assertEquals("LOCALSYNC_429_001", response.getBody().getError().getCode());
+    }
+
     @Test void globalAdmissionAndUserEntryCleanupAreBounded() {
         LocalFileSyncAdmission admission = new LocalFileSyncAdmission(2, 2);
         admission.execute(UUID.randomUUID(), () -> admission.execute(UUID.randomUUID(), () -> {
