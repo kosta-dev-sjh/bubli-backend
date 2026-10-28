@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -98,7 +99,7 @@ public class StorageUsageService implements StorageUsagePublicService {
 
 	private StorageUsage getOrCreatePersonalUsageForUpdate(UUID userId) {
 		return storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL)
-				.orElseGet(() -> createPersonalUsageWithRetry(userId));
+				.orElseGet(() -> createPersonalUsageIfAbsent(userId));
 	}
 
 	private StorageUsage getOrCreateRoomUsageForUpdate(UUID roomId) {
@@ -106,31 +107,11 @@ public class StorageUsageService implements StorageUsagePublicService {
 				.orElseGet(() -> createRoomUsageWithRetry(roomId));
 	}
 
-	private StorageUsage createPersonalUsageWithRetry(UUID userId) {
-		DataIntegrityViolationException lastException = null;
-		for (int attempt = 0; attempt < STORAGE_USAGE_CREATE_MAX_ATTEMPTS; attempt++) {
-			try {
-				return storageUsageRepository.saveAndFlush(StorageUsage.create(
-						userId,
-						null,
-						StorageScope.PERSONAL,
-						0L,
-						defaultPersonalLimitBytes
-				));
-			} catch (DataIntegrityViolationException exception) {
-				StorageUsage existingUsage = storageUsageRepository
-						.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL)
-						.orElse(null);
-				if (existingUsage != null) {
-					return existingUsage;
-				}
-				lastException = exception;
-			}
-		}
-		if (lastException == null) {
-			throw new IllegalStateException("Storage usage create retry attempts must be positive.");
-		}
-		throw lastException;
+	private StorageUsage createPersonalUsageIfAbsent(UUID userId) {
+		storageUsageRepository.insertPersonalIfAbsent(UUID.randomUUID(), userId,
+				defaultPersonalLimitBytes, Instant.now());
+		return storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL)
+				.orElseThrow(() -> new IllegalStateException("Personal storage usage is missing after creation"));
 	}
 
 	private StorageUsage createRoomUsageWithRetry(UUID roomId) {

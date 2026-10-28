@@ -25,6 +25,8 @@ public interface LocalFileSyncEventRepository extends JpaRepository<LocalFileSyn
                 event_type,
                 resource_id,
                 status,
+                payload_fingerprint,
+                retryable,
                 created_at,
                 updated_at
             )
@@ -35,6 +37,8 @@ public interface LocalFileSyncEventRepository extends JpaRepository<LocalFileSyn
                 :eventType,
                 NULL,
                 'PROCESSING',
+                :payloadFingerprint,
+                TRUE,
                 :now,
                 :now
             )
@@ -45,8 +49,13 @@ public interface LocalFileSyncEventRepository extends JpaRepository<LocalFileSyn
             @Param("userId") UUID userId,
             @Param("localEventId") String localEventId,
             @Param("eventType") String eventType,
-            @Param("now") Instant now
+            @Param("now") Instant now,
+            @Param("payloadFingerprint") String payloadFingerprint
     );
+
+    default int insertProcessingIfAbsent(UUID id, UUID userId, String localEventId, String eventType, Instant now) {
+        return insertProcessingIfAbsent(id, userId, localEventId, eventType, now, null);
+    }
 
     @Transactional
     @Modifying
@@ -55,9 +64,12 @@ public interface LocalFileSyncEventRepository extends JpaRepository<LocalFileSyn
             SET event_type = :eventType,
                 resource_id = :resourceId,
                 status = :status,
+                error_code = :errorCode,
+                retryable = :retryable,
                 updated_at = :now
             WHERE user_id = :userId
               AND local_event_id = :localEventId
+              AND status = 'PROCESSING'
             """, nativeQuery = true)
     int updateResult(
             @Param("userId") UUID userId,
@@ -65,8 +77,16 @@ public interface LocalFileSyncEventRepository extends JpaRepository<LocalFileSyn
             @Param("eventType") String eventType,
             @Param("resourceId") UUID resourceId,
             @Param("status") String status,
-            @Param("now") Instant now
+            @Param("now") Instant now,
+            @Param("errorCode") String errorCode,
+            @Param("retryable") boolean retryable
     );
+
+    default int updateResult(UUID userId, String localEventId, String eventType, UUID resourceId,
+                             String status, Instant now) {
+        return updateResult(userId, localEventId, eventType, resourceId, status, now, null,
+                "PROCESSING".equals(status) || "FAILED".equals(status));
+    }
 
     @Transactional
     @Modifying

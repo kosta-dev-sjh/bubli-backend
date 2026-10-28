@@ -42,6 +42,15 @@ public class LocalFileSyncEvent {
     @Column(name = "status", nullable = false, length = 40)
     private String status;
 
+    @Column(name = "payload_fingerprint", length = 80)
+    private String payloadFingerprint;
+
+    @Column(name = "error_code", length = 80)
+    private String errorCode;
+
+    @Column(name = "retryable", nullable = false)
+    private boolean retryable;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -49,12 +58,19 @@ public class LocalFileSyncEvent {
     private Instant updatedAt;
 
     public static LocalFileSyncEvent create(UUID userId, String localEventId, String eventType, UUID resourceId, String status) {
+        return create(userId, localEventId, eventType, resourceId, status, null);
+    }
+
+    public static LocalFileSyncEvent create(UUID userId, String localEventId, String eventType, UUID resourceId,
+                                            String status, String payloadFingerprint) {
         LocalFileSyncEvent event = new LocalFileSyncEvent();
         event.userId = userId;
         event.localEventId = localEventId;
         event.eventType = eventType;
         event.resourceId = resourceId;
         event.status = status;
+        event.payloadFingerprint = payloadFingerprint;
+        event.retryable = "PROCESSING".equals(status) || "FAILED".equals(status);
         return event;
     }
 

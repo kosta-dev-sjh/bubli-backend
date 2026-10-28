@@ -37,6 +37,8 @@ public interface ResourcePublicService {
 
 	ResourceResult updatePersonalLocalFileResource(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType);
 
+	boolean updatePersonalLocalFileResourceIfNewer(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType, String deviceId, long sequence);
+
 	ResourceResult startAnalysis(UUID userId, UUID resourceId);
 
 	ResourceExtractedTextResult storeExtractedText(UUID userId, StoreResourceExtractedTextCommand command);

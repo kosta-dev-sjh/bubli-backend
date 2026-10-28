@@ -94,6 +94,12 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 
 	@Override
 	@Transactional
+	public boolean updatePersonalLocalFileResourceIfNewer(UUID userId, UUID resourceId, String title, Long sizeBytes, String mimeType, String deviceId, long sequence) {
+		return resourceService.updatePersonalLocalFileResourceIfNewer(userId, resourceId, title, sizeBytes, mimeType, deviceId, sequence);
+	}
+
+	@Override
+	@Transactional
 	public ResourceResult startAnalysis(UUID userId, UUID resourceId) {
 		return resourceService.startAnalysis(userId, resourceId);
 	}
@@ -107,7 +113,7 @@ public class ResourcePublicServiceImpl implements ResourcePublicService {
 	@Override
 	@Transactional
 	public void deletePersonalResource(UUID userId, UUID resourceId) {
-		resourceService.deleteResource(userId, resourceId);
+		resourceService.deletePersonalResource(userId, resourceId);
 	}
 
 	@Override

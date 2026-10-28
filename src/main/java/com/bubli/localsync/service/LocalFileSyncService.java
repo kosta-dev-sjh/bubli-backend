@@ -5,18 +5,16 @@ import com.bubli.global.error.ErrorCode;
 import com.bubli.localsync.dto.LocalFileEvent;
 import com.bubli.localsync.dto.LocalFileSyncResponse;
 import com.bubli.localsync.dto.LocalFileSyncResult;
-import com.bubli.localsync.entity.LocalFileSyncEvent;
-import com.bubli.localsync.repository.LocalFileSyncEventRepository;
-import com.bubli.resource.dto.ResourceResult;
-import com.bubli.resource.service.ResourcePublicService;
 import com.bubli.user.service.UserPublicService;
 import com.bubli.user.type.ConsentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,132 +22,50 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class LocalFileSyncService {
-
-    private static final String STATUS_PROCESSING = "PROCESSING";
-    private static final String STATUS_FAILED = "FAILED";
-
-    private final ResourcePublicService resourcePublicService;
+    private final LocalFileSyncEventProcessor eventProcessor;
     private final UserPublicService userPublicService;
-    private final LocalFileSyncEventRepository localFileSyncEventRepository;
+    @org.springframework.beans.factory.annotation.Value("${localsync.batch-budget-ms:5000}")
+    private long batchBudgetMillis = 5000;
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public LocalFileSyncResponse sync(UUID userId, List<LocalFileEvent> events) {
-        assertManagedFolderConsent(userId);
+        if (!userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER)) {
+            throw new BusinessException(ErrorCode.LOCALSYNC_403_001);
+        }
+        validateBatch(events);
         List<LocalFileSyncResult> results = new ArrayList<>();
+        long startedAt = System.nanoTime();
         for (LocalFileEvent event : events) {
-            results.add(processEvent(userId, event));
+            if (System.nanoTime() - startedAt >= java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(batchBudgetMillis)) {
+                results.add(new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), "FAILED", "SYNC_REQUEST_DEADLINE", true));
+                continue;
+            }
+            try {
+                results.add(eventProcessor.process(userId, event));
+            } catch (BusinessException error) {
+                var code = error.getErrorCode();
+                results.add(new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(),
+                        "FAILED", code.getCode(), code.getHttpStatus().is5xxServerError()));
+            } catch (RuntimeException error) {
+                // The separate bean has already rolled back, including commit failures.
+                log.warn("Failed to sync local file event {}", event.localEventId(), error);
+                results.add(new LocalFileSyncResult(
+                        event.eventType(), event.localEventId(), event.resourceId(), "FAILED", "SYNC_FAILED", true));
+            }
         }
         return new LocalFileSyncResponse(results);
     }
 
-    private LocalFileSyncResult processEvent(UUID userId, LocalFileEvent event) {
-        LocalFileSyncResult existing = localFileSyncEventRepository
-                .findByUserIdAndLocalEventId(userId, event.localEventId())
-                .map(this::toResult)
-                .orElse(null);
-        if (existing != null) {
-            return existing;
-        }
-        if (!reserveEvent(userId, event)) {
-            return localFileSyncEventRepository
-                    .findByUserIdAndLocalEventId(userId, event.localEventId())
-                    .map(this::toResult)
-                    .orElseGet(() -> new LocalFileSyncResult(
-                            event.eventType(),
-                            event.localEventId(),
-                            event.resourceId(),
-                            STATUS_PROCESSING
-                    ));
-        }
-
-        try {
-            LocalFileSyncResult result = switch (event.eventType().toUpperCase()) {
-                case "CREATED" -> {
-                    String title = event.fileName() != null ? event.fileName() : "untitled";
-                    ResourceResult resource = resourcePublicService.createPersonalLocalFileResource(
-                            userId,
-                            title,
-                            event.fileSizeBytes(),
-                            event.mimeType()
-                    );
-                    yield new LocalFileSyncResult("CREATED", event.localEventId(), resource.id(), "SYNCED");
-                }
-                case "DELETED" -> {
-                    if (event.resourceId() == null) {
-                        yield new LocalFileSyncResult("DELETED", event.localEventId(), null, "SKIPPED");
-                    }
-                    resourcePublicService.deletePersonalResource(userId, event.resourceId());
-                    yield new LocalFileSyncResult("DELETED", event.localEventId(), event.resourceId(), "SYNCED");
-                }
-                case "UPDATED" -> {
-                    if (event.resourceId() == null) {
-                        yield new LocalFileSyncResult("UPDATED", event.localEventId(), null, "SKIPPED");
-                    }
-                    String title = event.fileName() != null ? event.fileName() : "untitled";
-                    ResourceResult resource = resourcePublicService.updatePersonalLocalFileResource(
-                            userId,
-                            event.resourceId(),
-                            title,
-                            event.fileSizeBytes(),
-                            event.mimeType()
-                    );
-                    yield new LocalFileSyncResult("UPDATED", event.localEventId(), resource.id(), "SYNCED");
-                }
-                default -> {
-                    log.warn("Unknown local file event type: {}", event.eventType());
-                    yield new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), "SKIPPED");
-                }
-            };
-            rememberCompletedEvent(userId, result);
-            return result;
-        } catch (Exception e) {
-            releaseReservedEvent(userId, event);
-            log.warn("Failed to sync local file event: {} - {}", event.eventType(), e.getMessage());
-            return new LocalFileSyncResult(event.eventType(), event.localEventId(), event.resourceId(), STATUS_FAILED);
-        }
-    }
-
-    private boolean reserveEvent(UUID userId, LocalFileEvent event) {
-        int inserted = localFileSyncEventRepository.insertProcessingIfAbsent(
-                UUID.randomUUID(),
-                userId,
-                event.localEventId(),
-                event.eventType(),
-                Instant.now()
-        );
-        return inserted > 0;
-    }
-
-    private void rememberCompletedEvent(UUID userId, LocalFileSyncResult result) {
-        if (STATUS_FAILED.equalsIgnoreCase(result.status())) {
-            return;
-        }
-
-        localFileSyncEventRepository.updateResult(
-                userId,
-                result.localEventId(),
-                result.eventType(),
-                result.resourceId(),
-                result.status(),
-                Instant.now()
-        );
-    }
-
-    private void releaseReservedEvent(UUID userId, LocalFileEvent event) {
-        localFileSyncEventRepository.deleteProcessingEvent(userId, event.localEventId());
-    }
-
-    private LocalFileSyncResult toResult(LocalFileSyncEvent event) {
-        return new LocalFileSyncResult(
-                event.getEventType(),
-                event.getLocalEventId(),
-                event.getResourceId(),
-                event.getStatus()
-        );
-    }
-
-    private void assertManagedFolderConsent(UUID userId) {
-        if (!userPublicService.isPrivacyConsentEnabled(userId, ConsentType.MANAGED_FOLDER)) {
-            throw new BusinessException(ErrorCode.LOCALSYNC_403_001);
+    private void validateBatch(List<LocalFileEvent> events) {
+        if (events == null || events.isEmpty() || events.size() > 100) throw new BusinessException(ErrorCode.COMMON_400_002);
+        var ids = new HashSet<String>();
+        for (var event : events) {
+            if (event == null || event.localEventId() == null || event.localEventId().isBlank()
+                    || event.localEventId().length() > 120 || event.eventType() == null
+                    || event.eventType().isBlank() || event.eventType().length() > 40
+                    || !ids.add(event.localEventId())) {
+                throw new BusinessException(ErrorCode.COMMON_400_002);
+            }
         }
     }
 }

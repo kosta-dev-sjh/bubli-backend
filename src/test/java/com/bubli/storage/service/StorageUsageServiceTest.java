@@ -8,11 +8,9 @@ import com.bubli.storage.repository.StorageUsageRepository;
 import com.bubli.storage.type.StorageScope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -83,14 +81,9 @@ class StorageUsageServiceTest {
 	void recordPersonalUploadCreatesDefaultUsageAndIncreasesUsedBytes() {
 		UUID userId = UUID.randomUUID();
 		ReflectionTestUtils.setField(storageUsageService, "defaultPersonalLimitBytes", 1000L);
+		StorageUsage usage = storageUsage(userId, null, StorageScope.PERSONAL, 0L, 1000L);
 		given(storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL))
-				.willReturn(Optional.empty());
-		given(storageUsageRepository.saveAndFlush(any(StorageUsage.class))).willAnswer(invocation -> {
-			StorageUsage usage = invocation.getArgument(0);
-			ReflectionTestUtils.setField(usage, "id", UUID.randomUUID());
-			ReflectionTestUtils.setField(usage, "updatedAt", Instant.now());
-			return usage;
-		});
+				.willReturn(Optional.empty(), Optional.of(usage));
 
 		var result = storageUsageService.recordPersonalUpload(userId, 300L);
 
@@ -100,9 +93,9 @@ class StorageUsageServiceTest {
 		assertThat(result.limitBytes()).isEqualTo(1000L);
 		assertThat(result.remainingBytes()).isEqualTo(700L);
 
-		ArgumentCaptor<StorageUsage> usageCaptor = ArgumentCaptor.forClass(StorageUsage.class);
-		verify(storageUsageRepository).saveAndFlush(usageCaptor.capture());
-		assertThat(usageCaptor.getValue().getUsedBytes()).isEqualTo(300L);
+		verify(storageUsageRepository).insertPersonalIfAbsent(any(UUID.class),
+				org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.eq(1000L), any(Instant.class));
+		assertThat(usage.getUsedBytes()).isEqualTo(300L);
 	}
 
 	@Test
@@ -111,14 +104,13 @@ class StorageUsageServiceTest {
 		StorageUsage existingUsage = storageUsage(userId, null, StorageScope.PERSONAL, 100L, 1000L);
 		given(storageUsageRepository.findByUserIdAndStorageScopeForUpdate(userId, StorageScope.PERSONAL))
 				.willReturn(Optional.empty(), Optional.of(existingUsage));
-		given(storageUsageRepository.saveAndFlush(any(StorageUsage.class)))
-				.willThrow(new DataIntegrityViolationException("duplicate storage usage"));
 
 		var result = storageUsageService.recordPersonalUpload(userId, 300L);
 
 		assertThat(result.usedBytes()).isEqualTo(400L);
 		assertThat(result.remainingBytes()).isEqualTo(600L);
-		verify(storageUsageRepository).saveAndFlush(any(StorageUsage.class));
+		verify(storageUsageRepository).insertPersonalIfAbsent(any(UUID.class),
+				org.mockito.ArgumentMatchers.eq(userId), org.mockito.ArgumentMatchers.anyLong(), any(Instant.class));
 	}
 
 	@Test

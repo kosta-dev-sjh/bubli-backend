@@ -42,6 +42,20 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID> {
 			""")
 	Optional<Resource> lockById(@Param("resourceId") UUID resourceId);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select r from Resource r where r.id = :resourceId and r.ownerId = :ownerId and r.visibility = com.bubli.resource.type.ResourceVisibility.PERSONAL")
+	Optional<Resource> lockPersonalByIdAndOwnerId(@Param("resourceId") UUID resourceId, @Param("ownerId") UUID ownerId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select r from Resource r where r.id = :resourceId and (
+			(r.visibility = com.bubli.resource.type.ResourceVisibility.PERSONAL and r.ownerId = :userId)
+			or (r.visibility = com.bubli.resource.type.ResourceVisibility.ROOM_SHARED and exists (
+			select m.id from RoomMember m where m.roomId = r.roomId and m.userId = :userId
+			and m.status = com.bubli.project.type.RoomMemberStatus.ACTIVE)))
+			""")
+	Optional<Resource> lockReadableByIdAndUserId(@Param("resourceId") UUID resourceId, @Param("userId") UUID userId);
+
 	Page<Resource> findByRoomIdAndVisibilityAndKindAndDeletedAtIsNullAndStatusIn(
 			UUID roomId,
 			ResourceVisibility visibility,

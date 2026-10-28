@@ -13,6 +13,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,6 +45,10 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Resource extends BaseTimeEntity {
 
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private long rowVersion;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -71,6 +76,17 @@ public class Resource extends BaseTimeEntity {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @Column(name = "local_sync_device_id", length = 120)
+    private String localSyncDeviceId;
+
+    @Column(name = "local_sync_sequence", nullable = false)
+    private long localSyncSequence;
+
+    public void recordLocalSyncSequence(String deviceId, long sequence) {
+        localSyncDeviceId = deviceId;
+        localSyncSequence = sequence;
+    }
 
     private Resource(
             UUID ownerId,

@@ -20,12 +20,19 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
     private final ErrorResponseFactory errorResponseFactory;
+
+    @ExceptionHandler({org.springframework.dao.OptimisticLockingFailureException.class, jakarta.persistence.OptimisticLockException.class})
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticConflict(Exception e, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.fail(
+                errorResponseFactory.of(ErrorCode.RESOURCE_409_002, TraceIdHolder.get(), request)));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
@@ -57,7 +64,8 @@ public class GlobalExceptionHandler {
             HandlerMethodValidationException.class,
             MissingServletRequestParameterException.class,
             MissingServletRequestPartException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequestException(Exception e, HttpServletRequest request) {
         ErrorResponse errorResponse = errorResponseFactory.of(ErrorCode.COMMON_400_002, TraceIdHolder.get(), request);

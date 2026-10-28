@@ -599,7 +599,7 @@ class ResourceServiceTest {
 				ResourceVisibility.PERSONAL,
 				ResourceStatus.READY
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 
 		ResourceResult result = resourceService.updateResource(userId, resourceId, "새 제목");
 
@@ -619,7 +619,7 @@ class ResourceServiceTest {
 				ResourceVisibility.PERSONAL,
 				ResourceStatus.READY
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 
 		assertThatThrownBy(() -> resourceService.updateResource(userId, resourceId, null))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
@@ -647,7 +647,8 @@ class ResourceServiceTest {
 				3L,
 				null
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
 		runWithManualCommitSynchronization(() -> resourceService.deleteResource(userId, resourceId));
@@ -678,7 +679,8 @@ class ResourceServiceTest {
 				3L,
 				null
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
 		TransactionSynchronizationManager.initSynchronization();
@@ -713,7 +715,8 @@ class ResourceServiceTest {
 				3L,
 				null
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 		doThrow(new IllegalStateException("storage unavailable"))
 				.when(storagePublicService)
@@ -748,7 +751,8 @@ class ResourceServiceTest {
 				5L,
 				null
 		);
-		given(resourceRepository.findByIdAndDeletedAtIsNull(resourceId)).willReturn(Optional.of(resource));
+		ReflectionTestUtils.setField(resource, "id", resourceId);
+		given(resourceRepository.lockReadableByIdAndUserId(resourceId, userId)).willReturn(Optional.of(resource));
 		given(projectMembershipPublicService.isActiveMember(userId, roomId)).willReturn(true);
 		given(resourceFileRepository.findByResourceId(resourceId)).willReturn(List.of(file));
 
