@@ -1,5 +1,6 @@
 package com.bubli.resource.controller;
 
+import com.bubli.agent.dispatch.AgentJobWorkerScheduler;
 import com.bubli.agent.repository.AgentJobRepository;
 import com.bubli.agent.type.AgentJobStatus;
 import com.bubli.agent.type.AgentJobType;
@@ -21,6 +22,7 @@ import com.bubli.user.entity.User;
 import com.bubli.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -67,6 +69,14 @@ class DocumentControllerIntegrationTest extends PostgresIntegrationTestSupport {
 
 	@Autowired
 	AgentJobRepository agentJobRepository;
+
+	@Autowired
+	ApplicationContext applicationContext;
+
+	@Test
+	void databaseAssertionsDoNotRaceBackgroundWorkers() {
+		assertThat(applicationContext.getBeansOfType(AgentJobWorkerScheduler.class)).isEmpty();
+	}
 
 	@Test
 	void uploadContractDocumentPersistsResourceUsageAndAnalyzeJob() throws Exception {
