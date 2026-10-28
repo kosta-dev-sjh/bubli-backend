@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 		"jwt.secret=0123456789012345678901234567890123456789012345678901234567890123",
 		"jwt.access-token-expire-ms=1800000",
 		"jwt.refresh-token-expire-ms=2592000000",
+		"agent.dispatch.worker.scheduler.enabled=false",
 		"storage.type=local",
 		"storage.local.base-path=./build/test-storage"
 })
